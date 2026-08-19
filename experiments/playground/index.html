@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#eee6d5">
+    <meta name="description" content="A drawing atelier and level editor for the aind-drawn procedural library.">
+    <title>AIND DRAWN / Atelier</title>
+  </head>
+  <body>
+    <div class="editor-shell" data-editor-root data-mobile-panel="inspector">
+      <header class="appbar">
+        <div class="brand-block">
+          <div class="wordmark" aria-label="AIND DRAWN">AIND DRAWN</div>
+          <div class="document-block">
+            <p class="eyebrow">Atelier 01</p>
+            <input class="document-name" data-document-name aria-label="Level name" value="Untitled sketch">
+          </div>
+        </div>
+        <nav class="toolbar" aria-label="Document commands">
+          <div class="toolbar-group history-tools">
+            <button class="tool-button icon-button" type="button" data-undo disabled title="Undo (Ctrl+Z)"><span aria-hidden="true">↶</span><span>Undo</span></button>
+            <button class="tool-button icon-button" type="button" data-redo disabled title="Redo (Ctrl+Y)"><span aria-hidden="true">↷</span><span>Redo</span></button>
+          </div>
+          <div class="toolbar-group grid-controls">
+            <label class="check-control"><input type="checkbox" data-snap checked><span>Snap</span></label>
+            <label class="check-control"><input type="checkbox" checked disabled><span>Grid</span></label>
+            <label class="select-control"><span class="sr-only">Grid step</span>
+              <select data-grid-size aria-label="Grid step">
+                <option value="0.25">0.25</option>
+                <option value="0.5" selected>0.5</option>
+                <option value="1">1</option>
+              </select>
+            </label>
+          </div>
+          <div class="toolbar-group document-tools">
+            <button class="tool-button" type="button" data-new>New</button>
+            <label class="tool-button file-button">Import<input type="file" data-import accept="application/json,.json"></label>
+            <button class="tool-button tool-button--primary" type="button" data-export>Export</button>
+          </div>
+        </nav>
+      </header>
+
+      <main class="workspace">
+        <aside class="left-panel" aria-label="Library and level">
+          <section class="panel-section catalog-section">
+            <div class="section-heading section-heading--terracotta">
+              <div><p class="section-index">Library</p><h2>Elements</h2></div>
+              <p class="hand-note">Click a drawing<br>to add it to the scene.</p>
+            </div>
+            <div class="catalog" data-catalog></div>
+          </section>
+          <section class="panel-section outliner-section">
+            <div class="section-heading section-heading--green">
+              <div><p class="section-index">Level</p><h2>Scene</h2></div>
+              <div class="layer-toolbar" aria-label="Selected object depth">
+                <button type="button" data-layer-front title="Bring to front" aria-label="Bring selected object to front">⇈</button>
+                <button type="button" data-layer-forward title="Bring forward" aria-label="Bring selected object one layer forward">↑</button>
+                <button type="button" data-layer-backward title="Send backward" aria-label="Send selected object one layer backward">↓</button>
+                <button type="button" data-layer-back title="Send to back" aria-label="Send selected object to back">⇊</button>
+              </div>
+            </div>
+            <div class="outliner" data-outliner aria-label="Objects in the scene"></div>
+          </section>
+        </aside>
+
+        <section class="viewport-panel" aria-label="Workspace">
+          <header class="viewport-bar">
+            <div><span class="registration-mark" aria-hidden="true">✣</span><strong>Drawing board</strong><span>Orthographic view</span></div>
+            <div><span>World units</span><span class="axis-label">Y ↑</span></div>
+          </header>
+          <div class="viewport" data-viewport tabindex="0" aria-label="Level canvas. Click an object to select it and drag to move it. Alt-drag pans the view; the wheel controls zoom.">
+            <span class="canvas-registration registration-nw" aria-hidden="true">＋</span>
+            <span class="canvas-registration registration-ne" aria-hidden="true">＋</span>
+            <span class="canvas-registration registration-sw" aria-hidden="true">＋</span>
+            <span class="canvas-registration registration-se" aria-hidden="true">＋</span>
+            <div class="viewport-tools" aria-label="Drawing board controls">
+              <button type="button" data-zoom-out aria-label="Zoom out" title="Zoom out">−</button>
+              <button type="button" data-zoom-in aria-label="Zoom in" title="Zoom in">＋</button>
+              <button type="button" data-fit-view aria-label="Fit scene to view" title="Fit scene to view">⌗</button>
+            </div>
+            <div class="viewport-hint" aria-hidden="true">
+              <span><b>Drag</b> move</span><span><b>Alt</b> pan</span><span><b>Wheel</b> zoom</span>
+            </div>
+            <div class="selection-frame" data-selection-frame hidden>
+              <button class="resize-handle handle-nw" type="button" data-resize-handle="-1,1" aria-label="Resize from the top-left corner"></button>
+              <button class="resize-handle handle-n" type="button" data-resize-handle="0,1" aria-label="Resize from the top edge"></button>
+              <button class="resize-handle handle-ne" type="button" data-resize-handle="1,1" aria-label="Resize from the top-right corner"></button>
+              <button class="resize-handle handle-e" type="button" data-resize-handle="1,0" aria-label="Resize from the right edge"></button>
+              <button class="resize-handle handle-se" type="button" data-resize-handle="1,-1" aria-label="Resize from the bottom-right corner"></button>
+              <button class="resize-handle handle-s" type="button" data-resize-handle="0,-1" aria-label="Resize from the bottom edge"></button>
+              <button class="resize-handle handle-sw" type="button" data-resize-handle="-1,-1" aria-label="Resize from the bottom-left corner"></button>
+              <button class="resize-handle handle-w" type="button" data-resize-handle="-1,0" aria-label="Resize from the left edge"></button>
+              <span class="rotation-stem" aria-hidden="true"></span>
+              <button class="rotation-handle" type="button" data-rotation-handle aria-label="Rotate; hold Shift for 15 degree increments"></button>
+            </div>
+          </div>
+        </section>
+
+        <nav class="mobile-dock-tabs" aria-label="Editor panels" role="tablist">
+          <button type="button" role="tab" data-mobile-panel-button="catalog" aria-selected="false">Library</button>
+          <button type="button" role="tab" data-mobile-panel-button="scene" aria-selected="false">Scene</button>
+          <button type="button" role="tab" data-mobile-panel-button="inspector" aria-selected="true">Properties</button>
+        </nav>
+
+        <aside class="right-panel" aria-label="Properties">
+          <section class="panel-section inspector-section">
+            <div class="section-heading section-heading--green inspector-heading">
+              <div><p class="section-index">Selection</p><h2>Properties</h2></div>
+              <span class="pin-mark" aria-hidden="true">⌖</span>
+            </div>
+            <div class="inspector-empty" data-inspector-empty>
+              <span aria-hidden="true">⌖</span>
+              <p>Select an element on the drawing board or in the scene list.</p>
+            </div>
+            <form class="inspector-form" data-inspector-form hidden>
+              <label class="field field-wide">Name<input name="name" autocomplete="off"></label>
+              <div class="field-grid recipe-fields">
+                <label class="field">Seed<input name="seed" type="number" step="1"></label>
+                <label class="field">Medium
+                  <select name="medium">
+                    <option value="graphite">Graphite</option>
+                    <option value="ink">Ink</option>
+                    <option value="watercolor">Watercolor</option>
+                    <option value="oil">Oil</option>
+                    <option value="chalk">Charcoal</option>
+                    <option value="marker">Marker</option>
+                  </select>
+                </label>
+              </div>
+              <fieldset>
+                <legend>Transform</legend>
+                <div class="field-grid">
+                  <label class="field">X<input name="x" type="number" step="0.1"></label>
+                  <label class="field">Y<input name="y" type="number" step="0.1"></label>
+                  <label class="field">Width<input name="width" type="number" min="0.1" step="0.1"></label>
+                  <label class="field">Height<input name="height" type="number" min="0.1" step="0.1"></label>
+                  <label class="field field-wide">Rotation °<input name="rotation" type="number" step="1"></label>
+                </div>
+              </fieldset>
+              <fieldset class="depth-fieldset">
+                <legend>Depth</legend>
+                <label class="field">Drawing layer
+                  <select name="layerPosition" data-layer-position aria-describedby="depth-help"></select>
+                </label>
+                <p id="depth-help" class="field-help">Higher layers are drawn in front of lower layers.</p>
+              </fieldset>
+              <fieldset data-building-fields hidden>
+                <legend>Construction</legend>
+                <p class="variant-help">Each option is a live render from the selected house recipe.</p>
+                <div class="building-options" data-building-options></div>
+              </fieldset>
+              <div class="inspector-actions">
+                <button type="button" data-regenerate>↻ Regenerate ink</button>
+                <button type="button" data-duplicate>▣ Duplicate</button>
+                <button class="danger-button" type="button" data-delete>Delete element</button>
+              </div>
+            </form>
+          </section>
+        </aside>
+      </main>
+
+      <footer class="statusbar">
+        <p data-status role="status" aria-live="polite">Starting the atelier.</p>
+        <div><span data-selection-status>No selection</span><span class="status-separator">|</span><span>Zoom <span data-zoom-status>100%</span></span><span class="status-ruler" aria-hidden="true">┊╷┊╷┊╷┊</span></div>
+      </footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

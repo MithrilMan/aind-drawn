@@ -1,0 +1,24 @@
+{
+  "$schema": "./reference.schema.json",
+  "name": "KinderGrimm",
+  "repository": "https://github.com/albertobeiz/kindergrimm.git",
+  "checkoutDirectory": "references/kindergrimm",
+  "referenceRef": "refs/heads/main",
+  "referenceCommit": "3c3693400c4c55201507bb42de8030ce2c4a5fb7",
+  "referenceDate": "2026-08-19T15:30:06+02:00",
+  "reviewedAreas": [
+    "src/rng.js",
+    "src/sketch.js",
+    "src/media.js",
+    "src/layout.js",
+    "src/part.js",
+    "src/rig.js",
+    "src/anim.js",
+    "src/parts",
+    "src/items",
+    "src/scenery.js",
+    "src/ground.js",
+    "src/paper.js",
+    "src/how.js"
+  ]
+}

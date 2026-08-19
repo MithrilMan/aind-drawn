@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIND asset authoring"
+  short_description: "Add procedural asset classes to aind-drawn"
+  default_prompt: "Design and implement a procedural asset class that follows the aind-drawn contracts."

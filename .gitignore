@@ -1,0 +1,42 @@
+# Dependencies and package-manager stores
+node_modules/
+.pnpm-store/
+
+# Build, test, and tool output
+dist/
+coverage/
+.vite/
+.cache/
+.turbo/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment and machine-specific configuration
+.env
+.env.*
+!.env.example
+*.local
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local scratch work
+.workbench/
+tmp/
+temp/
+
+# External repositories are local reference material. Keep only the
+# reconstruction instructions and pinned revision under version control.
+references/*
+!references/.gitkeep
+!references/README.md
+!references/kindergrimm.reference.json
+!references/reference.schema.json

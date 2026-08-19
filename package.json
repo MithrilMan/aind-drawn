@@ -1,0 +1,45 @@
+{
+  "name": "@mithrilman/aind-drawn",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deterministic procedural drawing primitives and layered sprite rigs for browser experiments.",
+  "packageManager": "pnpm@11.19.0",
+  "scripts": {
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.lib.json && vite build --config experiments/playground/vite.config.ts",
+    "build:lib": "tsc -p tsconfig.lib.json",
+    "build:experiments": "vite build --config experiments/playground/vite.config.ts",
+    "clean": "node scripts/clean.mjs",
+    "dev": "vite --config experiments/playground/vite.config.ts",
+    "lint": "eslint .",
+    "reference:verify": "node scripts/verify-reference.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify:artifact": "node scripts/verify-library.mjs",
+    "verify": "tsc -p tsconfig.json --noEmit && eslint . && vitest run && node scripts/clean.mjs && tsc -p tsconfig.lib.json && node scripts/verify-library.mjs && vite build --config experiments/playground/vite.config.ts"
+  },
+  "dependencies": {
+    "three": "0.185.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.2.0",
+    "@types/three": "0.185.4",
+    "eslint": "10.8.1",
+    "globals": "17.11.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.67.0",
+    "vite": "8.2.1",
+    "vitest": "4.1.11"
+  },
+  "files": [
+    "dist/library"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/library/index.d.ts",
+      "import": "./dist/library/index.js"
+    }
+  }
+}

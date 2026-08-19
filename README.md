@@ -1,8 +1,10 @@
 # aind-drawn
 
-`aind-drawn` is a TypeScript library for deterministic procedural drawings and
-layered, animatable sprites. It keeps semantic generation, layout, drawing
-technique, rasterization, and runtime rendering behind separate boundaries.
+`aind-drawn` is a TypeScript library for deterministic procedural assets. A
+recipe may currently become a layered hand-drawn sprite or a semantic 3D solid;
+the intended consumer may be an editor, a 2D game, a 2.5D scene, or a fully 3D
+Three.js world. Semantic generation, layout, representation, and runtime
+rendering remain separate boundaries.
 
 The first consumer lives in [`experiments/playground`](experiments/playground):
 a procedural asset playground and the foundation of a level editor.
@@ -18,7 +20,8 @@ pnpm verify
 pnpm dev
 ```
 
-The playground is then available at `http://127.0.0.1:4173/`. Its controls and
+The atelier is then available at `http://127.0.0.1:4173/`; the focused 3D
+contract test lives at `http://127.0.0.1:4173/solid-face.html`. Their controls and
 scene-document boundary are documented in
 [`experiments/playground/README.md`](experiments/playground/README.md).
 
@@ -28,12 +31,13 @@ unavailable.
 
 ## Library boundaries
 
-- `src/core` — deterministic randomness, geometry, canvas surfaces, and the
-  hand-drawn mark vocabulary.
-- `src/materials` — media strategies such as graphite, ink, and watercolour.
-- `src/assets` — recipes and procedural blueprints for characters, props, and
-  buildings.
-- `src/runtime` — Three.js baking, caching, sprite rigs, and animation.
+- `src/core` — deterministic randomness, 2D/3D geometry, canvas surfaces, and
+  the hand-drawn mark vocabulary.
+- `src/materials` — raster media and declarative physical finishes.
+- `src/assets` — recipes and procedural blueprints for characters, multipart
+  plants, props, buildings, and semantic solids.
+- `src/runtime` — Three.js adapters for sprite baking, solid geometry,
+  materials, rigs, and animation.
 - `experiments` — applications that consume only the public library API.
 
 See [`docs/architecture.md`](docs/architecture.md) for invariants and extension
@@ -80,3 +84,28 @@ rig.dispose();
 
 Recipes are plain versioned data and may be serialized. Blueprints contain draw
 callbacks and are rebuilt from recipes rather than serialized.
+
+Solid blueprints contain geometry specifications rather than draw callbacks and
+are themselves serializable:
+
+```ts
+import {
+  SolidFaceAnimator,
+  SolidRig,
+  createSolidFaceBlueprint,
+  createSolidFaceRecipe,
+} from '@mithrilman/aind-drawn';
+
+const recipe = createSolidFaceRecipe(4107, {
+  species: 'robot',
+  shape: 'block',
+  finish: 'metal',
+});
+const rig = new SolidRig(createSolidFaceBlueprint(recipe));
+const face = new SolidFaceAnimator(rig);
+
+scene.add(rig.root);
+face.setExpression('surprised');
+face.update(deltaSeconds);
+rig.dispose();
+```

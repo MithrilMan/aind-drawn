@@ -4,12 +4,18 @@ import {
   Random,
   SeedTree,
   buildCharacterLayout,
+  buildPlantLayout,
+  buildSolidFaceLayout,
   createCharacterBlueprint,
   createCharacterRecipe,
+  createPlantBlueprint,
+  createPlantRecipe,
   createPropBlueprint,
   createPropRecipe,
   createSceneryBlueprint,
   createSceneryRecipe,
+  createSolidFaceBlueprint,
+  createSolidFaceRecipe,
 } from '../src/index.js';
 
 describe('deterministic generation', () => {
@@ -47,6 +53,27 @@ describe('deterministic generation', () => {
     const second = createCharacterRecipe(913, { species: 'cat', medium: 'watercolor' });
     expect(JSON.parse(JSON.stringify(first))).toEqual(second);
   });
+
+  it('keeps plant identity independent from the selected drawing medium', () => {
+    const graphite = createPlantRecipe(1771, { species: 'tree', medium: 'graphite' });
+    const watercolor = createPlantRecipe(1771, { species: 'tree', medium: 'watercolor' });
+    expect({ ...graphite, medium: 'watercolor' }).toEqual(watercolor);
+    expect(JSON.parse(JSON.stringify(graphite))).toEqual(
+      createPlantRecipe(1771, { species: 'tree', medium: 'graphite' }),
+    );
+  });
+
+  it('persists solid faces as renderer-neutral deterministic data', () => {
+    const first = createSolidFaceRecipe(707, { species: 'human', finish: 'ceramic' });
+    const second = createSolidFaceRecipe(707, { species: 'human', finish: 'ceramic' });
+    const blueprint = createSolidFaceBlueprint(first);
+    expect(JSON.parse(JSON.stringify(first))).toEqual(second);
+    expect(JSON.parse(JSON.stringify(blueprint))).toEqual(blueprint);
+    expect(blueprint.representation).toBe('solid');
+    expect(blueprint.parts.map(({ id }) => id)).toEqual(expect.arrayContaining([
+      'head', 'eye:left:white', 'eye:left:pupil', 'eye:right:white', 'eye:right:pupil', 'mouth',
+    ]));
+  });
 });
 
 describe('asset contracts', () => {
@@ -78,6 +105,61 @@ describe('asset contracts', () => {
     const tail = cat.layers.find(({ id }) => id === 'tail');
     expect(tail?.parentBone).toBe('torso');
     expect(tail?.pivot[1]).toBeCloseTo(1 - 116 / 150);
+  });
+
+  it('keeps outfit identity separate and gives humanoids visible authored clothing', () => {
+    const recipe = createCharacterRecipe(501, { species: 'human' });
+    const human = createCharacterBlueprint(recipe);
+    const cat = createCharacterBlueprint(createCharacterRecipe(501, { species: 'cat' }));
+    const distance = Math.hypot(
+      recipe.palette.skin[0] - recipe.palette.cloth[0],
+      recipe.palette.skin[1] - recipe.palette.cloth[1],
+      recipe.palette.skin[2] - recipe.palette.cloth[2],
+    );
+    expect(distance).toBeGreaterThan(35);
+    expect(human.layers.find(({ id }) => id === 'outfit')?.parentBone).toBe('torso');
+    expect(cat.layers.find(({ id }) => id === 'outfit')).toBeUndefined();
+  });
+
+  it('derives multipart plant layers, anchors, bounds, and tree collision from one layout', () => {
+    const recipe = createPlantRecipe(90210, { species: 'tree' });
+    const layout = buildPlantLayout(recipe);
+    const blueprint = createPlantBlueprint(recipe);
+    expect(blueprint.layers.map(({ id }) => id)).toEqual(['mound', 'stem', 'leaves', 'bloom']);
+    expect(blueprint.sockets.root).toEqual(layout.stem.base);
+    expect(blueprint.sockets.crown).toEqual(layout.stem.crown);
+    expect(blueprint.colliders).toEqual([
+      expect.objectContaining({ id: 'stem', kind: 'solid', height: recipe.stem.height }),
+    ]);
+    expect(layout.bounds.y).toBe(0);
+    expect(layout.sockets.top?.y).toBeLessThanOrEqual(layout.bounds.height);
+
+    const grass = createPlantBlueprint(createPlantRecipe(90210, { species: 'grass' }));
+    expect(grass.colliders).toHaveLength(0);
+    expect(grass.sockets.root).toBeDefined();
+  });
+
+  it('places solid face features on the same analytic surface used by geometry', () => {
+    const recipe = createSolidFaceRecipe(911, { shape: 'block' });
+    const layout = buildSolidFaceLayout(recipe);
+    const [radiusX, radiusY, radiusZ] = layout.shape.radii;
+    const surfaceAnchors = [
+      layout.at(-recipe.eyes.spacing, recipe.eyes.height),
+      layout.at(recipe.eyes.spacing, recipe.eyes.height),
+      layout.at(0, recipe.mouth.height),
+      layout.at(0, (recipe.eyes.height + recipe.mouth.height) * 0.46),
+    ];
+    for (const anchor of surfaceAnchors) {
+      const point = anchor.point;
+      const value = Math.pow(Math.abs(point[0] / radiusX), layout.shape.exponent)
+        + Math.pow(Math.abs(point[1] / radiusY), layout.shape.exponent)
+        + Math.pow(Math.abs(point[2] / radiusZ), layout.shape.exponent);
+      expect(value).toBeCloseTo(1);
+      expect(Math.hypot(...anchor.normal)).toBeCloseTo(1);
+    }
+    const blueprint = createSolidFaceBlueprint(recipe);
+    expect(blueprint.colliders[0]).toMatchObject({ shape: 'box', center: layout.center });
+    expect(blueprint.sockets.face).toBeDefined();
   });
 
   it('provides gameplay geometry for props and scenery without reading pixels', () => {

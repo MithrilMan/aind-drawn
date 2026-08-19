@@ -3,15 +3,17 @@
 Questa analisi si riferisce al commit KinderGrimm registrato in
 [`references/kindergrimm.reference.json`](../references/kindergrimm.reference.json).
 Il checkout locale è materiale di studio e non viene incluso nel repository:
-l'upstream non espone una licenza nel commit analizzato.
+l'upstream, dalla revisione attualmente fissata, dedica il codice al pubblico
+dominio tramite Unlicense.
 
 ## Risposta breve
 
 KinderGrimm non usa immagini pre-renderizzate né un modello generativo. Costruisce
-una descrizione semantica casuale ma riproducibile del soggetto, disegna ogni
-parte su un piccolo `HTMLCanvasElement` con primitive 2D volutamente instabili,
-carica i canvas come `THREE.CanvasTexture` e monta i piani risultanti su una
-gerarchia di `THREE.Group` animabili.
+una descrizione semantica casuale ma riproducibile del soggetto. Il percorso
+originale disegna ogni parte su un piccolo `HTMLCanvasElement`, carica i canvas
+come `THREE.CanvasTexture` e monta i piani su una gerarchia animabile. Il ramo
+attuale aggiunge due rappresentazioni parallele: solidi lisci procedurali
+(`src/gloss`) e personaggi voxel (`src/voxel`).
 
 ```text
 seed
@@ -142,6 +144,58 @@ sequenza temporale non lo è. `CharacterAnimator` usa invece un RNG dedicato
 derivato dal seed della ricetta: a parità di aggiornamenti temporali, blink e
 sguardi si ripetono.
 
+## 7. Facce 3D: la superficie è un contratto condiviso
+
+`src/gloss` non estrude lo sprite. Genera un rig volumetrico composto da mesh
+semantiche separate. Il corpo può essere un superellissoide parametrico oppure
+una forma modellata da una control cage e suddivisa con Catmull-Clark. Occhi,
+pupille, palpebre, sopracciglia, nasi e bocche sono solidi o profili 2D estrusi
+con bevel: il rilievo fa parte della geometria, non di una normal map decorativa.
+
+Il passaggio fondamentale è `glayout.js`. Per ogni coordinata facciale calcola
+il punto esatto sulla superficie e la sua normale. Per i superellissoidi usa la
+stessa equazione analitica che genera i vertici; per rock e slime esegue raycast
+sulla stessa mesh suddivisa che verrà renderizzata. `basisAt` ricava normale,
+tangente e asse verticale locale per orientare il profilo estruso. Di
+conseguenza cambiare una testa da sferica a squadrata non richiede offset Three.js
+ritoccati a mano: le feature seguono il volume.
+
+Le parti separate sono anche l'interfaccia di animazione. `gface.js` applica
+blink, saccadi, follow della testa ed espressioni come trasformazioni rispetto
+alla posa di riposo. Occhi e testa usano due molle criticamente smorzate con
+soluzione chiusa: l'occhio arriva prima, la testa lo segue più lentamente e
+nessun frame lungo può far esplodere l'integrazione numerica. Le mesh non vengono
+ricostruite durante l'animazione.
+
+Nel port questo diventa un confine pubblico, non un sottoprogetto gloss:
+
+- `SolidAssetBlueprint` contiene solo dati serializzabili;
+- `SolidGeometrySpec` descrive superellissoidi, profili estrusi e mesh;
+- `SurfaceAnchor` unifica punto, normale e roll;
+- `SolidMaterialSpec` dichiara ruolo cromatico e finitura fisica;
+- `SolidRig` è l'adapter Three.js e possiede le risorse GPU;
+- `SolidFaceAnimator` anima le parti semantiche senza rebuild.
+
+La scena fotografica, le softbox e il crowd layout restano fuori: sono politiche
+di presentazione. Il core conserva invece ciò che serve anche a un gioco 2.5D,
+a una scena 3D o a un renderer differente.
+
+## 8. Voxel: una seconda tecnica, non un caso speciale dei solidi
+
+`src/voxel` introduce un'altra idea di valore: `Carve` è una API di authoring a
+griglia con `set`, `dab`, `disc`, `blob`, `stroke` e simmetria. `dab` colora solo
+cellule già occupate, quindi occhi, macchie e calzini non possono galleggiare
+fuori dalla silhouette. Il mesher elimina facce interne rispetto all'occupancy
+dell'intero personaggio, applica ambient occlusion per vertice e mantiene mesh
+separate per parte e stato.
+
+Questa tecnica non è stata infilata in `SolidGeometrySpec`: una voxel field ha
+invarianti diversi da una superficie liscia — ownership delle celle, culling
+globale tra parti, plate audit tra stati e vertex color. Va importata come terza
+rappresentazione pubblica quando avrà il proprio blueprint e runtime, non come
+un flag `voxel: true` appeso a `SolidRig`. Elegante, peccato che quel flag
+risolverebbe il problema sbagliato.
+
 ## Correzioni effettuate nel port
 
 - Eliminata la casualità nascosta dalla libreria e dall'animatore.
@@ -161,19 +215,59 @@ sguardi si ripetono.
 - Aggiunti controllo delle risorse, tipi strict, errori per stati invalidi e
   factory delle superfici testabile.
 - Rimossa la dipendenza implicita dal DOM dal nucleo di disegno.
+- Resi serializzabili i blueprint solidi e confinati Three.js, materiali e
+  risorse GPU nel runtime.
+- Unificati placement delle feature e generazione della mesh sulla stessa
+  equazione di superficie 3D.
+- Portata l'animazione facciale a transform con molle stabili e posa di riposo,
+  senza rebuild della geometria.
+
+## Aggiornamento upstream `3c36934..47a996a`
+
+Il delta revisionato il 20 agosto 2026 aggiunge quattro idee architetturali utili:
+
+- il casting gloss umanoide ora separa capelli, outfit e frame corporeo e usa
+  guardrail cromatici tra pelle, capelli e tessuti;
+- `src/obj` introduce una famiglia procedurale di piante composta da mound,
+  stem, leaves e bloom, coordinati dagli anchor `rootY` e `crownY`;
+- `src/photo.js` compone una scena per ingombri misurati, con una linea
+  principale ordinata per scala, un fronte di soggetti piccoli, vegetazione di
+  fondale e cluster sospesi.
+- `src/gloss` e `src/voxel` dimostrano che ricetta, layout e parti semantiche
+  sopravvivono al passaggio da piani disegnati a vere geometrie 3D.
+
+Nel framework sono state adattate le idee di authoring, piante e solidi lisci.
+`src/assets/plant` è una
+famiglia TypeScript 2D autonoma: la ricetta persiste casting, palette e
+placement, il layout pubblica root, crown, bounds e socket, e il blueprint
+mantiene quattro layer semantici con collider del tronco. I personaggi ottengono
+palette con contrasto controllato, silhouette dei capelli realmente distinte,
+un layer outfit e mani colorate visibili. Il frame Rayman senza arti non è stato
+portato: funziona per statuine frontali, ma rimuoverebbe informazione proprio al
+rig destinato a locomozione e interazioni. `src/assets/solid-face` e il relativo
+runtime portano invece superficie parametrica, profili estrusi, materiali
+fisici, rig semantico e animazione facciale 3D.
+
+Il packer fotografico resta documentato ma fuori dal core. Diventerà sensato
+quando il playground avrà un comando esplicito di auto-composizione basato sui
+bounds; anticiparlo ora significherebbe aggiungere una politica di scena senza
+un caso d'uso che possa verificarla. N8AO, SEO e share-card sono invece dettagli
+dell'applicazione upstream, non capacità della libreria di disegno.
 
 ## Come estendere il sistema a un editor di livelli
 
-Per aggiungere un oggetto non si modifica `SpriteRig`:
+Per aggiungere un oggetto non si modifica il runtime:
 
 1. creare una ricetta JSON versionata;
 2. calcolare misure, socket e collider;
-3. restituire un `AssetBlueprint` con uno o più layer;
-4. disegnare le forme usando `Sketch` e un `Medium`;
-5. istanziare lo stesso blueprint nel gioco con `SpriteRig`.
+3. scegliere una rappresentazione e restituire un blueprint con parti semantiche;
+4. per il raster, disegnare con `Sketch` e un `Medium`; per il volume, emettere
+   `SolidGeometrySpec` e `SolidMaterialSpec`;
+5. istanziare il blueprint nel gioco con `SpriteRig`, `SolidRig` o un adapter
+   equivalente del consumer.
 
-Il playground applica questa sequenza a personaggi, casse, lanterne, arbusti,
-cartelli, piattaforme e palazzi. Il documento dell'editor conserva tipo, seed,
+Il playground applica questa sequenza a personaggi, piante multipart, casse,
+lanterne, arbusti, cartelli, piattaforme e palazzi. Il documento dell'editor conserva tipo, seed,
 medium e trasformazione; il catalogo ricostruisce i blueprint. Le case vengono
 ridisegnate semanticamente quando cambiano larghezza o altezza, così numero e
 disposizione di finestre restano coerenti invece di limitarsi a stirare una
@@ -189,3 +283,5 @@ usano esattamente gli stessi generatori di tratto, riempimento, colore e boil.
 - L'attuale libreria porta il meccanismo centrale e un set rappresentativo di
   asset, non ogni editor, specie, posa e oggetto presenti nell'applicazione
   KinderGrimm.
+- La rappresentazione voxel è stata studiata ma non ancora pubblicata: richiede
+  un contratto proprio per occupancy, ownership delle celle e stati.

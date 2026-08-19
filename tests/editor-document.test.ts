@@ -118,6 +118,21 @@ describe('playground scene document', () => {
     ]);
   });
 
+  it('builds multipart plants through the public playground catalog boundary', () => {
+    const flower = createSceneObject('plant:flower', 8);
+    const blueprint = createObjectBlueprint(flower);
+    expect(blueprint.kind).toBe('plant:flower');
+    expect(blueprint.layers.map(({ id }) => id)).toEqual([
+      'mound',
+      'stem',
+      'leaves',
+      'bloom',
+    ]);
+    expect(blueprint.layers.every(({ pivot }) => (
+      pivot[0] === 0.5 && pivot[1] === 0
+    ))).toBe(true);
+  });
+
   it('clones a document without sharing mutable object records', () => {
     const original = createInitialDocument();
     const clone = cloneDocument(original);

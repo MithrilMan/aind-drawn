@@ -6,8 +6,9 @@
 core <- materials <- assets <- runtime <- experiments
 ```
 
-`core`, `materials`, and asset recipe generation do not import Three.js.
-Runtime adapters consume immutable asset blueprints and own GPU resources.
+`core`, `materials`, asset recipes, layouts, and blueprints do not import
+Three.js. Runtime adapters consume immutable asset blueprints and own GPU
+resources.
 Experiments may depend only on the public barrel exported by `src/index.ts`.
 
 The playground keeps its serializable scene document, history, selection and
@@ -39,7 +40,23 @@ future migrations explicit.
 Pixel-identical output across browser rasterizers is not promised. Equivalent
 recipes do promise equivalent geometry, layer structure, sockets, and colliders.
 
-## Asset contract
+## Representation-neutral asset contract
+
+The library does not equate an asset with a sprite. Recipe and layout express
+identity, dimensions, semantic parts, sockets, and collision. A representation
+blueprint then describes how those decisions become renderable data:
+
+| Representation | Blueprint payload | Runtime adapter |
+| --- | --- | --- |
+| Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
+| Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
+
+Three.js belongs to runtime adapters, not recipes or geometry contracts. A game
+can use the same solid blueprint with another renderer by implementing its own
+geometry/material adapter. A future voxel representation should preserve the
+same boundary instead of pretending a voxel field is a smooth mesh recipe.
+
+## Raster asset contract
 
 An asset generator returns an immutable blueprint containing:
 
@@ -68,3 +85,21 @@ interactive layers remain independent.
 
 The canvas factory is injected. Browser canvases are the default adapter, while
 the drawing core remains compatible with `OffscreenCanvas` and test doubles.
+
+## Solid geometry and runtime
+
+`SolidAssetBlueprint` is JSON-compatible data. It publishes a node hierarchy,
+named parts, geometry specifications, physical material roles, 3D bounds,
+colliders, and sockets. Supported geometry primitives are superellipsoids,
+extruded 2D profiles, and indexed or flat triangle meshes.
+
+`pointOnSuperellipsoid` is shared by layout and mesh generation. It returns an
+exact surface point and analytic normal; `surfaceFrame` derives the tangent
+basis used to mount a feature. Eyes and mouths therefore cannot drift away from
+the head when its exponent changes from round to block-like.
+
+`SolidRig` resolves pure specifications to Three.js geometry and physical
+materials. Each semantic part remains an independent mesh. `SolidFaceAnimator`
+resets those meshes to their rest transforms before applying blink, gaze, head
+follow, and expression offsets, so animation never accumulates drift or
+rebuilds geometry. The rig owns and disposes all generated GPU resources.

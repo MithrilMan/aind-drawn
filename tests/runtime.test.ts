@@ -3,11 +3,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CharacterAnimator,
+  SolidFaceAnimator,
+  SolidRig,
   SpriteRig,
   createCharacterBlueprint,
   createCharacterRecipe,
   createPropBlueprint,
   createPropRecipe,
+  createSolidFaceBlueprint,
+  createSolidFaceRecipe,
   type AssetBlueprint,
   type CanvasFactory,
 } from '../src/index.js';
@@ -180,5 +184,30 @@ describe('sprite rig runtime', () => {
     expect(blueprint.layers.find((layer) => layer.id === 'arm:right')?.order).toBeGreaterThan(torsoOrder ?? 0);
     const prop = createPropBlueprint(createPropRecipe(4107, { prop: 'lantern' }));
     expect(prop.layers[0]?.pivot).toEqual([0.5, 0]);
+  });
+});
+
+describe('solid rig runtime', () => {
+  it('builds semantic meshes and animates the rest pose without geometry rebuilds', () => {
+    const blueprint = createSolidFaceBlueprint(createSolidFaceRecipe(404, {
+      species: 'human', shape: 'round', finish: 'ceramic',
+    }));
+    const rig = new SolidRig(blueprint);
+    expect(rig.nodeIds).toEqual(['head']);
+    expect(rig.partIds).toHaveLength(blueprint.parts.length);
+    expect(rig.partIds).toEqual(expect.arrayContaining(blueprint.parts.map(({ id }) => id)));
+    const pupil = rig.getPart('eye:left:pupil');
+    const geometry = pupil?.geometry;
+    const before = pupil?.position.clone();
+    const animator = new SolidFaceAnimator(rig, { autoBlink: false, autoGaze: false });
+    animator.setGaze(1, 0.4, 1);
+    animator.update(0.12);
+    expect(pupil?.geometry).toBe(geometry);
+    expect(pupil?.position.distanceTo(before ?? new THREE.Vector3())).toBeGreaterThan(0.01);
+    animator.setExpression('surprised');
+    animator.update(0.1);
+    expect(pupil?.scale.x).toBeGreaterThan(1);
+    rig.dispose();
+    expect(rig.partIds).toEqual([]);
   });
 });

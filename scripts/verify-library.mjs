@@ -10,12 +10,15 @@ await access(declarationUrl);
 const library = await import(entryUrl.href);
 const requiredExports = [
   'SpriteRig',
+  'SolidRig',
   'createCharacterBlueprint',
   'createCharacterRecipe',
   'createPropBlueprint',
   'createPropRecipe',
   'createSceneryBlueprint',
   'createSceneryRecipe',
+  'createSolidFaceBlueprint',
+  'createSolidFaceRecipe',
   'propDefinition',
 ];
 

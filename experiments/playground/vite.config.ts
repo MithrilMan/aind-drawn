@@ -9,6 +9,12 @@ export default defineConfig({
     outDir: fileURLToPath(new URL('../../dist/experiments/playground', import.meta.url)),
     emptyOutDir: true,
     sourcemap: true,
+    rollupOptions: {
+      input: {
+        atelier: fileURLToPath(new URL('./index.html', import.meta.url)),
+        solidFace: fileURLToPath(new URL('./solid-face.html', import.meta.url)),
+      },
+    },
   },
   server: {
     host: '127.0.0.1',

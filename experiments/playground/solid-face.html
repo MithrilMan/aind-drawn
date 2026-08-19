@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#e9dfcc">
+    <meta name="description" content="A focused Three.js test bench for aind-drawn solid procedural assets.">
+    <title>AIND DRAWN / Solid Lab</title>
+  </head>
+  <body>
+    <main class="solid-lab" data-solid-lab>
+      <header class="lab-header">
+        <div>
+          <a href="./" class="back-link">← Atelier</a>
+          <p class="lab-kicker">AIND DRAWN / EXPERIMENT 02</p>
+          <h1>Solid face lab</h1>
+        </div>
+        <p class="lab-purpose">A renderer test bench for semantic 3D parts, surface placement and transform animation.</p>
+      </header>
+
+      <section class="lab-workspace">
+        <aside class="lab-controls" aria-label="Solid face parameters">
+          <div class="control-heading">
+            <span>Recipe</span>
+            <button type="button" data-reroll>Reroll seed</button>
+          </div>
+          <label>Seed<input type="number" name="seed" value="4107" step="1"></label>
+          <label>Species
+            <select name="species">
+              <option value="human">Human</option>
+              <option value="creature">Creature</option>
+              <option value="robot">Robot</option>
+            </select>
+          </label>
+          <label>Head form
+            <select name="shape">
+              <option value="round">Round</option>
+              <option value="block">Block</option>
+              <option value="tall">Tall</option>
+              <option value="wide">Wide</option>
+            </select>
+          </label>
+          <label>Physical finish
+            <select name="finish">
+              <option value="skin">Skin</option>
+              <option value="matte">Matte</option>
+              <option value="glossy">Glossy</option>
+              <option value="ceramic">Ceramic</option>
+              <option value="rubber">Rubber</option>
+              <option value="metal">Metal</option>
+            </select>
+          </label>
+          <label>Expression
+            <select name="expression">
+              <option value="idle">Idle</option>
+              <option value="happy">Happy</option>
+              <option value="angry">Angry</option>
+              <option value="sad">Sad</option>
+              <option value="surprised">Surprised</option>
+            </select>
+          </label>
+          <label class="check-row"><input type="checkbox" name="autoGaze" checked><span>Autonomous gaze</span></label>
+          <div class="lab-note">
+            <strong>Inspect the volume</strong>
+            <p>Drag to rotate. The face remains attached to the generated surface; animation changes transforms only.</p>
+          </div>
+        </aside>
+
+        <div class="lab-viewport" data-viewport aria-label="Interactive three-dimensional solid face preview">
+          <div class="viewport-label"><span>Perspective / +Z face</span><span data-render-stats>Building solid rig…</span></div>
+          <canvas data-canvas></canvas>
+          <div class="axis-mark" aria-hidden="true"><i class="axis-y"></i><i class="axis-x"></i><span>Y</span><b>X</b></div>
+        </div>
+
+        <aside class="lab-inspector" aria-label="Generated asset contract">
+          <p class="lab-kicker">Blueprint</p>
+          <h2>Semantic output</h2>
+          <dl>
+            <div><dt>Representation</dt><dd>solid</dd></div>
+            <div><dt>Nodes</dt><dd data-node-count>—</dd></div>
+            <div><dt>Parts</dt><dd data-part-count>—</dd></div>
+            <div><dt>Materials</dt><dd data-material-count>—</dd></div>
+            <div><dt>Colliders</dt><dd data-collider-count>—</dd></div>
+          </dl>
+          <div class="part-list-block">
+            <h3>Named parts</h3>
+            <ol data-part-list></ol>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="/src/solid-face-main.ts"></script>
+  </body>
+</html>

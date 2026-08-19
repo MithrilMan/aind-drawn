@@ -248,6 +248,7 @@ button:disabled { cursor: not-allowed; opacity: 0.38; }
   transition: transform 110ms ease, border-color 110ms ease, background 110ms ease;
 }
 .asset-button:hover { border-color: var(--terracotta); background: var(--paper-bright); transform: translateY(-1px) rotate(-0.15deg); }
+.asset-thumbnail { width: 64px; height: 46px; object-fit: contain; filter: saturate(0.92) contrast(1.04); }
 .asset-icon { width: 50px; height: 46px; overflow: visible; color: var(--ink); }
 .asset-icon path,
 .asset-icon circle,

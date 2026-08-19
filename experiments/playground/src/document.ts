@@ -11,6 +11,11 @@ export const ASSET_KINDS = [
   'character:nightmare',
   'building',
   'platform',
+  'plant:grass',
+  'plant:plant',
+  'plant:tree',
+  'plant:flower',
+  'plant:wildcard',
   'crate',
   'lantern',
   'sign',
@@ -53,6 +58,11 @@ const DEFAULT_SIZE: Readonly<Record<AssetKind, Readonly<{ width: number; height:
   'character:nightmare': { width: 1.75, height: 2.65 },
   building: { width: 5, height: 5.4 },
   platform: { width: 4, height: 0.75 },
+  'plant:grass': { width: 1.7, height: 1.25 },
+  'plant:plant': { width: 1.55, height: 2.05 },
+  'plant:tree': { width: 3.4, height: 5.1 },
+  'plant:flower': { width: 1.2, height: 2.25 },
+  'plant:wildcard': { width: 1.8, height: 2.2 },
   crate: { width: 1.15, height: 1.05 },
   lantern: { width: 0.72, height: 1.08 },
   sign: { width: 1.42, height: 1.76 },
@@ -65,6 +75,11 @@ const LABELS: Readonly<Record<AssetKind, string>> = {
   'character:nightmare': 'Creature',
   building: 'House',
   platform: 'Platform',
+  'plant:grass': 'Grass',
+  'plant:plant': 'Houseplant',
+  'plant:tree': 'Tree',
+  'plant:flower': 'Flower',
+  'plant:wildcard': 'Wild plant',
   crate: 'Crate',
   lantern: 'Lantern',
   sign: 'Sign',
@@ -199,11 +214,12 @@ export function createInitialDocument(): SceneDocument {
   const character = createSceneObject('character:human', 2, { x: 2.1, y: 1.45 });
   const lantern = createSceneObject('lantern', 3, { x: 3.45, y: 0.65 });
   const platform = createSceneObject('platform', 4, { x: 1.7, y: 0.38 });
+  const flower = createSceneObject('plant:flower', 5, { x: 0.85, y: 1.12 });
   platform.width = 5.6;
   return {
     version: 1,
     name: 'Untitled sketch',
-    objects: [house, platform, character, lantern],
+    objects: [house, platform, character, flower, lantern],
   };
 }
 

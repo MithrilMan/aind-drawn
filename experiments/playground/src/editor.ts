@@ -7,7 +7,8 @@ import {
   BuildingInspector,
   type BuildingOptionProperty,
 } from './building-inspector.js';
-import { CATALOG, catalogEntry } from './catalog.js';
+import { BlueprintThumbnailRenderer } from './blueprint-thumbnail.js';
+import { CATALOG, catalogEntry, createObjectBlueprint } from './catalog.js';
 import {
   cloneDocument,
   createSceneObject,
@@ -144,6 +145,7 @@ export class PlaygroundEditor {
   private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   private readonly overlay: SelectionOverlay;
   private readonly buildingInspector: BuildingInspector;
+  private readonly catalogThumbnailRenderer = new BlueprintThumbnailRenderer();
   private readonly history = new DocumentHistory();
   private readonly eventController = new AbortController();
   private readonly views = new Map<string, SceneObjectView>();
@@ -197,6 +199,7 @@ export class PlaygroundEditor {
     this.eventController.abort();
     this.resizeObserver.disconnect();
     this.buildingInspector.dispose();
+    this.catalogThumbnailRenderer.dispose();
     for (const view of this.views.values()) view.dispose();
     this.views.clear();
     this.disposeGrid();
@@ -299,7 +302,7 @@ export class PlaygroundEditor {
 
   private renderCatalog(): void {
     this.elements.catalog.replaceChildren();
-    for (const category of ['Characters', 'Structures', 'Props'] as const) {
+    for (const category of ['Characters', 'Structures', 'Nature', 'Props'] as const) {
       const section = window.document.createElement('section');
       const heading = window.document.createElement('h3');
       heading.textContent = category;
@@ -313,7 +316,13 @@ export class PlaygroundEditor {
         button.dataset.addKind = entry.kind;
         const label = window.document.createElement('span');
         label.textContent = entry.label;
-        button.append(createAssetIcon(entry.kind), label);
+        const preview = window.document.createElement('img');
+        preview.className = 'asset-thumbnail';
+        preview.alt = '';
+        preview.src = this.catalogThumbnailRenderer.render(
+          createObjectBlueprint(createSceneObject(entry.kind, 1)),
+        );
+        button.append(preview, label);
         button.setAttribute('aria-label', `Add ${entry.label}`);
         grid.append(button);
       }

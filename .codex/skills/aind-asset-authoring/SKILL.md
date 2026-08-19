@@ -18,10 +18,21 @@ Before editing, read:
 - the existing family closest to the requested asset
 - `src/assets/types.ts`
 
+For a real-volume asset, also read `src/assets/solid-types.ts`,
+`src/core/geometry3.ts`, and the `src/assets/solid-face/` reference family.
+
 For a vehicle or another multipart prop-like object, also read
 `references/vehicle-family.md` in this skill.
 
+Use `src/assets/plant/` as the reference for a deterministic multipart family
+whose semantic layers share layout anchors without requiring animation.
+
 ## Classify the asset
+
+Classify both its semantic family and its representation. Raster layers are
+appropriate for hand-drawn planes; `SolidAssetBlueprint` is appropriate for
+real volume. Do not choose based on whether the consumer happens to use
+Three.js: both representations can coexist in a 2.5D or 3D scene.
 
 Use `src/assets/prop/definition.ts` only when the asset is a single static
 silhouette with fixed geometry and no independently moving or stateful parts.
@@ -66,6 +77,11 @@ barrel only.
 - Expose gameplay through colliders, sockets, and `InteractionDefinition`, never texture inspection.
 - Validate every interaction state, sensor, socket, layer, and layer-state binding.
 - Dispose runtime GPU resources through `SpriteRig.dispose()`.
+- Keep smooth-solid geometry and material specifications serialisable and free
+  of Three.js objects; resolve them through `SolidRig`.
+- Derive 3D feature placement from the same analytic or modelled surface used
+  to build the mesh. Use stable semantic part IDs and real node pivots.
+- Dispose solid GPU resources through `SolidRig.dispose()`.
 - Avoid compatibility shims unless a released serialized recipe requires a migration.
 
 ## Integrate the consumer

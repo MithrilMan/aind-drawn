@@ -1,4 +1,4 @@
-import { SeedTree, type Seed, normalizeSeed } from '../../core/random.js';
+import { SeedTree, type Random, type Seed, normalizeSeed } from '../../core/random.js';
 import { ACCENT_COLORS, SKIN_COLORS, type RgbColor } from '../../core/sketch.js';
 import type { MediumId, ToneStyle } from '../../materials/medium.js';
 import type { RecipeHeader } from '../types.js';
@@ -7,7 +7,8 @@ export type CharacterSpecies = 'human' | 'cat' | 'nightmare';
 export type HeadShape = 'round' | 'square' | 'pear' | 'drop' | 'lump';
 export type EyeStyle = 'saucer' | 'dot' | 'sleepy' | 'void' | 'star';
 export type MouthStyle = 'tiny' | 'smile' | 'frown' | 'zigzag' | 'open';
-export type HairStyle = 'none' | 'cap' | 'bob' | 'spikes' | 'tuft';
+export type HairStyle = 'none' | 'cap' | 'bob' | 'fringe' | 'spikes' | 'tuft';
+export type OutfitStyle = 'plain' | 'stripe' | 'star' | 'buttons';
 
 export type CharacterRecipe = RecipeHeader & Readonly<{
   kind: 'character';
@@ -53,6 +54,10 @@ export type CharacterRecipe = RecipeHeader & Readonly<{
     legLength: number;
     stance: number;
   }>;
+  outfit: Readonly<{
+    style: OutfitStyle;
+    scale: number;
+  }>;
   tail: Readonly<{
     present: boolean;
     length: number;
@@ -72,6 +77,29 @@ const HAIR_COLORS: readonly RgbColor[] = [
   [80, 94, 108],
   [118, 83, 92],
 ];
+
+function colorDistance(left: RgbColor, right: RgbColor): number {
+  return Math.hypot(
+    left[0] - right[0],
+    left[1] - right[1],
+    left[2] - right[2],
+  );
+}
+
+function pickDistinctColor(
+  random: Random,
+  colors: readonly RgbColor[],
+  against: readonly RgbColor[],
+): RgbColor {
+  const ranked = colors
+    .map((color) => ({
+      color,
+      distance: Math.min(...against.map((reference) => colorDistance(color, reference))),
+    }))
+    .sort((left, right) => right.distance - left.distance);
+  const candidates = ranked.slice(0, Math.max(1, Math.ceil(ranked.length * 0.6)));
+  return random.pick(candidates).color;
+}
 
 function weightedForSpecies(species: CharacterSpecies) {
   if (species === 'cat') {
@@ -127,12 +155,28 @@ export function createCharacterRecipe(
   const tree = new SeedTree(normalizedSeed);
   const species = options.species ?? 'human';
   const casting = weightedForSpecies(species);
-  const paletteRandom = tree.random('character:palette');
+  const skin = tree.random('character:palette:skin').pick(SKIN_COLORS);
+  const hair = pickDistinctColor(
+    tree.random('character:palette:hair'),
+    HAIR_COLORS,
+    [skin],
+  );
+  const cloth = pickDistinctColor(
+    tree.random('character:palette:cloth'),
+    ACCENT_COLORS,
+    [skin, hair],
+  );
+  const accent = pickDistinctColor(
+    tree.random('character:palette:accent'),
+    ACCENT_COLORS,
+    [skin, cloth],
+  );
   const headRandom = tree.random('character:head');
   const eyesRandom = tree.random('character:eyes');
   const mouthRandom = tree.random('character:mouth');
   const hairRandom = tree.random('character:hair');
   const bodyRandom = tree.random('character:body');
+  const outfitRandom = tree.random('character:outfit');
   const tailRandom = tree.random('character:tail');
 
   const eyeStyle = eyesRandom.weighted(casting.eyes);
@@ -145,8 +189,17 @@ export function createCharacterRecipe(
       { value: 'none', weight: 2 },
       { value: 'cap', weight: 3 },
       { value: 'bob', weight: 2 },
+      { value: 'fringe', weight: 2 },
       { value: 'spikes', weight: 2 },
       { value: 'tuft', weight: 1 },
+    ]);
+  const outfitStyle = species === 'cat'
+    ? 'plain'
+    : outfitRandom.weighted<OutfitStyle>([
+      { value: 'plain', weight: 5 },
+      { value: 'stripe', weight: 3 },
+      { value: 'star', weight: 2 },
+      { value: 'buttons', weight: species === 'human' ? 2 : 1 },
     ]);
 
   return Object.freeze({
@@ -156,10 +209,10 @@ export function createCharacterRecipe(
     species,
     medium: options.medium ?? 'graphite',
     palette: Object.freeze({
-      skin: paletteRandom.pick(SKIN_COLORS),
-      cloth: paletteRandom.pick(SKIN_COLORS),
-      hair: paletteRandom.pick(HAIR_COLORS),
-      accent: paletteRandom.pick(ACCENT_COLORS),
+      skin,
+      cloth,
+      hair,
+      accent,
     }),
     linePressure: tree.random('character:line').float(0.86, 1.2),
     head: Object.freeze({
@@ -210,6 +263,10 @@ export function createCharacterRecipe(
       stance: species === 'cat'
         ? bodyRandom.float(0.24, 0.36)
         : bodyRandom.float(0.18, 0.32),
+    }),
+    outfit: Object.freeze({
+      style: outfitStyle,
+      scale: outfitRandom.float(0.82, 1.18),
     }),
     tail: Object.freeze({
       present: species === 'cat' || (species === 'nightmare' && tailRandom.chance(0.48)),

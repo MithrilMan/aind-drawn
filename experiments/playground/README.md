@@ -3,9 +3,14 @@
 The playground is the first real consumer of the public `src/index.ts` API and
 the foundation for a level editor. It does not import drawing internals.
 
+Run `pnpm dev` and open `http://127.0.0.1:4173/`. The focused Three.js consumer
+at `http://127.0.0.1:4173/solid-face.html` exercises the renderer-neutral solid
+contract. It exposes recipe parameters and emitted semantic parts; scene
+lighting and drag controls remain experiment code.
+
 ## Available operations
 
-- add characters, buildings, platforms, and props from the catalog;
+- add characters, buildings, platforms, multipart plants, and props from the catalog;
 - select through the canvas or scene outliner;
 - choose an exact drawing layer or move the selection forward/backward in the painter stack;
 - drag, resize from eight handles, and rotate from the top handle;

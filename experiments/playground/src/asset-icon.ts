@@ -58,6 +58,34 @@ function drawPlatform(icon: SVGSVGElement): void {
   );
 }
 
+function drawPlant(icon: SVGSVGElement, kind: AssetKind): void {
+  if (kind === 'plant:tree') {
+    add(icon,
+      svgNode('path', { d: 'M28 48c2-10 1-19 4-29M39 48c-2-11-1-20-5-29' }),
+      svgNode('path', { d: 'M10 23c-2-8 7-13 13-9 2-10 16-11 20-3 10-3 16 8 10 15 4 8-6 14-13 10-5 8-17 6-18-1-9 3-17-5-12-12Z', class: 'accent-fill' }),
+      svgNode('path', { d: 'M21 50h25' }),
+    );
+    return;
+  }
+  if (kind === 'plant:grass') {
+    add(icon,
+      svgNode('path', { d: 'M9 47c8-8 37-8 46 0M17 43 11 18M22 42l1-31M28 42 35 15M34 42l13-22M40 43l12-10' }),
+    );
+    return;
+  }
+  if (kind === 'plant:flower') {
+    add(icon,
+      svgNode('path', { d: 'M31 47c1-13 2-22 1-31M31 31c-9-8-15-3-13 3 5 3 9 1 13-3ZM33 37c8-8 14-4 13 2-5 3-9 1-13-2Z' }),
+      svgNode('path', { d: 'M32 15c-10 2-12-9-4-11 3-8 12-4 10 2 9 3 4 12-3 9-1 3-3 3-3 0Z', class: 'accent-fill' }),
+      svgNode('path', { d: 'M14 49h36' }),
+    );
+    return;
+  }
+  add(icon,
+    svgNode('path', { d: 'M13 47c5-7 33-8 39 0M31 43V21M31 29c-8-13-18-8-16-1 6 5 11 3 16 1ZM33 24c8-13 18-8 16-1-6 5-11 3-16 1ZM32 36c-7-8-13-4-12 2 5 2 8 1 12-2ZM33 34c6-7 12-4 11 1-4 3-7 2-11-1Z', class: 'accent-fill' }),
+  );
+}
+
 function drawProp(icon: SVGSVGElement, kind: AssetKind): void {
   if (kind === 'crate') {
     add(icon,
@@ -93,6 +121,7 @@ export function createAssetIcon(kind: AssetKind): SVGSVGElement {
   if (kind.startsWith('character:')) drawCharacter(icon, kind);
   else if (kind === 'building') drawBuilding(icon);
   else if (kind === 'platform') drawPlatform(icon);
+  else if (kind.startsWith('plant:')) drawPlant(icon, kind);
   else drawProp(icon, kind);
   return icon;
 }

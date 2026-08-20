@@ -56,6 +56,12 @@ blueprint then describes how those decisions become renderable data:
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
 | Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
 
+An inked-solid projection is the next planned representation: semantic marks
+attached to solid parts, camera-derived contours, and stable surface hatching.
+It is intentionally not modelled as a texture variant of either existing
+adapter. See [`3d-stroke-rendering.md`](3d-stroke-rendering.md) for the rendering
+boundary and delivery sequence.
+
 Three.js belongs to runtime adapters, not recipes or geometry contracts. A game
 can use the same solid blueprint with another renderer by implementing its own
 geometry/material adapter. A future voxel representation should preserve the
@@ -125,3 +131,9 @@ follow; `SolidCharacterAnimator` adds rest-pose body nodes, locomotion,
 breathing, and tail motion. Both reset their targets before applying transforms,
 so animation never accumulates drift or rebuilds geometry. The rig owns and
 disposes all generated GPU resources.
+
+Raster and solid character animators consume the same transient
+`CharacterMotion` vocabulary (`idle`, `walk`, `run`, `airborne`, `sit`, `sleep`,
+and `play`). Motion is not part of the immutable identity or blueprint. Each
+runtime adapter is free to interpolate according to its medium while preserving
+the same semantic pose.

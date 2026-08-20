@@ -157,7 +157,7 @@ describe('sprite rig runtime', () => {
     expect(after?.x).toBeCloseTo((before?.x ?? 0) + 4);
     expect(after?.y).toBeCloseTo((before?.y ?? 0) + 3);
 
-    const animator = new CharacterAnimator(rig);
+    const animator = new CharacterAnimator(rig, { autoBlink: false, autoGaze: false });
     const gaitSamples: Readonly<{ left: number; right: number }>[] = Array.from(
       { length: 10 },
       (): Readonly<{ left: number; right: number }> => {

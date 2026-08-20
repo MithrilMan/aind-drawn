@@ -26,6 +26,13 @@ export type CharacterMotion = Readonly<{
   talking?: boolean;
 }>;
 
+export type CharacterAnimatorOptions = Readonly<{
+  /** Enables deterministic autonomous blinking. */
+  autoBlink?: boolean;
+  /** Enables deterministic autonomous gaze shifts. */
+  autoGaze?: boolean;
+}>;
+
 type MutablePose = {
   x: number;
   y: number;
@@ -70,6 +77,8 @@ function emptyPose(): MutablePose {
 export class CharacterAnimator {
   private readonly rig: SpriteRig;
   private readonly expressionRandom: Random;
+  private readonly autoBlink: boolean;
+  private readonly autoGaze: boolean;
   private readonly poseWeights: Record<CharacterPose, number> = {
     idle: 1,
     walk: 0,
@@ -91,8 +100,10 @@ export class CharacterAnimator {
   private gazeVelocity = 0;
   private expression: CharacterExpression = 'idle';
 
-  public constructor(rig: SpriteRig) {
+  public constructor(rig: SpriteRig, options: CharacterAnimatorOptions = {}) {
     this.rig = rig;
+    this.autoBlink = options.autoBlink ?? true;
+    this.autoGaze = options.autoGaze ?? true;
     this.expressionRandom = new Random(combineSeed(rig.blueprint.seed, 'character:animation'));
     this.nextBlink = this.expressionRandom.float(1.6, 4.4);
     this.nextGaze = this.expressionRandom.float(2.4, 6.2);
@@ -285,11 +296,15 @@ export class CharacterAnimator {
   }
 
   private updateGaze(amplitude: number, delta: number): void {
-    if (amplitude > 0.2 && this.elapsed >= this.nextGaze && this.gazeTarget === 0) {
+    if (!this.autoGaze) {
+      this.gazeTarget = 0;
+      this.gazeUntil = -1;
+    }
+    if (this.autoGaze && amplitude > 0.2 && this.elapsed >= this.nextGaze && this.gazeTarget === 0) {
       this.gazeTarget = this.expressionRandom.chance(0.5) ? -1 : 1;
       this.gazeUntil = this.elapsed + this.expressionRandom.float(0.45, 1.25);
     }
-    if (amplitude <= 0.2 || (this.gazeTarget !== 0 && this.elapsed >= this.gazeUntil)) {
+    if (this.autoGaze && (amplitude <= 0.2 || (this.gazeTarget !== 0 && this.elapsed >= this.gazeUntil))) {
       this.gazeTarget = 0;
       this.nextGaze = this.elapsed + this.expressionRandom.float(2.1, 5.8);
     }
@@ -301,7 +316,7 @@ export class CharacterAnimator {
   }
 
   private applyFace(profile: AutonomicProfile, talking: boolean, sleepWeight: number): void {
-    if (profile.blink > 0.25 && this.elapsed >= this.nextBlink) {
+    if (this.autoBlink && profile.blink > 0.25 && this.elapsed >= this.nextBlink) {
       this.blinkUntil = this.elapsed + this.expressionRandom.float(0.08, 0.16);
       this.nextBlink = this.blinkUntil + this.expressionRandom.float(1.8, 5.4);
     }

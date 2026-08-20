@@ -12,11 +12,12 @@ import {
   type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentitySpecies,
-  type AssetBlueprint,
+  type CharacterMotion,
+  type CharacterPose,
   type SolidFaceExpression,
   type SolidFinishId,
 } from '../../../src/index.js';
-import { BlueprintThumbnailRenderer } from './blueprint-thumbnail.js';
+import { CharacterRasterPreview } from './character-raster-preview.js';
 
 const root = document.querySelector<HTMLElement>('[data-solid-lab]');
 const canvas = document.querySelector<HTMLCanvasElement>('[data-canvas]');
@@ -70,20 +71,45 @@ const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
 const framingInput = requiredElement('[name="framing"]') as HTMLSelectElement;
 const expressionInput = requiredElement('[name="expression"]') as HTMLSelectElement;
 const autoGazeInput = requiredElement('[name="autoGaze"]') as HTMLInputElement;
+const poseInput = requiredElement('[name="pose"]') as HTMLSelectElement;
+const speedInput = requiredElement('[name="speed"]') as HTMLInputElement;
+const facingInput = requiredElement('[name="facing"]') as HTMLSelectElement;
+const motionToggle = requiredElement('[data-motion-toggle]') as HTMLButtonElement;
+const motionRestart = requiredElement('[data-motion-restart]') as HTMLButtonElement;
+const motionIcon = requiredElement('[data-motion-icon]') as HTMLElement;
+const motionToggleLabel = requiredElement('[data-motion-toggle-label]') as HTMLElement;
+const speedOutput = requiredElement('[data-speed-output]') as HTMLOutputElement;
+const motionStatus = requiredElement('[data-motion-status]') as HTMLElement;
+const motionStatusRow = requiredElement('[data-motion-status-row]') as HTMLElement;
+const rasterCanvas = requiredElement('[data-raster-preview]') as HTMLCanvasElement;
 
 let rig: SolidRig | null = null;
 let animator: SolidCharacterAnimator | null = null;
-let rasterBlueprint: AssetBlueprint | null = null;
 let rotationX = 0;
 let rotationY = 0;
-const thumbnailRenderer = new BlueprintThumbnailRenderer({ width: 180, height: 180 });
+let motionPlaying = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const rasterPreview = new CharacterRasterPreview(rasterCanvas);
 
-function updateRasterPreview(): void {
-  if (rasterBlueprint === null) return;
-  const preview = requiredElement('[data-raster-preview]') as HTMLImageElement;
-  preview.src = thumbnailRenderer.render(rasterBlueprint, {
-    layerStates: { mouth: expressionInput.value },
-  });
+function currentMotion(): CharacterMotion {
+  return {
+    pose: poseInput.value as CharacterPose,
+    speed: Number(speedInput.value),
+    facing: Number(facingInput.value) as -1 | 1,
+  };
+}
+
+function updateMotionControls(): void {
+  const isGait = poseInput.value === 'walk' || poseInput.value === 'run';
+  const intensity = Math.round(Number(speedInput.value) * 100);
+  speedInput.disabled = !isGait;
+  speedOutput.value = `${intensity}%`;
+  motionToggle.setAttribute('aria-pressed', String(!motionPlaying));
+  motionIcon.textContent = motionPlaying ? 'Ⅱ' : '▶';
+  motionToggleLabel.textContent = motionPlaying ? 'Pause' : 'Resume';
+  motionStatus.textContent = `${poseInput.selectedOptions[0]?.textContent ?? 'Pose'}${
+    isGait ? ` · ${intensity}%` : ''
+  } · ${motionPlaying ? 'live' : 'paused'}`;
+  motionStatusRow.classList.toggle('is-paused', !motionPlaying);
 }
 
 function frameCharacter(): void {
@@ -110,6 +136,7 @@ function frameCharacter(): void {
   const distance = Math.max(verticalDistance, horizontalDistance) * 1.12;
   camera.position.set(0, centerY, distance);
   camera.lookAt(0, centerY, 0);
+  rasterPreview.frame(faceMode ? 'face' : 'full');
 }
 
 function updateContract(): void {
@@ -158,8 +185,11 @@ function rebuild(): void {
   scene.add(rig.root);
   animator = new SolidCharacterAnimator(rig, { autoGaze: autoGazeInput.checked });
   animator.setExpression(expressionInput.value as SolidFaceExpression);
-  rasterBlueprint = createRasterCharacterBlueprint(identity, { medium: 'graphite' });
-  updateRasterPreview();
+  rasterPreview.setBlueprint(
+    createRasterCharacterBlueprint(identity, { medium: 'graphite' }),
+    { autoGaze: autoGazeInput.checked },
+  );
+  rasterPreview.setExpression(expressionInput.value as SolidFaceExpression);
   const identityValues: Readonly<Record<string, string>> = {
     '[data-identity-seed]': String(identity.seed),
     '[data-identity-species]': identity.species,
@@ -173,6 +203,9 @@ function rebuild(): void {
   }
   updateContract();
   frameCharacter();
+  animator.update(0, currentMotion());
+  if (motionPlaying) rasterPreview.update(0, currentMotion());
+  else rasterPreview.settle(currentMotion());
 }
 
 for (const input of [
@@ -183,9 +216,31 @@ for (const input of [
 framingInput.addEventListener('change', frameCharacter);
 expressionInput.addEventListener('change', () => {
   animator?.setExpression(expressionInput.value as SolidFaceExpression);
-  updateRasterPreview();
+  rasterPreview.setExpression(expressionInput.value as SolidFaceExpression);
+  animator?.update(0, currentMotion());
+  rasterPreview.update(0, currentMotion());
 });
 autoGazeInput.addEventListener('change', rebuild);
+poseInput.addEventListener('change', () => {
+  updateMotionControls();
+  animator?.update(0, currentMotion());
+  if (motionPlaying) rasterPreview.update(0, currentMotion());
+  else rasterPreview.settle(currentMotion());
+});
+speedInput.addEventListener('input', () => {
+  updateMotionControls();
+  animator?.update(0, currentMotion());
+  rasterPreview.update(0, currentMotion());
+});
+facingInput.addEventListener('change', () => {
+  animator?.update(0, currentMotion());
+  rasterPreview.update(0, currentMotion());
+});
+motionToggle.addEventListener('click', () => {
+  motionPlaying = !motionPlaying;
+  updateMotionControls();
+});
+motionRestart.addEventListener('click', rebuild);
 root.querySelector('[data-reroll]')?.addEventListener('click', () => {
   seedInput.value = String((Number(seedInput.value) + 1) >>> 0);
   rebuild();
@@ -228,7 +283,10 @@ function animate(time: number): void {
   frame = requestAnimationFrame(animate);
   const deltaSeconds = previousTime === null ? 0 : Math.min((time - previousTime) / 1000, 0.05);
   previousTime = time;
-  animator?.update(deltaSeconds);
+  const motion = currentMotion();
+  const animationDelta = motionPlaying ? deltaSeconds : 0;
+  animator?.update(animationDelta, motion);
+  rasterPreview.update(animationDelta, motion);
   renderer.render(scene, camera);
 }
 
@@ -236,13 +294,14 @@ function dispose(): void {
   cancelAnimationFrame(frame);
   observer.disconnect();
   rig?.dispose();
-  thumbnailRenderer.dispose();
+  rasterPreview.dispose();
   floorGeometry.dispose();
   floorMaterial.dispose();
   renderer.dispose();
 }
 
 window.addEventListener('pagehide', dispose, { once: true });
+updateMotionControls();
 rebuild();
 frame = requestAnimationFrame(animate);
 

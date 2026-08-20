@@ -93,6 +93,41 @@
             </select>
           </label>
           <label class="check-row"><input type="checkbox" name="autoGaze" checked><span>Autonomous gaze</span></label>
+          <fieldset class="motion-panel">
+            <legend>Motion</legend>
+            <div class="motion-transport">
+              <button type="button" data-motion-toggle aria-pressed="false">
+                <span data-motion-icon aria-hidden="true">Ⅱ</span>
+                <span data-motion-toggle-label>Pause</span>
+              </button>
+              <button type="button" data-motion-restart>Restart</button>
+            </div>
+            <label>Pose
+              <select name="pose">
+                <option value="idle">Idle</option>
+                <option value="walk">Walk</option>
+                <option value="run">Run</option>
+                <option value="airborne">Airborne</option>
+                <option value="sit">Sit</option>
+                <option value="sleep">Sleep</option>
+                <option value="play">Play</option>
+              </select>
+            </label>
+            <label class="range-control" for="gait-intensity">
+              <span>Gait intensity <output for="gait-intensity" data-speed-output>70%</output></span>
+              <input id="gait-intensity" name="speed" type="range" min="0" max="1" step="0.05" value="0.7">
+              <small>Used by walk and run.</small>
+            </label>
+            <label>Facing
+              <select name="facing">
+                <option value="1">Right</option>
+                <option value="-1">Left</option>
+              </select>
+            </label>
+            <p class="motion-status" data-motion-status-row aria-live="polite">
+              <i aria-hidden="true"></i><span data-motion-status>Idle · live</span>
+            </p>
+          </fieldset>
           <div class="lab-note">
             <strong>Inspect the complete rig</strong>
             <p>Drag to rotate. Body joints and facial features remain attached to semantic nodes; animation changes transforms only.</p>
@@ -103,8 +138,8 @@
           <div class="viewport-label"><span>Perspective / +Z face</span><span data-render-stats>Building solid rig…</span></div>
           <canvas data-canvas></canvas>
           <figure class="raster-proof">
-            <img data-raster-preview alt="Graphite rendering of the same generated character identity">
-            <figcaption><strong>Same identity</strong><span>Graphite raster adapter</span></figcaption>
+            <canvas data-raster-preview width="180" height="180" role="img" aria-label="Animated graphite rendering of the same generated character identity"></canvas>
+            <figcaption><strong>Motion mirror</strong><span>Graphite rig / same pose</span></figcaption>
           </figure>
           <div class="axis-mark" aria-hidden="true"><i class="axis-y"></i><i class="axis-x"></i><span>Y</span><b>X</b></div>
         </div>

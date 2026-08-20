@@ -4,6 +4,7 @@ import type { InkedSolidBlueprint } from '../assets/inked-solid/blueprint.js';
 import { hashString } from '../core/random.js';
 import type { RgbColor } from '../core/sketch.js';
 import type { MediumId } from '../materials/medium.js';
+import { inkedSolidSurfaceFlow } from './inked-solid-surface-flow.js';
 
 type InkedUniforms = {
   albedoTexture: { value: THREE.Texture };
@@ -155,6 +156,12 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     return mix(bottom, top, fraction.y);
   }
 
+  vec2 rotateDrawingField(vec2 point, float angle) {
+    float cosine = cos(angle);
+    float sine = sin(angle);
+    return mat2(cosine, -sine, sine, cosine) * point;
+  }
+
   float sampledDepth(vec2 uv) {
     float depth = texture2D(depthTexture, clamp(uv, vec2(0.0), vec2(1.0))).x;
     if (depth >= 0.999999) return 1.0e6;
@@ -187,16 +194,21 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       lineWidth + antialias,
       distanceToLine
     );
-    float segmentCoordinate = along * 0.36 + phase * 0.37;
-    float segmentAmount = fract(segmentCoordinate);
-    float segment = smoothstep(0.015, 0.06, segmentAmount)
-      * (1.0 - smoothstep(0.9, 0.985, segmentAmount));
-    float keep = smoothstep(
-      0.04,
-      0.25,
-      hash21(vec2(floor(coordinate), floor(segmentCoordinate)) + phase)
+    // Pencil pressure varies continuously along one path. The old periodic
+    // segment mask cut every hatch into aligned dashes; wander then made the
+    // two exposed endpoints look like a geometric kink. Paper tooth still
+    // supplies small broken pickup without changing the line trajectory.
+    float pickup = valueNoise(vec2(
+      along * 0.21 + phase * 0.43,
+      floor(coordinate) * 0.73 + phase * 1.19
+    ));
+    float pressure = mix(0.48, 1.0, smoothstep(0.12, 0.82, pickup));
+    float abrasion = smoothstep(
+      0.08,
+      0.3,
+      valueNoise(vec2(along * 0.83, floor(coordinate) * 1.37) + phase * 2.1)
     );
-    return line * segment * keep;
+    return line * pressure * mix(0.58, 1.0, abrasion);
   }
 
   float viewPencil(
@@ -296,7 +308,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       + wanderOffset * pixel * contourWander * displayScale
       + boilOffset * pixel * contourJitter * displayScale;
     float stableDepth = sampledDepth(inkedUv);
-    vec3 stableNormal = sampledNormal(inkedUv);
+    vec4 stableNormalData = texture2D(normalTexture, inkedUv);
+    vec3 stableNormal = normalize(stableNormalData.xyz * 2.0 - 1.0);
     float mainEdge = sceneEdge(sampleUv, pixel, contourWidth * displayScale);
     vec2 echoOffset = vec2(
       valueNoise(boilCell * 0.71 + contourSeed * 31.0),
@@ -345,11 +358,36 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float diffuse = clamp(dot(stableNormal, doodleLight), 0.0, 1.0);
     float shadeLevels = max(1.0, fillShadeSteps - 1.0);
     float steppedDiffuse = floor(diffuse * shadeLevels + 0.5) / shadeLevels;
-    // Volume changes deposition density, not the authored pigment RGB. Darkening
-    // the source colour made equal raster/solid palettes visibly diverge.
-    float shapeDensity = mix(
+
+    // The owner anchor keeps marks attached during animation. Authored carrier
+    // topology decides whether the visible normal may turn the drawing field:
+    // smooth carriers stay view-oriented, while faceted carriers use one
+    // coherent direction per plane. This avoids both spherical topography and
+    // screen-space curvature thresholds that change with zoom.
+    float surfaceYaw = atan(stableNormal.x, max(0.16, abs(stableNormal.z)));
+    float surfacePitch = asin(clamp(stableNormal.y, -1.0, 1.0));
+    float facetedResponse = step(0.5, stableNormalData.a);
+    float surfaceTurn = clamp(
+      (surfaceYaw * 0.62 - surfacePitch * 0.34) * facetedResponse,
+      -1.12,
+      1.12
+    );
+    vec2 surfacePosition = rotateDrawingField(depositedPosition, surfaceTurn);
+    float grazing = smoothstep(0.18, 0.92, 1.0 - abs(stableNormal.z));
+    surfacePosition.x *= mix(1.0, 1.34, grazing * facetedResponse);
+
+    // Volume changes deposition density and stroke pressure, never the authored
+    // pigment RGB. Pigment beds remain restrained while visible gesture marks
+    // carry most of the light-versus-shadow separation.
+    float shadowAmount = 1.0 - steppedDiffuse;
+    float pigmentShapeDensity = mix(
       1.0,
-      1.0 + (1.0 - steppedDiffuse) * 0.45,
+      1.0 + shadowAmount * 0.18,
+      fillShadeStrength
+    );
+    float markShapeDensity = mix(
+      1.0,
+      1.0 + shadowAmount * 0.86,
       fillShadeStrength
     );
     float fillNoise = viewNoise(
@@ -363,7 +401,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       fillSeed * 47.0 + partPhase * 1.31 + 0.31
     );
     float brush = viewBrush(
-      depositedPosition,
+      surfacePosition,
       fillVariationScale,
       fillSeed * 17.0 + partPhase * 0.73
     );
@@ -414,35 +452,36 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float markCoverage = markData.b;
     float markScale = max(0.1, (markData.a - 0.5) * 48.0);
     float markPhase = fillSeed * 23.0 + fract(encodedMark) * 17.0 + partPhase;
+    float surfacePhase = markPhase + surfaceTurn * 0.37;
     float firstFamily = viewPencil(
-      depositedPosition,
+      surfacePosition,
       markScale,
       0.22,
-      markPhase,
+      surfacePhase,
       markLineWidth,
       0.025
     );
     float secondFamily = viewPencil(
-      depositedPosition,
+      surfacePosition,
       markScale * 0.93,
       -0.82,
-      markPhase + 0.43,
+      surfacePhase + 0.43,
       markLineWidth,
       0.035
     );
     float scribble = viewPencil(
-      depositedPosition,
+      surfacePosition,
       markScale,
       1.48,
-      markPhase + 0.17,
+      surfacePhase + 0.17,
       markLineWidth * 1.15,
       0.24
     );
     scribble += viewPencil(
-      depositedPosition,
+      surfacePosition,
       markScale * 1.12,
       1.22,
-      markPhase + 0.61,
+      surfacePhase + 0.61,
       markLineWidth * 0.72,
       0.2
     ) * 0.52;
@@ -459,7 +498,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float bristleMark = smoothstep(
       0.12,
       0.76,
-      viewBrush(depositedPosition, markScale, markPhase)
+      viewBrush(surfacePosition, markScale, surfacePhase)
     );
     float solidMark = mix(
       0.72,
@@ -476,7 +515,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     else if (markStyle < 6.5) viewMark = bristleMark;
     else if (markStyle < 7.5) viewMark = firstFamily * 0.62 + bristleMark * 0.38;
     else if (markStyle > 7.5) viewMark = solidMark;
-    viewMark *= markStrength * surface;
+    viewMark *= markStrength * markShapeDensity * surface;
 
     float assetSurface = step(0.49, markData.a) * surface;
     // Authored carrier surfaces begin as opaque drawing paper. Sampling the
@@ -512,20 +551,20 @@ const COMPOSITE_FRAGMENT = /* glsl */`
         max(0.985, markCoverage) * mix(0.98, 1.0, fineNoise) * assetSurface
       );
     }
-    pigmentBed *= shapeDensity;
+    pigmentBed *= pigmentShapeDensity;
     pigmentBed *= clamp(1.0 + grain * paperGrain * 3.2, 0.0, 1.0);
     color = mix(color, pigment, clamp(pigmentBed, 0.0, 1.0));
 
-    float depositedPigment = viewMark * shapeDensity;
+    float depositedPigment = viewMark;
     depositedPigment *= clamp(1.0 + grain * paperGrain * 5.0, 0.0, 1.0);
     vec3 gesturePigment = pigment;
     if (fillTextureMode > 2.5 && fillTextureMode < 3.5) {
       // Oil daubs remain visible over an opaque pigment bed because each pass
       // carries a slightly different pigment load, as in the raster medium.
       float bristleTone = viewNoise(
-        depositedPosition,
+        surfacePosition,
         markScale * 0.46,
-        markPhase + 0.57
+        surfacePhase + 0.57
       );
       vec3 loaded = pigment * mix(0.48, 0.88, bristleTone);
       vec3 dry = mix(pigment, paperColor, mix(0.08, 0.3, bristleTone));
@@ -577,8 +616,15 @@ export class InkedSolidPass {
   private readonly normalTarget: THREE.WebGLRenderTarget;
   private readonly markTarget: THREE.WebGLRenderTarget;
   private readonly anchorTarget: THREE.WebGLRenderTarget;
-  private readonly normalMaterial = new THREE.MeshNormalMaterial({
+  private readonly viewNormalMaterial = new THREE.MeshNormalMaterial({
     blending: THREE.NoBlending,
+    opacity: 0,
+    transparent: true,
+  });
+  private readonly facetedNormalMaterial = new THREE.MeshNormalMaterial({
+    blending: THREE.NoBlending,
+    opacity: 1,
+    transparent: true,
   });
   private readonly emptyAnchorMaterial = new THREE.MeshBasicMaterial({
     colorWrite: false,
@@ -755,9 +801,13 @@ export class InkedSolidPass {
         this.restoreMaterials(anchorSwaps);
       }
 
-      scene.overrideMaterial = this.normalMaterial;
-      this.renderer.setRenderTarget(this.normalTarget);
-      this.renderer.render(scene, camera);
+      const normalSwaps = this.applyNormalMaterials(scene);
+      try {
+        this.renderer.setRenderTarget(this.normalTarget);
+        this.renderer.render(scene, camera);
+      } finally {
+        this.restoreMaterials(normalSwaps);
+      }
 
       this.renderer.setRenderTarget(previousTarget);
       this.renderer.render(this.compositeScene, this.compositeCamera);
@@ -779,7 +829,8 @@ export class InkedSolidPass {
     this.normalTarget.dispose();
     this.markTarget.dispose();
     this.anchorTarget.dispose();
-    this.normalMaterial.dispose();
+    this.viewNormalMaterial.dispose();
+    this.facetedNormalMaterial.dispose();
     this.emptyAnchorMaterial.dispose();
     this.compositeGeometry.dispose();
     this.compositeMaterial.dispose();
@@ -873,6 +924,30 @@ export class InkedSolidPass {
         : '';
       swaps.push(Object.freeze({ mesh, material }));
       mesh.material = this.markMaterial(materialId);
+    });
+    return swaps;
+  }
+
+  private applyNormalMaterials(scene: THREE.Scene): readonly MaterialSwap[] {
+    const swaps: MaterialSwap[] = [];
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const mesh = object as THREE.Mesh & MaterialOwner;
+      const material = mesh.material;
+      const belongsToCarrier = mesh.userData.solidAssetId === this.blueprint.solid.id;
+      const partId = belongsToCarrier && typeof mesh.userData.partId === 'string'
+        ? mesh.userData.partId
+        : '';
+      const part = partId.length === 0
+        ? undefined
+        : this.blueprint.solid.parts.find(({ id }) => id === partId);
+      const flow = part === undefined
+        ? 'view-oriented'
+        : inkedSolidSurfaceFlow(part.geometry);
+      swaps.push(Object.freeze({ mesh, material }));
+      mesh.material = flow === 'faceted'
+        ? this.facetedNormalMaterial
+        : this.viewNormalMaterial;
     });
     return swaps;
   }

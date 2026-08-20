@@ -1,6 +1,6 @@
 ---
 name: aind-asset-authoring
-description: Design, add, or revise procedural asset families in the aind-drawn repository, including representation-neutral identity, raster and solid projections, spatial topology, props, characters, buildings, vehicles, layers, recipes, colliders, sockets, interactions, animation, catalog integration, and authoring tests.
+description: Design, implement, or revise procedural asset types in aind-drawn, including deterministic identity, raster and solid projections, Doodle 3D, spatial topology, semantic parts, interactions, animation, catalog integration, and authoring tests.
 ---
 
 # AIND asset authoring
@@ -8,6 +8,24 @@ description: Design, add, or revise procedural asset families in the aind-drawn 
 Build the smallest asset model that preserves semantic parts, deterministic
 identity, gameplay metadata, and runtime state. Do not hide multipart behavior
 inside one canvas callback.
+
+## Detailed workflow routing
+
+Always read [references/family-workflow.md](references/family-workflow.md) when
+adding a new asset type. It contains the classification decision, concrete
+folder shapes, recipe/layout/blueprint steps, geometry choices, export work,
+and acceptance checklist.
+
+Then read only the applicable focused reference:
+
+- stateful or animated parts: [references/interactions-and-motion.md](references/interactions-and-motion.md);
+- smooth-solid or Doodle 3D output: [references/inked-solid.md](references/inked-solid.md);
+- playground/editor registration: [references/playground-integration.md](references/playground-integration.md);
+- vehicles and comparable articulated machinery: [references/vehicle-family.md](references/vehicle-family.md).
+
+Do not force every family through every representation. A decal may remain
+raster-only; an arbitrary-view machine may begin solid-only; a family expected
+to span projections must begin with representation-neutral identity.
 
 ## Read the local contracts
 
@@ -162,11 +180,27 @@ barrel only.
   origin of its visible semantic part, and clip it by semantic material masks.
   Camera movement must update projection continuously without random seed or
   colour changes at quantized thresholds.
+- Use the visible surface normal to rotate and foreshorten directional gesture
+  fields on explicitly faceted carrier topology and to vary mark density under
+  the discrete drawing light. Adjacent planes sharing a material must not
+  receive one uniform screen-space hatch. Keep camera response continuous;
+  never classify camera-facing planes into arbitrary style buckets that can
+  flicker during rotation. Derive smooth-versus-faceted flow from authored
+  geometry topology, not screen-space normal derivatives. Smooth meshes and
+  superellipsoids retain view-oriented 2D marks; normal response may change
+  density and pressure but must not bend their paths.
 - Preserve exact carrier geometry, colliders, sockets, and pivots. Put the
   doodle's imprecision in generic projection policy: static low-frequency
   contour wander and pressure variation, broken pickup, echoes, plus optional
   quantized line boil. Never bend family geometry merely to make its rendered
   outline look hand drawn.
+- Vary pencil pickup continuously along a gesture path. Do not impose periodic
+  segment masks that turn one stroke into aligned dashes or apparent kinks;
+  reserve complete breaks for authored marks with semantic intent.
+- Keep view-field frequency and phase invariant within one carrier region.
+  Drawing light may modulate pressure or opacity, or reveal an additional
+  fixed-frequency pass; never rescale or rephase the field per pixel because
+  quantized tone boundaries would become visible seams.
 - Let the shared medium compiler project material roles into mark styles. Hair,
   cloth, facade, glass, and unknown roles may require different deposition, but
   the generic renderer must never branch on an asset family or semantic part ID.

@@ -185,9 +185,15 @@ projection. Carrier pixels start from opaque paper, receive an irregular
 semantic-colour pigment bed, then gesture marks and contours. Mark fields live
 in view-oriented drawing space, are translated with the projected origin of
 their owning semantic part, and are clipped by the projected material masks.
-Camera rotation changes projection and occlusion continuously; it never rerolls
-pigment colour or noise at a discrete view threshold. Paper grain alone remains
-stationary in screen space.
+On explicitly faceted carriers, the visible normal continuously rotates and
+foreshortens directional fields; drawing-light response changes mark density
+and pressure so adjacent planes do not collapse into one uniform hatch. Smooth
+carrier topology keeps curved regions in a view-oriented 2D field and uses only
+density and pressure to describe volume. This decision comes from authored
+geometry smoothing rather than screen-space curvature derivatives, so camera
+distance and viewport resolution cannot reclassify a surface. Camera rotation
+changes projection and occlusion without rerolling pigment colour or noise at a
+discrete view threshold. Paper grain alone remains stationary in screen space.
 Smooth-solid roughness, metalness, and clearcoat never enter this path.
 `InkedSolidStrokeRig`
 resolves family-authored paths into small ink volumes parented to their owner

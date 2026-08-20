@@ -160,6 +160,18 @@ identity data.
   view-synthesized gesture fields with each visible semantic part's projected
   origin so articulation carries its marks. Camera and root rotation must
   update projection continuously without a discrete seed or colour reroll.
+- Condition directional gesture fields by the visible surface normal only on
+  explicitly faceted carrier topology. Adjacent planes sharing one material
+  must still separate through continuous hatch orientation, foreshortening,
+  density, and pressure; never assign arbitrary camera-facing style buckets
+  that flicker as the camera rotates. Smooth meshes and superellipsoids keep
+  view-oriented 2D strokes and express volume through density and pressure only.
+  A geometric crease belongs in mesh smoothing topology, not in a
+  screen-resolution-dependent curvature test.
+- Keep a synthesized field's frequency and phase invariant across one carrier
+  region. Lighting may modulate pressure or opacity, or reveal an additional
+  fixed-frequency pass; it must not rescale the field per pixel because tone
+  boundaries would become visible stroke seams.
 - Reserve part-local or surface-following stroke paths for marks with real
   spatial meaning: whiskers, wires, seams, scars, raised outlines, and paths that
   deliberately leave a host. Do not use them to simulate generic medium fill.

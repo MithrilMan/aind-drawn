@@ -340,7 +340,7 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     },
     deposition: {
       pigmentStrength: 0.38,
-      shadeStrength: 0.05,
+      shadeStrength: 0.52,
       shadeSteps: 4,
       variationStrength: 0.24,
       variationScale: 4.2,

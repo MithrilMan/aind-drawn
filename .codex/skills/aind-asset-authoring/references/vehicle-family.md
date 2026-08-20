@@ -2,20 +2,41 @@
 
 Model a car as a new `vehicle` asset family.
 
-## Recipe
+## Classification and folders
 
-`VehicleRecipe` should persist the semantic choices required to reconstruct the
-same vehicle:
+A car is a dedicated, multi-representation `vehicle` family: body, wheels, and
+doors have independent topology and motion, while raster and solid outputs must
+preserve one identity. Use:
 
-- body style and proportions;
-- cabin position and roof line;
-- wheelbase, wheel radius, and track height;
-- door count and hinge side;
-- lights, bumpers, optional cargo or roof rack;
-- palette, medium, and tone strategy.
+```text
+src/assets/vehicle-identity/recipe.ts
+src/assets/vehicle-identity/drawing-style.ts
+src/assets/vehicle/recipe.ts
+src/assets/vehicle/layout.ts
+src/assets/vehicle/blueprint.ts
+src/assets/solid-vehicle/recipe.ts
+src/assets/solid-vehicle/layout.ts
+src/assets/solid-vehicle/blueprint.ts
+src/assets/solid-vehicle/ink-strokes.ts
+src/runtime/vehicle-animator.ts       # only when continuous travel is required
+```
 
-Use independent namespaces such as `vehicle:body`, `vehicle:cabin`,
-`vehicle:wheels`, `vehicle:doors`, and `vehicle:details`.
+## Identity
+
+`VehicleIdentityRecipe` persists semantic choices required to project the same
+vehicle in any representation:
+
+- body archetype, proportions, bonnet/trunk balance, and ground clearance;
+- cabin position, roof line, windows, and seat count;
+- wheelbase, wheel radius, tyre width, axle height, and optional spare wheel;
+- door count, side, hinge placement, and entry intent;
+- lights, bumpers, mirrors, optional cargo, roof rack, or tow point;
+- palette roles and normalized drawing-tone intent;
+- sockets such as driver seat, passenger seats, cargo, tow, and entry.
+
+Do not put `MediumId`, `SolidFinishId`, canvas coordinates, or Three.js values
+in identity. Use namespaces such as `vehicle:body`, `vehicle:cabin`,
+`vehicle:wheels`, `vehicle:doors`, `vehicle:lights`, and `vehicle:details`.
 
 ## Layout
 
@@ -28,9 +49,12 @@ Derive a `VehicleLayout` containing:
 - `wheel:front`, `wheel:rear`, `seat:driver`, `door:entry`, and optional cargo sockets;
 - body and wheel colliders plus a door interaction sensor.
 
-Do not independently recompute wheel positions inside draw callbacks.
+Use normalized identity intent to derive a raster layout and a solid layout.
+Both preserve wheelbase ratios, hinge side, seat ordering, and socket meaning;
+they do not share pixel or world-space coordinates. Never independently
+recompute wheel positions inside draw callbacks or part builders.
 
-## Blueprint
+## Raster blueprint
 
 Recommended layers and bones:
 
@@ -52,14 +76,78 @@ The body collider remains solid. Wheel colliders may be circles when the shared
 collider vocabulary supports them; until then, use tested rectangles or polygons
 rather than adding a one-off physics concept inside the vehicle renderer.
 
-## Runtime
+The raster representation recipe references identity and adds only `MediumId`
+and raster drawing policy. Draw rear parts before body and front parts after it.
+Keep wheels independent even if the first consumer never animates them.
 
-A `VehicleAnimator` may rotate wheel bones from signed travel distance. Door
-opening can be driven by `SpriteRig.setInteractionState('door', 'open')`; only
-add continuous hinge animation if a consumer actually needs interpolation.
+## Solid blueprint
+
+Recommended node hierarchy:
+
+```text
+vehicle:root
+├── steering
+├── axle:rear
+│   ├── wheel:rear:left
+│   └── wheel:rear:right
+├── axle:front
+│   ├── wheel:front:left
+│   └── wheel:front:right
+├── door:left
+└── door:right
+```
+
+Use true volumes:
+
+- body/cabin may be smooth meshes, superellipsoids, or authored faceted meshes;
+- tyres are wraps or radial volumes, never camera-facing discs;
+- windows follow cabin surfaces or occupy shallow inset volumes;
+- doors own real hinge nodes and remain spatially distinct from body paint;
+- lights, mirrors, racks, and cargo use semantic parts and material roles.
+
+The solid representation recipe references the same identity and adds only
+finish/mesh policy. Place seat and entry sockets in vehicle-local 3D space.
+Keep the body collider independent from wheel or interaction sensors.
+
+## Doodle 3D
+
+Wrap the exact solid blueprint with `createInkedSolidBlueprint` and the same
+medium used by the raster comparison. Generic material-role marks cover body,
+tyres, glass, and accents. Add family-authored spatial strokes only for genuine
+features such as panel seams, tyre grooves, window borders, light divisions, or
+lifted wires.
+
+Smooth body panels remain view-oriented; explicitly faceted panels can change
+hatch flow across creases. Do not add vehicle branches to `InkedSolidPass`.
+
+## Interaction and runtime
+
+Door opening uses the shared `door` interaction contract in both raster and
+solid representations. Multiple usable doors may expose separate IDs and entry
+sockets such as `door:left` / `door:left:entry`.
+
+A `VehicleAnimator` may derive wheel rotation from signed travel distance and
+steering from signed turn input. Cache rest transforms and calculate rotation
+from travel rather than accumulating per-frame deltas. Door state can be driven
+by the rig interaction API; add continuous hinge interpolation only if a
+consumer actually needs it.
 
 ## Playground
 
 Add a `vehicle:car` catalog entry. Expose semantic controls such as body style,
-door state, and optional details. Width and height remain scene transforms unless
-the user explicitly requests regeneration of body proportions.
+door state, and optional details. Width and height remain scene transforms
+unless the user explicitly requests regeneration of body proportions. Render
+all thumbnails and part choices through public vehicle factories.
+
+## Vehicle-specific tests
+
+In addition to the common family matrix, test:
+
+- wheel centres, axle height, radii, and wheelbase agree across layout and parts;
+- wheel and door pivots are at their physical joints;
+- door sensors and entry sockets identify the same side;
+- raster and solid adapters retain body archetype, door count, palette roles,
+  and wheel proportions from the same identity;
+- tyres occupy real depth in solid output;
+- travel animation rotates front and rear wheels consistently without drift;
+- optional cargo or roof-rack namespaces do not reroll wheels or doors.

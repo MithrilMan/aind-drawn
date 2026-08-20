@@ -165,12 +165,22 @@ This is intentionally not a texture wrapped around a mesh. Rotating the asset
 changes projection, occlusion, and contours continuously, like drawing the
 current view again, but it does not reroll a random field at arbitrary angular
 thresholds. The pigment and gesture coordinates are translated by the projected
-origin of the semantic part visible at each pixel. Limbs, tears, doors, and
-other articulated parts therefore carry coherent marks through animation
-without turning them into UV textures. View orientation remains paper-like;
-only the field origin follows the part. Stationary screen-space grain belongs
-to the paper, while line-boil timing remains independent and affects only
-contour lookup.
+origin of the semantic part visible at each pixel. On explicitly faceted
+carrier topology, the visible surface normal rotates and foreshortens
+directional marks while discrete drawing light changes their density and
+pressure. Adjacent wall or roof planes therefore separate through hatch flow
+and tone even when they share one material. Smooth meshes and superellipsoids
+retain one view-oriented 2D field; their normal changes density and pressure but
+never bends marks into topographic rings. This classification is authored in
+geometry smoothing rather than inferred from screen-space derivatives, so zoom
+cannot change it. Pencil pickup varies continuously along each path; paper
+abrasion may thin a stroke but does not split it into periodic, misaligned
+dashes. Drawing light may change deposited opacity or add a fixed-frequency
+secondary pass, but it never changes a field's scale or phase per pixel; doing
+so would restart strokes at every tone boundary. Limbs, tears, doors, and other
+articulated parts still carry coherent marks through animation without becoming
+UV textures. Stationary screen-space grain belongs to the paper, while
+line-boil timing remains independent and affects only contour lookup.
 
 ## 2.5D variant
 

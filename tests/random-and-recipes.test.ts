@@ -590,6 +590,7 @@ describe('asset contracts', () => {
     expect(black).toMatchObject({ style: 'scribble', strength: 0.72, coverage: 0.68 });
     expect(black.scale).toBeCloseTo(hatch.scale * 2.5);
     expect(black.lineWidth).toBeCloseTo(hatch.lineWidth * 2.6);
+    expect(graphite.deposition.shadeStrength).toBeGreaterThan(0.4);
   });
 
   it('shares facade tone intent between raster and solid building materials', () => {

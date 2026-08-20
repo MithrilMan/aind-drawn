@@ -23,6 +23,7 @@ import {
   type AssetBlueprint,
   type CanvasFactory,
 } from '../src/index.js';
+import { inkedSolidSurfaceFlow } from '../src/runtime/inked-solid-surface-flow.js';
 
 const inertCanvasFactory: CanvasFactory = (width, height) => ({
   canvas: { width, height } as HTMLCanvasElement,
@@ -200,6 +201,26 @@ describe('sprite rig runtime', () => {
 });
 
 describe('solid rig runtime', () => {
+  it('selects mark flow from carrier topology instead of screen-space curvature', () => {
+    expect(inkedSolidSurfaceFlow({
+      type: 'superellipsoid', radii: [1, 1, 1], exponent: 2,
+      widthSegments: 16, heightSegments: 12,
+    })).toBe('view-oriented');
+    expect(inkedSolidSurfaceFlow({
+      type: 'mesh', vertices: [], faces: [], smooth: true,
+    })).toBe('view-oriented');
+    expect(inkedSolidSurfaceFlow({
+      type: 'box', size: [1, 1, 1],
+    })).toBe('faceted');
+    expect(inkedSolidSurfaceFlow({
+      type: 'extruded-profile', outline: [[0, 0], [1, 0], [0, 1]],
+      depth: 0.2, bevel: 0.03, curveSegments: 3,
+    })).toBe('faceted');
+    expect(inkedSolidSurfaceFlow({
+      type: 'mesh', vertices: [], faces: [], smooth: false,
+    })).toBe('faceted');
+  });
+
   it('parents semantic ink strokes to their owning animated solid parts', () => {
     const solid = createSolidCharacterBlueprint(createCharacterIdentity(818, {
       hairStyle: 'cap',

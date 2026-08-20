@@ -11,9 +11,18 @@ export type SurfaceAnchor = Readonly<{
   roll: number;
 }>;
 
+export type RadialDeformation = Readonly<{
+  verticalTaper: number;
+  equatorBulge: number;
+  lobeAmplitude: number;
+  lobeCount: number;
+  lobePhase: number;
+}>;
+
 export type Superellipsoid = Readonly<{
   radii: Point3;
   exponent: number;
+  deformation?: RadialDeformation;
 }>;
 
 const EPSILON = 1e-9;
@@ -58,12 +67,119 @@ export function validateSuperellipsoid(shape: Superellipsoid): void {
   if (!(shape.exponent >= 1) || !Number.isFinite(shape.exponent)) {
     throw new RangeError('Superellipsoid exponent must be a finite number greater than or equal to one');
   }
+  if (shape.deformation !== undefined) {
+    const values = [
+      shape.deformation.verticalTaper,
+      shape.deformation.equatorBulge,
+      shape.deformation.lobeAmplitude,
+      shape.deformation.lobeCount,
+      shape.deformation.lobePhase,
+    ];
+    if (values.some((value) => !Number.isFinite(value))) {
+      throw new RangeError('Radial deformation values must be finite numbers');
+    }
+    if (!(shape.deformation.lobeCount >= 1)) {
+      throw new RangeError('Radial deformation lobe count must be at least one');
+    }
+  }
+}
+
+export function radialDeformationScale(
+  deformation: RadialDeformation | undefined,
+  direction: Point3,
+): number {
+  if (deformation === undefined) return 1;
+  const unit = normalize3(direction);
+  const profileAmount = Math.hypot(unit[0], unit[1]);
+  const profileAngle = Math.atan2(unit[1], unit[0]);
+  const scale = 1
+    - deformation.verticalTaper * unit[1]
+    + deformation.equatorBulge * (1 - unit[1] * unit[1])
+    + deformation.lobeAmplitude
+      * profileAmount
+      * Math.sin(profileAngle * deformation.lobeCount + deformation.lobePhase);
+  return Math.max(0.55, Math.min(1.5, scale));
+}
+
+function surfacePoint(shape: Superellipsoid, unitDirection: Point3): Point3 {
+  const [radiusX, radiusY, radiusZ] = shape.radii;
+  const direction: Point3 = [
+    unitDirection[0] * radiusX,
+    unitDirection[1] * radiusY,
+    unitDirection[2] * radiusZ,
+  ];
+  const denominator = Math.pow(
+    Math.pow(Math.abs(direction[0] / radiusX), shape.exponent)
+      + Math.pow(Math.abs(direction[1] / radiusY), shape.exponent)
+      + Math.pow(Math.abs(direction[2] / radiusZ), shape.exponent),
+    1 / shape.exponent,
+  );
+  const basePoint = scale3(direction, 1 / denominator);
+  const scale = radialDeformationScale(shape.deformation, unitDirection);
+  return scale3(basePoint, scale);
+}
+
+function deformedSurfaceNormal(shape: Superellipsoid, unitDirection: Point3): Point3 {
+  const fallback: Point3 = Math.abs(dot3(unitDirection, WORLD_UP)) > 0.98 ? [0, 0, 1] : WORLD_UP;
+  const right = normalize3(cross3(fallback, unitDirection));
+  const up = normalize3(cross3(unitDirection, right));
+  const epsilon = 1e-4;
+  const sample = (tangent: Point3, amount: number): Point3 => surfacePoint(
+    shape,
+    normalize3(add3(unitDirection, scale3(tangent, amount))),
+  );
+  const derivativeRight = add3(sample(right, epsilon), scale3(sample(right, -epsilon), -1));
+  const derivativeUp = add3(sample(up, epsilon), scale3(sample(up, -epsilon), -1));
+  let normal = normalize3(cross3(derivativeRight, derivativeUp));
+  const point = surfacePoint(shape, unitDirection);
+  if (dot3(normal, point) < 0) normal = scale3(normal, -1);
+  return normal;
+}
+
+export function boundsOfSuperellipsoid(
+  shape: Superellipsoid,
+  segments: readonly [longitude: number, latitude: number] = [96, 48],
+): Bounds3 {
+  validateSuperellipsoid(shape);
+  const longitudeSegments = Math.max(8, Math.floor(segments[0]));
+  const latitudeSegments = Math.max(4, Math.floor(segments[1]));
+  const minimum = [Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY];
+  const maximum = [Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NEGATIVE_INFINITY];
+  for (let latitudeIndex = 0; latitudeIndex <= latitudeSegments; latitudeIndex += 1) {
+    const latitude = -Math.PI / 2 + latitudeIndex / latitudeSegments * Math.PI;
+    const ringRadius = Math.cos(latitude);
+    for (let longitudeIndex = 0; longitudeIndex < longitudeSegments; longitudeIndex += 1) {
+      const longitude = longitudeIndex / longitudeSegments * Math.PI * 2;
+      const point = surfacePoint(shape, [
+        Math.cos(longitude) * ringRadius,
+        Math.sin(latitude),
+        Math.sin(longitude) * ringRadius,
+      ]);
+      for (let axis = 0; axis < 3; axis += 1) {
+        minimum[axis] = Math.min(minimum[axis] as number, point[axis] as number);
+        maximum[axis] = Math.max(maximum[axis] as number, point[axis] as number);
+      }
+    }
+  }
+  return Object.freeze({
+    minimum: Object.freeze([
+      minimum[0] as number,
+      minimum[1] as number,
+      minimum[2] as number,
+    ] as const),
+    maximum: Object.freeze([
+      maximum[0] as number,
+      maximum[1] as number,
+      maximum[2] as number,
+    ] as const),
+  });
 }
 
 /**
- * Intersects a ray from the origin with a superellipsoid and returns the
- * matching analytic normal. The function is renderer-independent so layout,
- * gameplay anchors, and the generated mesh share exactly the same surface.
+ * Intersects a ray from the origin with a possibly deformed superellipsoid.
+ * Base surfaces use the analytic normal; radial deformations use a stable
+ * surface differential. Layout, anchors, and generated meshes therefore share
+ * exactly the same renderer-independent field.
  */
 export function pointOnSuperellipsoid(
   shape: Superellipsoid,
@@ -75,18 +191,19 @@ export function pointOnSuperellipsoid(
   }
   const [radiusX, radiusY, radiusZ] = shape.radii;
   const exponent = shape.exponent;
-  const denominator = Math.pow(
-    Math.pow(Math.abs(direction[0] / radiusX), exponent)
-      + Math.pow(Math.abs(direction[1] / radiusY), exponent)
-      + Math.pow(Math.abs(direction[2] / radiusZ), exponent),
-    1 / exponent,
-  );
-  const point = scale3(direction, 1 / denominator);
-  const normal = normalize3([
-    signedPower(point[0] / radiusX, exponent - 1) / radiusX,
-    signedPower(point[1] / radiusY, exponent - 1) / radiusY,
-    signedPower(point[2] / radiusZ, exponent - 1) / radiusZ,
+  const unitDirection = normalize3([
+    direction[0] / radiusX,
+    direction[1] / radiusY,
+    direction[2] / radiusZ,
   ]);
+  const point = surfacePoint(shape, unitDirection);
+  const normal = shape.deformation === undefined
+    ? normalize3([
+      signedPower(point[0] / radiusX, exponent - 1) / radiusX,
+      signedPower(point[1] / radiusY, exponent - 1) / radiusY,
+      signedPower(point[2] / radiusZ, exponent - 1) / radiusZ,
+    ])
+    : deformedSurfaceNormal(shape, unitDirection);
   return Object.freeze({ point, normal });
 }
 

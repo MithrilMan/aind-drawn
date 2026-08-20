@@ -1,4 +1,5 @@
 import {
+  boundsOfSuperellipsoid,
   moveOnSurface,
   pointOnSuperellipsoid,
   type Bounds3,
@@ -7,6 +8,12 @@ import {
   type Superellipsoid,
 } from '../../core/geometry3.js';
 import { clamp } from '../../core/geometry.js';
+import {
+  characterEyeCenterY,
+  characterHeadShapeField,
+  characterMouthCenterY,
+} from '../character-identity/head-shape.js';
+import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
 import type { SolidFaceRecipe } from './recipe.js';
 import type { SolidCharacterRecipe } from '../solid-character/recipe.js';
 
@@ -14,6 +21,7 @@ export type SolidFaceSourceRecipe = SolidFaceRecipe | SolidCharacterRecipe;
 
 export type SolidFaceLayout = Readonly<{
   shape: Superellipsoid;
+  surfaceBounds: Bounds3;
   center: Point3;
   bounds: Bounds3;
   eyeRadius: number;
@@ -32,29 +40,78 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
     identity.head.height * 0.5,
     recipe.style.depth * 0.5,
   ];
-  const shape: Superellipsoid = Object.freeze({ radii, exponent: recipe.style.exponent });
-  const center: Point3 = [0, radii[1], 0];
+  const field = characterHeadShapeField(identity.head);
+  const shape: Superellipsoid = Object.freeze({
+    radii,
+    exponent: field.exponent,
+    deformation: field.deformation,
+  });
+  const surfaceBounds = boundsOfSuperellipsoid(shape);
+  const center: Point3 = [0, -surfaceBounds.minimum[1], 0];
   const at = (x: number, y: number, proud = 0, roll = 0): SurfaceAnchor => {
-    const surface = pointOnSuperellipsoid(shape, [x * radii[0], y * radii[1], radii[2]]);
+    const targetX = clamp(x, -0.9, 0.9);
+    const targetY = clamp(y, -0.9, 0.9);
+    let directionZ = 1;
+    if (Math.abs(targetX) > 1e-6 || Math.abs(targetY) > 1e-6) {
+      const useX = Math.abs(targetX) >= Math.abs(targetY);
+      const target = Math.abs(useX ? targetX : targetY);
+      let minimum = 0;
+      let maximum = 24;
+      for (let iteration = 0; iteration < 28; iteration += 1) {
+        const candidate = (minimum + maximum) * 0.5;
+        const point = pointOnSuperellipsoid(shape, [
+          targetX * radii[0],
+          targetY * radii[1],
+          candidate * radii[2],
+        ]).point;
+        const projected = Math.abs(useX ? point[0] / radii[0] : point[1] / radii[1]);
+        if (projected > target) minimum = candidate;
+        else maximum = candidate;
+      }
+      directionZ = (minimum + maximum) * 0.5;
+    }
+    const surface = pointOnSuperellipsoid(shape, [
+      targetX * radii[0],
+      targetY * radii[1],
+      directionZ * radii[2],
+    ]);
     return moveOnSurface(Object.freeze({ point: surface.point, normal: surface.normal, roll }), [0, 0], proud);
   };
   const eyeRadius = Math.min(radii[0], radii[1]) * 0.19 * identity.eyes.size;
-  const eyeSpacing = clamp(0.3 + (identity.eyes.spacing - 0.37) / 0.15 * 0.13, 0.28, 0.45);
-  const eyeHeight = 0.14 + identity.eyes.verticalOffset;
-  const mouthHeight = -identity.mouth.verticalOffset * 0.68;
-  const leftEye = at(-eyeSpacing, eyeHeight, eyeRadius * 0.08);
-  const rightEye = at(eyeSpacing, eyeHeight, eyeRadius * 0.08);
-  const mouthAnchor = at(0, mouthHeight, eyeRadius * 0.05);
-  const noseAnchor = at(0, (eyeHeight + mouthHeight) * 0.46, eyeRadius * 0.04);
+  const eyeSpacing = identity.eyes.spacing;
+  const eyeHeight = characterEyeCenterY(identity);
+  const mouthHeight = characterMouthCenterY(identity);
+  const leftEye = at(-eyeSpacing, eyeHeight);
+  const rightEye = at(eyeSpacing, eyeHeight);
+  const mouthAnchor = at(0, mouthHeight);
+  const noseAnchor = at(0, (eyeHeight + mouthHeight) * 0.46);
   const browY = eyeHeight + identity.brows.lift;
-  const leftBrow = at(-eyeSpacing, browY, eyeRadius * 0.1, -identity.brows.tilt);
-  const rightBrow = at(eyeSpacing, browY, eyeRadius * 0.1, identity.brows.tilt);
+  const leftBrow = at(-eyeSpacing, browY, 0, -identity.brows.tilt);
+  const rightBrow = at(eyeSpacing, browY, 0, identity.brows.tilt);
+  const hairProfile = createCharacterHairProfile(identity.hair);
+  const hairX = hairProfile?.outline.map(([x]) => x * radii[0]) ?? [];
+  const hairY = hairProfile?.outline.map(([, y]) => y * radii[1]) ?? [];
+  const localMinimum: Point3 = [
+    Math.min(surfaceBounds.minimum[0], ...hairX),
+    Math.min(surfaceBounds.minimum[1], ...hairY),
+    hairProfile === null
+      ? surfaceBounds.minimum[2]
+      : Math.min(surfaceBounds.minimum[2], radii[2] * (hairProfile.front - hairProfile.depth)),
+  ];
+  const localMaximum: Point3 = [
+    Math.max(surfaceBounds.maximum[0], ...hairX),
+    Math.max(surfaceBounds.maximum[1], ...hairY),
+    hairProfile === null
+      ? surfaceBounds.maximum[2]
+      : Math.max(surfaceBounds.maximum[2], radii[2] * hairProfile.front),
+  ];
   return Object.freeze({
     shape,
+    surfaceBounds,
     center,
     bounds: Object.freeze({
-      minimum: [-radii[0], 0, -radii[2]] as const,
-      maximum: [radii[0], radii[1] * 2.18, radii[2] * 1.08] as const,
+      minimum: [localMinimum[0], localMinimum[1] + center[1], localMinimum[2]] as const,
+      maximum: [localMaximum[0], localMaximum[1] + center[1], localMaximum[2]] as const,
     }),
     eyeRadius,
     eyeAnchors: [leftEye, rightEye] as const,
@@ -64,8 +121,8 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
     sockets: Object.freeze({
       floor: [0, 0, 0] as const,
       center,
-      crown: [0, radii[1] * 2, 0] as const,
-      face: [0, radii[1], radii[2]] as const,
+      crown: [0, center[1] + surfaceBounds.maximum[1], 0] as const,
+      face: [0, center[1], surfaceBounds.maximum[2]] as const,
     }),
     at,
   });

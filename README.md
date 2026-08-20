@@ -103,5 +103,11 @@ when only the focused raster or face representation is needed. The complete
 solid blueprint exposes articulated body nodes, face parts, outfit, tail,
 colliders, and sockets without importing Three.js into asset code.
 
+Convergence is geometric rather than cosmetic: both representations evaluate
+the same radial head field, half-width eye spacing, head-relative hairstyle
+silhouette, mouth placement, and expression profiles. `CharacterAnimator` and
+`SolidCharacterAnimator` both expose `setExpression`; the solid runtime switches
+between authored mouth geometries instead of stretching one neutral plate.
+
 Raster blueprints contain draw callbacks and are rebuilt from recipes. Solid
 blueprints contain serialisable geometry specifications.

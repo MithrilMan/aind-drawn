@@ -12,6 +12,7 @@ import {
   type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentitySpecies,
+  type AssetBlueprint,
   type SolidFaceExpression,
   type SolidFinishId,
 } from '../../../src/index.js';
@@ -72,9 +73,18 @@ const autoGazeInput = requiredElement('[name="autoGaze"]') as HTMLInputElement;
 
 let rig: SolidRig | null = null;
 let animator: SolidCharacterAnimator | null = null;
+let rasterBlueprint: AssetBlueprint | null = null;
 let rotationX = 0;
 let rotationY = 0;
 const thumbnailRenderer = new BlueprintThumbnailRenderer({ width: 180, height: 180 });
+
+function updateRasterPreview(): void {
+  if (rasterBlueprint === null) return;
+  const preview = requiredElement('[data-raster-preview]') as HTMLImageElement;
+  preview.src = thumbnailRenderer.render(rasterBlueprint, {
+    layerStates: { mouth: expressionInput.value },
+  });
+}
 
 function frameCharacter(): void {
   const blueprint = rig?.blueprint;
@@ -148,10 +158,8 @@ function rebuild(): void {
   scene.add(rig.root);
   animator = new SolidCharacterAnimator(rig, { autoGaze: autoGazeInput.checked });
   animator.setExpression(expressionInput.value as SolidFaceExpression);
-  const rasterPreview = requiredElement('[data-raster-preview]') as HTMLImageElement;
-  rasterPreview.src = thumbnailRenderer.render(
-    createRasterCharacterBlueprint(identity, { medium: 'graphite' }),
-  );
+  rasterBlueprint = createRasterCharacterBlueprint(identity, { medium: 'graphite' });
+  updateRasterPreview();
   const identityValues: Readonly<Record<string, string>> = {
     '[data-identity-seed]': String(identity.seed),
     '[data-identity-species]': identity.species,
@@ -175,6 +183,7 @@ for (const input of [
 framingInput.addEventListener('change', frameCharacter);
 expressionInput.addEventListener('change', () => {
   animator?.setExpression(expressionInput.value as SolidFaceExpression);
+  updateRasterPreview();
 });
 autoGazeInput.addEventListener('change', rebuild);
 root.querySelector('[data-reroll]')?.addEventListener('click', () => {

@@ -7,6 +7,11 @@ import {
   buildPlantLayout,
   buildSolidCharacterLayout,
   buildSolidFaceLayout,
+  characterEyeCenterY,
+  characterHeadShapeField,
+  characterMouthCenterY,
+  createCharacterHairProfile,
+  createCharacterMouthProfile,
   createCharacterIdentity,
   createCharacterBlueprint,
   createCharacterRecipe,
@@ -23,6 +28,7 @@ import {
   createSolidCharacterRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
+  pointOnSuperellipsoid,
 } from '../src/index.js';
 
 describe('deterministic generation', () => {
@@ -122,6 +128,30 @@ describe('deterministic generation', () => {
     expect(rasterLayout.head.widthPixels / rasterLayout.head.heightPixels)
       .toBeCloseTo(solidLayout.shape.radii[0] / solidLayout.shape.radii[1]);
     expect(Object.isFrozen(identity.palette.skin)).toBe(true);
+  });
+
+  it('uses the same normalized head and feature geometry in raster and solid adapters', () => {
+    const identity = createCharacterIdentity(2721, {
+      shape: 'pear', eyeStyle: 'saucer', hairStyle: 'bob', mouthStyle: 'smile',
+    });
+    const raster = buildCharacterLayout(createRasterCharacterRecipe(identity));
+    const solid = buildSolidFaceLayout(createSolidCharacterRecipe(identity));
+    const field = characterHeadShapeField(identity.head);
+
+    expect(solid.shape.exponent).toBe(field.exponent);
+    expect(solid.shape.deformation).toEqual(field.deformation);
+    expect(Math.abs(raster.eyes.left.x) * raster.pixelsPerUnit / (raster.head.widthPixels * 0.5))
+      .toBeCloseTo(identity.eyes.spacing, 6);
+    expect(Math.abs(solid.eyeAnchors[0].point[0]) / solid.shape.radii[0])
+      .toBeCloseTo(identity.eyes.spacing, 5);
+    expect((raster.eyes.left.y - raster.head.center.y) * raster.pixelsPerUnit
+      / (raster.head.heightPixels * 0.5)).toBeCloseTo(characterEyeCenterY(identity), 6);
+    expect(solid.eyeAnchors[0].point[1] / solid.shape.radii[1])
+      .toBeCloseTo(characterEyeCenterY(identity), 5);
+    expect((raster.mouth.y - raster.head.center.y) * raster.pixelsPerUnit
+      / (raster.head.heightPixels * 0.5)).toBeCloseTo(characterMouthCenterY(identity), 6);
+    expect(solid.mouthAnchor.point[1] / solid.shape.radii[1])
+      .toBeCloseTo(characterMouthCenterY(identity), 5);
   });
 
   it('keeps authored eye and hair overrides inside the shared identity', () => {
@@ -238,7 +268,6 @@ describe('asset contracts', () => {
   it('places solid face features on the same analytic surface used by geometry', () => {
     const recipe = createSolidFaceRecipe(911, { shape: 'block' });
     const layout = buildSolidFaceLayout(recipe);
-    const [radiusX, radiusY, radiusZ] = layout.shape.radii;
     const surfaceAnchors = [
       layout.at(-0.36, 0.14 + recipe.identity.eyes.verticalOffset),
       layout.at(0.36, 0.14 + recipe.identity.eyes.verticalOffset),
@@ -247,10 +276,10 @@ describe('asset contracts', () => {
     ];
     for (const anchor of surfaceAnchors) {
       const point = anchor.point;
-      const value = Math.pow(Math.abs(point[0] / radiusX), layout.shape.exponent)
-        + Math.pow(Math.abs(point[1] / radiusY), layout.shape.exponent)
-        + Math.pow(Math.abs(point[2] / radiusZ), layout.shape.exponent);
-      expect(value).toBeCloseTo(1);
+      const reprojected = pointOnSuperellipsoid(layout.shape, point).point;
+      expect(reprojected[0]).toBeCloseTo(point[0], 6);
+      expect(reprojected[1]).toBeCloseTo(point[1], 6);
+      expect(reprojected[2]).toBeCloseTo(point[2], 6);
       expect(Math.hypot(...anchor.normal)).toBeCloseTo(1);
     }
     const blueprint = createSolidFaceBlueprint(recipe);
@@ -292,7 +321,7 @@ describe('asset contracts', () => {
     const ids = blueprint.parts.map(({ id }) => id);
     expect(ids).toEqual(expect.arrayContaining([
       'eye:left:star', 'eye:right:pupil',
-      'hair:cap', 'hair:fringe:0',
+      'hair:fringe',
     ]));
     expect(ids).not.toContain('eye:right:white');
 
@@ -302,6 +331,37 @@ describe('asset contracts', () => {
       })).parts.filter(({ id }) => id.startsWith('hair:')).map(({ id }) => id).join('|'),
     );
     expect(new Set(signatures).size).toBe(signatures.length);
+  });
+
+  it('scales the same hairstyle silhouette into raster and solid head space', () => {
+    const identity = createCharacterIdentity(108, { hairStyle: 'bob' });
+    const profile = createCharacterHairProfile(identity.hair);
+    const blueprint = createSolidCharacterBlueprint(identity);
+    const head = blueprint.parts.find(({ id }) => id === 'head');
+    const hair = blueprint.parts.find(({ id }) => id === 'hair:bob');
+    expect(profile).not.toBeNull();
+    expect(head?.geometry.type).toBe('superellipsoid');
+    expect(hair?.geometry.type).toBe('extruded-profile');
+    if (profile === null || head?.geometry.type !== 'superellipsoid'
+      || hair?.geometry.type !== 'extruded-profile') return;
+    const solidPoint = hair.geometry.outline[0];
+    const sharedPoint = profile.outline[0];
+    expect(solidPoint).toBeDefined();
+    expect(sharedPoint).toBeDefined();
+    if (solidPoint === undefined || sharedPoint === undefined) return;
+    expect(solidPoint[0] / head.geometry.radii[0]).toBeCloseTo(sharedPoint[0], 6);
+    expect(solidPoint[1] / head.geometry.radii[1]).toBeCloseTo(sharedPoint[1], 6);
+  });
+
+  it('builds distinct mouth geometry for semantic styles and facial expressions', () => {
+    const identity = createCharacterIdentity(109, { mouthStyle: 'smile' });
+    const blueprint = createSolidCharacterBlueprint(identity);
+    const mouths = blueprint.parts.filter(({ motion }) => motion.role === 'mouth');
+    expect(mouths).toHaveLength(5);
+    expect(mouths.filter(({ visible }) => visible !== false).map(({ id }) => id)).toEqual(['mouth']);
+    expect(new Set(mouths.map(({ geometry }) => JSON.stringify(geometry))).size).toBe(5);
+    expect(createCharacterMouthProfile(identity.mouth, 'happy').outline)
+      .not.toEqual(createCharacterMouthProfile(identity.mouth, 'sad').outline);
   });
 
   it('provides gameplay geometry for props and scenery without reading pixels', () => {

@@ -1,6 +1,10 @@
 import { TAU, type MutablePoint } from '../../core/geometry.js';
-import { SeedTree } from '../../core/random.js';
 import type { Bounds } from '../../core/geometry.js';
+import {
+  characterEyeCenterY,
+  characterHeadRadius2d,
+  characterMouthCenterY,
+} from '../character-identity/head-shape.js';
 import type { Vector2 } from '../types.js';
 import type { CharacterRecipe } from './recipe.js';
 
@@ -38,42 +42,13 @@ export type CharacterLayout = Readonly<{
 const PIXELS_PER_UNIT = 96;
 const HEAD_SCALE = 106;
 
-function targetRadius(shape: CharacterRecipe['identity']['head']['shape'], angle: number): number {
-  const cosine = Math.cos(angle);
-  const sine = Math.sin(angle);
-  if (shape === 'square') {
-    const exponent = 5.5;
-    return 1 / Math.pow(
-      Math.pow(Math.abs(cosine), exponent) + Math.pow(Math.abs(sine), exponent),
-      1 / exponent,
-    );
-  }
-  if (shape === 'drop') {
-    return sine < 0 ? 1 - 0.26 * Math.pow(-sine, 1.5) : 1;
-  }
-  if (shape === 'pear') {
-    return 1 - 0.2 * Math.pow(Math.max(0, -sine), 1.3)
-      + 0.12 * Math.pow(Math.max(0, sine), 1.4);
-  }
-  if (shape === 'lump') {
-    return 1 + 0.1 * Math.sin(angle * 2 + 1) + 0.055 * Math.sin(angle * 3);
-  }
-  return 1;
-}
-
 function createHeadOutline(recipe: CharacterRecipe, width: number, height: number): MutablePoint[] {
   const identity = recipe.identity;
-  const random = new SeedTree(identity.seed).random('character:layout:head');
-  const phase = random.float(0, TAU);
   const count = 28;
   const points: MutablePoint[] = [];
   for (let index = 0; index < count; index += 1) {
     const angle = (index / count) * TAU;
-    const carefulWobble = (
-      0.025 * Math.sin(angle * 3 + phase)
-      + 0.016 * Math.sin(angle * 7 + phase * 1.7)
-    ) * identity.head.wobble;
-    const radius = targetRadius(identity.head.shape, angle) * (1 + carefulWobble);
+    const radius = characterHeadRadius2d(identity.head, -angle);
     const x = Math.cos(angle) * width * 0.5 * radius;
     const y = Math.sin(angle) * height * 0.5 * radius;
     const cosine = Math.cos(identity.head.tilt);
@@ -98,10 +73,10 @@ export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
   const shoulderX = torsoWidth * 0.46;
   const hipX = torsoWidth * identity.body.stance;
 
-  const eyeY = headCenterPixels - headHeight * (0.1 - identity.eyes.verticalOffset);
-  const eyeX = headWidth * identity.eyes.spacing;
+  const eyeY = headCenterPixels + headHeight * 0.5 * characterEyeCenterY(identity);
+  const eyeX = headWidth * 0.5 * identity.eyes.spacing;
   const eyeRadius = headWidth * 0.095 * identity.eyes.size;
-  const mouthY = headCenterPixels - headHeight * identity.mouth.verticalOffset;
+  const mouthY = headCenterPixels + headHeight * 0.5 * characterMouthCenterY(identity);
   const handY = (shoulderYPixels - armLength * 0.78) / PIXELS_PER_UNIT;
 
   const minimumX = -Math.max(headWidth * 0.58, shoulderX + armLength * 0.45) / PIXELS_PER_UNIT;

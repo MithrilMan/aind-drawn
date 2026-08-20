@@ -225,7 +225,8 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
   });
   const materials = Object.freeze([...face.materials, clothMaterial]);
   const bodyTop = layout.limbs.legLength + layout.torso.height;
-  const [headRadiusX, headRadiusY, headRadiusZ] = layout.face.shape.radii;
+  const headMinimum = layout.face.surfaceBounds.minimum;
+  const headMaximum = layout.face.surfaceBounds.maximum;
 
   return Object.freeze({
     representation: 'solid',
@@ -243,8 +244,17 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         size: [layout.torso.width, bodyTop, layout.torso.depth * 2] as const,
       }),
       Object.freeze({
-        id: 'head', kind: 'solid', shape: 'box', center: layout.headCenter,
-        size: [headRadiusX * 2, headRadiusY * 2, headRadiusZ * 2] as const,
+        id: 'head', kind: 'solid', shape: 'box',
+        center: [
+          layout.headCenter[0] + (headMinimum[0] + headMaximum[0]) * 0.5,
+          layout.headCenter[1] + (headMinimum[1] + headMaximum[1]) * 0.5,
+          layout.headCenter[2] + (headMinimum[2] + headMaximum[2]) * 0.5,
+        ] as const,
+        size: [
+          headMaximum[0] - headMinimum[0],
+          headMaximum[1] - headMinimum[1],
+          headMaximum[2] - headMinimum[2],
+        ] as const,
       }),
     ]),
     sockets: layout.sockets,

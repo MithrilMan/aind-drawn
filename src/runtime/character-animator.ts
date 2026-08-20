@@ -1,5 +1,6 @@
 import { clamp } from '../core/geometry.js';
 import { Random, combineSeed } from '../core/random.js';
+import type { CharacterExpression } from '../assets/character-identity/mouth-profile.js';
 import type { BonePose, SpriteRig } from './sprite-rig.js';
 
 export const CHARACTER_POSES = [
@@ -88,12 +89,21 @@ export class CharacterAnimator {
   private gazeTarget = 0;
   private gazePosition = 0;
   private gazeVelocity = 0;
+  private expression: CharacterExpression = 'idle';
 
   public constructor(rig: SpriteRig) {
     this.rig = rig;
     this.expressionRandom = new Random(combineSeed(rig.blueprint.seed, 'character:animation'));
     this.nextBlink = this.expressionRandom.float(1.6, 4.4);
     this.nextGaze = this.expressionRandom.float(2.4, 6.2);
+  }
+
+  public get currentExpression(): CharacterExpression {
+    return this.expression;
+  }
+
+  public setExpression(expression: CharacterExpression): void {
+    this.expression = expression;
   }
 
   public update(deltaSeconds: number, motion: CharacterMotion = {}): void {
@@ -303,7 +313,10 @@ export class CharacterAnimator {
         : this.gazePosition > 0.25 ? 'right' : 'open';
     this.stateIfPresent('eye:left', eyeState);
     this.stateIfPresent('eye:right', eyeState);
-    this.stateIfPresent('mouth', talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : 'idle');
+    this.stateIfPresent(
+      'mouth',
+      talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : this.expression,
+    );
   }
 
   private addPose(

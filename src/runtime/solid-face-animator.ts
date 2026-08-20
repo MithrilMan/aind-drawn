@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 
 import type { SolidPartDefinition } from '../assets/solid-types.js';
+import type { CharacterExpression } from '../assets/character-identity/mouth-profile.js';
 import { clamp } from '../core/geometry.js';
 import { Random, combineSeed } from '../core/random.js';
 import type { SolidRig } from './solid-rig.js';
 
-export type SolidFaceExpression = 'idle' | 'happy' | 'angry' | 'sad' | 'surprised';
+export type SolidFaceExpression = CharacterExpression;
 
 export type SolidFaceAnimatorOptions = Readonly<{
   autoBlink?: boolean;
@@ -23,15 +24,14 @@ type ExpressionPose = Readonly<{
   eyeScaleY?: number;
   browLift?: number;
   browRoll?: number;
-  mouthScaleY?: number;
 }>;
 
 const EXPRESSIONS: Readonly<Record<SolidFaceExpression, ExpressionPose>> = {
   idle: {},
-  happy: { eyeScaleY: 0.78, browLift: 0.1, mouthScaleY: 1.14 },
+  happy: { eyeScaleY: 0.78, browLift: 0.1 },
   angry: { eyeScaleY: 0.88, browLift: -0.16, browRoll: -0.48 },
-  sad: { eyeScaleY: 0.94, browLift: 0.08, browRoll: 0.42, mouthScaleY: 0.9 },
-  surprised: { eyeScale: 1.13, browLift: 0.24, mouthScaleY: 1.3 },
+  sad: { eyeScaleY: 0.94, browLift: 0.08, browRoll: 0.42 },
+  surprised: { eyeScale: 1.13, browLift: 0.24 },
 };
 
 function criticallyDamped(
@@ -216,7 +216,7 @@ export class SolidFaceAnimator {
       } else if (motion.role === 'mouth') {
         mesh.translateX(this.headX * unit * 0.04);
         mesh.translateY(this.headY * unit * 0.025);
-        mesh.scale.y = rest.scale.y * (expression.mouthScaleY ?? 1);
+        mesh.visible = motion.expression === undefined || motion.expression === this.expression;
       }
     }
     this.head.position.copy(this.headRest);

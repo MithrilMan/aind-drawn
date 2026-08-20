@@ -61,6 +61,13 @@ layout places shared facial intent on an analytic surface and both blueprints
 emit serialisable geometry and material roles. Three.js objects exist only
 after `SolidRig` consumes a blueprint.
 
+The shared character contract includes more than categorical labels. Head
+shapes evaluate one dimensionless radial field in raster and solid adapters;
+eye spacing is a half-width ratio; hair and mouth profiles use head-radius
+units. Expression variants derive from the same mouth profile factory. Add a
+new hairstyle or mouth family there first, then make each representation consume
+it. Do not add a second adapter-local silhouette table.
+
 ## Deterministic recipes
 
 Allocate one seed namespace per semantic feature:

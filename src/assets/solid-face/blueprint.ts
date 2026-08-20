@@ -10,6 +10,11 @@ import type {
   CharacterEyeStyle,
   CharacterIdentityRecipe,
 } from '../character-identity/recipe.js';
+import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
+import {
+  CHARACTER_EXPRESSIONS,
+  createCharacterMouthProfile,
+} from '../character-identity/mouth-profile.js';
 import {
   createSolidCharacterRecipe,
   type SolidCharacterRecipe,
@@ -210,83 +215,20 @@ function addHairParts(
   recipe: SolidFaceSourceRecipe,
   layout: SolidFaceLayout,
 ): void {
-  const style = recipe.identity.hair.style;
-  if (style === 'none') return;
+  const profile = createCharacterHairProfile(recipe.identity.hair);
+  if (profile === null) return;
   const [radiusX, radiusY, radiusZ] = layout.shape.radii;
-  const density = 0.82 + recipe.identity.hair.height;
-  const addLobe = (
-    id: string,
-    radii: Point3,
-    position: Point3,
-    order = 10,
-  ): void => {
-    add({
-      id, node: 'head', order,
-      geometry: Object.freeze({
-        type: 'superellipsoid', radii, exponent: 2.5,
-        widthSegments: 20, heightSegments: 14,
-      }),
-      materialId: 'hair', placement: solidPlacement(position),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
-    });
-  };
-  const addCap = (): void => {
-    addLobe(
-      'hair:cap',
-      [radiusX * 0.82, radiusY * (0.29 + density * 0.06), radiusZ * 0.68] as const,
-      [0, radiusY * 0.78, -radiusZ * 0.15] as const,
-      10,
-    );
-  };
-
-  if (style === 'cap') {
-    addCap();
-    return;
-  }
-  if (style === 'bob') {
-    addCap();
-    for (const side of [-1, 1] as const) {
-      addLobe(
-        `hair:bob:${side < 0 ? 'left' : 'right'}`,
-        [radiusX * 0.23, radiusY * (0.55 + density * 0.08), radiusZ * 0.48] as const,
-        [side * radiusX * 0.78, radiusY * 0.12, -radiusZ * 0.08] as const,
-        16,
-      );
-    }
-    return;
-  }
-  if (style === 'fringe') {
-    addCap();
-    for (const [index, x] of [-0.46, 0, 0.46].entries()) {
-      addLobe(
-        `hair:fringe:${index}`,
-        [radiusX * 0.18, radiusY * (0.27 + index % 2 * 0.07), radiusZ * 0.14] as const,
-        [x * radiusX, radiusY * 0.53, radiusZ * 0.82] as const,
-        18 + index,
-      );
-    }
-    return;
-  }
-
-  const count = style === 'tuft' ? 3 : style === 'crown' ? 5 : 7;
-  const spread = style === 'tuft' ? radiusX * 0.52 : radiusX * 1.45;
-  const spikeWidth = radiusX * (style === 'tuft' ? 0.16 : 0.13);
-  for (let index = 0; index < count; index += 1) {
-    const amount = index / (count - 1);
-    const alternating = index % 2 === 0 ? 1 : 0.72;
-    const spikeHeight = radiusY * (0.34 + density * 0.16) * alternating;
-    add({
-      id: `hair:${style}:${index}`, node: 'head', order: 10 + index,
-      geometry: plate(triangle(spikeWidth, spikeHeight), spikeWidth * 0.5, spikeWidth * 0.12),
-      materialId: 'hair',
-      placement: solidPlacement([
-        (amount - 0.5) * spread,
-        radiusY * 0.93 + spikeHeight * 0.32,
-        radiusZ * 0.1,
-      ]),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
-    });
-  }
+  const outline = Object.freeze(profile.outline.map(([x, y]) => Object.freeze([
+    x * radiusX,
+    y * radiusY,
+  ] as const)));
+  add({
+    id: `hair:${profile.style}`, node: 'head', order: 10,
+    geometry: plate(outline, radiusZ * profile.depth, radiusZ * 0.08),
+    materialId: 'hair',
+    placement: solidPlacement([0, 0, radiusZ * profile.front]),
+    motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+  });
 }
 
 export function createSolidFaceBlueprint(
@@ -322,6 +264,7 @@ export function createSolidFaceBlueprint(
       type: 'superellipsoid',
       radii: layout.shape.radii,
       exponent: layout.shape.exponent,
+      ...(layout.shape.deformation === undefined ? {} : { deformation: layout.shape.deformation }),
       widthSegments: 48,
       heightSegments: 32,
     }),
@@ -380,27 +323,29 @@ export function createSolidFaceBlueprint(
     });
   }
 
-  const mouthWidth = layout.shape.radii[0] * recipe.identity.mouth.width;
-  const mouthThickness = Math.max(0.012, mouthWidth * 0.052);
-  const mouthOutline = recipe.identity.mouth.style === 'open'
-    ? ellipse(mouthWidth * 0.62, mouthWidth * 0.4)
-    : band(
-      mouthWidth,
-      mouthThickness,
-      recipe.identity.mouth.style === 'smile' ? mouthWidth * 0.28
-        : recipe.identity.mouth.style === 'frown' ? -mouthWidth * 0.24
-          : recipe.identity.mouth.style === 'cat' ? mouthWidth * 0.18 : 0,
-    );
-  add({
-    id: 'mouth', node: 'head', order: 28,
-    geometry: plate(mouthOutline, mouthThickness * 1.8, mouthThickness * 0.48),
-    materialId: 'ink', placement: placement(layout.mouthAnchor),
-    motion: Object.freeze({ role: 'mouth' }), castShadow: false, receiveShadow: false,
-  });
+  const [headRadiusX, headRadiusY] = layout.shape.radii;
+  for (const expression of CHARACTER_EXPRESSIONS) {
+    const profile = createCharacterMouthProfile(identity.mouth, expression);
+    const mouthOutline = Object.freeze(profile.outline.map(([x, y]) => Object.freeze([
+      x * headRadiusX,
+      y * headRadiusY,
+    ] as const)));
+    const mouthThickness = Math.max(0.01, headRadiusY * 0.018);
+    add({
+      id: expression === 'idle' ? 'mouth' : `mouth:${expression}`,
+      node: 'head', order: 28,
+      geometry: plate(mouthOutline, mouthThickness * 1.8, mouthThickness * 0.42),
+      materialId: 'ink', placement: placement(layout.mouthAnchor),
+      motion: Object.freeze({ role: 'mouth', expression }),
+      visible: expression === 'idle',
+      castShadow: false, receiveShadow: false,
+    });
+  }
 
   addHairParts(add, recipe, layout);
 
-  const [radiusX, radiusY, radiusZ] = layout.shape.radii;
+  const headMinimum = layout.surfaceBounds.minimum;
+  const headMaximum = layout.surfaceBounds.maximum;
   return Object.freeze({
     representation: 'solid',
     id: `solid-face:${recipe.identity.seed}`,
@@ -415,8 +360,16 @@ export function createSolidFaceBlueprint(
     colliders: Object.freeze([
       Object.freeze({
         id: 'head', kind: 'solid', shape: 'box',
-        center: layout.center,
-        size: [radiusX * 2, radiusY * 2, radiusZ * 2] as const,
+        center: [
+          layout.center[0] + (headMinimum[0] + headMaximum[0]) * 0.5,
+          layout.center[1] + (headMinimum[1] + headMaximum[1]) * 0.5,
+          layout.center[2] + (headMinimum[2] + headMaximum[2]) * 0.5,
+        ] as const,
+        size: [
+          headMaximum[0] - headMinimum[0],
+          headMaximum[1] - headMinimum[1],
+          headMaximum[2] - headMinimum[2],
+        ] as const,
       }),
     ]),
     sockets: layout.sockets,

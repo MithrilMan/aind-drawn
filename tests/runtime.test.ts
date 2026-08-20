@@ -210,6 +210,12 @@ describe('solid rig runtime', () => {
     animator.setExpression('surprised');
     animator.update(0.1);
     expect(pupil?.scale.x).toBeGreaterThan(1);
+    expect(rig.getPart('mouth')?.visible).toBe(false);
+    expect(rig.getPart('mouth:surprised')?.visible).toBe(true);
+    animator.setExpression('sad');
+    animator.update(0.1);
+    expect(rig.getPart('mouth:surprised')?.visible).toBe(false);
+    expect(rig.getPart('mouth:sad')?.visible).toBe(true);
     rig.dispose();
     expect(rig.partIds).toEqual([]);
   });

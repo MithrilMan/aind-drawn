@@ -13,7 +13,11 @@ function createSuperellipsoidGeometry(
   );
   const positions = geometry.getAttribute('position');
   const normals = geometry.getAttribute('normal');
-  const shape = { radii: spec.radii, exponent: spec.exponent };
+  const shape = {
+    radii: spec.radii,
+    exponent: spec.exponent,
+    ...(spec.deformation === undefined ? {} : { deformation: spec.deformation }),
+  };
   for (let index = 0; index < positions.count; index += 1) {
     const direction: Point3 = [positions.getX(index), positions.getY(index), positions.getZ(index)];
     const surface = pointOnSuperellipsoid(shape, direction);

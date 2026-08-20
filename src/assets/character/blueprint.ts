@@ -4,6 +4,8 @@ import { PAPER, type Sketch } from '../../core/sketch.js';
 import { mediumById, type Medium } from '../../materials/medium.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../types.js';
 import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
+import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
+import { createCharacterMouthProfile } from '../character-identity/mouth-profile.js';
 import { buildCharacterLayout } from './layout.js';
 import {
   createRasterCharacterRecipe,
@@ -84,73 +86,21 @@ function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
   }
 }
 
-function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void {
-  if (recipe.identity.hair.style === 'none') {
-    return;
-  }
+function drawHair(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  medium: Medium,
+  headWidth: number,
+  headHeight: number,
+): void {
+  const profile = createCharacterHairProfile(recipe.identity.hair);
+  if (profile === null) return;
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2;
-  let points: MutablePoint[];
-  if (recipe.identity.hair.style === 'spikes' || recipe.identity.hair.style === 'crown') {
-    points = [];
-    const count = 9;
-    for (let index = 0; index <= count; index += 1) {
-      const amount = index / count;
-      const x = centerX - 65 + amount * 130;
-      const height = index % 2 === 0 ? 42 : 18;
-      points.push([x, centerY - 48 - height]);
-    }
-    points.push([centerX + 66, centerY - 18], [centerX - 66, centerY - 18]);
-  } else if (recipe.identity.hair.style === 'tuft') {
-    points = chaikin([
-      [centerX - 28, centerY - 48],
-      [centerX - 8, centerY - 88],
-      [centerX + 5, centerY - 56],
-      [centerX + 28, centerY - 82],
-      [centerX + 34, centerY - 43],
-    ], true, 1);
-  } else if (recipe.identity.hair.style === 'bob') {
-    const height = 48 + recipe.identity.hair.height * 34;
-    points = chaikin([
-      [centerX - 72, centerY + 25],
-      [centerX - 72, centerY - 48],
-      [centerX, centerY - height],
-      [centerX + 72, centerY - 47],
-      [centerX + 72, centerY + 25],
-      [centerX + 52, centerY + 7],
-      [centerX + 39, centerY - 27],
-      [centerX, centerY - 14],
-      [centerX - 40, centerY - 27],
-      [centerX - 52, centerY + 7],
-    ], true, 2);
-  } else if (recipe.identity.hair.style === 'fringe') {
-    const height = 48 + recipe.identity.hair.height * 42;
-    points = chaikin([
-      [centerX - 69, centerY - 13],
-      [centerX - 58, centerY - 59],
-      [centerX, centerY - height],
-      [centerX + 61, centerY - 57],
-      [centerX + 69, centerY - 13],
-      [centerX + 44, centerY - 24],
-      [centerX + 31, centerY - 8],
-      [centerX + 13, centerY - 28],
-      [centerX - 4, centerY - 7],
-      [centerX - 25, centerY - 29],
-      [centerX - 45, centerY - 13],
-    ], true, 1);
-  } else {
-    const height = 44 + recipe.identity.hair.height * 38;
-    points = chaikin([
-      [centerX - 70, centerY - 10],
-      [centerX - 62, centerY - 62],
-      [centerX, centerY - height],
-      [centerX + 62, centerY - 61],
-      [centerX + 70, centerY - 8],
-      [centerX + 38, centerY - 30],
-      [centerX, centerY - 18],
-      [centerX - 38, centerY - 30],
-    ], true, 2);
-  }
+  const points: MutablePoint[] = profile.outline.map(([x, y]) => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ]);
   medium.tone(sketch, points, {
     style: recipe.style.hairTone, color: recipe.identity.palette.hair, gap: 7,
   });
@@ -363,33 +313,31 @@ function drawNose(sketch: Sketch, recipe: CharacterRecipe): void {
   );
 }
 
-function drawMouth(sketch: Sketch, recipe: CharacterRecipe, state: string): void {
+function drawMouth(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  state: string,
+  headWidth: number,
+  headHeight: number,
+): void {
   const centerX = MOUTH_CANVAS.width / 2;
   const centerY = MOUTH_CANVAS.height / 2;
-  const width = 23 + recipe.identity.mouth.width * 38;
-  if (state === 'open') {
-    const mouth = sketch.blobPoints(centerX, centerY, width * 0.45, 10, 0, 0.4);
-    sketch.inkFill(mouth, 0.9);
-    return;
-  }
-  if (recipe.identity.mouth.style === 'zigzag') {
-    sketch.line([
-      [centerX - width / 2, centerY],
-      [centerX - width / 4, centerY - 5],
-      [centerX, centerY + 4],
-      [centerX + width / 4, centerY - 4],
-      [centerX + width / 2, centerY + 1],
-    ], 2, 0.8);
-    return;
-  }
-  const bend = recipe.identity.mouth.style === 'frown'
-    ? -8
-    : recipe.identity.mouth.style === 'smile' || recipe.identity.mouth.style === 'cat' ? 8 : 0;
-  sketch.stroke(chaikin([
-    [centerX - width / 2, centerY],
-    [centerX, centerY + bend],
-    [centerX + width / 2, centerY],
-  ], false, 1), 2.6 * recipe.style.linePressure, { taper: 0.3, overshoot: 2 });
+  const expression = state === 'open' ? 'surprised' : state;
+  const profile = createCharacterMouthProfile(
+    recipe.identity.mouth,
+    expression === 'happy' || expression === 'angry' || expression === 'sad'
+      || expression === 'surprised' ? expression : 'idle',
+  );
+  const outline: MutablePoint[] = profile.outline.map(([x, y]) => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ]);
+  sketch.inkFill(outline, profile.open ? 0.92 : 0.82);
+  sketch.stroke(closePath(outline), 1.35 * recipe.style.linePressure, {
+    alpha: 0.72,
+    amplitude: 0.32,
+    taper: 0.08,
+  });
 }
 
 function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canvas: Size2): void {
@@ -602,7 +550,9 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       id: 'hair', bone: 'head', order: 2, depth: 0.4,
       canvas: HEAD_CANVAS, pixelsPerUnit, position: headPosition,
       pivot: [0.5, 0.5], states: ['idle'],
-      draw: ({ sketch }) => { drawHair(sketch, recipe, medium); },
+      draw: ({ sketch }) => {
+        drawHair(sketch, recipe, medium, layout.head.widthPixels, layout.head.heightPixels);
+      },
     }),
     ...(recipe.identity.species === 'cat' ? [layer({
       id: 'muzzle', bone: 'head', order: 3, depth: 0.72,
@@ -668,8 +618,11 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         y: layout.mouth.y - headPosition.y,
       },
       parentBone: 'head',
-      pivot: [0.5, 0.5], states: ['idle', 'open'],
-      draw: ({ sketch, state }) => { drawMouth(sketch, recipe, state); },
+      pivot: [0.5, 0.5],
+      states: ['idle', 'open', 'happy', 'angry', 'sad', 'surprised'],
+      draw: ({ sketch, state }) => {
+        drawMouth(sketch, recipe, state, layout.head.widthPixels, layout.head.heightPixels);
+      },
     }),
   ];
 

@@ -4,6 +4,7 @@ import { SpriteRig, type AssetBlueprint, type Bounds } from '../../../src/index.
 
 export type BlueprintThumbnailOptions = Readonly<{
   interactionStates?: Readonly<Record<string, string>>;
+  layerStates?: Readonly<Record<string, string>>;
   layerIds?: readonly string[];
   frameBounds?: Bounds;
 }>;
@@ -50,6 +51,9 @@ export class BlueprintThumbnailRenderer {
     });
     for (const [interactionId, state] of Object.entries(options.interactionStates ?? {})) {
       if (rig.interactionIds.includes(interactionId)) rig.setInteractionState(interactionId, state);
+    }
+    for (const [layerId, state] of Object.entries(options.layerStates ?? {})) {
+      if (rig.layerIds.includes(layerId)) rig.setLayerState(layerId, state);
     }
 
     const bounds = options.frameBounds ?? blueprint.bounds;

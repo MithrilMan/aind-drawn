@@ -38,6 +38,7 @@ export class SolidRig {
       const mesh: SolidPartMesh = new THREE.Mesh(createSolidGeometry(part.geometry), material);
       mesh.name = `part:${part.id}`;
       mesh.renderOrder = part.order;
+      mesh.visible = part.visible ?? true;
       mesh.castShadow = part.castShadow;
       mesh.receiveShadow = part.receiveShadow;
       mesh.userData.partId = part.id;

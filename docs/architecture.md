@@ -67,10 +67,11 @@ CharacterIdentityRecipe
   └─ SolidCharacterStyle  -> SolidCharacterRecipe -> SolidAssetBlueprint -> SolidRig
 ```
 
-Representation layouts share normalized semantic intent, not coordinates. Eye
-spacing is an identity value; Canvas pixels and superellipsoid surface anchors
-are adapter-specific derivations. Sharing one coordinate system here would be
-coupling disguised as reuse.
+Representation layouts share normalized semantic intent, not renderer
+coordinates. Eye spacing is measured from the face centre as a fraction of the
+head half-width. Hair and mouth profiles are expressed in head-radius units.
+Canvas pixels and solid surface anchors remain adapter-specific derivations,
+but both consume those same dimensionless contracts.
 
 ## Raster asset contract
 
@@ -109,14 +110,18 @@ named parts, geometry specifications, physical material roles, 3D bounds,
 colliders, and sockets. Supported geometry primitives are superellipsoids,
 extruded 2D profiles, and indexed or flat triangle meshes.
 
-`pointOnSuperellipsoid` is shared by layout and mesh generation. It returns an
-exact surface point and analytic normal; `surfaceFrame` derives the tangent
-basis used to mount a feature. Eyes and mouths therefore cannot drift away from
-the head when its exponent changes from round to block-like.
+`pointOnSuperellipsoid` is shared by layout and mesh generation. It evaluates
+the same serialisable radial field used by the raster head outline. Base
+superellipsoids use analytic normals and deformed fields use stable surface
+differentials; `surfaceFrame` derives the tangent basis used to mount a feature.
+Projected eye and mouth coordinates are solved against that surface instead of
+being remapped by representation-specific constants.
 
 `SolidRig` resolves pure specifications to Three.js geometry and physical
-materials. Each semantic part remains an independent mesh. `SolidFaceAnimator`
-owns blink, gaze, head follow, and expression offsets; `SolidCharacterAnimator`
-adds rest-pose body nodes, locomotion, breathing, and tail motion. Both reset
-their targets before applying transforms, so animation never accumulates drift
-or rebuilds geometry. The rig owns and disposes all generated GPU resources.
+materials. Each semantic part remains an independent mesh. Mouth expressions
+are authored profile variants selected by `SolidFaceAnimator`, not scale-only
+distortions of one neutral mouth. The animator also owns blink, gaze, and head
+follow; `SolidCharacterAnimator` adds rest-pose body nodes, locomotion,
+breathing, and tail motion. Both reset their targets before applying transforms,
+so animation never accumulates drift or rebuilds geometry. The rig owns and
+disposes all generated GPU resources.

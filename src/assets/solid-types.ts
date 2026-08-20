@@ -1,12 +1,14 @@
 import type { Point } from '../core/geometry.js';
-import type { Bounds3, Point3, SurfaceAnchor } from '../core/geometry3.js';
+import type { Bounds3, Point3, RadialDeformation, SurfaceAnchor } from '../core/geometry3.js';
 import type { Seed } from '../core/random.js';
 import type { SolidMaterialSpec } from '../materials/finish.js';
+import type { CharacterExpression } from './character-identity/mouth-profile.js';
 
 export type SuperellipsoidGeometrySpec = Readonly<{
   type: 'superellipsoid';
   radii: Point3;
   exponent: number;
+  deformation?: RadialDeformation;
   widthSegments: number;
   heightSegments: number;
 }>;
@@ -47,6 +49,7 @@ export type SolidPlacement = Readonly<{
 export type SolidPartMotion = Readonly<{
   role: 'eye' | 'brow' | 'mouth' | 'fixed';
   side?: -1 | 1;
+  expression?: CharacterExpression;
   gazeTravel?: readonly [x: number, y: number];
   blink?: Readonly<{
     kind: 'squash';
@@ -62,6 +65,7 @@ export type SolidPartDefinition = Readonly<{
   materialId: string;
   placement: SolidPlacement;
   motion: SolidPartMotion;
+  visible?: boolean;
   castShadow: boolean;
   receiveShadow: boolean;
 }>;

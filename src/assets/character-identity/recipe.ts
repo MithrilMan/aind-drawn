@@ -27,6 +27,7 @@ export type CharacterIdentityRecipe = Readonly<{
     height: number;
     wobble: number;
     tilt: number;
+    phase: number;
   }>;
   eyes: Readonly<{
     style: CharacterEyeStyle;
@@ -238,11 +239,12 @@ export function createCharacterIdentity(
       height: headRandom.float(0.88, 1.16) * headHeightFactor,
       wobble: isCreature ? headRandom.float(0.75, 1.25) : headRandom.float(0.35, 0.72),
       tilt: headRandom.float(-0.09, 0.09),
+      phase: headRandom.float(0, Math.PI * 2),
     }),
     eyes: Object.freeze({
       style: eyeStyle,
       alternateStyle,
-      spacing: eyesRandom.float(0.37, 0.52),
+      spacing: eyesRandom.float(0.44, 0.62),
       size: eyesRandom.float(0.82, 1.22),
       verticalOffset: eyesRandom.float(-0.08, 0.05),
       glint: eyesRandom.chance(0.82),

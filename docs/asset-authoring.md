@@ -21,6 +21,13 @@ semantic solid parts for real volume. Consumer choice is not representation
 choice: a `SpriteRig` can live in a Three.js scene, while a `SolidRig` can be
 rendered orthographically in a 2.5D game.
 
+When an existing solid needs a three-dimensional hand-drawn projection, wrap
+its completed `SolidAssetBlueprint` with `createInkedSolidBlueprint`. Contour,
+hatching, paper tint, and boil timing are representation policy; they must not
+reroll geometry or enter the family identity. The same public runtime is used
+for characters, buildings, vehicles, and props with real volume. Do not create
+a family-specific post-process shader.
+
 Use the static prop registry when all of these are true:
 
 - the object has one visual layer;
@@ -118,6 +125,9 @@ identity data.
   `SurfaceAnchor`; do not hand-tune Three.js transforms in the consumer.
 - Keep material intent in `SolidMaterialSpec` and lighting/environment policy in
   the runtime or scene.
+- Keep inked-solid policy in `InkedSolidBlueprint`; screen-space contours belong
+  to the camera pass and hatching coordinates must stay local to the rendered
+  geometry so articulated parts do not swim through the marks.
 
 The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
@@ -130,7 +140,8 @@ binds `closed` and `open` layer states; solid binds those states to the hinged
 3. Extend the serializable experiment document only for authored parameters.
 4. Add deterministic recipe tests and blueprint contract tests.
 5. Test state validation and animation in the runtime when applicable.
-6. Dispose generated resources through `SpriteRig.dispose()` or `SolidRig.dispose()`.
+6. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
+   and `InkedSolidPass.dispose()` when that representation is active.
 7. Run `pnpm verify`.
 8. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.

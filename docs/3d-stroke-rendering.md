@@ -33,44 +33,53 @@ The inked-solid projection therefore separates the responsibilities:
 | Contour pass | Screen space from depth and normals | Silhouette and selected creases | Recomputed for the active camera |
 | Hatch field | UV or triplanar object space | Graphite shading and material grain | Stable on the surface; seed controls boil |
 
-## Proposed contract
+The generic contour and hatching systems are now implemented. Semantic surface
+strokes remain the next layer; they require an honest surface-coordinate model
+and must not be faked with triangulation edges.
 
-The first implementation should extend the solid projection with an optional
-stroke blueprint rather than changing character identity or gameplay recipes.
-The exact TypeScript API should be introduced only with the first runtime
-consumer, but the data boundary is:
+## Implemented contract
+
+`createInkedSolidBlueprint` retains the exact source solid by reference and
+adds immutable renderer-neutral policy:
 
 ```ts
-type SurfaceStrokeSpec = Readonly<{
-  id: string;
-  nodeId: string;
-  path: readonly SurfaceCoordinate[];
+type InkedSolidContourPolicy = Readonly<{
+  color: RgbColor;
   width: number;
-  lift: number;
-  materialId: string;
+  opacity: number;
+  depthThreshold: number;
+  normalThreshold: number;
+  jitter: number;
+  boilFramesPerSecond: number;
   seed: number;
-  geometry: 'ribbon' | 'tube';
 }>;
 
 type InkedSolidBlueprint = Readonly<{
+  representation: 'inked-solid';
+  id: string;
+  kind: string;
+  seed: Seed;
   solid: SolidAssetBlueprint;
-  strokes: readonly SurfaceStrokeSpec[];
-  contour: ContourPolicy;
-  hatching: HatchPolicy | null;
+  contour: InkedSolidContourPolicy;
+  hatching: InkedSolidHatchPolicy | null;
+  paper: InkedSolidPaperPolicy;
 }>;
 ```
 
-`SurfaceCoordinate` must identify a stable location on an authored primitive
-or mesh, not a Three.js world-space point. For a superellipsoid this can be a
-pair of surface parameters plus an offset; for a mesh it can be a triangle id
-and barycentric coordinates. The runtime resolves those coordinates to lifted
-ribbons or tubes and parents the result to `nodeId`.
+The policy is serialisable and contains no Three.js objects. Setting
+`hatching: null` disables graphite without changing the source solid. The
+runtime consumer is `InkedSolidPass`, used unchanged by both the character and
+building labs.
 
 ## Rendering pipeline
 
-### 1. Semantic marks
+### 1. Semantic marks — next extension
 
-Generate narrow ribbon geometry slightly above the surface. Ribbons are the
+The planned `SurfaceStrokeSpec` must identify a stable location on an authored
+primitive or mesh, not a Three.js world-space point. For a superellipsoid this
+can be a pair of surface parameters plus an offset; for a mesh it can be a
+triangle id and barycentric coordinates. The runtime will resolve narrow ribbon
+geometry slightly above the surface. Ribbons are the
 default because their width can remain approximately constant on screen;
 tubes are useful only when a stroke must read as physical wire or thick paint.
 Each mark has a stable seed, named owner, and local coordinates. Facial
@@ -79,18 +88,20 @@ parts do.
 
 ### 2. Contours
 
-Render solid depth and normals into off-screen buffers, then detect silhouette
-and selected normal discontinuities in a post-process pass. Line width belongs
-in screen space. Seeded low-frequency displacement can roughen the result, but
-the noise must be temporally coherent; independent noise every frame becomes
-shimmer, not pencil.
+`InkedSolidPass` renders beauty with depth, then a normal buffer. The composite
+shader detects relative view-depth discontinuities and normal creases. Line
+width is screen-space and therefore remains legible as the camera moves.
+Seeded low-frequency displacement is quantised by the configured boil frame
+rate; independent noise every frame would be shimmer, not pencil.
 
 ### 3. Graphite surface
 
-Use object-space or triplanar hatch fields modulated by lighting. Several
-sparse line families are preferable to one dark texture. Keep the hatch seed
-stable per material and quantise the boil to a low frame rate so it relates to
-the raster adapter's line boil without crawling over the geometry.
+The pass renders an additional half-float object-local position buffer. The
+composite shader derives the local surface normal from position derivatives and
+builds triplanar hatch families modulated by beauty luminance. This extra buffer
+is deliberate: screen- or world-space hatching would swim over a rotating limb
+or hinged door. Seeded wander breaks the mechanical grid, while the quantised
+boil remains stable between ticks.
 
 ## 2.5D variant
 
@@ -101,14 +112,17 @@ parallax, but it cannot provide a convincing rear or profile view. It is a
 distinct camera-limited representation, not a low-quality substitute for the
 inked solid.
 
-## Delivery sequence
+## Delivery state
 
-1. Add one Three.js contour pass that consumes any `SolidAssetBlueprint`.
-2. Prove semantic strokes on a character face and a building facade.
-3. Add stable graphite hatching and shared boil timing.
-4. Extend authoring to props and plants after organic and architectural assets
-   prove the coordinate model.
+1. **Shipped:** one generic Three.js contour pass consuming any
+   `SolidAssetBlueprint` through `InkedSolidBlueprint`.
+2. **Shipped:** stable object-local graphite hatching and quantised boil timing.
+3. **Shipped proof:** the same runtime on a complete animated character and an
+   interactive building.
+4. **Next:** semantic surface strokes on a character face and building facade.
+5. **Then:** extend stroke authoring to props and plants after those two proofs
+   validate the coordinate model.
 
-The fourth step is deliberately last. Generalising before those two proofs
+The fifth step is deliberately last. Generalising stroke coordinates before those two proofs
 would produce a handsome type system for geometry nobody has successfully
 drawn yet.

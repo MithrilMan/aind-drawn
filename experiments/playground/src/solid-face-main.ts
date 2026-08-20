@@ -3,9 +3,11 @@ import './solid-face.css';
 import * as THREE from 'three';
 
 import {
+  InkedSolidPass,
   SolidCharacterAnimator,
   SolidRig,
   createCharacterIdentity,
+  createInkedSolidBlueprint,
   createRasterCharacterBlueprint,
   createSolidCharacterBlueprint,
   type CharacterEyeStyle,
@@ -68,6 +70,10 @@ const shapeInput = requiredElement('[name="shape"]') as HTMLSelectElement;
 const eyeStyleInput = requiredElement('[name="eyeStyle"]') as HTMLSelectElement;
 const hairStyleInput = requiredElement('[name="hairStyle"]') as HTMLSelectElement;
 const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
+const renderStyleInput = requiredElement('[name="renderStyle"]') as HTMLSelectElement;
+const lineWeightInput = requiredElement('[name="lineWeight"]') as HTMLSelectElement;
+const hatchingInput = requiredElement('[name="hatching"]') as HTMLInputElement;
+const lineBoilInput = requiredElement('[name="lineBoil"]') as HTMLInputElement;
 const framingInput = requiredElement('[name="framing"]') as HTMLSelectElement;
 const expressionInput = requiredElement('[name="expression"]') as HTMLSelectElement;
 const autoGazeInput = requiredElement('[name="autoGaze"]') as HTMLInputElement;
@@ -84,11 +90,40 @@ const motionStatusRow = requiredElement('[data-motion-status-row]') as HTMLEleme
 const rasterCanvas = requiredElement('[data-raster-preview]') as HTMLCanvasElement;
 
 let rig: SolidRig | null = null;
+let inkedPass: InkedSolidPass | null = null;
 let animator: SolidCharacterAnimator | null = null;
 let rotationX = 0;
 let rotationY = 0;
 let motionPlaying = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const rasterPreview = new CharacterRasterPreview(rasterCanvas);
+
+function updateInkedRendering(): void {
+  if (rig === null) return;
+  const boil = lineBoilInput.checked;
+  const blueprint = createInkedSolidBlueprint(rig.blueprint, {
+    contour: {
+      width: Number(lineWeightInput.value),
+      jitter: boil ? 0.34 : 0,
+      boilFramesPerSecond: boil ? 6 : 0,
+    },
+    hatching: hatchingInput.checked ? {
+      jitter: boil ? 0.025 : 0,
+      boilFramesPerSecond: boil ? 5 : 0,
+    } : null,
+  });
+  if (inkedPass === null) inkedPass = new InkedSolidPass(renderer, blueprint);
+  else inkedPass.setBlueprint(blueprint);
+  inkedPass.setSize(
+    Math.max(1, viewport?.clientWidth ?? 1),
+    Math.max(1, viewport?.clientHeight ?? 1),
+    renderer.getPixelRatio(),
+  );
+  const stats = root?.querySelector<HTMLElement>('[data-render-stats]');
+  if (stats !== null && stats !== undefined) {
+    const style = renderStyleInput.value === 'inked' ? 'inked-solid' : 'smooth solid';
+    stats.textContent = `${rig.blueprint.parts.length} meshes / ${style}`;
+  }
+}
 
 function currentMotion(): CharacterMotion {
   return {
@@ -160,8 +195,7 @@ function updateContract(): void {
       return item;
     }));
   }
-  const stats = root?.querySelector<HTMLElement>('[data-render-stats]');
-  if (stats !== null && stats !== undefined) stats.textContent = `${blueprint.parts.length} meshes / live transforms`;
+  updateInkedRendering();
 }
 
 function rebuild(): void {
@@ -212,6 +246,9 @@ for (const input of [
   seedInput, speciesInput, shapeInput, eyeStyleInput, hairStyleInput, finishInput,
 ]) {
   input.addEventListener('change', rebuild);
+}
+for (const input of [renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput]) {
+  input.addEventListener('change', updateInkedRendering);
 }
 framingInput.addEventListener('change', frameCharacter);
 expressionInput.addEventListener('change', () => {
@@ -271,6 +308,7 @@ const observer = new ResizeObserver(() => {
   const width = Math.max(1, viewport.clientWidth);
   const height = Math.max(1, viewport.clientHeight);
   renderer.setSize(width, height, false);
+  inkedPass?.setSize(width, height, renderer.getPixelRatio());
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   frameCharacter();
@@ -287,13 +325,18 @@ function animate(time: number): void {
   const animationDelta = motionPlaying ? deltaSeconds : 0;
   animator?.update(animationDelta, motion);
   rasterPreview.update(animationDelta, motion);
-  renderer.render(scene, camera);
+  if (renderStyleInput.value === 'inked' && inkedPass !== null) {
+    inkedPass.render(scene, camera, time / 1000);
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 function dispose(): void {
   cancelAnimationFrame(frame);
   observer.disconnect();
   rig?.dispose();
+  inkedPass?.dispose();
   rasterPreview.dispose();
   floorGeometry.dispose();
   floorMaterial.dispose();

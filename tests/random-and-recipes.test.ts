@@ -16,6 +16,7 @@ import {
   createCharacterIdentity,
   createCharacterBlueprint,
   createCharacterRecipe,
+  createInkedSolidBlueprint,
   createPlantBlueprint,
   createPlantRecipe,
   createPlatformBlueprint,
@@ -451,6 +452,38 @@ describe('asset contracts', () => {
     });
     expect(JSON.parse(JSON.stringify(identity))).toEqual(identity);
     expect(JSON.parse(JSON.stringify(solid))).toEqual(solid);
+  });
+
+  it('adds one renderer-neutral ink policy to different solid asset families', () => {
+    const characterSolid = createSolidCharacterBlueprint(createCharacterIdentity(304));
+    const buildingSolid = createSolidBuildingBlueprint(createBuildingIdentity(304));
+    const characterInk = createInkedSolidBlueprint(characterSolid);
+    const buildingInk = createInkedSolidBlueprint(buildingSolid);
+
+    expect(characterInk.representation).toBe('inked-solid');
+    expect(characterInk.solid).toBe(characterSolid);
+    expect(buildingInk.solid).toBe(buildingSolid);
+    expect(characterInk.contour).toEqual(buildingInk.contour);
+    expect(characterInk.hatching).toEqual(buildingInk.hatching);
+    expect(JSON.parse(JSON.stringify(characterInk))).toEqual(characterInk);
+    expect(Object.isFrozen(characterInk)).toBe(true);
+    expect(Object.isFrozen(characterInk.contour.color)).toBe(true);
+  });
+
+  it('validates ink policies without mutating solid semantics', () => {
+    const solid = createSolidBuildingBlueprint(createBuildingIdentity(902));
+    const withoutHatching = createInkedSolidBlueprint(solid, {
+      contour: { width: 2.2, jitter: 0 },
+      hatching: null,
+    });
+    expect(withoutHatching.hatching).toBeNull();
+    expect(withoutHatching.contour.width).toBe(2.2);
+    expect(withoutHatching.solid.parts).toBe(solid.parts);
+    expect(() => createInkedSolidBlueprint(solid, { contour: { width: 0 } }))
+      .toThrow(/width/i);
+    expect(() => createInkedSolidBlueprint(solid, {
+      hatching: { shadowStart: 0.8, crossHatchStart: 0.3 },
+    })).toThrow(/crossHatchStart/i);
   });
 
   it('gives building archetypes distinct structural casting', () => {

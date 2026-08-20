@@ -65,11 +65,14 @@ h1 { font-size: 42px; line-height: .9; }
 .lab-controls input[type='number'], .lab-controls select { width: 100%; height: 34px; border: 1px solid #9c9283; border-radius: 0; background: #faf5e9; padding: 0 9px; }
 .lab-controls .check-row { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 8px; margin-top: 18px; }
 .check-row input { accent-color: #8e4f3d; }
-.motion-panel { min-width: 0; margin: 19px -3px 0; border: 0; border-top: 1px dashed #887d6e; padding: 15px 3px 0; }
-.motion-panel legend { float: left; width: 100%; margin: 0 0 11px; padding: 0; color: #8e4f3d; font-size: 9px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; }
-.motion-panel legend + * { clear: both; }
-.motion-panel > label { display: grid; gap: 6px; margin: 0 0 12px; font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
-.motion-panel select { width: 100%; height: 32px; border: 1px solid #9c9283; border-radius: 0; background: #faf5e9; padding: 0 8px; }
+.motion-panel, .ink-panel { min-width: 0; margin: 19px -3px 0; border: 0; border-top: 1px dashed #887d6e; padding: 15px 3px 0; }
+.motion-panel legend, .ink-panel legend { float: left; width: 100%; margin: 0 0 11px; padding: 0; color: #8e4f3d; font-size: 9px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; }
+.motion-panel legend + *, .ink-panel legend + * { clear: both; }
+.motion-panel > label, .ink-panel > label { display: grid; gap: 6px; margin: 0 0 12px; font-size: 9px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
+.motion-panel select, .ink-panel select { width: 100%; height: 32px; border: 1px solid #9c9283; border-radius: 0; background: #faf5e9; padding: 0 8px; }
+.ink-panel { margin-top: 17px; }
+.ink-panel .check-row { display: flex; margin: 0 0 10px; }
+.ink-panel > small { display: block; color: #766d62; font-size: 8px; line-height: 1.45; }
 .motion-transport { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-bottom: 13px; }
 .motion-transport button { min-height: 31px; border: 1px solid #826f5f; background: #f6eedf; cursor: pointer; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; }
 .motion-transport button:first-child { border-color: #8e4f3d; color: #8e4f3d; }

@@ -3,8 +3,10 @@ import './solid-face.css';
 import * as THREE from 'three';
 
 import {
+  InkedSolidPass,
   SolidRig,
   createBuildingIdentity,
+  createInkedSolidBlueprint,
   createRasterBuildingBlueprint,
   createRasterBuildingRecipe,
   createSolidBuildingBlueprint,
@@ -36,6 +38,10 @@ const widthInput = requiredElement('[name="width"]') as HTMLInputElement;
 const heightInput = requiredElement('[name="height"]') as HTMLInputElement;
 const roofInput = requiredElement('[name="roof"]') as HTMLSelectElement;
 const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
+const renderStyleInput = requiredElement('[name="renderStyle"]') as HTMLSelectElement;
+const lineWeightInput = requiredElement('[name="lineWeight"]') as HTMLSelectElement;
+const hatchingInput = requiredElement('[name="hatching"]') as HTMLInputElement;
+const lineBoilInput = requiredElement('[name="lineBoil"]') as HTMLInputElement;
 const doorStateInput = requiredElement('[name="doorState"]') as HTMLSelectElement;
 const rasterImage = requiredElement('[data-raster-preview]') as HTMLImageElement;
 
@@ -71,9 +77,38 @@ scene.add(floor);
 
 const thumbnailRenderer = new BlueprintThumbnailRenderer({ width: 220, height: 220 });
 let rig: SolidRig | null = null;
+let inkedPass: InkedSolidPass | null = null;
 let rasterBlueprint: AssetBlueprint | null = null;
 let rotationX = -0.08;
 let rotationY = -0.36;
+
+function updateInkedRendering(): void {
+  if (rig === null) return;
+  const boil = lineBoilInput.checked;
+  const blueprint = createInkedSolidBlueprint(rig.blueprint, {
+    contour: {
+      width: Number(lineWeightInput.value),
+      jitter: boil ? 0.34 : 0,
+      boilFramesPerSecond: boil ? 6 : 0,
+    },
+    hatching: hatchingInput.checked ? {
+      jitter: boil ? 0.025 : 0,
+      boilFramesPerSecond: boil ? 5 : 0,
+    } : null,
+  });
+  if (inkedPass === null) inkedPass = new InkedSolidPass(renderer, blueprint);
+  else inkedPass.setBlueprint(blueprint);
+  inkedPass.setSize(
+    Math.max(1, viewport?.clientWidth ?? 1),
+    Math.max(1, viewport?.clientHeight ?? 1),
+    renderer.getPixelRatio(),
+  );
+  const stats = root?.querySelector<HTMLElement>('[data-render-stats]');
+  if (stats !== null && stats !== undefined) {
+    const style = renderStyleInput.value === 'inked' ? 'inked-solid' : 'smooth solid';
+    stats.textContent = `${rig.blueprint.parts.length} meshes / ${style}`;
+  }
+}
 
 function updateRasterPreview(): void {
   if (rasterBlueprint === null) return;
@@ -119,10 +154,7 @@ function updateContract(): void {
       return item;
     }));
   }
-  const stats = root?.querySelector<HTMLElement>('[data-render-stats]');
-  if (stats !== null && stats !== undefined) {
-    stats.textContent = `${blueprint.parts.length} meshes / ${blueprint.interactions.length} interaction`;
-  }
+  updateInkedRendering();
 }
 
 function rebuild(): void {
@@ -161,6 +193,9 @@ for (const input of [
 ]) {
   input.addEventListener('change', rebuild);
 }
+for (const input of [renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput]) {
+  input.addEventListener('change', updateInkedRendering);
+}
 doorStateInput.addEventListener('change', () => {
   rig?.setInteractionState('door', doorStateInput.value);
   updateRasterPreview();
@@ -195,6 +230,7 @@ const observer = new ResizeObserver(() => {
   const width = Math.max(1, viewport.clientWidth);
   const height = Math.max(1, viewport.clientHeight);
   renderer.setSize(width, height, false);
+  inkedPass?.setSize(width, height, renderer.getPixelRatio());
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
   frameBuilding();
@@ -202,15 +238,20 @@ const observer = new ResizeObserver(() => {
 observer.observe(viewport);
 
 let frame = 0;
-function animate(): void {
+function animate(time: number): void {
   frame = requestAnimationFrame(animate);
-  renderer.render(scene, camera);
+  if (renderStyleInput.value === 'inked' && inkedPass !== null) {
+    inkedPass.render(scene, camera, time / 1000);
+  } else {
+    renderer.render(scene, camera);
+  }
 }
 
 function dispose(): void {
   cancelAnimationFrame(frame);
   observer.disconnect();
   rig?.dispose();
+  inkedPass?.dispose();
   thumbnailRenderer.dispose();
   floorGeometry.dispose();
   floorMaterial.dispose();

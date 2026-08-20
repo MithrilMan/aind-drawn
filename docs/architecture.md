@@ -59,12 +59,14 @@ blueprint then describes how those decisions become renderable data:
 | --- | --- | --- |
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
 | Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
+| Inked solid | A smooth-solid blueprint plus deterministic contour, hatch, and paper policy | `InkedSolidPass` around `SolidRig` |
 
-An inked-solid projection is the next planned representation: semantic marks
-attached to solid parts, camera-derived contours, and stable surface hatching.
-It is intentionally not modelled as a texture variant of either existing
-adapter. See [`3d-stroke-rendering.md`](3d-stroke-rendering.md) for the rendering
-boundary and delivery sequence.
+The inked-solid projection is implemented as a representation adapter around
+the exact smooth-solid blueprint. It adds camera-derived contours and stable
+object-local surface hatching without copying geometry or semantic state.
+Authored semantic surface marks remain a separate extension because a mouth,
+seam, or cornice needs named ownership rather than edge detection. See
+[`3d-stroke-rendering.md`](3d-stroke-rendering.md) for the rendering boundary.
 
 Three.js belongs to runtime adapters, not recipes or geometry contracts. A game
 can use the same solid blueprint with another renderer by implementing its own
@@ -75,10 +77,12 @@ same boundary instead of pretending a voxel field is a smooth mesh recipe.
 CharacterIdentityRecipe
   ├─ RasterCharacterStyle -> CharacterRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidCharacterStyle  -> SolidCharacterRecipe -> SolidAssetBlueprint -> SolidRig
+                                                          └─ InkedSolidBlueprint -> InkedSolidPass
 
 BuildingIdentityRecipe
   ├─ RasterBuildingStyle  -> RasterBuildingRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidBuildingStyle   -> SolidBuildingRecipe  -> SolidAssetBlueprint -> SolidRig
+                                                          └─ InkedSolidBlueprint -> InkedSolidPass
 ```
 
 Identity includes spatial topology when it changes meaning across projections.
@@ -151,6 +155,14 @@ identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,
 chimney, and palette. The raster adapter emits semantic drawing layers; the
 solid adapter emits facade volume, roof geometry, windows, spatial balconies,
 an articulated door node, matching colliders, and the same entry socket.
+
+`createInkedSolidBlueprint` wraps any `SolidAssetBlueprint` by reference and
+adds immutable drawing policy only. `InkedSolidPass` renders beauty, depth and
+normals, plus an object-local position buffer. The composite shader derives
+camera-dependent silhouettes and creases from depth/normals while building
+triplanar graphite from local coordinates. The marks therefore remain attached
+when a rig, limb, roof, or door moves. The pass owns and disposes its render
+targets, override materials, shader, and fullscreen geometry.
 
 Raster and solid character animators consume the same transient
 `CharacterMotion` vocabulary (`idle`, `walk`, `run`, `airborne`, `sit`, `sleep`,

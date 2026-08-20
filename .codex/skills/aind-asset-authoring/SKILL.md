@@ -25,6 +25,11 @@ Read `src/assets/building-identity/` and `src/assets/solid-building/` when the
 asset is architectural, modular, or needs a non-character multi-representation
 reference.
 
+For three-dimensional hand-drawn rendering, also read
+`docs/3d-stroke-rendering.md`, `src/assets/inked-solid/blueprint.ts`, and
+`src/runtime/inked-solid-pass.ts`. Ink policy wraps a completed solid blueprint;
+it is not a replacement solid family.
+
 For a character representation, also read
 `src/assets/character-identity/recipe.ts`. Character adapters must consume that
 shared identity instead of generating a second set of semantic choices.
@@ -139,6 +144,11 @@ barrel only.
 - Derive 3D feature placement from the same analytic or modelled surface used
   to build the mesh. Use stable semantic part IDs and real node pivots.
 - Dispose solid GPU resources through `SolidRig.dispose()`.
+- Wrap the exact solid blueprint with `createInkedSolidBlueprint`; never copy,
+  reroll, or specialize its semantic geometry for the inked projection.
+- Keep contours camera-dependent and hatch coordinates object-local. A hatch
+  texture that swims while a node animates is a broken attachment, not style.
+- Reuse `InkedSolidPass` across asset families and dispose it explicitly.
 - Do not add compatibility shims before a serialized recipe format has actually been released.
 - While the package remains greenfield and unpublished, update all call sites
   and delete obsolete contracts instead of adding legacy aliases or migrations.
@@ -162,6 +172,8 @@ Add tests that prove:
 - bounds, colliders, and sockets agree with layout;
 - interaction and animation states apply to the intended parts;
 - other families remain unchanged.
+- one inked-solid policy works on at least one organic and one architectural
+  solid family without family-specific renderer branches.
 
 Run `pnpm verify`. Then inspect representative seeds in the in-app browser at
 every viewport class the experiment claims to support. For the current

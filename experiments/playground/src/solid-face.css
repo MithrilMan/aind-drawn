@@ -131,3 +131,4 @@ h1 { font-size: 42px; line-height: .9; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; }
 }
+.lab-links { display: flex; align-items: center; gap: 18px; }

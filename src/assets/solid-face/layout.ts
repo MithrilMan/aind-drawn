@@ -88,7 +88,7 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
   const browY = eyeHeight + identity.brows.lift;
   const leftBrow = at(-eyeSpacing, browY, 0, -identity.brows.tilt);
   const rightBrow = at(eyeSpacing, browY, 0, identity.brows.tilt);
-  const hairProfile = createCharacterHairProfile(identity.hair);
+  const hairProfile = createCharacterHairProfile(identity);
   const hairX = hairProfile?.outline.map(([x]) => x * radii[0]) ?? [];
   const hairY = hairProfile?.outline.map(([, y]) => y * radii[1]) ?? [];
   const hairExpansion = hairProfile === null

@@ -192,6 +192,10 @@ describe('sprite rig runtime', () => {
     expect(blueprint.layers.find((layer) => layer.id === 'arm:right')?.order).toBeGreaterThan(torsoOrder ?? 0);
     const prop = createPropBlueprint(createPropRecipe(4107, { prop: 'lantern' }));
     expect(prop.layers[0]?.pivot).toEqual([0.5, 0]);
+    expect(blueprint.layers.find(({ id }) => id === 'tear:left')?.states)
+      .toEqual(['idle', 'crying']);
+    expect(blueprint.layers.find(({ id }) => id === 'tear:right')?.parentBone)
+      .toBe('head');
   });
 });
 
@@ -245,9 +249,11 @@ describe('solid rig runtime', () => {
     }));
     const rig = new SolidRig(blueprint);
     expect(rig.nodeIds).toEqual(['head']);
+    expect(rig.root.userData.solidAssetId).toBe(blueprint.id);
     expect(rig.partIds).toHaveLength(blueprint.parts.length);
     expect(rig.partIds).toEqual(expect.arrayContaining(blueprint.parts.map(({ id }) => id)));
     const pupil = rig.getPart('eye:left:pupil');
+    expect(pupil?.userData.solidAssetId).toBe(blueprint.id);
     const geometry = pupil?.geometry;
     const before = pupil?.position.clone();
     const animator = new SolidFaceAnimator(rig, { autoBlink: false, autoGaze: false });
@@ -264,6 +270,17 @@ describe('solid rig runtime', () => {
     animator.update(0.1);
     expect(rig.getPart('mouth:surprised')?.visible).toBe(false);
     expect(rig.getPart('mouth:sad')?.visible).toBe(true);
+    const tear = rig.getPart('tear:left');
+    expect(tear?.visible).toBe(false);
+    animator.setExpression('crying');
+    animator.update(0.1);
+    const tearPosition = tear?.position.clone();
+    expect(tear?.visible).toBe(true);
+    animator.update(0.2);
+    expect(tear?.position.distanceTo(tearPosition ?? new THREE.Vector3())).toBeGreaterThan(0);
+    animator.setExpression('idle');
+    animator.update(0.1);
+    expect(tear?.visible).toBe(false);
     rig.dispose();
     expect(rig.partIds).toEqual([]);
   });

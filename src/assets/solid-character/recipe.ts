@@ -5,7 +5,6 @@ import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
 export type SolidCharacterStyle = Readonly<{
   finish: SolidFinishId;
   depth: number;
-  pupilScale: number;
 }>;
 
 export type SolidCharacterRecipe = Readonly<{
@@ -33,7 +32,6 @@ export function createSolidCharacterRecipe(
     style: Object.freeze({
       finish: options.finish ?? (identity.species === 'robot' ? 'metal' : 'skin'),
       depth: random.float(0.88, 1.08),
-      pupilScale: random.float(0.27, 0.43),
     }),
   });
 }

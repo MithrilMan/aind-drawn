@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#e9dfcc">
+    <meta name="description" content="A side-by-side diagnostic lab for comparing raster and Doodle 3D character projections.">
+    <title>AIND DRAWN / Representation Comparison</title>
+  </head>
+  <body>
+    <main class="comparison-lab" data-comparison-lab>
+      <header class="comparison-header">
+        <div>
+          <a class="back-link" href="./solid-face.html">← Character lab</a>
+          <p class="lab-kicker">AIND DRAWN / DIAGNOSTIC 04</p>
+          <h1>Representation comparison</h1>
+        </div>
+        <p class="lab-purpose">Same identity, medium, pose, scale, and front projection. No animation to charm the evidence.</p>
+      </header>
+
+      <section class="comparison-controls" aria-label="Comparison recipe">
+        <div class="preset-group" aria-label="Regression presets">
+          <span>Regression presets</span>
+          <button type="button" data-preset="4109:graphite">4109 · Graphite</button>
+          <button type="button" data-preset="4107:graphite">4107 · Graphite</button>
+          <button type="button" data-preset="4103:oil">4103 · Oil</button>
+        </div>
+        <label>Seed <input name="seed" type="number" step="1" value="4109"></label>
+        <label>Medium
+          <select name="medium">
+            <option value="graphite">Graphite</option>
+            <option value="ink">Ink</option>
+            <option value="watercolor">Watercolor</option>
+            <option value="oil">Oil</option>
+            <option value="chalk">Charcoal</option>
+            <option value="marker">Marker</option>
+          </select>
+        </label>
+        <p class="comparison-status" data-status role="status" aria-live="polite">Preparing comparison.</p>
+      </section>
+
+      <section class="comparison-stage" aria-label="Side-by-side character renderings">
+        <article class="comparison-pane">
+          <header><span>Reference projection</span><strong>Raster drawing</strong></header>
+          <div class="comparison-canvas">
+            <canvas width="720" height="720" data-raster-canvas aria-label="Raster rendering of the selected character"></canvas>
+            <span class="registration registration--left" aria-hidden="true">＋</span>
+            <span class="registration registration--right" aria-hidden="true">＋</span>
+          </div>
+          <footer>Orthographic · front · idle · static boil frame</footer>
+        </article>
+
+        <article class="comparison-pane">
+          <header><span>Volumetric projection</span><strong>Doodle 3D</strong></header>
+          <div class="comparison-canvas" data-solid-viewport>
+            <canvas width="720" height="720" data-solid-canvas aria-label="Doodle 3D rendering of the selected character"></canvas>
+            <span class="registration registration--left" aria-hidden="true">＋</span>
+            <span class="registration registration--right" aria-hidden="true">＋</span>
+          </div>
+          <footer>Orthographic · front · idle · static contour field</footer>
+        </article>
+      </section>
+
+      <aside class="comparison-readout" aria-label="Shared semantic identity">
+        <div><span>Identity</span><strong data-identity-seed>—</strong></div>
+        <div><span>Eyes</span><strong data-identity-eyes>—</strong></div>
+        <div><span>Brows</span><strong data-identity-brows>—</strong></div>
+        <div><span>Hair</span><strong data-identity-hair>—</strong></div>
+        <div><span>Outfit</span><strong data-identity-outfit>—</strong></div>
+        <div><span>Tones</span><strong data-identity-tones>—</strong></div>
+        <div class="palette-readout" data-palette aria-label="Shared semantic palette"></div>
+      </aside>
+    </main>
+    <script type="module" src="/src/character-compare-main.ts"></script>
+  </body>
+</html>

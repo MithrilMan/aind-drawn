@@ -7,13 +7,14 @@ representations of one semantic asset identity. A third, **inked-solid**
 representation can combine real volume with hand-authored marks, but it must
 not be implemented by projecting the raster sprite onto a mesh.
 
-The target look is built from four cooperating systems driven by the same
+The solid mesh is an invisible carrier, never a visible shaded surface. The
+target look is built from four cooperating systems driven by the same
 `MediumId` vocabulary used by raster assets:
 
-1. physical-finish-independent doodle pigment;
-2. semantic surface strokes attached to named parts;
+1. medium-specific pigment synthesized for the current camera projection;
+2. semantic spatial strokes attached to named parts;
 3. view-dependent contours and creases;
-4. medium-specific seeded surface texture with restrained temporal boil.
+4. material-aware masks that clip marks to projected semantic regions.
 
 This keeps an eye line attached to the eye socket, a sleeve seam attached to
 the arm, a cornice attached to a facade, and a mouth expression attached to the
@@ -31,10 +32,10 @@ The inked-solid projection therefore separates the responsibilities:
 
 | Stroke source | Coordinate space | Typical use | Animation behaviour |
 | --- | --- | --- | --- |
-| Doodle fill | Part-local position and view normal | Graphite pickup, wash, bristle marks, chalk grain, or marker passes | Ignores PBR finish; follows the rendered surface |
+| Pigment deposition | View-oriented, part-anchored drawing space | Graphite pickup, wash, bristle marks, chalk grain, or marker passes | Follows the projected owner part; ignores PBR finish |
 | Semantic stroke | Part-local surface coordinates | Mouth, eyelid, hair, seams, scars | Inherits the semantic node transform |
 | Contour pass | Screen space from depth and normals | Silhouette and selected creases | Recomputed for the active camera |
-| Medium field | Triplanar object space | Graphite hatch, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Stable on the surface; seed controls boil |
+| View-mark field | View-oriented, part-anchored drawing space plus material role | Graphite hatch, hair scribble, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Follows articulation; never participates in line boil |
 
 All four systems are implemented. Family adapters author semantic marks while
 the runtime remains asset-agnostic; marks are never inferred from triangulation
@@ -50,6 +51,11 @@ type InkedSolidContourPolicy = Readonly<{
   color: RgbColor;
   width: number;
   opacity: number;
+  echoOpacity: number;
+  ghostOpacity: number;
+  ghostSpread: number;
+  granulation: number;
+  wander: number;
   depthThreshold: number;
   normalThreshold: number;
   jitter: number;
@@ -65,8 +71,8 @@ type InkedSolidBlueprint = Readonly<{
   medium: MediumId;
   solid: SolidAssetBlueprint;
   contour: InkedSolidContourPolicy;
-  fill: InkedSolidFillPolicy;
-  hatching: InkedSolidHatchPolicy | null;
+  deposition: InkedSolidDepositionPolicy;
+  viewMarks: readonly InkedSolidViewMarkPolicy[];
   paper: InkedSolidPaperPolicy;
   strokes: readonly InkedSolidStrokeSpec[];
 }>;
@@ -75,9 +81,12 @@ type InkedSolidBlueprint = Readonly<{
 The policy is serialisable and contains no Three.js objects. Medium is required:
 there is no second 3D-only drawing taxonomy and no implicit fallback hidden in
 the runtime. `inkedSolidMediumDefaults(medium)` compiles the shared medium into
-volumetric contour, coverage, surface, and paper policies; explicit options are
-advanced overrides. Setting `hatching: null` disables hatch families without
-changing the rest of the medium or the source solid. The runtime consumer is
+volumetric contour, coverage, material-role view marks, and paper policies.
+`SolidMaterialSpec.drawing.tone` preserves authored tonal hierarchy such as
+`light`, `black`, or `scribble` across raster and inked-solid projections;
+material role remains the generic fallback when no tone is authored. Explicit
+options are advanced overrides. Setting `viewMarks: false` disables gesture
+marks without removing the pigment bed, the rest of the medium, or the source solid. The runtime consumer is
 `InkedSolidPass`, used unchanged by both the character and building labs.
 
 ```ts
@@ -90,16 +99,27 @@ const inked = createInkedSolidBlueprint(solid, {
 
 ## Rendering pipeline
 
-### 1. Doodle pigment
+### 1. Invisible carrier and view synthesis
 
-The pass temporarily replaces scene mesh materials with unlit albedo adapters
-that preserve semantic color, opacity, maps, and sidedness. It never renders
-the smooth solid's roughness, metalness, clearcoat, or specular response.
-Discrete normal-based volume shading, object-local medium coverage, paper tint,
-and coherent grain are then composed in the final shader. Graphite, ink,
-watercolor, oil, charcoal, and marker compile to distinct coverage functions.
-The same asset can therefore remain ceramic in `Smooth solid` and become a
-watercolor volume in `Doodle 3D` without changing identity or rebuilding geometry.
+The pass renders semantic albedo with depth, normals, and material membership
+from the real meshes, but uses those buffers only to decide occlusion,
+contours, projected regions, discrete tone, and pigment colour. Every visible
+carrier region begins as opaque drawing paper, not as transparent-clear black
+and not as smooth albedo. The medium then deposits an irregular semantic-colour
+pigment bed, gesture marks, and finally contour ink. Continuous carrier albedo
+is never composited into the result.
+
+The smooth solid's roughness, metalness, clearcoat, specular response, and even
+its unlit continuous colour are therefore absent from Doodle 3D. Semantic
+material RGB is the exact pigment source used by authored or procedural marks.
+It is never pre-mixed with contour ink or paper and is never multiplied by
+normal lighting. Discrete normal-based tone changes deposited opacity and mark
+density instead of hue; paper, pigment, and contour remain separate composite
+layers. Paper-space coverage, paper response, and coherent grain modulate that
+synthesis. Graphite, ink, watercolor, oil, chalk, and
+marker compile to distinct view fields. The same asset can remain ceramic in
+`Smooth solid` and become a watercolor drawing with real occlusion and volume
+in `Doodle 3D` without changing identity or rebuilding geometry.
 
 ### 2. Semantic marks
 
@@ -114,24 +134,43 @@ least three points, all owners are validated, and seeded wobble is stable.
 
 ### 3. Contours
 
-`InkedSolidPass` renders beauty with depth, then a normal buffer. The composite
+`InkedSolidPass` renders carrier albedo with depth, then a normal buffer. The composite
 shader detects relative view-depth discontinuities and normal creases. Line
 width is screen-space and therefore remains legible as the camera moves.
-Seeded low-frequency displacement is quantised by the configured boil frame
-rate; independent noise every frame would be shimmer, not pencil.
+The principal contour is combined with a displaced echo and a wider, faint
+ghost pass. Seeded granulation breaks uniform digital coverage. Static
+low-frequency `wander` displaces the projected guide and modulates pressure, so
+precise carrier edges read as authored strokes without corrupting geometry,
+colliders, or interaction anchors. Animated `jitter` is a separate displacement
+quantised by the configured boil frame rate; independent noise every frame
+would be shimmer, not pencil.
 
-### 4. Medium surface
+### 4. Camera-conditioned doodle synthesis
 
-The pass renders an additional half-float object-local position buffer. The
-composite shader derives the local surface normal from position derivatives and
-builds the selected medium field. Graphite and ink may add broken hatch
-families; watercolor uses broad low-frequency washes; oil and marker use
-directional bands; chalk uses coarse granular pickup. This extra buffer is
-deliberate: screen- or world-space marks would swim over a rotating limb or
-hinged door. Seeded wander breaks mechanical repetition, while quantised boil
-remains stable between ticks. Line-boil displacement applies only to contour
-lookup; albedo, surface membership, and local position remain stable. Moving the
-fill lookup would tear paper-colored gaps around overlapping semantic parts.
+The pass renders a material-mark buffer. Each solid material's authored drawing
+tone, or its role when no tone is authored, compiles to a renderer-neutral mark
+style and coverage. Graphite hair can therefore retain the exact seeded
+`black`, `hatch`, or `scribble` hierarchy selected by the shared drawing style;
+generic skin and facades receive broken hatch, and clothing receives crosshatch;
+watercolor, oil, chalk, and marker compile to wash, bristle, stipple, and marker
+fields. The composite shader generates those fields in normalized paper space
+and clips them by the material membership visible from the active camera.
+Graphite tone density is calibrated to the raster medium's relative spacing and
+alpha: `light` remains an unhatched pigment bed, ordinary hatch retains its
+authored interval, and `black` uses a materially denser multi-pass field. This
+keeps tone hierarchy comparable without pretending pixels and projected surface
+marks are numerically identical units.
+
+This is intentionally not a texture wrapped around a mesh. Rotating the asset
+changes projection, occlusion, and contours continuously, like drawing the
+current view again, but it does not reroll a random field at arbitrary angular
+thresholds. The pigment and gesture coordinates are translated by the projected
+origin of the semantic part visible at each pixel. Limbs, tears, doors, and
+other articulated parts therefore carry coherent marks through animation
+without turning them into UV textures. View orientation remains paper-like;
+only the field origin follows the part. Stationary screen-space grain belongs
+to the paper, while line-boil timing remains independent and affects only
+contour lookup.
 
 ## 2.5D variant
 
@@ -146,11 +185,13 @@ inked solid.
 
 1. **Shipped:** one generic Three.js contour pass consuming any
    `SolidAssetBlueprint` through `InkedSolidBlueprint`.
-2. **Shipped:** all six raster media projected into stable object-local fields,
-   with quantised boil timing.
+2. **Shipped:** all six raster media projected into camera-conditioned paper
+   fields, with role-aware masks and contour-only quantised boil timing.
 3. **Shipped proof:** the same runtime on a complete animated character and an
    interactive building.
-4. **Shipped:** physical-finish-independent doodle pigment.
+4. **Shipped:** an invisible geometric carrier with physical-finish-independent
+   paper, pigment-bed, gesture, and contour deposition; continuous mesh albedo
+   is never shown.
 5. **Shipped:** semantic surface strokes on character face/body and building
    facade/roof/door, including cat whiskers and articulated ownership.
 6. **Next:** extend semantic authoring to vehicles, props, and plants as those

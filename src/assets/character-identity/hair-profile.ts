@@ -1,4 +1,5 @@
 import { chaikin, type Point } from '../../core/geometry.js';
+import { characterEyeCenterY } from './head-shape.js';
 import type { CharacterIdentityRecipe } from './recipe.js';
 
 export type CharacterHairTuftCluster = Readonly<{
@@ -65,8 +66,9 @@ function spikeOutline(count: number, spread: number, baseY: number, height: numb
 }
 
 export function createCharacterHairProfile(
-  hair: CharacterIdentityRecipe['hair'],
+  identity: CharacterIdentityRecipe,
 ): CharacterHairProfile | null {
+  const hair = identity.hair;
   if (hair.style === 'none') return null;
   const crownY = 0.98 + hair.height * 0.16;
   if (hair.style === 'cap') {
@@ -87,6 +89,10 @@ export function createCharacterHairProfile(
     });
   }
   if (hair.style === 'bob') {
+    const featureClearance = characterEyeCenterY(identity)
+      + 0.16 * identity.eyes.size
+      + (identity.brows.present ? identity.brows.lift * 0.32 : 0);
+    const frontHairline = Math.max(0.34, Math.min(0.52, featureClearance));
     return Object.freeze({
       style: hair.style,
       outline: smooth([
@@ -96,7 +102,7 @@ export function createCharacterHairProfile(
       ], 2),
       spatial: Object.freeze({
         kind: 'head-shell', azimuthCoverage: 1,
-        frontHairline: 0.23, sideDrop: -0.68, rearDrop: -0.72,
+        frontHairline, sideDrop: -0.68, rearDrop: -0.72,
         radialClearance: 0.035, thickness: 0.13, crownLift: 0.035,
         edgeWave: Object.freeze({ amplitude: 0.07, count: 5, phase: -0.6 }),
         ridgeWave: Object.freeze({ amplitude: 0.02, count: 4, phase: 0.1 }),

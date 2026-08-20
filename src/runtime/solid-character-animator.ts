@@ -105,6 +105,16 @@ export class SolidCharacterAnimator {
     this.rotateNode('arm:left', 0, 0, Math.sin(this.elapsed * 0.8 + 1.7) * 0.025);
     this.rotateNode('arm:right', 0, 0, -Math.sin(this.elapsed * 0.8) * 0.025);
     this.rotateNode('tail', 0, 0, Math.sin(this.elapsed * 2.1) * 0.1);
+    if (this.face.currentExpression === 'crying') {
+      const sob = Math.sin(this.elapsed * 5.2);
+      const heave = Math.max(0, Math.sin(this.elapsed * 2.6));
+      if (torso !== null) {
+        torso.position.y -= Math.abs(sob) * 0.014;
+        torso.scale.y *= 1 + heave * 0.024;
+      }
+      this.rotateNode('arm:left', 0, 0, 0.16 + heave * 0.12);
+      this.rotateNode('arm:right', 0, 0, -0.16 - heave * 0.12);
+    }
   }
 
   private applyPose(pose: CharacterPose, speed: number, delta: number): void {

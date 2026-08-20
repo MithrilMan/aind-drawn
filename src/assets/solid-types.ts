@@ -54,9 +54,10 @@ export type SolidPlacement = Readonly<{
 }>;
 
 export type SolidPartMotion = Readonly<{
-  role: 'eye' | 'brow' | 'mouth' | 'fixed';
+  role: 'eye' | 'brow' | 'mouth' | 'tear' | 'fixed';
   side?: -1 | 1;
   expression?: CharacterExpression;
+  travel?: number;
   gazeTravel?: readonly [x: number, y: number];
   blink?: Readonly<{
     kind: 'squash';

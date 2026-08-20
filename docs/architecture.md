@@ -59,14 +59,23 @@ blueprint then describes how those decisions become renderable data:
 | --- | --- | --- |
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
 | Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
-| Inked solid | A smooth-solid blueprint plus doodle fill, semantic strokes, contour, hatch, and paper policy | `InkedSolidPass` and `InkedSolidStrokeRig` around `SolidRig` |
+| Inked solid | An invisible smooth-solid carrier plus semantic strokes, multipass contour, material-aware pigment deposition, and paper policy | `InkedSolidPass` and `InkedSolidStrokeRig` around `SolidRig` |
 
 The inked-solid projection is implemented as a representation adapter around
-the exact smooth-solid blueprint. It adds physical-finish-independent pigment,
-camera-derived contours, stable object-local surface hatching, and authored
-semantic marks without copying geometry or semantic state. A mouth, seam, or
+the exact smooth-solid blueprint. The mesh contributes occlusion, normals, and
+semantic material masks, but its continuous surface is not composited. It adds
+physical-finish-independent pigment, camera-derived contours,
+camera-conditioned view marks, and authored spatial semantic marks without
+copying geometry or semantic state. A mouth, seam, or
 cornice has named ownership rather than being guessed by edge detection. See
 [`3d-stroke-rendering.md`](3d-stroke-rendering.md) for the rendering boundary.
+
+Semantic material RGB is the exact pigment source shared with raster output.
+The inked-solid pass may change deposited opacity and mark density to describe
+volume, but it must not darken, light, fog, or mix that source colour with
+paper or contour ink before compositing. Medium-specific view-mark density is
+compiled from the same tone vocabulary and calibrated against the raster
+medium; it is not an independent collection of attractive-looking numbers.
 
 Three.js belongs to runtime adapters, not recipes or geometry contracts. A game
 can use the same solid blueprint with another renderer by implementing its own
@@ -95,6 +104,12 @@ coordinates. Eye spacing is measured from the face centre as a fraction of the
 head half-width. Hair and mouth profiles are expressed in head-radius units.
 Canvas pixels and solid surface anchors remain adapter-specific derivations,
 but both consume those same dimensionless contracts.
+
+A mouth profile is a representation-neutral construction rather than a single
+curve. Named layers describe lip ink, interior, teeth, and tongue; named strokes
+describe tooth separators, stitches, and other internal marks. Raster and solid
+adapters project the same construction, while expression selects a complete
+profile without rerolling identity.
 
 ## Raster asset contract
 
@@ -159,14 +174,25 @@ an articulated door node, matching colliders, and the same entry socket.
 `createInkedSolidBlueprint` wraps any `SolidAssetBlueprint` by reference and
 adds immutable drawing policy only. It requires the same `MediumId` used by
 raster recipes; `inkedSolidMediumDefaults` compiles that medium into volumetric
-coverage, surface marks, contour, and paper policy. Physical `SolidFinishId`
-remains an orthogonal smooth-rendering concern. `InkedSolidPass` renders unlit semantic
-albedo with depth, normals, and an object-local position buffer. The composite shader derives
-camera-dependent silhouettes and creases from depth/normals while building
-medium-specific pigment and triplanar surface character from local coordinates. Smooth-solid
-roughness, metalness, and clearcoat never enter this path. `InkedSolidStrokeRig`
+coverage, view-synthesized marks, contour, and paper policy. Optional
+`SolidMaterialSpec.drawing.tone` carries seeded tonal hierarchy across
+representations while material roles provide asset-agnostic defaults. Physical
+`SolidFinishId` remains an orthogonal smooth-rendering concern.
+`InkedSolidPass` renders unlit semantic albedo, depth, normals, and material
+membership. Its composite shader treats the mesh as an invisible G-buffer
+carrier and synthesizes a fresh two-dimensional drawing for the current camera
+projection. Carrier pixels start from opaque paper, receive an irregular
+semantic-colour pigment bed, then gesture marks and contours. Mark fields live
+in view-oriented drawing space, are translated with the projected origin of
+their owning semantic part, and are clipped by the projected material masks.
+Camera rotation changes projection and occlusion continuously; it never rerolls
+pigment colour or noise at a discrete view threshold. Paper grain alone remains
+stationary in screen space.
+Smooth-solid roughness, metalness, and clearcoat never enter this path.
+`InkedSolidStrokeRig`
 resolves family-authored paths into small ink volumes parented to their owner
-parts, so marks remain attached when a rig, limb, roof, or door moves. Both
+parts. These volumes are reserved for genuinely spatial marks such as whiskers,
+wires, lifted seams, and other strokes that must leave or follow a surface. Both
 runtimes own and dispose their generated GPU resources.
 
 Raster and solid character animators consume the same transient

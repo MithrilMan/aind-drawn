@@ -6,11 +6,14 @@ import type {
 import { moveOnSurface, type Point3, type SurfaceAnchor } from '../../core/geometry3.js';
 import type { Point } from '../../core/geometry.js';
 import type { SolidMaterialSpec } from '../../materials/finish.js';
+import { createCharacterDrawingStyle } from '../character-identity/drawing-style.js';
 import type {
   CharacterEyeStyle,
   CharacterIdentityRecipe,
 } from '../character-identity/recipe.js';
 import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
+import { createCharacterEyeProfile } from '../character-identity/eye-profile.js';
+import { createCharacterTearProfile } from '../character-identity/tear-profile.js';
 import {
   CHARACTER_EXPRESSIONS,
   createCharacterMouthProfile,
@@ -84,6 +87,30 @@ function plate(
   });
 }
 
+function rectangle(width: number, height: number): readonly Point[] {
+  return Object.freeze([
+    [-width, -height], [width, -height], [width, height], [-width, height],
+  ] as const);
+}
+
+function strokePlate(points: readonly Point[], width: number): readonly Point[] {
+  if (points.length < 2) throw new RangeError('Mouth stroke requires at least two points');
+  const start = points[0] as Point;
+  const end = points[points.length - 1] as Point;
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return rectangle(width, width);
+  const nx = -dy / length * width;
+  const ny = dx / length * width;
+  return Object.freeze([
+    [start[0] + nx, start[1] + ny],
+    [end[0] + nx, end[1] + ny],
+    [end[0] - nx, end[1] - ny],
+    [start[0] - nx, start[1] - ny],
+  ] as const);
+}
+
 function placement(anchor: SurfaceAnchor, proud = 0) {
   const resolved = moveOnSurface(anchor, [0, 0], proud);
   return Object.freeze({ position: resolved.point, surface: resolved });
@@ -94,21 +121,33 @@ function solidPlacement(position: Point3) {
 }
 
 function materialSpecs(recipe: SolidFaceSourceRecipe): readonly SolidMaterialSpec[] {
+  const drawing = createCharacterDrawingStyle(recipe.identity);
+  const tone = (value: typeof drawing.headTone) => Object.freeze({ tone: value });
   return Object.freeze([
     Object.freeze({
       id: 'skin', role: 'body', color: recipe.identity.palette.skin, finish: recipe.style.finish,
+      drawing: tone(drawing.headTone),
     }),
     Object.freeze({
       id: 'ink', role: 'linework', color: recipe.identity.palette.ink, finish: 'rubber',
+      drawing: tone('black'),
     }),
     Object.freeze({
       id: 'sclera', role: 'eye-white', color: recipe.identity.palette.sclera, finish: 'ceramic',
+      drawing: tone('light'),
     }),
     Object.freeze({
       id: 'accent', role: 'accent', color: recipe.identity.palette.accent, finish: 'glossy',
+      drawing: tone(drawing.bodyTone),
     }),
     Object.freeze({
       id: 'hair', role: 'hair', color: recipe.identity.palette.hair, finish: 'matte',
+      drawing: tone(drawing.hairTone),
+    }),
+    Object.freeze({
+      id: 'tear', role: 'liquid', color: recipe.identity.palette.tear, finish: 'glossy',
+      drawing: tone('light'),
+      roughness: 0.22, clearcoat: 0.35,
     }),
   ]);
 }
@@ -146,11 +185,14 @@ function addEyeParts(
   const side = index === 0 ? -1 : 1;
   const sideId = side < 0 ? 'left' : 'right';
   const style = eyeStyleFor(recipe, index);
-  const radius = layout.eyeRadius * (style === 'dot' ? 0.52 : 1);
-  const addGlint = (proud: number): void => {
+  const radius = layout.eyeRadius;
+  const profile = createCharacterEyeProfile(identity, style);
+  const addGlint = (ownerAnchor: SurfaceAnchor, proud: number): void => {
     if (!identity.eyes.glint) return;
-    const glintRadius = radius * (style === 'dot' ? 0.18 : 0.12);
-    const glintAnchor = moveOnSurface(anchor, [-radius * 0.16, radius * 0.17], proud);
+    const glintRadius = radius * profile.glintRadius;
+    const glintAnchor = moveOnSurface(ownerAnchor, [
+      radius * profile.glintOffset[0], radius * profile.glintOffset[1],
+    ], proud);
     add({
       id: `eye:${sideId}:glint`, node: 'head', order: 22,
       geometry: plate(ellipse(glintRadius, glintRadius), glintRadius * 0.42, glintRadius * 0.12),
@@ -159,60 +201,77 @@ function addEyeParts(
     });
   };
 
-  if (style === 'dot') {
-    const pupilWidth = radius * (identity.species === 'cat' ? 0.28 : 0.72);
+  if (profile.field === 'none') {
+    const pupilAnchor = moveOnSurface(anchor, [0, radius * profile.pupilOffsetY], 0);
     add({
       id: `eye:${sideId}:pupil`, node: 'head', order: 21,
-      geometry: plate(ellipse(pupilWidth, radius * 0.78), radius * 0.38, radius * 0.12),
-      materialId: 'ink', placement: placement(anchor, radius * 0.1),
+      geometry: plate(
+        ellipse(radius * profile.pupilWidth, radius * profile.pupilRadius),
+        radius * 0.38, radius * 0.12,
+      ),
+      materialId: 'ink', placement: placement(pupilAnchor, radius * 0.1),
       motion: eyeMotion(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
     });
-    addGlint(radius * 0.3);
+    for (const stroke of profile.strokes) {
+      const lidAnchor = moveOnSurface(anchor, [0, radius * 0.32], radius * 0.04);
+      add({
+        id: `eye:${sideId}:${stroke.id}`, node: 'head', order: 22,
+        geometry: plate(
+          band(radius, radius * stroke.width, radius * 0.08),
+          radius * 0.12, radius * 0.04,
+        ),
+        materialId: 'ink', placement: placement(lidAnchor),
+        motion: eyeMotion(side, radius), castShadow: false, receiveShadow: false,
+      });
+    }
+    addGlint(pupilAnchor, radius * 0.3);
     return;
   }
 
-  if (style === 'star') {
+  if (profile.field === 'star') {
     add({
       id: `eye:${sideId}:star`, node: 'head', order: 20,
       geometry: plate(star(radius), radius * 0.3, radius * 0.08),
       materialId: 'ink', placement: placement(anchor),
       motion: eyeMotion(side, radius), castShadow: false, receiveShadow: false,
     });
-    addGlint(radius * 0.24);
+    addGlint(anchor, radius * 0.24);
     return;
   }
 
-  if (style === 'void') {
+  if (profile.field === 'ink') {
     add({
       id: `eye:${sideId}:void`, node: 'head', order: 20,
       geometry: plate(ellipse(radius, radius * 1.02), radius * 0.34, radius * 0.11),
       materialId: 'ink', placement: placement(anchor),
       motion: eyeMotion(side, radius), castShadow: false, receiveShadow: false,
     });
-    addGlint(radius * 0.3);
+    addGlint(anchor, radius * 0.3);
     return;
   }
 
-  const eyeHeightFactor = style === 'sleepy' ? 0.54 : 1.08;
   add({
     id: `eye:${sideId}:white`, node: 'head', order: 20,
-    geometry: plate(ellipse(radius, radius * eyeHeightFactor), radius * 0.3, radius * 0.1),
+    geometry: plate(
+      ellipse(radius * profile.fieldScale[0], radius * profile.fieldScale[1]),
+      radius * 0.3, radius * 0.1,
+    ),
     materialId: 'sclera', placement: placement(anchor),
     motion: eyeMotion(side, radius), castShadow: false, receiveShadow: false,
   });
-  const pupilRadius = radius * recipe.style.pupilScale;
-  const pupilWidth = identity.species === 'cat' ? pupilRadius * 0.3 : pupilRadius;
+  const pupilRadius = radius * profile.pupilRadius;
+  const pupilAnchor = moveOnSurface(anchor, [0, radius * profile.pupilOffsetY], 0);
   add({
     id: `eye:${sideId}:pupil`, node: 'head', order: 21,
     geometry: plate(
-      ellipse(pupilWidth, pupilRadius),
+      ellipse(radius * profile.pupilWidth, pupilRadius),
       pupilRadius * 0.5,
       pupilRadius * 0.18,
     ),
-    materialId: 'ink', placement: placement(anchor, radius * 0.17),
+    materialId: 'ink', placement: placement(pupilAnchor, radius * 0.17),
     motion: eyeMotion(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
   });
-  addGlint(radius * 0.42);
+  addGlint(pupilAnchor, radius * 0.42);
 }
 
 
@@ -221,7 +280,7 @@ function addHairParts(
   recipe: SolidFaceSourceRecipe,
   layout: SolidFaceLayout,
 ): void {
-  const profile = createCharacterHairProfile(recipe.identity.hair);
+  const profile = createCharacterHairProfile(recipe.identity);
   if (profile === null) return;
   const addGeometry = (
     id: string,
@@ -355,21 +414,81 @@ export function createSolidFaceBlueprint(
   }
 
   const [headRadiusX, headRadiusY] = layout.shape.radii;
+  const tearProfile = createCharacterTearProfile(identity);
+  layout.eyeAnchors.forEach((eyeAnchor, index) => {
+    const side = index === 0 ? -1 : 1;
+    const sideId = side < 0 ? 'left' : 'right';
+    const tearAnchor = moveOnSurface(
+      eyeAnchor,
+      [0, -layout.eyeRadius * 0.72],
+      layout.eyeRadius * 0.2,
+    );
+    add({
+      id: `tear:${sideId}`,
+      node: 'head',
+      order: 27,
+      geometry: plate(
+        Object.freeze(tearProfile.outline.map(([x, y]) => Object.freeze([
+          x * headRadiusX,
+          y * headRadiusY,
+        ] as const))),
+        Math.max(0.008, headRadiusY * 0.014),
+        Math.max(0.002, headRadiusY * 0.004),
+      ),
+      materialId: 'tear',
+      placement: placement(tearAnchor),
+      motion: Object.freeze({
+        role: 'tear',
+        side,
+        travel: tearProfile.fallDistance * headRadiusY,
+      }),
+      visible: false,
+      castShadow: false,
+      receiveShadow: false,
+    });
+  });
   for (const expression of CHARACTER_EXPRESSIONS) {
     const profile = createCharacterMouthProfile(identity.mouth, expression);
-    const mouthOutline = Object.freeze(profile.outline.map(([x, y]) => Object.freeze([
-      x * headRadiusX,
-      y * headRadiusY,
-    ] as const)));
     const mouthThickness = Math.max(0.01, headRadiusY * 0.018);
-    add({
-      id: expression === 'idle' ? 'mouth' : `mouth:${expression}`,
-      node: 'head', order: 28,
-      geometry: plate(mouthOutline, mouthThickness * 1.8, mouthThickness * 0.42),
-      materialId: 'ink', placement: placement(layout.mouthAnchor),
-      motion: Object.freeze({ role: 'mouth', expression }),
-      visible: expression === 'idle',
-      castShadow: false, receiveShadow: false,
+    const expressionId = expression === 'idle' ? 'mouth' : `mouth:${expression}`;
+    const addMouthPart = (
+      id: string,
+      outline: readonly Point[],
+      materialId: string,
+      index: number,
+    ): void => {
+      const scaled = Object.freeze(outline.map(([x, y]) => Object.freeze([
+        x * headRadiusX,
+        y * headRadiusY,
+      ] as const)));
+      add({
+        id,
+        node: 'head', order: 28 + index * 0.02,
+        geometry: plate(scaled, mouthThickness * 1.8, mouthThickness * 0.42),
+        materialId,
+        placement: placement(layout.mouthAnchor, mouthThickness * index * 0.5),
+        motion: Object.freeze({ role: 'mouth', expression }),
+        visible: expression === 'idle',
+        castShadow: false, receiveShadow: false,
+      });
+    };
+    profile.layers.forEach((mouthLayer, index) => {
+      const materialId = mouthLayer.role === 'tooth' ? 'sclera'
+        : mouthLayer.role === 'tongue' ? 'accent' : 'ink';
+      addMouthPart(
+        index === 0 ? expressionId : `${expressionId}:${mouthLayer.id}`,
+        mouthLayer.outline,
+        materialId,
+        index,
+      );
+    });
+    profile.strokes.forEach((mouthStroke, index) => {
+      addMouthPart(
+        `${expressionId}:${mouthStroke.id}`,
+        strokePlate(mouthStroke.points, identity.mouth.width * 0.012),
+        'ink',
+        profile.layers.length + index,
+      );
     });
   }
 

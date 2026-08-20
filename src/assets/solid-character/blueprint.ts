@@ -1,6 +1,8 @@
 import type { Point } from '../../core/geometry.js';
 import type { Point3 } from '../../core/geometry3.js';
 import type { SolidMaterialSpec } from '../../materials/finish.js';
+import { createCharacterDrawingStyle } from '../character-identity/drawing-style.js';
+import { createCharacterOutfitProfile } from '../character-identity/outfit-profile.js';
 import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
 import { createSolidFaceBlueprint } from '../solid-face/blueprint.js';
 import type {
@@ -46,20 +48,6 @@ function plate(
   });
 }
 
-function rectangle(width: number, height: number): readonly Point[] {
-  return Object.freeze([
-    [-width, -height], [width, -height], [width, height], [-width, height],
-  ] as const);
-}
-
-function star(radius: number): readonly Point[] {
-  return Object.freeze(Array.from({ length: 10 }, (_, index): Point => {
-    const angle = -Math.PI / 2 + index * Math.PI / 5;
-    const pointRadius = index % 2 === 0 ? radius : radius * 0.43;
-    return [Math.cos(angle) * pointRadius, Math.sin(angle) * pointRadius];
-  }));
-}
-
 function addOutfitParts(
   add: (part: SolidPartDefinition) => void,
   recipe: SolidCharacterRecipe,
@@ -67,39 +55,19 @@ function addOutfitParts(
 ): void {
   const identity = recipe.identity;
   if (identity.species === 'cat' || identity.outfit.style === 'plain') return;
-  const width = identity.body.width * 0.34 * identity.outfit.scale;
   const centerY = identity.body.height * 0.52;
   const front = torsoDepth * 1.04;
-  const addPlate = (id: string, outline: readonly Point[], y: number): void => {
+  const profile = createCharacterOutfitProfile(identity);
+  for (const mark of profile.marks) {
+    const outline = mark.outline.map(([x, y]): Point => [
+      x * identity.body.width * 0.5,
+      y * identity.body.height * 0.5,
+    ]);
     add({
-      id, node: 'torso', order: 8,
+      id: `outfit:${mark.id}`, node: 'torso', order: 8,
       geometry: plate(outline, torsoDepth * 0.12, torsoDepth * 0.035),
-      materialId: 'accent', placement: solidPlacement([0, y, front]),
+      materialId: 'accent', placement: solidPlacement([0, centerY, front]),
       motion: Object.freeze({ role: 'fixed' }), castShadow: false, receiveShadow: false,
-    });
-  };
-  if (identity.outfit.style === 'stripe') {
-    for (const [index, offset] of [-1, 1].entries()) {
-      addPlate(
-        `outfit:stripe:${index}`,
-        rectangle(width, identity.body.height * 0.025),
-        centerY + offset * identity.body.height * 0.13,
-      );
-    }
-    return;
-  }
-  if (identity.outfit.style === 'star') {
-    addPlate('outfit:star', star(identity.body.height * 0.17 * identity.outfit.scale), centerY);
-    return;
-  }
-  for (const [index, offset] of [-1, 0, 1].entries()) {
-    const radius = identity.body.width * 0.045;
-    add({
-      id: `outfit:button:${index}`, node: 'torso', order: 8,
-      geometry: ellipsoid([radius, radius, radius * 0.52] as const, 2.2, [16, 10]),
-      materialId: 'accent',
-      placement: solidPlacement([0, centerY + offset * identity.body.height * 0.18, front]),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: false,
     });
   }
 }
@@ -219,9 +187,11 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
   addTailParts(add, recipe);
   for (const part of face.parts) add(part);
 
+  const drawing = createCharacterDrawingStyle(identity);
   const clothMaterial: SolidMaterialSpec = Object.freeze({
     id: 'cloth', role: 'clothing', color: identity.palette.cloth,
     finish: identity.species === 'robot' ? 'metal' : 'matte',
+    drawing: Object.freeze({ tone: drawing.bodyTone }),
   });
   const materials = Object.freeze([...face.materials, clothMaterial]);
   const bodyTop = layout.limbs.legLength + layout.torso.height;

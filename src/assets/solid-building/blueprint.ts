@@ -1,6 +1,7 @@
 import type { Point } from '../../core/geometry.js';
 import type { Point3 } from '../../core/geometry3.js';
 import type { SolidMaterialSpec } from '../../materials/finish.js';
+import { createBuildingDrawingStyle } from '../building-identity/drawing-style.js';
 import type { BuildingIdentityRecipe } from '../building-identity/recipe.js';
 import type {
   BoxGeometrySpec,
@@ -107,10 +108,12 @@ function roofProfile(layout: SolidBuildingLayout, recipe: SolidBuildingRecipe): 
 }
 
 function materialSpecs(recipe: SolidBuildingRecipe): readonly SolidMaterialSpec[] {
+  const drawing = createBuildingDrawingStyle(recipe.identity);
   return Object.freeze([
     Object.freeze({
       id: 'wall', role: 'facade', color: recipe.identity.palette.wall,
       finish: recipe.style.finish, roughness: 0.84,
+      drawing: Object.freeze({ tone: drawing.facadeTone }),
     }),
     Object.freeze({
       id: 'accent', role: 'architectural-accent', color: recipe.identity.palette.accent,

@@ -9,6 +9,12 @@ export type InkedSolidContourPolicy = Readonly<{
   color: RgbColor;
   width: number;
   opacity: number;
+  echoOpacity: number;
+  ghostOpacity: number;
+  ghostSpread: number;
+  granulation: number;
+  /** Static low-frequency contour displacement in device pixels. */
+  wander: number;
   depthThreshold: number;
   normalThreshold: number;
   jitter: number;
@@ -16,26 +22,47 @@ export type InkedSolidContourPolicy = Readonly<{
   seed: number;
 }>;
 
-export type InkedSolidHatchPolicy = Readonly<{
-  color: RgbColor;
+export type InkedSolidMarkStyle =
+  | 'none'
+  | 'hatch'
+  | 'crosshatch'
+  | 'scribble'
+  | 'stipple'
+  | 'wash'
+  | 'bristle'
+  | 'marker'
+  | 'solid';
+
+export const INKED_SOLID_MARK_STYLES: readonly InkedSolidMarkStyle[] = Object.freeze([
+  'none', 'hatch', 'crosshatch', 'scribble', 'stipple', 'wash', 'bristle', 'marker', 'solid',
+]);
+
+export type InkedSolidViewMarkPolicy = Readonly<{
+  materialId: string;
+  materialRole: string;
+  style: InkedSolidMarkStyle;
   scale: number;
   strength: number;
-  shadowStart: number;
-  crossHatchStart: number;
+  coverage: number;
   lineWidth: number;
-  jitter: number;
-  boilFramesPerSecond: number;
   seed: number;
 }>;
 
+export type InkedSolidViewMarkOverride = Partial<Readonly<{
+  style: InkedSolidMarkStyle;
+  scale: number;
+  strength: number;
+  coverage: number;
+  lineWidth: number;
+}>>;
+
 export type InkedSolidPaperPolicy = Readonly<{
   color: RgbColor;
-  tintStrength: number;
   grainStrength: number;
   seed: number;
 }>;
 
-export type InkedSolidFillPolicy = Readonly<{
+export type InkedSolidDepositionPolicy = Readonly<{
   texture: MediumId;
   pigmentStrength: number;
   shadeStrength: number;
@@ -87,8 +114,8 @@ export type InkedSolidBlueprint = Readonly<{
   medium: MediumId;
   solid: SolidAssetBlueprint;
   contour: InkedSolidContourPolicy;
-  fill: InkedSolidFillPolicy;
-  hatching: InkedSolidHatchPolicy | null;
+  deposition: InkedSolidDepositionPolicy;
+  viewMarks: readonly InkedSolidViewMarkPolicy[];
   paper: InkedSolidPaperPolicy;
   strokes: readonly InkedSolidStrokeSpec[];
 }>;
@@ -96,8 +123,8 @@ export type InkedSolidBlueprint = Readonly<{
 export type InkedSolidBlueprintOptions = Readonly<{
   medium: MediumId;
   contour?: Partial<Omit<InkedSolidContourPolicy, 'seed'>>;
-  fill?: Partial<Omit<InkedSolidFillPolicy, 'seed' | 'texture'>>;
-  hatching?: Partial<Omit<InkedSolidHatchPolicy, 'seed'>> | null;
+  deposition?: Partial<Omit<InkedSolidDepositionPolicy, 'seed' | 'texture'>>;
+  viewMarks?: false | Readonly<Record<string, InkedSolidViewMarkOverride>>;
   paper?: Partial<Omit<InkedSolidPaperPolicy, 'seed'>>;
   strokes?: readonly InkedSolidStrokeDefinition[];
 }>;
@@ -197,19 +224,35 @@ export function createInkedSolidBlueprint(
   const tree = new SeedTree(solid.seed);
   const defaults = inkedSolidMediumDefaults(options.medium);
   const contour = { ...defaults.contour, ...options.contour };
-  const fill = { ...defaults.fill, ...options.fill };
+  const deposition = { ...defaults.deposition, ...options.deposition };
   const paper = { ...defaults.paper, ...options.paper };
-  const fallbackHatch = inkedSolidMediumDefaults('graphite').hatching;
-  if (fallbackHatch === null) throw new Error('Graphite medium requires a hatch policy');
-  const hatch = options.hatching === null
-    ? null
-    : options.hatching === undefined
-      ? defaults.hatching
-      : { ...(defaults.hatching ?? fallbackHatch), ...options.hatching };
-
-  if (hatch !== null && hatch.crossHatchStart < hatch.shadowStart) {
-    throw new RangeError('hatching.crossHatchStart must not be lower than hatching.shadowStart');
+  if (options.viewMarks !== undefined && options.viewMarks !== false) {
+    for (const materialId of Object.keys(options.viewMarks)) {
+      if (!solid.materials.some(({ id }) => id === materialId)) {
+        throw new RangeError(`viewMarks references unknown material ${materialId}`);
+      }
+    }
   }
+  const viewMarks = Object.freeze(solid.materials.map((material) => {
+    const projected = defaults.viewMark(material.role, material.drawing?.tone);
+    const override = options.viewMarks === false
+      ? { style: 'none' as const, strength: 0 }
+      : options.viewMarks?.[material.id];
+    const mark = { ...projected, ...override };
+    if (!INKED_SOLID_MARK_STYLES.includes(mark.style)) {
+      throw new RangeError(`viewMarks.${material.id}.style is not supported`);
+    }
+    return Object.freeze({
+      materialId: material.id,
+      materialRole: material.role,
+      style: mark.style,
+      scale: positive(`viewMarks.${material.id}.scale`, mark.scale),
+      strength: unit(`viewMarks.${material.id}.strength`, mark.strength),
+      coverage: unit(`viewMarks.${material.id}.coverage`, mark.coverage),
+      lineWidth: unit(`viewMarks.${material.id}.lineWidth`, mark.lineWidth),
+      seed: tree.seed(`inked-solid:view-mark:${material.id}`),
+    });
+  }));
   const strokeIds = new Set<string>();
   const strokeScale = contour.width / defaults.contour.width;
   const strokes = Object.freeze((options.strokes ?? []).map((stroke) => {
@@ -254,6 +297,11 @@ export function createInkedSolidBlueprint(
       color: color('contour.color', contour.color),
       width: positive('contour.width', contour.width),
       opacity: unit('contour.opacity', contour.opacity),
+      echoOpacity: unit('contour.echoOpacity', contour.echoOpacity),
+      ghostOpacity: unit('contour.ghostOpacity', contour.ghostOpacity),
+      ghostSpread: positive('contour.ghostSpread', contour.ghostSpread),
+      granulation: unit('contour.granulation', contour.granulation),
+      wander: nonNegative('contour.wander', contour.wander),
       depthThreshold: positive('contour.depthThreshold', contour.depthThreshold),
       normalThreshold: unit('contour.normalThreshold', contour.normalThreshold),
       jitter: nonNegative('contour.jitter', contour.jitter),
@@ -263,32 +311,18 @@ export function createInkedSolidBlueprint(
       ),
       seed: tree.seed('inked-solid:contour'),
     }),
-    fill: Object.freeze({
+    deposition: Object.freeze({
       texture: options.medium,
-      pigmentStrength: unit('fill.pigmentStrength', fill.pigmentStrength),
-      shadeStrength: unit('fill.shadeStrength', fill.shadeStrength),
-      shadeSteps: integer('fill.shadeSteps', fill.shadeSteps, 2, 8),
-      variationStrength: unit('fill.variationStrength', fill.variationStrength),
-      variationScale: positive('fill.variationScale', fill.variationScale),
-      seed: tree.seed('inked-solid:fill'),
+      pigmentStrength: unit('deposition.pigmentStrength', deposition.pigmentStrength),
+      shadeStrength: unit('deposition.shadeStrength', deposition.shadeStrength),
+      shadeSteps: integer('deposition.shadeSteps', deposition.shadeSteps, 2, 8),
+      variationStrength: unit('deposition.variationStrength', deposition.variationStrength),
+      variationScale: positive('deposition.variationScale', deposition.variationScale),
+      seed: tree.seed('inked-solid:deposition'),
     }),
-    hatching: hatch === null ? null : Object.freeze({
-      color: color('hatching.color', hatch.color),
-      scale: positive('hatching.scale', hatch.scale),
-      strength: unit('hatching.strength', hatch.strength),
-      shadowStart: unit('hatching.shadowStart', hatch.shadowStart),
-      crossHatchStart: unit('hatching.crossHatchStart', hatch.crossHatchStart),
-      lineWidth: unit('hatching.lineWidth', hatch.lineWidth),
-      jitter: nonNegative('hatching.jitter', hatch.jitter),
-      boilFramesPerSecond: nonNegative(
-        'hatching.boilFramesPerSecond',
-        hatch.boilFramesPerSecond,
-      ),
-      seed: tree.seed('inked-solid:hatching'),
-    }),
+    viewMarks,
     paper: Object.freeze({
       color: color('paper.color', paper.color),
-      tintStrength: unit('paper.tintStrength', paper.tintStrength),
       grainStrength: unit('paper.grainStrength', paper.grainStrength),
       seed: tree.seed('inked-solid:paper'),
     }),

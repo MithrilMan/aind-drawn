@@ -1,5 +1,5 @@
-import { SeedTree } from '../../core/random.js';
 import type { MediumId, ToneStyle } from '../../materials/medium.js';
+import { createBuildingDrawingStyle } from '../building-identity/drawing-style.js';
 import type { BuildingIdentityRecipe } from '../building-identity/recipe.js';
 
 export type RasterBuildingStyle = Readonly<{
@@ -23,7 +23,7 @@ export function createRasterBuildingRecipe(
   identity: BuildingIdentityRecipe,
   options: RasterBuildingRecipeOptions = {},
 ): RasterBuildingRecipe {
-  const random = new SeedTree(identity.seed).random('building:raster');
+  const drawing = createBuildingDrawingStyle(identity);
   return Object.freeze({
     version: 1,
     kind: 'raster-building',
@@ -31,7 +31,7 @@ export function createRasterBuildingRecipe(
     identity,
     style: Object.freeze({
       medium: options.medium ?? 'graphite',
-      tone: random.pick<ToneStyle>(['light', 'hatch', 'scribble', 'stipple']),
+      tone: drawing.facadeTone,
     }),
   });
 }

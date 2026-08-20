@@ -24,7 +24,8 @@ rendered orthographically in a 2.5D game.
 When an existing solid needs a three-dimensional hand-drawn projection, wrap
 its completed `SolidAssetBlueprint` with `createInkedSolidBlueprint` and pass an
 explicit shared `MediumId`. Pigment,
-contour, semantic strokes, hatching, paper tint, and boil timing are representation policy; they must not
+contour, semantic strokes, view-synthesized marks, paper grain, anchoring policy,
+and boil timing are representation policy; they must not
 reroll geometry or enter the family identity. The same public runtime is used
 for characters, buildings, vehicles, and props with real volume. Do not create
 a family-specific post-process shader or a parallel set of 3D-only drawing
@@ -134,19 +135,47 @@ identity data.
 - For solids, use stable node and part IDs and mount features through a shared
   `SurfaceAnchor`; do not hand-tune Three.js transforms in the consumer.
 - Keep material intent in `SolidMaterialSpec` and lighting/environment policy in
-  the runtime or scene.
+  the runtime or scene. When tonal hierarchy is part of cross-representation
+  identity, author `drawing.tone`; do not let each projection reroll it.
 - Keep inked-solid policy in `InkedSolidBlueprint`; screen-space contours belong
-  to the camera pass and hatching coordinates must stay local to the rendered
-  geometry so articulated parts do not swim through the marks.
-- Do not feed physical finish into doodle fill. Preserve semantic material
-  color, then let the inked runtime own paper pigment and volume shading.
+  to the camera pass. Procedural medium marks are synthesized in paper space for
+  the current projection and clipped by semantic material masks.
+- Keep physical and gameplay geometry exact. Express hand-drawn imprecision in
+  the projected contour policy: static low-frequency wander, pressure variation,
+  broken pickup, echoes, and optional quantized boil. Never bake decorative
+  wobble into colliders or duplicate it in an individual asset family.
+- Treat the solid mesh as an invisible Doodle 3D carrier. It supplies depth,
+  normals, occlusion, semantic material colour, and material membership;
+  continuous mesh albedo must never reach the composite. Carrier regions begin
+  as drawing paper; semantic colour supplies the irregular pigment bed and
+  view-synthesized marks.
+- Preserve semantic material RGB as the exact pigment source. Express volume by
+  changing deposition opacity and density; never pre-mix pigment with paper,
+  contour ink, fog, or normal lighting. Those layers are composited separately.
+- Compile view-mark density, opacity, and style from the shared raster medium
+  semantics. Calibrate representative tones against their raster spacing and
+  alpha ratios; an authored `light` tone must not silently become a hatch, and
+  a `black` pencil region must remain substantially denser than ordinary hatch.
+- Keep only paper grain stationary in screen space. Translate pigment and
+  view-synthesized gesture fields with each visible semantic part's projected
+  origin so articulation carries its marks. Camera and root rotation must
+  update projection continuously without a discrete seed or colour reroll.
+- Reserve part-local or surface-following stroke paths for marks with real
+  spatial meaning: whiskers, wires, seams, scars, raised outlines, and paths that
+  deliberately leave a host. Do not use them to simulate generic medium fill.
+- Do not feed physical finish into pigment deposition. Let the inked runtime
+  own paper response, mark coverage, and discrete volume tone.
 - Use the same `MediumId` for raster and inked-solid projections of one preview.
   `skin`, `glass`, `metal`, and other physical finishes belong only to smooth
   solid rendering; they are not drawing media and must not leak into doodle policy.
 - Add a new drawing medium once in `src/materials/medium.ts` and its volumetric
   policy in `src/assets/inked-solid/medium-projection.ts`; add a new generic
-  shader field in `InkedSolidPass` only when its surface statistics cannot reuse
+  shader field in `InkedSolidPass` only when its paper-space statistics cannot reuse
   an existing one. Do not add asset-family-specific medium presets.
+- Model expressive and decorative features as shared normalized constructions
+  when they contain semantic subparts or ratios. Eyes, hair, outfit marks, and
+  mouths live in identity profiles and are projected by raster and solid
+  adapters; do not reroll pupil size or redraw a motif independently.
 
 The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged

@@ -45,7 +45,7 @@ const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
 const renderStyleInput = requiredElement('[name="renderStyle"]') as HTMLSelectElement;
 const mediumInput = requiredElement('[name="medium"]') as HTMLSelectElement;
 const lineWeightInput = requiredElement('[name="lineWeight"]') as HTMLSelectElement;
-const hatchingInput = requiredElement('[name="hatching"]') as HTMLInputElement;
+const viewMarksInput = requiredElement('[name="viewMarks"]') as HTMLInputElement;
 const lineBoilInput = requiredElement('[name="lineBoil"]') as HTMLInputElement;
 const doorStateInput = requiredElement('[name="doorState"]') as HTMLSelectElement;
 const rasterImage = requiredElement('[data-raster-preview]') as HTMLImageElement;
@@ -94,8 +94,6 @@ function updateInkedRendering(): void {
   const medium = mediumInput.value as MediumId;
   const defaults = inkedSolidMediumDefaults(medium);
   const boil = lineBoilInput.checked;
-  hatchingInput.disabled = defaults.hatching === null;
-  hatchingInput.closest('label')?.toggleAttribute('hidden', defaults.hatching === null);
   const blueprint = createInkedSolidBlueprint(rig.blueprint, {
     medium,
     contour: {
@@ -103,12 +101,7 @@ function updateInkedRendering(): void {
       jitter: boil ? defaults.contour.jitter : 0,
       boilFramesPerSecond: boil ? defaults.contour.boilFramesPerSecond : 0,
     },
-    ...(hatchingInput.checked && defaults.hatching !== null ? {
-      hatching: {
-        jitter: boil ? defaults.hatching.jitter : 0,
-        boilFramesPerSecond: boil ? defaults.hatching.boilFramesPerSecond : 0,
-      },
-    } : { hatching: null }),
+    ...(viewMarksInput.checked ? {} : { viewMarks: false }),
     strokes: createSolidBuildingInkStrokes(rig.blueprint),
   });
   strokeRig?.dispose();
@@ -222,7 +215,7 @@ for (const input of [
   input.addEventListener('change', rebuild);
 }
 for (const input of [
-  renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput,
+  renderStyleInput, lineWeightInput, viewMarksInput, lineBoilInput,
 ]) {
   input.addEventListener('change', updateInkedRendering);
 }

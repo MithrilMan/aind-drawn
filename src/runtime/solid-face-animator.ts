@@ -32,6 +32,9 @@ const EXPRESSIONS: Readonly<Record<SolidFaceExpression, ExpressionPose>> = {
   angry: { eyeScaleY: 0.88, browLift: -0.16, browRoll: -0.48 },
   sad: { eyeScaleY: 0.94, browLift: 0.08, browRoll: 0.42 },
   surprised: { eyeScale: 1.13, browLift: 0.24 },
+  scared: { eyeScale: 1.16, browLift: 0.3, browRoll: 0.24 },
+  crying: { eyeScaleY: 0.48, browLift: 0.12, browRoll: 0.5 },
+  sleeping: { eyeScaleY: 0.06, browLift: 0.06, browRoll: 0.28 },
 };
 
 function criticallyDamped(
@@ -217,11 +220,27 @@ export class SolidFaceAnimator {
         mesh.translateX(this.headX * unit * 0.04);
         mesh.translateY(this.headY * unit * 0.025);
         mesh.visible = motion.expression === undefined || motion.expression === this.expression;
+      } else if (motion.role === 'tear') {
+        mesh.visible = this.expression === 'crying';
+        if (mesh.visible) {
+          const phaseOffset = (motion.side ?? 1) < 0 ? 0 : 0.46;
+          const fall = (this.elapsed * 0.82 + phaseOffset) % 1;
+          mesh.translateY(-(motion.travel ?? unit * 0.12) * fall);
+          const pulse = 0.88 + Math.sin(fall * Math.PI) * 0.24;
+          mesh.scale.set(rest.scale.x * pulse, rest.scale.y * (0.82 + fall * 0.34), rest.scale.z);
+        }
       }
     }
     this.head.position.copy(this.headRest);
     this.head.position.x += this.headX * unit * 0.08;
     this.head.position.y += this.headY * unit * 0.055;
     this.head.rotation.set(-this.headY * 0.16, this.headX * 0.26, -this.headX * 0.05);
+    if (this.expression === 'crying') {
+      const sob = Math.sin(this.elapsed * 5.2);
+      const catchBreath = Math.max(0, Math.sin(this.elapsed * 2.6));
+      this.head.position.y -= Math.abs(sob) * unit * 0.026;
+      this.head.rotation.x += catchBreath * 0.035;
+      this.head.rotation.z += sob * unit * 0.018;
+    }
   }
 }

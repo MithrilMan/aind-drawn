@@ -1,6 +1,6 @@
 import type { Seed } from '../../core/random.js';
-import { SeedTree } from '../../core/random.js';
 import type { MediumId, ToneStyle } from '../../materials/medium.js';
+import { createCharacterDrawingStyle } from '../character-identity/drawing-style.js';
 import {
   createCharacterIdentity,
   type CharacterEyeStyle,
@@ -48,8 +48,7 @@ export function createRasterCharacterRecipe(
   identity: CharacterIdentityRecipe,
   options: RasterCharacterRecipeOptions = {},
 ): CharacterRecipe {
-  const tree = new SeedTree(identity.seed);
-  const isCreature = identity.species === 'nightmare' || identity.species === 'creature';
+  const drawing = createCharacterDrawingStyle(identity);
   return Object.freeze({
     version: 1,
     kind: 'character',
@@ -57,12 +56,10 @@ export function createRasterCharacterRecipe(
     identity,
     style: Object.freeze({
       medium: options.medium ?? 'graphite',
-      linePressure: tree.random('character:line').float(0.86, 1.2),
-      headTone: isCreature
-        ? 'scribble'
-        : tree.random('character:raster:head-tone').pick<ToneStyle>(['light', 'light', 'hatch']),
-      hairTone: tree.random('character:raster:hair-tone').pick<ToneStyle>(['hatch', 'scribble', 'black']),
-      bodyTone: tree.random('character:raster:body-tone').pick<ToneStyle>(['light', 'hatch', 'scribble']),
+      linePressure: drawing.linePressure,
+      headTone: drawing.headTone,
+      hairTone: drawing.hairTone,
+      bodyTone: drawing.bodyTone,
     }),
   });
 }

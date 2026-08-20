@@ -98,12 +98,17 @@ export function createHairShellGeometry(
   const span = Math.PI * 2 * spatial.azimuthCoverage;
   const start = Math.PI * 0.5 - span * 0.5;
   const vertices: Point3[] = [];
+  const smoothUnit = (value: number): number => {
+    const clamped = Math.max(0, Math.min(1, value));
+    return clamped * clamped * (3 - 2 * clamped);
+  };
   const boundaryAt = (longitude: number): number => {
     const sine = Math.sin(longitude);
-    const cosine = Math.cos(longitude);
-    const frontWeight = Math.max(0, sine) ** 2;
-    const rearWeight = Math.max(0, -sine) ** 2;
-    const sideWeight = cosine ** 2;
+    // A side/rear drop must not be interpolated across the whole visible face:
+    // from oblique cameras that made bob hair become a visor over the eyes.
+    const frontWeight = smoothUnit((sine - 0.24) / 0.62);
+    const rearWeight = smoothUnit((-sine - 0.24) / 0.62);
+    const sideWeight = 1 - Math.max(frontWeight, rearWeight);
     const base = spatial.frontHairline * frontWeight
       + spatial.rearDrop * rearWeight
       + spatial.sideDrop * sideWeight;

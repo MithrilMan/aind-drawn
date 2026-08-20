@@ -71,7 +71,14 @@ only representation policy:
 
 - raster: medium, tone, line pressure, bake policy;
 - solid: finish, mesh density, physical material policy;
-- inked solid: contour, semantic stroke, and hatching policy.
+- inked solid: contour, spatial semantic stroke, and material-role
+  view-synthesized mark policy.
+
+If a seeded tonal choice must remain recognisable across representations,
+derive it once in an identity-adjacent drawing-style profile and place the
+resolved intent on `SolidMaterialSpec.drawing.tone`. Do not bury it in the
+raster recipe and ask the inked-solid compiler to guess it from colour or part
+names.
 
 Do not put a drawing medium in shared identity. Do not rerun an identity factory
 inside an adapter. A seed shared by two independent generators is not shared
@@ -150,12 +157,44 @@ barrel only.
 - Pass an explicit shared `MediumId` to `createInkedSolidBlueprint`. Raster and
   inked-solid previews of one asset must use the same medium. Never invent a
   second 3D-only drawing-medium taxonomy.
-- Keep contours camera-dependent and hatch coordinates object-local. A hatch
-  texture that swims while a node animates is a broken attachment, not style.
+- Keep contours and generic medium marks camera-dependent. Synthesize medium
+  marks in view-oriented drawing space, translate the field with the projected
+  origin of its visible semantic part, and clip it by semantic material masks.
+  Camera movement must update projection continuously without random seed or
+  colour changes at quantized thresholds.
+- Preserve exact carrier geometry, colliders, sockets, and pivots. Put the
+  doodle's imprecision in generic projection policy: static low-frequency
+  contour wander and pressure variation, broken pickup, echoes, plus optional
+  quantized line boil. Never bend family geometry merely to make its rendered
+  outline look hand drawn.
+- Let the shared medium compiler project material roles into mark styles. Hair,
+  cloth, facade, glass, and unknown roles may require different deposition, but
+  the generic renderer must never branch on an asset family or semantic part ID.
+- Treat an authored material drawing tone as higher-priority intent than the
+  role fallback. Test that raster tone, solid material hint, and inked-solid
+  coverage agree for representative seeds.
+- Preserve semantic material RGB as the exact inked-solid pigment source.
+  Describe volume through deposition opacity and mark density; never pre-mix
+  pigment with paper, contour ink, scene fog, or normal-lighting colour.
+- Calibrate inked-solid mark density and opacity against the shared raster
+  medium's tone semantics and relative spacing. Test representative `light`,
+  `hatch`, `scribble`, and `black` tones instead of tuning per-family scales.
+- Keep line boil on view-dependent contour passes. View-synthesized medium marks
+  follow animated owner parts but never use boil frames; paper grain alone stays
+  stationary in screen space.
 - Reuse `InkedSolidPass` across asset families and dispose it explicitly.
-- Doodle fill preserves semantic albedo but bypasses smooth-solid roughness,
-  metalness, clearcoat, and specular response. Never disguise PBR as paper with
-  a post-process tint.
+- In Doodle 3D, the solid mesh is an invisible carrier for depth, occlusion,
+  normals, semantic colour, and material masks. Never composite its continuous
+  albedo. Semantic material colour may only source synthesized pigment; PBR
+  roughness, metalness, clearcoat, and specular response stay absent.
+- Begin every visible carrier region from opaque drawing paper, then composite
+  semantic pigment bed, medium gestures, and contour in that order. Do not use
+  transparent-clear RGB as the paper base, and keep carrier alpha opaque even
+  when a material intentionally has zero gesture coverage.
+- Model expressive and decorative features with semantic subparts and ratios in
+  shared identity/profile data. Eyes, hairlines, outfit motifs, and mouths are
+  one normalized construction projected by raster and solid adapters, not two
+  unrelated drawings. Never reroll a shared proportion in an adapter.
 - Treat `SolidFinishId` and `MediumId` as orthogonal. Physical finishes such as
   skin, glass, ceramic, or metal affect only smooth solid rendering. Add new
   medium behaviour centrally in `src/materials/medium.ts` and
@@ -163,7 +202,9 @@ barrel only.
   `InkedSolidPass` field only when necessary, never a family adapter.
 - Author semantic marks in the family adapter. Use superellipsoid surface
   directions for analytic hosts and part-local points for boxes, profiles,
-  meshes, or paths that leave a surface. Always name and validate the owner part.
+  meshes, or paths that leave a surface. Always name and validate the owner
+  part. These spatial strokes are not a replacement for camera-conditioned
+  medium deposition.
 - Resolve semantic marks through `InkedSolidStrokeRig`; parent them to the
   owner mesh and dispose the stroke rig before `SolidRig`.
 - Do not add compatibility shims before a serialized recipe format has actually been released.
@@ -191,10 +232,10 @@ Add tests that prove:
 - other families remain unchanged.
 - one inked-solid policy works on at least one organic and one architectural
   solid family without family-specific renderer branches.
-- physical finish changes smooth rendering without changing doodle fill or
+- physical finish changes smooth rendering without changing doodle deposition or
   semantic stroke data.
-- every public `MediumId` compiles to a deterministic raster and volumetric
-  policy with the same ID and a visibly distinct surface character.
+- every public `MediumId` compiles to a deterministic raster and inked-solid
+  policy with the same ID and a visibly distinct view-synthesized character.
 
 Run `pnpm verify`. Then inspect representative seeds in the in-app browser at
 every viewport class the experiment claims to support. For the current

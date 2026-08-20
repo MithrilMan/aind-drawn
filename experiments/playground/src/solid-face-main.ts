@@ -13,10 +13,12 @@ import {
   createRasterCharacterBlueprint,
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
+  type CharacterDentalStyle,
   type CharacterEyeStyle,
   type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentitySpecies,
+  type CharacterMouthStyle,
   type CharacterMotion,
   type CharacterPose,
   type MediumId,
@@ -73,11 +75,14 @@ const speciesInput = requiredElement('[name="species"]') as HTMLSelectElement;
 const shapeInput = requiredElement('[name="shape"]') as HTMLSelectElement;
 const eyeStyleInput = requiredElement('[name="eyeStyle"]') as HTMLSelectElement;
 const hairStyleInput = requiredElement('[name="hairStyle"]') as HTMLSelectElement;
+const mouthStyleInput = requiredElement('[name="mouthStyle"]') as HTMLSelectElement;
+const mouthTeethInput = requiredElement('[name="mouthTeeth"]') as HTMLSelectElement;
+const mouthTongueInput = requiredElement('[name="mouthTongue"]') as HTMLSelectElement;
 const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
 const renderStyleInput = requiredElement('[name="renderStyle"]') as HTMLSelectElement;
 const mediumInput = requiredElement('[name="medium"]') as HTMLSelectElement;
 const lineWeightInput = requiredElement('[name="lineWeight"]') as HTMLSelectElement;
-const hatchingInput = requiredElement('[name="hatching"]') as HTMLInputElement;
+const viewMarksInput = requiredElement('[name="viewMarks"]') as HTMLInputElement;
 const lineBoilInput = requiredElement('[name="lineBoil"]') as HTMLInputElement;
 const framingInput = requiredElement('[name="framing"]') as HTMLSelectElement;
 const expressionInput = requiredElement('[name="expression"]') as HTMLSelectElement;
@@ -109,8 +114,6 @@ function updateInkedRendering(): void {
   const medium = mediumInput.value as MediumId;
   const defaults = inkedSolidMediumDefaults(medium);
   const boil = lineBoilInput.checked;
-  hatchingInput.disabled = defaults.hatching === null;
-  hatchingInput.closest('label')?.toggleAttribute('hidden', defaults.hatching === null);
   const blueprint = createInkedSolidBlueprint(rig.blueprint, {
     medium,
     contour: {
@@ -118,12 +121,7 @@ function updateInkedRendering(): void {
       jitter: boil ? defaults.contour.jitter : 0,
       boilFramesPerSecond: boil ? defaults.contour.boilFramesPerSecond : 0,
     },
-    ...(hatchingInput.checked && defaults.hatching !== null ? {
-      hatching: {
-        jitter: boil ? defaults.hatching.jitter : 0,
-        boilFramesPerSecond: boil ? defaults.hatching.boilFramesPerSecond : 0,
-      },
-    } : { hatching: null }),
+    ...(viewMarksInput.checked ? {} : { viewMarks: false }),
     strokes: createSolidCharacterInkStrokes(rig.blueprint),
   });
   strokeRig?.dispose();
@@ -235,6 +233,15 @@ function rebuild(): void {
     ...(hairStyleInput.value === '' ? {} : {
       hairStyle: hairStyleInput.value as CharacterHairStyle,
     }),
+    ...(mouthStyleInput.value === '' ? {} : {
+      mouthStyle: mouthStyleInput.value as CharacterMouthStyle,
+    }),
+    ...(mouthTeethInput.value === '' ? {} : {
+      mouthTeeth: mouthTeethInput.value as CharacterDentalStyle,
+    }),
+    ...(mouthTongueInput.value === '' ? {} : {
+      mouthTongue: mouthTongueInput.value === 'true',
+    }),
   });
   rig = new SolidRig(createSolidCharacterBlueprint(identity, {
     finish: finishInput.value as SolidFinishId,
@@ -255,6 +262,9 @@ function rebuild(): void {
     '[data-identity-features]': `${identity.head.shape} / ${identity.eyes.style}${
       identity.eyes.alternateStyle === null ? '' : `→${identity.eyes.alternateStyle}`
     } / ${identity.hair.style}`,
+    '[data-identity-mouth]': `${identity.mouth.style} / ${identity.mouth.teeth}${
+      identity.mouth.tongue ? ' + tongue' : ''
+    }`,
   };
   for (const [selector, value] of Object.entries(identityValues)) {
     const target = root?.querySelector<HTMLElement>(selector);
@@ -268,12 +278,13 @@ function rebuild(): void {
 }
 
 for (const input of [
-  seedInput, speciesInput, shapeInput, eyeStyleInput, hairStyleInput, finishInput, mediumInput,
+  seedInput, speciesInput, shapeInput, eyeStyleInput, hairStyleInput, mouthStyleInput,
+  mouthTeethInput, mouthTongueInput, finishInput, mediumInput,
 ]) {
   input.addEventListener('change', rebuild);
 }
 for (const input of [
-  renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput,
+  renderStyleInput, lineWeightInput, viewMarksInput, lineBoilInput,
 ]) {
   input.addEventListener('change', updateInkedRendering);
 }

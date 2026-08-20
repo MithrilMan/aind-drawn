@@ -290,6 +290,25 @@ export class CharacterAnimator {
       rotation: Math.sin(this.elapsed * 2.6) * 0.13 * profile.tail
         + Math.sin(this.elapsed * 0.47) * 0.07 * profile.tail,
     }, 1);
+    if (this.expression === 'crying') {
+      const sob = Math.sin(this.elapsed * 5.2);
+      const heave = Math.max(0, Math.sin(this.elapsed * 2.6));
+      this.addPose(poses, 'torso', {
+        y: -Math.abs(sob) * 0.014,
+        scaleY: 1 + heave * 0.024,
+      }, 1);
+      this.addPose(poses, 'head', {
+        y: -Math.abs(sob) * 0.024,
+        rotation: sob * 0.024,
+      }, 1);
+      this.addPose(poses, 'arm:left', { rotation: 0.16 + heave * 0.12 }, 1);
+      this.addPose(poses, 'arm:right', { rotation: -0.16 - heave * 0.12 }, 1);
+      for (const side of ['left', 'right'] as const) {
+        const offset = side === 'left' ? 0 : 0.46;
+        const fall = (this.elapsed * 0.82 + offset) % 1;
+        this.addPose(poses, `tear:${side}`, { y: -fall * 0.08 }, 1);
+      }
+    }
   }
 
   private updateGaze(amplitude: number, delta: number): void {
@@ -327,8 +346,12 @@ export class CharacterAnimator {
     this.stateIfPresent('eye:right', eyeState);
     this.stateIfPresent(
       'mouth',
-      talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : this.expression,
+      sleeping
+        ? 'sleeping'
+        : talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : this.expression,
     );
+    this.stateIfPresent('tear:left', this.expression === 'crying' ? 'crying' : 'idle');
+    this.stateIfPresent('tear:right', this.expression === 'crying' ? 'crying' : 'idle');
   }
 
   private addPose(

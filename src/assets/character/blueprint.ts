@@ -5,7 +5,10 @@ import { mediumById, type Medium } from '../../materials/medium.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../types.js';
 import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
 import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
+import { createCharacterEyeProfile } from '../character-identity/eye-profile.js';
 import { createCharacterMouthProfile } from '../character-identity/mouth-profile.js';
+import { createCharacterTearProfile } from '../character-identity/tear-profile.js';
+import { createCharacterOutfitProfile } from '../character-identity/outfit-profile.js';
 import { buildCharacterLayout } from './layout.js';
 import {
   createRasterCharacterRecipe,
@@ -19,6 +22,7 @@ const EYE_CANVAS: Size2 = Object.freeze({ width: 72, height: 72 });
 const BROW_CANVAS: Size2 = Object.freeze({ width: 72, height: 36 });
 const NOSE_CANVAS: Size2 = Object.freeze({ width: 48, height: 48 });
 const MOUTH_CANVAS: Size2 = Object.freeze({ width: 104, height: 66 });
+const TEAR_CANVAS: Size2 = Object.freeze({ width: 48, height: 88 });
 const TAIL_HEIGHT = 150;
 
 function toWorld(canvas: Size2, pixelsPerUnit: number): Size2 {
@@ -93,7 +97,7 @@ function drawHair(
   headWidth: number,
   headHeight: number,
 ): void {
-  const profile = createCharacterHairProfile(recipe.identity.hair);
+  const profile = createCharacterHairProfile(recipe.identity);
   if (profile === null) return;
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2;
@@ -111,34 +115,19 @@ function drawOutfit(sketch: Sketch, recipe: CharacterRecipe, canvas: Size2): voi
   if (recipe.identity.species === 'cat' || recipe.identity.outfit.style === 'plain') return;
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
-  const scale = recipe.identity.outfit.scale;
+  const halfWidth = canvas.width * 0.28;
+  const halfHeight = canvas.height * 0.32;
+  const profile = createCharacterOutfitProfile(recipe.identity);
   sketch.setInk(recipe.identity.palette.accent);
-  if (recipe.identity.outfit.style === 'stripe') {
-    for (const offset of [-1, 1]) {
-      sketch.stroke([
-        [centerX - canvas.width * 0.2, centerY + offset * 10 * scale],
-        [centerX + canvas.width * 0.2, centerY + offset * 9 * scale],
-      ], 4.8 * recipe.style.linePressure, { alpha: 0.52, taper: 0.2, ghost: true });
-    }
-  } else if (recipe.identity.outfit.style === 'star') {
-    const points: MutablePoint[] = [];
-    const radius = 16 * scale;
-    for (let index = 0; index < 10; index += 1) {
-      const angle = -Math.PI / 2 + index * Math.PI / 5;
-      const pointRadius = index % 2 === 0 ? radius : radius * 0.43;
-      points.push([
-        centerX + Math.cos(angle) * pointRadius,
-        centerY + Math.sin(angle) * pointRadius,
-      ]);
-    }
-    sketch.inkFill(points, 0.48);
-    sketch.stroke(closePath(points), 1.8 * recipe.style.linePressure, { alpha: 0.56, taper: 0.1 });
-  } else {
-    for (const offset of [-1, 0, 1]) {
-      sketch.context.fillStyle = sketch.inkAlpha(0.62);
-      sketch.wobblyEllipse(centerX, centerY + offset * 13 * scale, 3.4, 3.4);
-      sketch.context.fill();
-    }
+  for (const mark of profile.marks) {
+    const points = mark.outline.map(([x, y]): MutablePoint => [
+      centerX + x * halfWidth,
+      centerY - y * halfHeight,
+    ]);
+    sketch.inkFill(points, mark.id === 'stripe' ? 0.5 : 0.56);
+    sketch.stroke(closePath(points), 1.8 * recipe.style.linePressure, {
+      alpha: 0.58, amplitude: 0.42, taper: 0.1, ghost: true,
+    });
   }
   sketch.setInk(null);
 }
@@ -170,6 +159,7 @@ function drawEye(
   const centerX = EYE_CANVAS.width / 2;
   const centerY = EYE_CANVAS.height / 2;
   const radius = Math.min(21, 12 + recipe.identity.eyes.size * 6);
+  const profile = createCharacterEyeProfile(recipe.identity, style);
   if (state === 'closed') {
     sketch.stroke(chaikin([
       [centerX - radius, centerY + 2],
@@ -180,34 +170,24 @@ function drawEye(
   }
 
   const gazeX = state === 'left' ? -radius * 0.42 : state === 'right' ? radius * 0.42 : 0;
-  if (style === 'sleepy') {
+  if (profile.field === 'none') {
     pupil(
       sketch,
       centerX + gazeX,
-      centerY + 3,
-      radius * 0.35,
+      centerY - profile.pupilOffsetY * radius,
+      radius * profile.pupilRadius,
       recipe.identity.eyes.glint,
       recipe.identity.species === 'cat',
     );
-    sketch.stroke([
-      [centerX - radius, centerY - 5],
-      [centerX, centerY - 8],
-      [centerX + radius, centerY - 5],
-    ], 3 * recipe.style.linePressure, { taper: 0.2 });
+    for (const stroke of profile.strokes) {
+      sketch.stroke(stroke.points.map(([x, y]) => [
+        centerX + x * radius,
+        centerY - y * radius,
+      ]), stroke.width * radius * 2 * recipe.style.linePressure, { taper: 0.2 });
+    }
     return;
   }
-  if (style === 'dot') {
-    pupil(
-      sketch,
-      centerX + gazeX * 0.4,
-      centerY,
-      radius * 0.38,
-      recipe.identity.eyes.glint,
-      recipe.identity.species === 'cat',
-    );
-    return;
-  }
-  if (style === 'star') {
+  if (profile.field === 'star') {
     const points: MutablePoint[] = [];
     for (let index = 0; index < 10; index += 1) {
       const angle = -Math.PI / 2 + index * Math.PI / 5;
@@ -222,7 +202,7 @@ function drawEye(
   }
 
   const disc = sketch.blobPoints(centerX, centerY, radius, radius * 1.02, 0, 0.38);
-  if (style === 'void') {
+  if (profile.field === 'ink') {
     sketch.paperFill(disc);
     sketch.pencilFill(disc, 0.92);
     sketch.stroke(closePath(disc), 2.8, { amplitude: 0.5, taper: 0.1 });
@@ -238,8 +218,8 @@ function drawEye(
   pupil(
     sketch,
     centerX + gazeX,
-    centerY + 1,
-    radius * 0.34,
+    centerY - profile.pupilOffsetY * radius,
+    radius * profile.pupilRadius,
     recipe.identity.eyes.glint,
     recipe.identity.species === 'cat',
   );
@@ -323,21 +303,78 @@ function drawMouth(
   const centerX = MOUTH_CANVAS.width / 2;
   const centerY = MOUTH_CANVAS.height / 2;
   const expression = state === 'open' ? 'surprised' : state;
+  const resolvedExpression = expression === 'happy' || expression === 'angry'
+    || expression === 'sad' || expression === 'surprised' || expression === 'scared'
+    || expression === 'crying' || expression === 'sleeping'
+    ? expression
+    : 'idle';
   const profile = createCharacterMouthProfile(
     recipe.identity.mouth,
-    expression === 'happy' || expression === 'angry' || expression === 'sad'
-      || expression === 'surprised' ? expression : 'idle',
+    resolvedExpression,
   );
-  const outline: MutablePoint[] = profile.outline.map(([x, y]) => [
+  const project = (points: readonly Point[]): MutablePoint[] => points.map(([x, y]) => [
     centerX + x * headWidth * 0.5,
     centerY - y * headHeight * 0.5,
   ]);
-  sketch.inkFill(outline, profile.open ? 0.92 : 0.82);
+  for (const mouthLayer of profile.layers) {
+    const outline = project(mouthLayer.outline);
+    if (mouthLayer.role === 'tooth') {
+      sketch.paperFill(outline);
+    } else if (mouthLayer.role === 'tongue') {
+      sketch.paperFill(outline);
+      sketch.setInk(recipe.identity.palette.accent);
+      sketch.inkFill(outline, 0.46);
+      sketch.setInk(null);
+    } else {
+      sketch.inkFill(outline, mouthLayer.role === 'interior' ? 0.94 : 0.82);
+    }
+    sketch.stroke(closePath(outline), 1.35 * recipe.style.linePressure, {
+      alpha: mouthLayer.role === 'interior' ? 0.5 : 0.72,
+      amplitude: 0.32,
+      taper: 0.08,
+    });
+  }
+  for (const mouthStroke of profile.strokes) {
+    sketch.stroke(project(mouthStroke.points), 1.15 * recipe.style.linePressure, {
+      alpha: 0.68,
+      amplitude: 0.22,
+      taper: 0.12,
+    });
+  }
+}
+
+function drawTear(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  state: string,
+  side: -1 | 1,
+  headWidth: number,
+  headHeight: number,
+): void {
+  if (state !== 'crying') return;
+  const profile = createCharacterTearProfile(recipe.identity);
+  const centerX = TEAR_CANVAS.width / 2;
+  const centerY = TEAR_CANVAS.height * 0.42;
+  const outline = profile.outline.map(([x, y]): MutablePoint => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ]);
+  sketch.setInk(recipe.identity.palette.tear);
+  sketch.inkFill(outline, 0.52);
   sketch.stroke(closePath(outline), 1.35 * recipe.style.linePressure, {
     alpha: 0.72,
-    amplitude: 0.32,
+    amplitude: 0.24,
     taper: 0.08,
   });
+  sketch.stroke([
+    [centerX - side * 1.4, centerY - profile.length * headHeight * 0.44],
+    [centerX + side * 1.2, centerY - profile.length * headHeight * 0.06],
+  ], 1.05 * recipe.style.linePressure, {
+    alpha: 0.48,
+    amplitude: 0.2,
+    taper: 0.35,
+  });
+  sketch.setInk(null);
 }
 
 function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canvas: Size2): void {
@@ -610,6 +647,28 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         state,
       ); },
     }),
+    ...([-1, 1] as const).map((side) => layer({
+      id: `tear:${side < 0 ? 'left' : 'right'}`,
+      bone: `tear:${side < 0 ? 'left' : 'right'}`,
+      parentBone: 'head', order: 4.6, depth: 0.86,
+      canvas: TEAR_CANVAS, pixelsPerUnit,
+      position: {
+        x: (side < 0 ? layout.eyes.left.x : layout.eyes.right.x) - headPosition.x,
+        y: (side < 0 ? layout.eyes.left.y : layout.eyes.right.y)
+          - headPosition.y - layout.eyes.radiusPixels * 0.62 / pixelsPerUnit,
+      },
+      pivot: [0.5, 0.42], states: ['idle', 'crying'],
+      draw: ({ sketch, state }) => {
+        drawTear(
+          sketch,
+          recipe,
+          state,
+          side,
+          layout.head.widthPixels,
+          layout.head.heightPixels,
+        );
+      },
+    })),
     layer({
       id: 'mouth', bone: 'mouth', order: 5, depth: 0.9,
       canvas: MOUTH_CANVAS, pixelsPerUnit,
@@ -619,7 +678,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       },
       parentBone: 'head',
       pivot: [0.5, 0.5],
-      states: ['idle', 'open', 'happy', 'angry', 'sad', 'surprised'],
+      states: [
+        'idle', 'open', 'happy', 'angry', 'sad', 'surprised',
+        'scared', 'crying', 'sleeping',
+      ],
       draw: ({ sketch, state }) => {
         drawMouth(sketch, recipe, state, layout.head.widthPixels, layout.head.heightPixels);
       },

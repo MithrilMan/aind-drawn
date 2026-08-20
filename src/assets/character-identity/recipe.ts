@@ -4,7 +4,20 @@ import { ACCENT_COLORS, SKIN_COLORS, type RgbColor } from '../../core/sketch.js'
 export type CharacterIdentitySpecies = 'human' | 'cat' | 'nightmare' | 'creature' | 'robot';
 export type CharacterHeadShape = 'round' | 'square' | 'pear' | 'drop' | 'lump' | 'tall' | 'wide';
 export type CharacterEyeStyle = 'saucer' | 'dot' | 'sleepy' | 'void' | 'star';
-export type CharacterMouthStyle = 'tiny' | 'smile' | 'frown' | 'zigzag' | 'open' | 'flat' | 'cat';
+export type CharacterMouthStyle =
+  | 'tiny'
+  | 'smile'
+  | 'frown'
+  | 'zigzag'
+  | 'open'
+  | 'flat'
+  | 'cat'
+  | 'grin'
+  | 'maw'
+  | 'fangs'
+  | 'buckteeth'
+  | 'stitch';
+export type CharacterDentalStyle = 'none' | 'row' | 'grit' | 'fangs' | 'buck';
 export type CharacterHairStyle = 'none' | 'cap' | 'bob' | 'fringe' | 'spikes' | 'tuft' | 'crown';
 export type CharacterOutfitStyle = 'plain' | 'stripe' | 'star' | 'buttons';
 
@@ -20,6 +33,7 @@ export type CharacterIdentityRecipe = Readonly<{
     accent: RgbColor;
     ink: RgbColor;
     sclera: RgbColor;
+    tear: RgbColor;
   }>;
   head: Readonly<{
     shape: CharacterHeadShape;
@@ -43,6 +57,9 @@ export type CharacterIdentityRecipe = Readonly<{
     style: CharacterMouthStyle;
     width: number;
     verticalOffset: number;
+    teeth: CharacterDentalStyle;
+    toothCount: number;
+    tongue: boolean;
   }>;
   hair: Readonly<{ style: CharacterHairStyle; height: number }>;
   body: Readonly<{
@@ -62,6 +79,8 @@ export type CharacterIdentityOptions = Readonly<{
   eyeStyle?: CharacterEyeStyle;
   alternateEyeStyle?: CharacterEyeStyle | null;
   mouthStyle?: CharacterMouthStyle;
+  mouthTeeth?: CharacterDentalStyle;
+  mouthTongue?: boolean;
   hairStyle?: CharacterHairStyle;
   outfitStyle?: CharacterOutfitStyle;
 }>;
@@ -148,21 +167,57 @@ function castingFor(species: CharacterIdentitySpecies) {
 }
 
 function mouthFor(species: CharacterIdentitySpecies, random: Random): CharacterMouthStyle {
+  if (species === 'cat') {
+    return random.weighted([
+      { value: 'cat', weight: 5 }, { value: 'smile', weight: 2 },
+      { value: 'fangs', weight: 2 }, { value: 'open', weight: 1 },
+    ]);
+  }
+  if (species === 'nightmare') {
+    return random.weighted([
+      { value: 'maw', weight: 4 }, { value: 'grin', weight: 3 },
+      { value: 'fangs', weight: 2 }, { value: 'stitch', weight: 2 },
+      { value: 'zigzag', weight: 1 },
+    ]);
+  }
   if (species === 'creature') {
     return random.weighted([
-      { value: 'open', weight: 3 }, { value: 'cat', weight: 2 },
-      { value: 'zigzag', weight: 2 }, { value: 'smile', weight: 1 },
+      { value: 'maw', weight: 3 }, { value: 'open', weight: 2 },
+      { value: 'grin', weight: 2 }, { value: 'fangs', weight: 2 },
+      { value: 'cat', weight: 1 }, { value: 'zigzag', weight: 1 },
     ]);
   }
   if (species === 'robot') {
     return random.weighted([
-      { value: 'flat', weight: 4 }, { value: 'open', weight: 2 },
-      { value: 'tiny', weight: 2 }, { value: 'zigzag', weight: 1 },
+      { value: 'flat', weight: 4 }, { value: 'grin', weight: 3 },
+      { value: 'open', weight: 2 }, { value: 'zigzag', weight: 2 },
     ]);
   }
   return random.weighted([
     { value: 'tiny', weight: 4 }, { value: 'smile', weight: 3 },
-    { value: 'frown', weight: 2 }, { value: 'zigzag', weight: 1 },
+    { value: 'frown', weight: 2 }, { value: 'grin', weight: 2 },
+    { value: 'buckteeth', weight: 1 }, { value: 'stitch', weight: 1 },
+    { value: 'open', weight: 1 }, { value: 'zigzag', weight: 1 },
+  ]);
+}
+
+function dentalFor(
+  style: CharacterMouthStyle,
+  species: CharacterIdentitySpecies,
+  random: Random,
+): CharacterDentalStyle {
+  if (style === 'grin') return 'grit';
+  if (style === 'maw') return 'row';
+  if (style === 'fangs') return 'fangs';
+  if (style === 'buckteeth') return 'buck';
+  const probability = species === 'nightmare' || species === 'creature' ? 0.62
+    : species === 'cat' ? 0.34
+      : species === 'robot' ? 0.28 : 0.14;
+  if (!random.chance(probability)) return 'none';
+  return random.weighted<CharacterDentalStyle>([
+    { value: 'row', weight: 4 },
+    { value: 'fangs', weight: species === 'cat' || species === 'creature' ? 3 : 1 },
+    { value: 'buck', weight: species === 'human' ? 2 : 1 },
   ]);
 }
 
@@ -182,7 +237,10 @@ export function createCharacterIdentity(
   const accent = pickDistinctColor(tree.random('character:palette:accent'), ACCENT_COLORS, [skin, cloth]);
   const headRandom = tree.random('character:head');
   const eyesRandom = tree.random('character:eyes');
-  const mouthRandom = tree.random('character:mouth');
+  const mouthStyleRandom = tree.random('character:mouth:style');
+  const mouthDentalRandom = tree.random('character:mouth:dental');
+  const mouthTongueRandom = tree.random('character:mouth:tongue');
+  const mouthMeasurementRandom = tree.random('character:mouth:measurements');
   const hairRandom = tree.random('character:hair');
   const bodyRandom = tree.random('character:body');
   const outfitRandom = tree.random('character:outfit');
@@ -218,7 +276,11 @@ export function createCharacterIdentity(
       { value: 'buttons', weight: species === 'human' || species === 'robot' ? 2 : 1 },
     ]);
   const outfitStyle = options.outfitStyle ?? generatedOutfitStyle;
-  const generatedMouthStyle = mouthFor(species, mouthRandom);
+  const generatedMouthStyle = mouthFor(species, mouthStyleRandom);
+  const mouthStyle = options.mouthStyle ?? generatedMouthStyle;
+  const generatedDentalStyle = dentalFor(mouthStyle, species, mouthDentalRandom);
+  const generatedTongue = (mouthStyle === 'open' || mouthStyle === 'maw')
+    && mouthTongueRandom.chance(species === 'creature' || species === 'cat' ? 0.48 : 0.2);
 
   return Object.freeze({
     version: 1,
@@ -232,6 +294,7 @@ export function createCharacterIdentity(
       accent: freezeColor(accent),
       ink: freezeColor([31, 29, 28]),
       sclera: freezeColor([241, 235, 215]),
+      tear: freezeColor([91, 148, 176]),
     }),
     head: Object.freeze({
       shape: headShape,
@@ -259,9 +322,12 @@ export function createCharacterIdentity(
       size: detailsRandom.float(0.08, 0.13),
     }),
     mouth: Object.freeze({
-      style: options.mouthStyle ?? generatedMouthStyle,
-      width: mouthRandom.float(0.2, 0.43),
-      verticalOffset: mouthRandom.float(0.28, 0.43),
+      style: mouthStyle,
+      width: mouthMeasurementRandom.float(0.2, 0.43),
+      verticalOffset: mouthMeasurementRandom.float(0.28, 0.43),
+      teeth: options.mouthTeeth ?? generatedDentalStyle,
+      toothCount: mouthMeasurementRandom.integer(3, 5),
+      tongue: options.mouthTongue ?? generatedTongue,
     }),
     hair: Object.freeze({ style: hairStyle, height: hairRandom.float(0.2, 0.48) }),
     body: Object.freeze({

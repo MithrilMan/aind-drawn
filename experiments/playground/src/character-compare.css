@@ -1,0 +1,124 @@
+@import './solid-face.css';
+
+body { min-width: 1080px; }
+
+.comparison-lab {
+  min-height: 100vh;
+  padding: 20px 26px 24px;
+  background:
+    linear-gradient(90deg, transparent 49.94%, rgb(94 76 61 / 12%) 50%, transparent 50.06%),
+    repeating-linear-gradient(0deg, transparent 0 31px, rgb(73 61 49 / 3%) 32px),
+    #e9dfcc;
+}
+
+.comparison-header {
+  min-height: 98px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 40px;
+  border-bottom: 2px solid #342f29;
+  padding: 0 2px 14px;
+}
+
+.comparison-header h1 { font-size: 40px; line-height: .92; }
+.comparison-header .lab-purpose { max-width: 510px; }
+
+.comparison-controls {
+  display: grid;
+  grid-template-columns: minmax(420px, 1fr) 150px 180px minmax(220px, .7fr);
+  align-items: end;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid #8f8577;
+}
+
+.comparison-controls label {
+  display: grid;
+  gap: 5px;
+  color: #655c52;
+  font-size: 9px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.comparison-controls input,
+.comparison-controls select {
+  width: 100%;
+  height: 34px;
+  border: 1px solid #918678;
+  border-radius: 0;
+  background: #faf5e9;
+  padding: 0 9px;
+}
+
+.preset-group { display: flex; align-items: center; gap: 7px; min-height: 34px; }
+.preset-group > span { margin-right: 4px; color: #8e4f3d; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; }
+.preset-group button {
+  min-height: 31px;
+  border: 1px solid #8e7665;
+  background: rgb(250 245 233 / 72%);
+  padding: 0 9px;
+  cursor: pointer;
+  font-size: 9px;
+}
+.preset-group button:hover,
+.preset-group button[aria-pressed='true'] { border-color: #8e4f3d; background: #f3e1cc; color: #8e4f3d; }
+
+.comparison-status { align-self: center; margin: 0; color: #456d62; font-size: 9px; line-height: 1.4; text-align: right; text-transform: uppercase; }
+
+.comparison-stage {
+  height: calc(100vh - 285px);
+  min-height: 560px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 14px 0;
+}
+
+.comparison-pane {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 48px minmax(0, 1fr) 31px;
+  margin: 0;
+  border: 1px solid #756d61;
+  background: rgb(246 240 226 / 72%);
+  box-shadow: 2px 3px 0 rgb(60 50 42 / 16%);
+}
+
+.comparison-pane > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid #aaa091;
+}
+.comparison-pane > header span { color: #746a60; font-size: 8px; letter-spacing: .12em; text-transform: uppercase; }
+.comparison-pane > header strong { color: #8e4f3d; font-family: 'Kalam', cursive; font-size: 18px; transform: rotate(-1deg); }
+.comparison-pane > footer { padding: 9px 13px; border-top: 1px solid #aaa091; color: #6e655b; font-size: 8px; letter-spacing: .08em; text-transform: uppercase; }
+
+.comparison-canvas {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 38%, rgb(255 252 242 / 72%), transparent 56%),
+    #ded6c7;
+}
+.comparison-canvas canvas { display: block; width: 100%; height: 100%; }
+.registration { position: absolute; top: 50%; color: rgb(96 78 64 / 35%); font-size: 14px; transform: translateY(-50%); pointer-events: none; }
+.registration--left { left: 8px; }
+.registration--right { right: 8px; }
+
+.comparison-readout {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(110px, 1fr)) minmax(220px, 1.5fr);
+  border-top: 1px dashed #8f8577;
+  padding-top: 10px;
+}
+.comparison-readout > div { min-height: 45px; border-right: 1px solid #b3a898; padding: 5px 12px; }
+.comparison-readout > div:first-child { padding-left: 2px; }
+.comparison-readout span { display: block; margin-bottom: 5px; color: #786f65; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; }
+.comparison-readout strong { font-size: 10px; font-weight: 500; }
+.palette-readout { display: flex; align-items: center; gap: 7px; border-right: 0 !important; }
+.palette-swatch { width: 28px; height: 28px; border: 1px solid rgb(52 47 41 / 42%); box-shadow: inset 0 0 0 2px rgb(255 255 255 / 18%); }

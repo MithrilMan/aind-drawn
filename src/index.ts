@@ -2,6 +2,7 @@ export * from './assets/types.js';
 export * from './assets/character/blueprint.js';
 export * from './assets/character/layout.js';
 export * from './assets/character/recipe.js';
+export * from './assets/character-identity/recipe.js';
 export * from './assets/plant/blueprint.js';
 export * from './assets/plant/layout.js';
 export * from './assets/plant/recipe.js';

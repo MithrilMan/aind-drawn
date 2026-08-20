@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#e9dfcc">
-    <meta name="description" content="A focused Three.js test bench for aind-drawn solid procedural assets.">
-    <title>AIND DRAWN / Solid Lab</title>
+    <meta name="description" content="A focused test bench for projecting one procedural character identity into raster and solid representations.">
+    <title>AIND DRAWN / Character Identity Lab</title>
   </head>
   <body>
     <main class="solid-lab" data-solid-lab>
@@ -13,13 +13,13 @@
         <div>
           <a href="./" class="back-link">← Atelier</a>
           <p class="lab-kicker">AIND DRAWN / EXPERIMENT 02</p>
-          <h1>Solid face lab</h1>
+          <h1>Character identity lab</h1>
         </div>
-        <p class="lab-purpose">A renderer test bench for semantic 3D parts, surface placement and transform animation.</p>
+        <p class="lab-purpose">One procedural identity, projected into hand-drawn raster and semantic 3D representations.</p>
       </header>
 
       <section class="lab-workspace">
-        <aside class="lab-controls" aria-label="Solid face parameters">
+        <aside class="lab-controls" aria-label="Character identity parameters">
           <div class="control-heading">
             <span>Recipe</span>
             <button type="button" data-reroll>Reroll seed</button>
@@ -28,6 +28,8 @@
           <label>Species
             <select name="species">
               <option value="human">Human</option>
+              <option value="cat">Cat</option>
+              <option value="nightmare">Nightmare</option>
               <option value="creature">Creature</option>
               <option value="robot">Robot</option>
             </select>
@@ -35,7 +37,10 @@
           <label>Head form
             <select name="shape">
               <option value="round">Round</option>
-              <option value="block">Block</option>
+              <option value="square">Square</option>
+              <option value="pear">Pear</option>
+              <option value="drop">Drop</option>
+              <option value="lump">Lump</option>
               <option value="tall">Tall</option>
               <option value="wide">Wide</option>
             </select>
@@ -69,6 +74,10 @@
         <div class="lab-viewport" data-viewport aria-label="Interactive three-dimensional solid face preview">
           <div class="viewport-label"><span>Perspective / +Z face</span><span data-render-stats>Building solid rig…</span></div>
           <canvas data-canvas></canvas>
+          <figure class="raster-proof">
+            <img data-raster-preview alt="Graphite rendering of the same generated character identity">
+            <figcaption><strong>Same identity</strong><span>Graphite raster adapter</span></figcaption>
+          </figure>
           <div class="axis-mark" aria-hidden="true"><i class="axis-y"></i><i class="axis-x"></i><span>Y</span><b>X</b></div>
         </div>
 
@@ -76,7 +85,9 @@
           <p class="lab-kicker">Blueprint</p>
           <h2>Semantic output</h2>
           <dl>
-            <div><dt>Representation</dt><dd>solid</dd></div>
+            <div><dt>Identity</dt><dd data-identity-seed>—</dd></div>
+            <div><dt>Species</dt><dd data-identity-species>—</dd></div>
+            <div><dt>Head / eyes</dt><dd data-identity-features>—</dd></div>
             <div><dt>Nodes</dt><dd data-node-count>—</dd></div>
             <div><dt>Parts</dt><dd data-part-count>—</dd></div>
             <div><dt>Materials</dt><dd data-material-count>—</dd></div>

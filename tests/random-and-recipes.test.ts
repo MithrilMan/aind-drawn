@@ -6,6 +6,7 @@ import {
   buildCharacterLayout,
   buildPlantLayout,
   buildSolidFaceLayout,
+  createCharacterIdentity,
   createCharacterBlueprint,
   createCharacterRecipe,
   createPlantBlueprint,
@@ -14,6 +15,10 @@ import {
   createPropRecipe,
   createSceneryBlueprint,
   createSceneryRecipe,
+  createRasterCharacterBlueprint,
+  createRasterCharacterRecipe,
+  createSolidCharacterFaceBlueprint,
+  createSolidCharacterRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
 } from '../src/index.js';
@@ -74,6 +79,48 @@ describe('deterministic generation', () => {
       'head', 'eye:left:white', 'eye:left:pupil', 'eye:right:white', 'eye:right:pupil', 'mouth',
     ]));
   });
+
+  it('projects one character identity into raster and solid representations', () => {
+    const identity = createCharacterIdentity(4107, { species: 'cat', shape: 'pear' });
+    const rasterRecipe = createRasterCharacterRecipe(identity, { medium: 'graphite' });
+    const solidRecipe = createSolidCharacterRecipe(identity, { finish: 'ceramic' });
+    const raster = createRasterCharacterBlueprint(identity, { medium: 'graphite' });
+    const solid = createSolidCharacterFaceBlueprint(identity, { finish: 'ceramic' });
+
+    expect(rasterRecipe.identity).toBe(identity);
+    expect(solidRecipe.identity).toBe(identity);
+    expect(raster.seed).toBe(identity.seed);
+    expect(solid.seed).toBe(identity.seed);
+    expect(rasterRecipe.identity.palette).toEqual(solidRecipe.identity.palette);
+    expect(rasterRecipe.identity.head).toEqual(solidRecipe.identity.head);
+    expect(rasterRecipe.identity.eyes).toEqual(solidRecipe.identity.eyes);
+    expect(rasterRecipe.identity.mouth).toEqual(solidRecipe.identity.mouth);
+    expect(solid.parts.map(({ id }) => id)).toEqual(expect.arrayContaining([
+      'ear:left', 'ear:right', 'muzzle:left', 'muzzle:right', 'nose',
+    ]));
+    expect(createRasterCharacterRecipe(identity, { medium: 'watercolor' }).identity).toBe(identity);
+    expect(createSolidCharacterRecipe(identity, { finish: 'metal' }).identity).toBe(identity);
+    expect(JSON.parse(JSON.stringify(identity))).toEqual(
+      createCharacterIdentity(4107, { species: 'cat', shape: 'pear' }),
+    );
+  });
+
+  it('keeps compatibility factories semantically aligned for the same character seed', () => {
+    const raster = createCharacterRecipe(8128, { species: 'cat', shape: 'wide' });
+    const solid = createSolidFaceRecipe(8128, { species: 'cat', shape: 'wide' });
+
+    expect(raster.identity).toEqual(solid.identity);
+  });
+
+  it('stores head proportions in the identity instead of representation adapters', () => {
+    const identity = createCharacterIdentity(2718, { shape: 'wide' });
+    const rasterLayout = buildCharacterLayout(createRasterCharacterRecipe(identity));
+    const solidLayout = buildSolidFaceLayout(createSolidCharacterRecipe(identity));
+
+    expect(rasterLayout.head.widthPixels / rasterLayout.head.heightPixels)
+      .toBeCloseTo(solidLayout.shape.radii[0] / solidLayout.shape.radii[1]);
+    expect(Object.isFrozen(identity.palette.skin)).toBe(true);
+  });
 });
 
 describe('asset contracts', () => {
@@ -112,9 +159,9 @@ describe('asset contracts', () => {
     const human = createCharacterBlueprint(recipe);
     const cat = createCharacterBlueprint(createCharacterRecipe(501, { species: 'cat' }));
     const distance = Math.hypot(
-      recipe.palette.skin[0] - recipe.palette.cloth[0],
-      recipe.palette.skin[1] - recipe.palette.cloth[1],
-      recipe.palette.skin[2] - recipe.palette.cloth[2],
+      recipe.identity.palette.skin[0] - recipe.identity.palette.cloth[0],
+      recipe.identity.palette.skin[1] - recipe.identity.palette.cloth[1],
+      recipe.identity.palette.skin[2] - recipe.identity.palette.cloth[2],
     );
     expect(distance).toBeGreaterThan(35);
     expect(human.layers.find(({ id }) => id === 'outfit')?.parentBone).toBe('torso');
@@ -144,10 +191,10 @@ describe('asset contracts', () => {
     const layout = buildSolidFaceLayout(recipe);
     const [radiusX, radiusY, radiusZ] = layout.shape.radii;
     const surfaceAnchors = [
-      layout.at(-recipe.eyes.spacing, recipe.eyes.height),
-      layout.at(recipe.eyes.spacing, recipe.eyes.height),
-      layout.at(0, recipe.mouth.height),
-      layout.at(0, (recipe.eyes.height + recipe.mouth.height) * 0.46),
+      layout.at(-0.36, 0.14 + recipe.identity.eyes.verticalOffset),
+      layout.at(0.36, 0.14 + recipe.identity.eyes.verticalOffset),
+      layout.at(0, -recipe.identity.mouth.verticalOffset * 0.68),
+      layout.at(0, 0),
     ];
     for (const anchor of surfaceAnchors) {
       const point = anchor.point;

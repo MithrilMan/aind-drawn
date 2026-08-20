@@ -6,6 +6,7 @@ import {
   type SurfaceAnchor,
   type Superellipsoid,
 } from '../../core/geometry3.js';
+import { clamp } from '../../core/geometry.js';
 import type { SolidFaceRecipe } from './recipe.js';
 
 export type SolidFaceLayout = Readonly<{
@@ -22,21 +23,29 @@ export type SolidFaceLayout = Readonly<{
 }>;
 
 export function buildSolidFaceLayout(recipe: SolidFaceRecipe): SolidFaceLayout {
-  const radii: Point3 = [recipe.head.width, recipe.head.height, recipe.head.depth];
-  const shape: Superellipsoid = Object.freeze({ radii, exponent: recipe.head.exponent });
+  const identity = recipe.identity;
+  const radii: Point3 = [
+    identity.head.width,
+    identity.head.height,
+    recipe.style.depth,
+  ];
+  const shape: Superellipsoid = Object.freeze({ radii, exponent: recipe.style.exponent });
   const center: Point3 = [0, radii[1], 0];
   const at = (x: number, y: number, proud = 0, roll = 0): SurfaceAnchor => {
     const surface = pointOnSuperellipsoid(shape, [x * radii[0], y * radii[1], radii[2]]);
     return moveOnSurface(Object.freeze({ point: surface.point, normal: surface.normal, roll }), [0, 0], proud);
   };
-  const eyeRadius = Math.min(radii[0], radii[1]) * 0.19 * recipe.eyes.size;
-  const leftEye = at(-recipe.eyes.spacing, recipe.eyes.height, eyeRadius * 0.08);
-  const rightEye = at(recipe.eyes.spacing, recipe.eyes.height, eyeRadius * 0.08);
-  const mouthAnchor = at(0, recipe.mouth.height, eyeRadius * 0.05);
-  const noseAnchor = at(0, (recipe.eyes.height + recipe.mouth.height) * 0.46, eyeRadius * 0.04);
-  const browY = recipe.eyes.height + recipe.brows.lift;
-  const leftBrow = at(-recipe.eyes.spacing, browY, eyeRadius * 0.1, -recipe.brows.tilt);
-  const rightBrow = at(recipe.eyes.spacing, browY, eyeRadius * 0.1, recipe.brows.tilt);
+  const eyeRadius = Math.min(radii[0], radii[1]) * 0.19 * identity.eyes.size;
+  const eyeSpacing = clamp(0.3 + (identity.eyes.spacing - 0.37) / 0.15 * 0.13, 0.28, 0.45);
+  const eyeHeight = 0.14 + identity.eyes.verticalOffset;
+  const mouthHeight = -identity.mouth.verticalOffset * 0.68;
+  const leftEye = at(-eyeSpacing, eyeHeight, eyeRadius * 0.08);
+  const rightEye = at(eyeSpacing, eyeHeight, eyeRadius * 0.08);
+  const mouthAnchor = at(0, mouthHeight, eyeRadius * 0.05);
+  const noseAnchor = at(0, (eyeHeight + mouthHeight) * 0.46, eyeRadius * 0.04);
+  const browY = eyeHeight + identity.brows.lift;
+  const leftBrow = at(-eyeSpacing, browY, eyeRadius * 0.1, -identity.brows.tilt);
+  const rightBrow = at(eyeSpacing, browY, eyeRadius * 0.1, identity.brows.tilt);
   return Object.freeze({
     shape,
     center,

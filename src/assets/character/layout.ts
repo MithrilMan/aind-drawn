@@ -38,7 +38,7 @@ export type CharacterLayout = Readonly<{
 const PIXELS_PER_UNIT = 96;
 const HEAD_SCALE = 106;
 
-function targetRadius(shape: CharacterRecipe['head']['shape'], angle: number): number {
+function targetRadius(shape: CharacterRecipe['identity']['head']['shape'], angle: number): number {
   const cosine = Math.cos(angle);
   const sine = Math.sin(angle);
   if (shape === 'square') {
@@ -62,7 +62,8 @@ function targetRadius(shape: CharacterRecipe['head']['shape'], angle: number): n
 }
 
 function createHeadOutline(recipe: CharacterRecipe, width: number, height: number): MutablePoint[] {
-  const random = new SeedTree(recipe.seed).random('character:layout:head');
+  const identity = recipe.identity;
+  const random = new SeedTree(identity.seed).random('character:layout:head');
   const phase = random.float(0, TAU);
   const count = 28;
   const points: MutablePoint[] = [];
@@ -71,41 +72,42 @@ function createHeadOutline(recipe: CharacterRecipe, width: number, height: numbe
     const carefulWobble = (
       0.025 * Math.sin(angle * 3 + phase)
       + 0.016 * Math.sin(angle * 7 + phase * 1.7)
-    ) * recipe.head.wobble;
-    const radius = targetRadius(recipe.head.shape, angle) * (1 + carefulWobble);
+    ) * identity.head.wobble;
+    const radius = targetRadius(identity.head.shape, angle) * (1 + carefulWobble);
     const x = Math.cos(angle) * width * 0.5 * radius;
     const y = Math.sin(angle) * height * 0.5 * radius;
-    const cosine = Math.cos(recipe.head.tilt);
-    const sine = Math.sin(recipe.head.tilt);
+    const cosine = Math.cos(identity.head.tilt);
+    const sine = Math.sin(identity.head.tilt);
     points.push([x * cosine - y * sine, x * sine + y * cosine]);
   }
   return points;
 }
 
 export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
-  const headWidth = HEAD_SCALE * recipe.head.width;
-  const headHeight = HEAD_SCALE * recipe.head.height;
-  const torsoWidth = HEAD_SCALE * recipe.body.width;
-  const torsoHeight = HEAD_SCALE * recipe.body.height;
-  const armLength = HEAD_SCALE * recipe.body.armLength;
-  const legLength = HEAD_SCALE * recipe.body.legLength;
+  const identity = recipe.identity;
+  const headWidth = HEAD_SCALE * identity.head.width;
+  const headHeight = HEAD_SCALE * identity.head.height;
+  const torsoWidth = HEAD_SCALE * identity.body.width;
+  const torsoHeight = HEAD_SCALE * identity.body.height;
+  const armLength = HEAD_SCALE * identity.body.armLength;
+  const legLength = HEAD_SCALE * identity.body.legLength;
   const headCenterPixels = legLength + torsoHeight + headHeight * 0.27;
   const torsoCenterPixels = legLength + torsoHeight * 0.5;
   const shoulderYPixels = legLength + torsoHeight * 0.76;
   const hipYPixels = legLength + torsoHeight * 0.12;
   const shoulderX = torsoWidth * 0.46;
-  const hipX = torsoWidth * recipe.body.stance;
+  const hipX = torsoWidth * identity.body.stance;
 
-  const eyeY = headCenterPixels - headHeight * (0.1 - recipe.eyes.verticalOffset);
-  const eyeX = headWidth * recipe.eyes.spacing;
-  const eyeRadius = headWidth * 0.095 * recipe.eyes.size;
-  const mouthY = headCenterPixels - headHeight * recipe.mouth.verticalOffset;
+  const eyeY = headCenterPixels - headHeight * (0.1 - identity.eyes.verticalOffset);
+  const eyeX = headWidth * identity.eyes.spacing;
+  const eyeRadius = headWidth * 0.095 * identity.eyes.size;
+  const mouthY = headCenterPixels - headHeight * identity.mouth.verticalOffset;
   const handY = (shoulderYPixels - armLength * 0.78) / PIXELS_PER_UNIT;
 
   const minimumX = -Math.max(headWidth * 0.58, shoulderX + armLength * 0.45) / PIXELS_PER_UNIT;
   const bodyMaximumX = -minimumX;
-  const tailMaximumX = recipe.tail.present
-    ? (torsoWidth * 0.4 + HEAD_SCALE * recipe.tail.length) / PIXELS_PER_UNIT
+  const tailMaximumX = identity.tail.present
+    ? (torsoWidth * 0.4 + HEAD_SCALE * identity.tail.length) / PIXELS_PER_UNIT
     : bodyMaximumX;
   const maximumX = Math.max(bodyMaximumX, tailMaximumX);
   const maximumY = (headCenterPixels + headHeight * 0.55) / PIXELS_PER_UNIT;

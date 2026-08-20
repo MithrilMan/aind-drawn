@@ -53,59 +53,52 @@ The technical study of the reference implementation and the exact image
 generation pipeline live in
 [`docs/kindergrimm-study.md`](docs/kindergrimm-study.md).
 
-## Minimal usage
+## Shared character identity
 
 ```ts
 import {
   CharacterAnimator,
+  SolidFaceAnimator,
+  SolidRig,
   SpriteRig,
-  createCharacterBlueprint,
-  createCharacterRecipe,
+  createCharacterIdentity,
+  createRasterCharacterBlueprint,
+  createSolidCharacterFaceBlueprint,
 } from '@mithrilman/aind-drawn';
 
-const recipe = createCharacterRecipe(4107, {
+const identity = createCharacterIdentity(4107, {
   species: 'human',
+});
+const rasterBlueprint = createRasterCharacterBlueprint(identity, {
   medium: 'graphite',
 });
-const blueprint = createCharacterBlueprint(recipe);
-const rig = new SpriteRig(blueprint, { boilFrames: 3 });
-const animator = new CharacterAnimator(rig);
+const solidBlueprint = createSolidCharacterFaceBlueprint(identity, {
+  finish: 'ceramic',
+});
 
-scene.add(rig.root);
-animator.update(deltaSeconds, { pose: 'idle' });
+const drawing = new SpriteRig(rasterBlueprint, { boilFrames: 3 });
+const drawingAnimator = new CharacterAnimator(drawing);
+const solid = new SolidRig(solidBlueprint);
+const solidAnimator = new SolidFaceAnimator(solid);
+
+scene.add(drawing.root, solid.root);
+drawingAnimator.update(deltaSeconds, { pose: 'idle' });
+solidAnimator.update(deltaSeconds);
 
 // Game state drives authored poses. Walk and run share one gait phase and
 // every transition crossfades over the autonomic breath, blink, gaze, and sway.
-animator.update(deltaSeconds, { locomotion: 'run', speed: 0.9, facing: -1 });
+drawingAnimator.update(deltaSeconds, { locomotion: 'run', speed: 0.9, facing: -1 });
 
 // The owner of the Three.js scene must release GPU resources.
-rig.dispose();
+drawing.dispose();
+solid.dispose();
 ```
 
-Recipes are plain versioned data and may be serialized. Blueprints contain draw
-callbacks and are rebuilt from recipes rather than serialized.
+`CharacterIdentityRecipe` is the serialisable source of truth for species,
+proportions, palette, face, hair, outfit, and appendages. Raster medium and
+physical finish belong to separate representation recipes. The compatibility
+factories `createCharacterRecipe` and `createSolidFaceRecipe` remain available
+when only one representation is needed.
 
-Solid blueprints contain geometry specifications rather than draw callbacks and
-are themselves serializable:
-
-```ts
-import {
-  SolidFaceAnimator,
-  SolidRig,
-  createSolidFaceBlueprint,
-  createSolidFaceRecipe,
-} from '@mithrilman/aind-drawn';
-
-const recipe = createSolidFaceRecipe(4107, {
-  species: 'robot',
-  shape: 'block',
-  finish: 'metal',
-});
-const rig = new SolidRig(createSolidFaceBlueprint(recipe));
-const face = new SolidFaceAnimator(rig);
-
-scene.add(rig.root);
-face.setExpression('surprised');
-face.update(deltaSeconds);
-rig.dispose();
-```
+Raster blueprints contain draw callbacks and are rebuilt from recipes. Solid
+blueprints contain serialisable geometry specifications.

@@ -12,13 +12,16 @@ const requiredExports = [
   'SpriteRig',
   'SolidRig',
   'createCharacterBlueprint',
+  'createCharacterIdentity',
   'createCharacterRecipe',
+  'createRasterCharacterBlueprint',
   'createPropBlueprint',
   'createPropRecipe',
   'createSceneryBlueprint',
   'createSceneryRecipe',
   'createSolidFaceBlueprint',
   'createSolidFaceRecipe',
+  'createSolidCharacterFaceBlueprint',
   'propDefinition',
 ];
 

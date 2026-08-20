@@ -21,6 +21,10 @@ Before editing, read:
 For a real-volume asset, also read `src/assets/solid-types.ts`,
 `src/core/geometry3.ts`, and the `src/assets/solid-face/` reference family.
 
+For a character representation, also read
+`src/assets/character-identity/recipe.ts`. Character adapters must consume that
+shared identity instead of generating a second set of semantic choices.
+
 For a vehicle or another multipart prop-like object, also read
 `references/vehicle-family.md` in this skill.
 
@@ -58,7 +62,8 @@ State the classification and the concrete reason before implementation.
 
 Create one concept per file where the family needs it:
 
-- `recipe.ts`: immutable serializable identity and namespaced random streams.
+- `recipe.ts`: immutable serializable identity and namespaced random streams,
+  or representation-only policy when a shared family identity already exists.
 - `layout.ts`: one derivation for part dimensions, bounds, sockets, and collider geometry.
 - `blueprint.ts`: stable named layers, joints, pivots, states, draw callbacks, colliders, sockets, and interactions.
 - an animator under `src/runtime/` only for transient motion that is not authored recipe data.
@@ -70,6 +75,9 @@ barrel only.
 
 - Use a separate seed namespace for every semantic feature.
 - Persist generated feature values in the recipe.
+- Generate shared character semantics once in `CharacterIdentityRecipe`.
+- Keep raster, smooth-solid, voxel, and future adapters free of semantic rerolls.
+- Share normalized intent across representations, not pixel or surface coordinates.
 - Derive drawing and gameplay geometry from the same layout.
 - Keep independently stateful parts in independent layers.
 - Place pivots at physical joints.
@@ -95,6 +103,7 @@ not mutate baked textures. Provide state previews for interactive layers.
 Add tests that prove:
 
 - identical seeds and options produce equal recipes;
+- representations created from one identity preserve the same semantic values;
 - feature namespaces do not affect unrelated parameters;
 - expected layers and pivots exist;
 - bounds, colliders, and sockets agree with layout;

@@ -100,7 +100,8 @@ Il port TypeScript irrigidisce questo modello:
 
 | Fase | Tipo pubblico | Responsabilità |
 | --- | --- | --- |
-| Identità | `CharacterRecipe`, `PropRecipe`, `SceneryRecipe` | dato JSON completo e versionato |
+| Identità | `CharacterIdentityRecipe`, `PropRecipe`, `SceneryRecipe` | dato semantico JSON completo e versionato |
+| Rappresentazione | `CharacterRecipe`, `SolidFaceRecipe` | medium, finitura e policy proprie della tecnica |
 | Geometria | layout e `AssetBlueprint` | layer, bone, bounds, socket e collider |
 | Raster | callback `LayerDefinition.draw` | segni Canvas 2D deterministici |
 | Runtime | `SpriteRig` | texture, piani, stati, animazione e disposal |
@@ -169,6 +170,8 @@ ricostruite durante l'animazione.
 
 Nel port questo diventa un confine pubblico, non un sottoprogetto gloss:
 
+- `CharacterIdentityRecipe` è la fonte semantica condivisa con la versione a matita;
+- `SolidFaceRecipe` aggiunge solo finitura, profondità e policy della rappresentazione;
 - `SolidAssetBlueprint` contiene solo dati serializzabili;
 - `SolidGeometrySpec` descrive superellissoidi, profili estrusi e mesh;
 - `SurfaceAnchor` unifica punto, normale e roll;
@@ -244,9 +247,11 @@ mantiene quattro layer semantici con collider del tronco. I personaggi ottengono
 palette con contrasto controllato, silhouette dei capelli realmente distinte,
 un layer outfit e mani colorate visibili. Il frame Rayman senza arti non è stato
 portato: funziona per statuine frontali, ma rimuoverebbe informazione proprio al
-rig destinato a locomozione e interazioni. `src/assets/solid-face` e il relativo
-runtime portano invece superficie parametrica, profili estrusi, materiali
-fisici, rig semantico e animazione facciale 3D.
+rig destinato a locomozione e interazioni. `src/assets/character-identity`
+mantiene ora specie, palette, proporzioni e tratti facciali una sola volta;
+`src/assets/character` e `src/assets/solid-face` li proiettano rispettivamente
+nel raster a matita e sulla superficie volumetrica. Il runtime solido porta
+profili estrusi, materiali fisici, rig semantico e animazione facciale 3D.
 
 Il packer fotografico resta documentato ma fuori dal core. Diventerà sensato
 quando il playground avrà un comando esplicito di auto-composizione basato sui
@@ -258,7 +263,8 @@ dell'applicazione upstream, non capacità della libreria di disegno.
 
 Per aggiungere un oggetto non si modifica il runtime:
 
-1. creare una ricetta JSON versionata;
+1. creare una ricetta JSON versionata; se esistono più rappresentazioni,
+   separare identità semantica e policy della tecnica;
 2. calcolare misure, socket e collider;
 3. scegliere una rappresentazione e restituire un blueprint con parti semantiche;
 4. per il raster, disegnare con `Sketch` e un `Medium`; per il volume, emettere

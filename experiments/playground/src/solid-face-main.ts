@@ -5,13 +5,15 @@ import * as THREE from 'three';
 import {
   SolidFaceAnimator,
   SolidRig,
-  createSolidFaceBlueprint,
-  createSolidFaceRecipe,
+  createCharacterIdentity,
+  createRasterCharacterBlueprint,
+  createSolidCharacterFaceBlueprint,
+  type CharacterHeadShape,
+  type CharacterIdentitySpecies,
   type SolidFaceExpression,
-  type SolidFaceSpecies,
   type SolidFinishId,
-  type SolidHeadShape,
 } from '../../../src/index.js';
+import { BlueprintThumbnailRenderer } from './blueprint-thumbnail.js';
 
 const root = document.querySelector<HTMLElement>('[data-solid-lab]');
 const canvas = document.querySelector<HTMLCanvasElement>('[data-canvas]');
@@ -67,6 +69,7 @@ let rig: SolidRig | null = null;
 let animator: SolidFaceAnimator | null = null;
 let rotationX = 0;
 let rotationY = 0;
+const thumbnailRenderer = new BlueprintThumbnailRenderer({ width: 180, height: 180 });
 
 function updateContract(): void {
   const blueprint = rig?.blueprint;
@@ -96,16 +99,30 @@ function updateContract(): void {
 function rebuild(): void {
   rig?.root.removeFromParent();
   rig?.dispose();
-  const recipe = createSolidFaceRecipe(Number(seedInput.value) || 0, {
-    species: speciesInput.value as SolidFaceSpecies,
-    shape: shapeInput.value as SolidHeadShape,
-    finish: finishInput.value as SolidFinishId,
+  const identity = createCharacterIdentity(Number(seedInput.value) || 0, {
+    species: speciesInput.value as CharacterIdentitySpecies,
+    shape: shapeInput.value as CharacterHeadShape,
   });
-  rig = new SolidRig(createSolidFaceBlueprint(recipe));
+  rig = new SolidRig(createSolidCharacterFaceBlueprint(identity, {
+    finish: finishInput.value as SolidFinishId,
+  }));
   rig.root.rotation.set(rotationX, rotationY, 0);
   scene.add(rig.root);
   animator = new SolidFaceAnimator(rig, { autoGaze: autoGazeInput.checked });
   animator.setExpression(expressionInput.value as SolidFaceExpression);
+  const rasterPreview = requiredElement('[data-raster-preview]') as HTMLImageElement;
+  rasterPreview.src = thumbnailRenderer.render(
+    createRasterCharacterBlueprint(identity, { medium: 'graphite' }),
+  );
+  const identityValues: Readonly<Record<string, string>> = {
+    '[data-identity-seed]': String(identity.seed),
+    '[data-identity-species]': identity.species,
+    '[data-identity-features]': `${identity.head.shape} / ${identity.eyes.style}`,
+  };
+  for (const [selector, value] of Object.entries(identityValues)) {
+    const target = root?.querySelector<HTMLElement>(selector);
+    if (target !== null && target !== undefined) target.textContent = value;
+  }
   updateContract();
 }
 
@@ -165,6 +182,7 @@ function dispose(): void {
   cancelAnimationFrame(frame);
   observer.disconnect();
   rig?.dispose();
+  thumbnailRenderer.dispose();
   floorGeometry.dispose();
   floorMaterial.dispose();
   renderer.dispose();

@@ -3,11 +3,19 @@ import { combineSeed } from '../../core/random.js';
 import { PAPER, type Sketch } from '../../core/sketch.js';
 import { mediumById, type Medium } from '../../materials/medium.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../types.js';
+import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
 import { buildCharacterLayout } from './layout.js';
-import type { CharacterRecipe, EyeStyle } from './recipe.js';
+import {
+  createRasterCharacterRecipe,
+  type CharacterRecipe,
+  type EyeStyle,
+  type RasterCharacterRecipeOptions,
+} from './recipe.js';
 
 const HEAD_CANVAS: Size2 = Object.freeze({ width: 196, height: 196 });
 const EYE_CANVAS: Size2 = Object.freeze({ width: 72, height: 72 });
+const BROW_CANVAS: Size2 = Object.freeze({ width: 72, height: 36 });
+const NOSE_CANVAS: Size2 = Object.freeze({ width: 48, height: 48 });
 const MOUTH_CANVAS: Size2 = Object.freeze({ width: 104, height: 66 });
 const TAIL_HEIGHT = 150;
 
@@ -40,21 +48,23 @@ function drawHead(
 ): void {
   const points = localize(outline, HEAD_CANVAS);
   sketch.paperFill(points);
-  medium.skin(sketch, points, recipe.palette.skin, { gap: 8 });
-  if (recipe.head.tone !== 'light') {
-    medium.tone(sketch, points, { style: recipe.head.tone, gap: 9, color: recipe.palette.skin });
+  medium.skin(sketch, points, recipe.identity.palette.skin, { gap: 8 });
+  if (recipe.style.headTone !== 'light') {
+    medium.tone(sketch, points, {
+      style: recipe.style.headTone, gap: 9, color: recipe.identity.palette.skin,
+    });
   }
-  medium.edge(sketch, closePath(points), 4.4 * recipe.linePressure, { ghost: true });
+  medium.edge(sketch, closePath(points), 4.4 * recipe.style.linePressure, { ghost: true });
 }
 
 function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void {
-  if (recipe.species === 'human') {
+  if (recipe.identity.species === 'human' || recipe.identity.species === 'robot') {
     return;
   }
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2;
   for (const side of [-1, 1]) {
-    const points = recipe.species === 'cat'
+    const points = recipe.identity.species === 'cat'
       ? chaikin([
         [centerX + side * 39, centerY - 29],
         [centerX + side * 55, centerY - 80],
@@ -67,21 +77,21 @@ function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       ], true, 1);
     sketch.paperFill(points);
     medium.tone(sketch, points, {
-      style: recipe.species === 'nightmare' ? 'black' : 'light',
-      color: recipe.palette.skin,
+      style: recipe.identity.species === 'nightmare' ? 'black' : 'light',
+      color: recipe.identity.palette.skin,
     });
-    medium.edge(sketch, closePath(points), 3.6 * recipe.linePressure, { ghost: true });
+    medium.edge(sketch, closePath(points), 3.6 * recipe.style.linePressure, { ghost: true });
   }
 }
 
 function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void {
-  if (recipe.hair.style === 'none') {
+  if (recipe.identity.hair.style === 'none') {
     return;
   }
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2;
   let points: MutablePoint[];
-  if (recipe.hair.style === 'spikes') {
+  if (recipe.identity.hair.style === 'spikes' || recipe.identity.hair.style === 'crown') {
     points = [];
     const count = 9;
     for (let index = 0; index <= count; index += 1) {
@@ -91,7 +101,7 @@ function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       points.push([x, centerY - 48 - height]);
     }
     points.push([centerX + 66, centerY - 18], [centerX - 66, centerY - 18]);
-  } else if (recipe.hair.style === 'tuft') {
+  } else if (recipe.identity.hair.style === 'tuft') {
     points = chaikin([
       [centerX - 28, centerY - 48],
       [centerX - 8, centerY - 88],
@@ -99,8 +109,8 @@ function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       [centerX + 28, centerY - 82],
       [centerX + 34, centerY - 43],
     ], true, 1);
-  } else if (recipe.hair.style === 'bob') {
-    const height = 48 + recipe.hair.height * 34;
+  } else if (recipe.identity.hair.style === 'bob') {
+    const height = 48 + recipe.identity.hair.height * 34;
     points = chaikin([
       [centerX - 72, centerY + 25],
       [centerX - 72, centerY - 48],
@@ -113,8 +123,8 @@ function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       [centerX - 40, centerY - 27],
       [centerX - 52, centerY + 7],
     ], true, 2);
-  } else if (recipe.hair.style === 'fringe') {
-    const height = 48 + recipe.hair.height * 42;
+  } else if (recipe.identity.hair.style === 'fringe') {
+    const height = 48 + recipe.identity.hair.height * 42;
     points = chaikin([
       [centerX - 69, centerY - 13],
       [centerX - 58, centerY - 59],
@@ -129,7 +139,7 @@ function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       [centerX - 45, centerY - 13],
     ], true, 1);
   } else {
-    const height = 44 + recipe.hair.height * 38;
+    const height = 44 + recipe.identity.hair.height * 38;
     points = chaikin([
       [centerX - 70, centerY - 10],
       [centerX - 62, centerY - 62],
@@ -141,24 +151,26 @@ function drawHair(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       [centerX - 38, centerY - 30],
     ], true, 2);
   }
-  medium.tone(sketch, points, { style: recipe.hair.tone, color: recipe.palette.hair, gap: 7 });
-  medium.edge(sketch, closePath(points), 4 * recipe.linePressure, { ghost: true });
+  medium.tone(sketch, points, {
+    style: recipe.style.hairTone, color: recipe.identity.palette.hair, gap: 7,
+  });
+  medium.edge(sketch, closePath(points), 4 * recipe.style.linePressure, { ghost: true });
 }
 
 function drawOutfit(sketch: Sketch, recipe: CharacterRecipe, canvas: Size2): void {
-  if (recipe.species === 'cat' || recipe.outfit.style === 'plain') return;
+  if (recipe.identity.species === 'cat' || recipe.identity.outfit.style === 'plain') return;
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
-  const scale = recipe.outfit.scale;
-  sketch.setInk(recipe.palette.accent);
-  if (recipe.outfit.style === 'stripe') {
+  const scale = recipe.identity.outfit.scale;
+  sketch.setInk(recipe.identity.palette.accent);
+  if (recipe.identity.outfit.style === 'stripe') {
     for (const offset of [-1, 1]) {
       sketch.stroke([
         [centerX - canvas.width * 0.2, centerY + offset * 10 * scale],
         [centerX + canvas.width * 0.2, centerY + offset * 9 * scale],
-      ], 4.8 * recipe.linePressure, { alpha: 0.52, taper: 0.2, ghost: true });
+      ], 4.8 * recipe.style.linePressure, { alpha: 0.52, taper: 0.2, ghost: true });
     }
-  } else if (recipe.outfit.style === 'star') {
+  } else if (recipe.identity.outfit.style === 'star') {
     const points: MutablePoint[] = [];
     const radius = 16 * scale;
     for (let index = 0; index < 10; index += 1) {
@@ -170,7 +182,7 @@ function drawOutfit(sketch: Sketch, recipe: CharacterRecipe, canvas: Size2): voi
       ]);
     }
     sketch.inkFill(points, 0.48);
-    sketch.stroke(closePath(points), 1.8 * recipe.linePressure, { alpha: 0.56, taper: 0.1 });
+    sketch.stroke(closePath(points), 1.8 * recipe.style.linePressure, { alpha: 0.56, taper: 0.1 });
   } else {
     for (const offset of [-1, 0, 1]) {
       sketch.context.fillStyle = sketch.inkAlpha(0.62);
@@ -207,13 +219,13 @@ function drawEye(
 ): void {
   const centerX = EYE_CANVAS.width / 2;
   const centerY = EYE_CANVAS.height / 2;
-  const radius = Math.min(21, 12 + recipe.eyes.size * 6);
+  const radius = Math.min(21, 12 + recipe.identity.eyes.size * 6);
   if (state === 'closed') {
     sketch.stroke(chaikin([
       [centerX - radius, centerY + 2],
       [centerX, centerY - 5],
       [centerX + radius, centerY + 2],
-    ], false, 1), 2.8 * recipe.linePressure, { taper: 0.28 });
+    ], false, 1), 2.8 * recipe.style.linePressure, { taper: 0.28 });
     return;
   }
 
@@ -224,14 +236,14 @@ function drawEye(
       centerX + gazeX,
       centerY + 3,
       radius * 0.35,
-      recipe.eyes.glint,
-      recipe.species === 'cat',
+      recipe.identity.eyes.glint,
+      recipe.identity.species === 'cat',
     );
     sketch.stroke([
       [centerX - radius, centerY - 5],
       [centerX, centerY - 8],
       [centerX + radius, centerY - 5],
-    ], 3 * recipe.linePressure, { taper: 0.2 });
+    ], 3 * recipe.style.linePressure, { taper: 0.2 });
     return;
   }
   if (style === 'dot') {
@@ -240,8 +252,8 @@ function drawEye(
       centerX + gazeX * 0.4,
       centerY,
       radius * 0.38,
-      recipe.eyes.glint,
-      recipe.species === 'cat',
+      recipe.identity.eyes.glint,
+      recipe.identity.species === 'cat',
     );
     return;
   }
@@ -264,7 +276,7 @@ function drawEye(
     sketch.paperFill(disc);
     sketch.pencilFill(disc, 0.92);
     sketch.stroke(closePath(disc), 2.8, { amplitude: 0.5, taper: 0.1 });
-    if (recipe.eyes.glint) {
+    if (recipe.identity.eyes.glint) {
       sketch.context.fillStyle = PAPER;
       sketch.wobblyEllipse(centerX - radius * 0.2, centerY - radius * 0.26, radius * 0.16, radius * 0.16);
       sketch.context.fill();
@@ -272,19 +284,19 @@ function drawEye(
     return;
   }
   sketch.paperFill(disc);
-  sketch.stroke(closePath(disc), 2.5 * recipe.linePressure, { amplitude: 0.45, taper: 0.1 });
+  sketch.stroke(closePath(disc), 2.5 * recipe.style.linePressure, { amplitude: 0.45, taper: 0.1 });
   pupil(
     sketch,
     centerX + gazeX,
     centerY + 1,
     radius * 0.34,
-    recipe.eyes.glint,
-    recipe.species === 'cat',
+    recipe.identity.eyes.glint,
+    recipe.identity.species === 'cat',
   );
 }
 
 function drawCatMuzzle(sketch: Sketch, recipe: CharacterRecipe): void {
-  if (recipe.species !== 'cat') return;
+  if (recipe.identity.species !== 'cat') return;
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2 + 28;
   for (const side of [-1, 1]) {
@@ -297,7 +309,7 @@ function drawCatMuzzle(sketch: Sketch, recipe: CharacterRecipe): void {
       0.34,
     );
     sketch.paperFill(cheek);
-    sketch.stroke(closePath(cheek), 1.6 * recipe.linePressure, {
+    sketch.stroke(closePath(cheek), 1.6 * recipe.style.linePressure, {
       alpha: 0.35,
       amplitude: 0.5,
     });
@@ -320,16 +332,47 @@ function drawCatMuzzle(sketch: Sketch, recipe: CharacterRecipe): void {
   }
 }
 
+function drawBrow(sketch: Sketch, recipe: CharacterRecipe, side: -1 | 1): void {
+  const centerX = BROW_CANVAS.width / 2;
+  const centerY = BROW_CANVAS.height / 2;
+  const tilt = recipe.identity.brows.tilt * side * 18;
+  sketch.setInk(recipe.identity.palette.hair);
+  sketch.stroke([
+    [centerX - 20, centerY - tilt],
+    [centerX, centerY - 2],
+    [centerX + 20, centerY + tilt],
+  ], 3.4 * recipe.style.linePressure, { alpha: 0.86, taper: 0.24, ghost: true });
+  sketch.setInk(null);
+}
+
+function drawNose(sketch: Sketch, recipe: CharacterRecipe): void {
+  const centerX = NOSE_CANVAS.width / 2;
+  const centerY = NOSE_CANVAS.height / 2;
+  const radius = 3 + recipe.identity.nose.size * 24;
+  sketch.setInk(recipe.identity.species === 'robot'
+    ? recipe.identity.palette.accent
+    : recipe.identity.palette.skin);
+  sketch.context.fillStyle = sketch.inkAlpha(0.5);
+  sketch.wobblyEllipse(centerX, centerY, radius, radius * 0.82);
+  sketch.context.fill();
+  sketch.setInk(null);
+  sketch.stroke(
+    sketch.blobPoints(centerX, centerY, radius, radius * 0.82, 0, 0.2),
+    1.8 * recipe.style.linePressure,
+    { alpha: 0.62, taper: 0.12 },
+  );
+}
+
 function drawMouth(sketch: Sketch, recipe: CharacterRecipe, state: string): void {
   const centerX = MOUTH_CANVAS.width / 2;
   const centerY = MOUTH_CANVAS.height / 2;
-  const width = 23 + recipe.mouth.width * 38;
+  const width = 23 + recipe.identity.mouth.width * 38;
   if (state === 'open') {
     const mouth = sketch.blobPoints(centerX, centerY, width * 0.45, 10, 0, 0.4);
     sketch.inkFill(mouth, 0.9);
     return;
   }
-  if (recipe.mouth.style === 'zigzag') {
+  if (recipe.identity.mouth.style === 'zigzag') {
     sketch.line([
       [centerX - width / 2, centerY],
       [centerX - width / 4, centerY - 5],
@@ -339,12 +382,14 @@ function drawMouth(sketch: Sketch, recipe: CharacterRecipe, state: string): void
     ], 2, 0.8);
     return;
   }
-  const bend = recipe.mouth.style === 'frown' ? -8 : recipe.mouth.style === 'smile' ? 8 : 2;
+  const bend = recipe.identity.mouth.style === 'frown'
+    ? -8
+    : recipe.identity.mouth.style === 'smile' || recipe.identity.mouth.style === 'cat' ? 8 : 0;
   sketch.stroke(chaikin([
     [centerX - width / 2, centerY],
     [centerX, centerY + bend],
     [centerX + width / 2, centerY],
-  ], false, 1), 2.6 * recipe.linePressure, { taper: 0.3, overshoot: 2 });
+  ], false, 1), 2.6 * recipe.style.linePressure, { taper: 0.3, overshoot: 2 });
 }
 
 function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canvas: Size2): void {
@@ -354,7 +399,7 @@ function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canv
   // visible mass aligned with the torso dimensions computed by the layout.
   const width = canvas.width * 0.28;
   const height = canvas.height * 0.32;
-  const body = recipe.species === 'cat'
+  const body = recipe.identity.species === 'cat'
     ? chaikin([
       [centerX - width * 0.72, centerY - height],
       [centerX + width * 0.72, centerY - height],
@@ -370,8 +415,8 @@ function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canv
       [centerX - width * 1.02, centerY + height],
     ], true, 2);
   sketch.paperFill(body);
-  if (recipe.species === 'cat') {
-    medium.skin(sketch, body, recipe.palette.skin, { gap: 8, scribble: true });
+  if (recipe.identity.species === 'cat') {
+    medium.skin(sketch, body, recipe.identity.palette.skin, { gap: 8, scribble: true });
     const chest = sketch.blobPoints(
       centerX,
       centerY + height * 0.24,
@@ -381,11 +426,13 @@ function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canv
       0.3,
     );
     sketch.paperFill(chest);
-    sketch.stroke(closePath(chest), 1.6 * recipe.linePressure, { alpha: 0.38, amplitude: 0.5 });
+    sketch.stroke(closePath(chest), 1.6 * recipe.style.linePressure, { alpha: 0.38, amplitude: 0.5 });
   } else {
-    medium.tone(sketch, body, { style: recipe.body.tone, color: recipe.palette.cloth, gap: 8 });
+    medium.tone(sketch, body, {
+      style: recipe.style.bodyTone, color: recipe.identity.palette.cloth, gap: 8,
+    });
   }
-  medium.edge(sketch, closePath(body), 4.1 * recipe.linePressure, { ghost: true });
+  medium.edge(sketch, closePath(body), 4.1 * recipe.style.linePressure, { ghost: true });
 }
 
 function drawLimb(
@@ -401,7 +448,7 @@ function drawLimb(
   sketch.stroke([
     [centerX, startY],
     [centerX + sketch.jitter(-4, 4), endY],
-  ], width * recipe.linePressure, { taper: 0.18, ghost: true });
+  ], width * recipe.style.linePressure, { taper: 0.18, ghost: true });
   if (endpoint !== 'none') {
     const pawScale = endpoint === 'paw' ? 0.9 : endpoint === 'hand' ? 0.84 : 0.72;
     const shape = sketch.blobPoints(
@@ -414,13 +461,13 @@ function drawLimb(
     );
     sketch.paperFill(shape);
     if (endpoint !== 'paw') {
-      sketch.setInk(recipe.palette.accent);
+      sketch.setInk(recipe.identity.palette.accent);
       sketch.polygon(shape);
       sketch.context.fillStyle = sketch.inkAlpha(0.16);
       sketch.context.fill();
       sketch.setInk(null);
     }
-    sketch.stroke(closePath(shape), 2.5 * recipe.linePressure, { amplitude: 0.5, taper: 0.12 });
+    sketch.stroke(closePath(shape), 2.5 * recipe.style.linePressure, { amplitude: 0.5, taper: 0.12 });
     if (endpoint === 'paw') {
       for (let toe = -1; toe <= 1; toe += 1) {
         const x = centerX + 5 + toe * width * 0.34;
@@ -431,8 +478,8 @@ function drawLimb(
 }
 
 function drawTail(sketch: Sketch, recipe: CharacterRecipe): void {
-  if (!recipe.tail.present) return;
-  const curl = recipe.tail.curl;
+  if (!recipe.identity.tail.present) return;
+  const curl = recipe.identity.tail.curl;
   const points = chaikin([
     [24, 116],
     [sketch.width * 0.34, 112 - curl * 10],
@@ -440,7 +487,7 @@ function drawTail(sketch: Sketch, recipe: CharacterRecipe): void {
     [sketch.width * 0.78, 48 + curl * 16],
     [sketch.width - 20, 30 + curl * 26],
   ], false, 3);
-  sketch.stroke(points, recipe.species === 'cat' ? 11 : 9, {
+  sketch.stroke(points, recipe.identity.species === 'cat' ? 11 : 9, {
     alpha: 0.84,
     ghost: true,
     taper: 0.46,
@@ -450,7 +497,7 @@ function drawTail(sketch: Sketch, recipe: CharacterRecipe): void {
 
 export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprint {
   const layout = buildCharacterLayout(recipe);
-  const medium = mediumById(recipe.medium);
+  const medium = mediumById(recipe.style.medium);
   const pixelsPerUnit = layout.pixelsPerUnit;
   const headPosition = layout.head.center;
   const torsoCanvas = Object.freeze({
@@ -466,16 +513,16 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
     height: Math.ceil(layout.limbs.legLengthPixels + 28),
   });
   const tailCanvas = Object.freeze({
-    width: Math.ceil(106 * recipe.tail.length + 58),
+    width: Math.ceil(106 * recipe.identity.tail.length + 58),
     height: TAIL_HEIGHT,
   });
   const tailSocket = layout.sockets.tail ?? layout.torso.center;
   const tailInkAnchor = Object.freeze({ x: 24, y: 116 });
-  const pawEndpoint = recipe.species === 'cat' ? 'paw' as const : 'hand' as const;
-  const footEndpoint = recipe.species === 'cat' ? 'paw' as const : 'foot' as const;
+  const pawEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'hand' as const;
+  const footEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'foot' as const;
 
   const layers: LayerDefinition[] = [
-    ...(recipe.tail.present ? [layer({
+    ...(recipe.identity.tail.present ? [layer({
       id: 'tail', bone: 'tail', parentBone: 'torso', order: -6, depth: 0,
       canvas: tailCanvas, pixelsPerUnit,
       position: {
@@ -532,7 +579,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       pivot: [0.5, 0.5], states: ['idle'],
       draw: ({ sketch }) => { drawTorso(sketch, recipe, medium, torsoCanvas); },
     }),
-    ...(recipe.species !== 'cat' ? [layer({
+    ...(recipe.identity.species !== 'cat' ? [layer({
       id: 'outfit', bone: 'outfit', parentBone: 'torso', order: -2.5, depth: 0.05,
       canvas: torsoCanvas, pixelsPerUnit,
       position: { x: 0, y: 0 },
@@ -557,11 +604,34 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       pivot: [0.5, 0.5], states: ['idle'],
       draw: ({ sketch }) => { drawHair(sketch, recipe, medium); },
     }),
-    ...(recipe.species === 'cat' ? [layer({
+    ...(recipe.identity.species === 'cat' ? [layer({
       id: 'muzzle', bone: 'head', order: 3, depth: 0.72,
       canvas: HEAD_CANVAS, pixelsPerUnit, position: headPosition,
       pivot: [0.5, 0.5], states: ['idle'],
       draw: ({ sketch }) => { drawCatMuzzle(sketch, recipe); },
+    })] : []),
+    ...(recipe.identity.brows.present ? ([-1, 1] as const).map((side) => layer({
+      id: `brow:${side < 0 ? 'left' : 'right'}`,
+      bone: `brow:${side < 0 ? 'left' : 'right'}`,
+      parentBone: 'head', order: 3.5, depth: 0.76,
+      canvas: BROW_CANVAS, pixelsPerUnit,
+      position: {
+        x: (side < 0 ? layout.eyes.left.x : layout.eyes.right.x) - headPosition.x,
+        y: (side < 0 ? layout.eyes.left.y : layout.eyes.right.y)
+          - headPosition.y + layout.eyes.radiusPixels * 1.5 / pixelsPerUnit,
+      },
+      pivot: [0.5, 0.5], states: ['idle'],
+      draw: ({ sketch }) => { drawBrow(sketch, recipe, side); },
+    })) : []),
+    ...(recipe.identity.nose.present && recipe.identity.species !== 'cat' ? [layer({
+      id: 'nose', bone: 'nose', parentBone: 'head', order: 3.7, depth: 0.78,
+      canvas: NOSE_CANVAS, pixelsPerUnit,
+      position: {
+        x: 0,
+        y: (layout.eyes.left.y + layout.mouth.y) * 0.5 - headPosition.y,
+      },
+      pivot: [0.5, 0.5], states: ['idle'],
+      draw: ({ sketch }) => { drawNose(sketch, recipe); },
     })] : []),
     layer({
       id: 'eye:left', bone: 'eye:left', order: 4, depth: 0.8,
@@ -572,7 +642,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       },
       parentBone: 'head',
       pivot: [0.5, 0.5], states: ['open', 'closed', 'left', 'right'],
-      draw: ({ sketch, state }) => { drawEye(sketch, recipe, recipe.eyes.style, state); },
+      draw: ({ sketch, state }) => { drawEye(sketch, recipe, recipe.identity.eyes.style, state); },
     }),
     layer({
       id: 'eye:right', bone: 'eye:right', order: 4, depth: 0.8,
@@ -586,7 +656,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       draw: ({ sketch, state }) => { drawEye(
         sketch,
         recipe,
-        recipe.eyes.alternateStyle ?? recipe.eyes.style,
+        recipe.identity.eyes.alternateStyle ?? recipe.identity.eyes.style,
         state,
       ); },
     }),
@@ -604,10 +674,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   ];
 
   return Object.freeze({
-    id: `character:${recipe.seed}`,
+    id: `character:${recipe.identity.seed}`,
     kind: 'character',
-    seed: recipe.seed,
-    medium: recipe.medium,
+    seed: recipe.identity.seed,
+    medium: recipe.style.medium,
     bounds: layout.bounds,
     layers: Object.freeze(layers),
     colliders: Object.freeze([
@@ -626,10 +696,17 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   });
 }
 
+export function createRasterCharacterBlueprint(
+  identity: CharacterIdentityRecipe,
+  options: RasterCharacterRecipeOptions = {},
+): AssetBlueprint {
+  return createCharacterBlueprint(createRasterCharacterRecipe(identity, options));
+}
+
 export function characterRecipeFingerprint(recipe: CharacterRecipe): string {
-  return `${recipe.version}:${recipe.seed}:${recipe.species}:${recipe.medium}`;
+  return `${recipe.version}:${recipe.identity.seed}:${recipe.identity.species}:${recipe.style.medium}`;
 }
 
 export function characterBoilSeed(recipe: CharacterRecipe, layerId: string, state: string, frame: number): number {
-  return combineSeed(recipe.seed, `character:boil:${layerId}:${state}:${frame}`);
+  return combineSeed(recipe.identity.seed, `character:boil:${layerId}:${state}:${frame}`);
 }

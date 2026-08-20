@@ -6,8 +6,13 @@ import type {
 import { moveOnSurface, type Point3, type SurfaceAnchor } from '../../core/geometry3.js';
 import type { Point } from '../../core/geometry.js';
 import type { SolidMaterialSpec } from '../../materials/finish.js';
+import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
 import { buildSolidFaceLayout } from './layout.js';
-import type { SolidFaceRecipe } from './recipe.js';
+import {
+  createSolidCharacterRecipe,
+  type SolidCharacterRecipeOptions,
+  type SolidFaceRecipe,
+} from './recipe.js';
 
 function ellipse(width: number, height: number, count = 24): readonly Point[] {
   return Object.freeze(Array.from({ length: count }, (_, index): Point => {
@@ -27,6 +32,22 @@ function band(width: number, thickness: number, sag: number, count = 12): readon
     ...Array.from({ length: count }, (_, index) => edge(index, 1)),
     ...Array.from({ length: count }, (_, index) => edge(count - 1 - index, -1)),
   ]);
+}
+
+function triangle(width: number, height: number): readonly Point[] {
+  return Object.freeze([
+    [-width, -height * 0.5],
+    [0, height * 0.5],
+    [width, -height * 0.5],
+  ] as const);
+}
+
+function star(radius: number, innerScale = 0.42): readonly Point[] {
+  return Object.freeze(Array.from({ length: 10 }, (_, index): Point => {
+    const angle = -Math.PI / 2 + index * Math.PI / 5;
+    const pointRadius = index % 2 === 0 ? radius : radius * innerScale;
+    return [Math.cos(angle) * pointRadius, Math.sin(angle) * pointRadius];
+  }));
 }
 
 function plate(
@@ -54,18 +75,49 @@ function solidPlacement(position: Point3) {
 
 function materialSpecs(recipe: SolidFaceRecipe): readonly SolidMaterialSpec[] {
   return Object.freeze([
-    Object.freeze({ id: 'skin', role: 'body', color: recipe.palette.skin, finish: recipe.finish }),
-    Object.freeze({ id: 'ink', role: 'linework', color: recipe.palette.ink, finish: 'rubber' }),
-    Object.freeze({ id: 'sclera', role: 'eye-white', color: recipe.palette.sclera, finish: 'ceramic' }),
-    Object.freeze({ id: 'accent', role: 'accent', color: recipe.palette.accent, finish: 'glossy' }),
-    Object.freeze({ id: 'hair', role: 'hair', color: recipe.palette.hair, finish: 'matte' }),
+    Object.freeze({
+      id: 'skin', role: 'body', color: recipe.identity.palette.skin, finish: recipe.style.finish,
+    }),
+    Object.freeze({
+      id: 'ink', role: 'linework', color: recipe.identity.palette.ink, finish: 'rubber',
+    }),
+    Object.freeze({
+      id: 'sclera', role: 'eye-white', color: recipe.identity.palette.sclera, finish: 'ceramic',
+    }),
+    Object.freeze({
+      id: 'accent', role: 'accent', color: recipe.identity.palette.accent, finish: 'glossy',
+    }),
+    Object.freeze({
+      id: 'hair', role: 'hair', color: recipe.identity.palette.hair, finish: 'matte',
+    }),
   ]);
 }
 
 export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlueprint {
   const layout = buildSolidFaceLayout(recipe);
+  const identity = recipe.identity;
   const parts: SolidPartDefinition[] = [];
   const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
+  if (identity.species === 'cat' || identity.species === 'nightmare'
+    || identity.species === 'creature') {
+    const radiusX = layout.shape.radii[0];
+    const radiusY = layout.shape.radii[1];
+    const earWidth = radiusX * (identity.species === 'cat' ? 0.28 : 0.2);
+    const earHeight = radiusY * (identity.species === 'cat' ? 0.72 : 0.52);
+    for (const side of [-1, 1] as const) {
+      add({
+        id: `ear:${side < 0 ? 'left' : 'right'}`, node: 'head', order: -2,
+        geometry: plate(triangle(earWidth, earHeight), earWidth * 0.28, earWidth * 0.08),
+        materialId: 'skin',
+        placement: solidPlacement([
+          side * radiusX * 0.58,
+          radiusY * 0.74,
+          -layout.shape.radii[2] * 0.08,
+        ]),
+        motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      });
+    }
+  }
   add({
     id: 'head', node: 'head', order: 0,
     geometry: Object.freeze({
@@ -79,15 +131,21 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
     motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
   });
 
-  const eyeHeightFactor = recipe.eyes.style === 'sleepy' ? 0.54 : recipe.eyes.style === 'wide' ? 1.18 : 0.92;
+  const eyeHeightFactor = recipe.identity.eyes.style === 'sleepy'
+    ? 0.54
+    : recipe.identity.eyes.style === 'saucer' ? 1.08 : 0.92;
   layout.eyeAnchors.forEach((anchor, index) => {
     const side = index === 0 ? -1 : 1;
     const sideId = side < 0 ? 'left' : 'right';
-    const radius = layout.eyeRadius;
-    const whiteMaterial = recipe.eyes.style === 'void' ? 'ink' : 'sclera';
+    const radius = layout.eyeRadius * (identity.eyes.style === 'dot' ? 0.52 : 1);
+    const whiteMaterial = identity.eyes.style === 'void' || identity.eyes.style === 'star'
+      || identity.eyes.style === 'dot' ? 'ink' : 'sclera';
+    const eyeOutline = identity.eyes.style === 'star'
+      ? star(radius)
+      : ellipse(radius, radius * eyeHeightFactor);
     add({
       id: `eye:${sideId}:white`, node: 'head', order: 20,
-      geometry: plate(ellipse(radius, radius * eyeHeightFactor), radius * 0.3, radius * 0.1),
+      geometry: plate(eyeOutline, radius * 0.3, radius * 0.1),
       materialId: whiteMaterial, placement: placement(anchor),
       motion: Object.freeze({
         role: 'eye', side,
@@ -96,11 +154,12 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
       }),
       castShadow: false, receiveShadow: false,
     });
-    const pupilRadius = radius * recipe.eyes.pupilScale;
+    const pupilRadius = radius * recipe.style.pupilScale;
     add({
       id: `eye:${sideId}:pupil`, node: 'head', order: 21,
       geometry: plate(ellipse(pupilRadius, pupilRadius), pupilRadius * 0.5, pupilRadius * 0.18),
-      materialId: recipe.eyes.style === 'void' ? 'accent' : 'ink',
+      materialId: identity.eyes.style === 'void' || identity.eyes.style === 'star'
+        ? 'accent' : 'ink',
       placement: placement(anchor, radius * 0.17),
       motion: Object.freeze({
         role: 'eye', side,
@@ -111,7 +170,24 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
     });
   });
 
-  if (recipe.brows.present) {
+  if (identity.species === 'cat') {
+    const cheekRadius = layout.eyeRadius * 0.78;
+    for (const side of [-1, 1] as const) {
+      const anchor = layout.at(side * 0.13, -0.12, cheekRadius * 0.18);
+      add({
+        id: `muzzle:${side < 0 ? 'left' : 'right'}`, node: 'head', order: 23,
+        geometry: Object.freeze({
+          type: 'superellipsoid',
+          radii: [cheekRadius, cheekRadius * 0.72, cheekRadius * 0.45] as const,
+          exponent: 2.4, widthSegments: 20, heightSegments: 14,
+        }),
+        materialId: 'skin', placement: solidPlacement(anchor.point),
+        motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      });
+    }
+  }
+
+  if (recipe.identity.brows.present) {
     layout.browAnchors.forEach((anchor, index) => {
       const side = index === 0 ? -1 : 1;
       add({
@@ -124,8 +200,9 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
     });
   }
 
-  if (recipe.nose.present) {
-    const noseRadius = Math.min(layout.shape.radii[0], layout.shape.radii[1]) * recipe.nose.size;
+  if (identity.nose.present || identity.species === 'cat') {
+    const noseRadius = Math.min(layout.shape.radii[0], layout.shape.radii[1])
+      * (identity.species === 'cat' ? 0.085 : identity.nose.size);
     const nosePosition = moveOnSurface(layout.noseAnchor, [0, 0], noseRadius * 0.45).point;
     add({
       id: 'nose', node: 'head', order: 26,
@@ -133,21 +210,23 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
         type: 'superellipsoid', radii: [noseRadius, noseRadius * 0.82, noseRadius] as const,
         exponent: 2.2, widthSegments: 20, heightSegments: 14,
       }),
-      materialId: recipe.species === 'robot' ? 'accent' : 'skin',
+      materialId: identity.species === 'robot' ? 'accent'
+        : identity.species === 'cat' ? 'ink' : 'skin',
       placement: solidPlacement(nosePosition), motion: Object.freeze({ role: 'fixed' }),
       castShadow: true, receiveShadow: true,
     });
   }
 
-  const mouthWidth = layout.shape.radii[0] * recipe.mouth.width;
+  const mouthWidth = layout.shape.radii[0] * recipe.identity.mouth.width;
   const mouthThickness = Math.max(0.035, mouthWidth * 0.1);
-  const mouthOutline = recipe.mouth.style === 'open'
+  const mouthOutline = recipe.identity.mouth.style === 'open'
     ? ellipse(mouthWidth * 0.62, mouthWidth * 0.4)
     : band(
       mouthWidth,
       mouthThickness,
-      recipe.mouth.style === 'smile' ? mouthWidth * 0.28
-        : recipe.mouth.style === 'cat' ? mouthWidth * 0.18 : 0,
+      recipe.identity.mouth.style === 'smile' ? mouthWidth * 0.28
+        : recipe.identity.mouth.style === 'frown' ? -mouthWidth * 0.24
+          : recipe.identity.mouth.style === 'cat' ? mouthWidth * 0.18 : 0,
     );
   add({
     id: 'mouth', node: 'head', order: 28,
@@ -156,9 +235,10 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
     motion: Object.freeze({ role: 'mouth' }), castShadow: false, receiveShadow: false,
   });
 
-  if (recipe.hair.style !== 'none') {
-    const radius = layout.shape.radii[0] * 0.25 * recipe.hair.scale;
-    const count = recipe.hair.style === 'crown' ? 5 : 3;
+  if (recipe.identity.hair.style !== 'none') {
+    const radius = layout.shape.radii[0] * 0.25 * (0.8 + recipe.identity.hair.height);
+    const count = recipe.identity.hair.style === 'crown'
+      || recipe.identity.hair.style === 'spikes' ? 5 : 3;
     for (let index = 0; index < count; index += 1) {
       const offset = (index - (count - 1) / 2) * radius * 0.72;
       const height = layout.shape.radii[1] * 0.9 + (index % 2) * radius * 0.18;
@@ -177,9 +257,9 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
   const [radiusX, radiusY, radiusZ] = layout.shape.radii;
   return Object.freeze({
     representation: 'solid',
-    id: `solid-face:${recipe.seed}`,
+    id: `solid-face:${recipe.identity.seed}`,
     kind: 'solid-face',
-    seed: recipe.seed,
+    seed: recipe.identity.seed,
     bounds: layout.bounds,
     nodes: Object.freeze([
       Object.freeze({ id: 'head', position: layout.center }),
@@ -195,4 +275,11 @@ export function createSolidFaceBlueprint(recipe: SolidFaceRecipe): SolidAssetBlu
     ]),
     sockets: layout.sockets,
   });
+}
+
+export function createSolidCharacterFaceBlueprint(
+  identity: CharacterIdentityRecipe,
+  options: SolidCharacterRecipeOptions = {},
+): SolidAssetBlueprint {
+  return createSolidFaceBlueprint(createSolidCharacterRecipe(identity, options));
 }

@@ -37,6 +37,11 @@ Recipes persist generated parameters rather than relying on the current
 generator implementation to recreate historical content. A version field makes
 future migrations explicit.
 
+For characters, `CharacterIdentityRecipe` owns semantic identity once. Raster
+and solid recipes reference that same immutable object and add only
+representation style. Changing graphite to watercolour or skin to ceramic must
+not reroll eyes, palette, proportions, hair, or species.
+
 Pixel-identical output across browser rasterizers is not promised. Equivalent
 recipes do promise equivalent geometry, layer structure, sockets, and colliders.
 
@@ -55,6 +60,17 @@ Three.js belongs to runtime adapters, not recipes or geometry contracts. A game
 can use the same solid blueprint with another renderer by implementing its own
 geometry/material adapter. A future voxel representation should preserve the
 same boundary instead of pretending a voxel field is a smooth mesh recipe.
+
+```text
+CharacterIdentityRecipe
+  ├─ RasterCharacterStyle -> CharacterRecipe -> AssetBlueprint -> SpriteRig
+  └─ SolidCharacterStyle  -> SolidFaceRecipe -> SolidAssetBlueprint -> SolidRig
+```
+
+Representation layouts share normalized semantic intent, not coordinates. Eye
+spacing is an identity value; Canvas pixels and superellipsoid surface anchors
+are adapter-specific derivations. Sharing one coordinate system here would be
+coupling disguised as reuse.
 
 ## Raster asset contract
 

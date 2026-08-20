@@ -8,6 +8,11 @@ export type BlueprintThumbnailOptions = Readonly<{
   frameBounds?: Bounds;
 }>;
 
+export type BlueprintThumbnailRendererOptions = Readonly<{
+  width?: number;
+  height?: number;
+}>;
+
 const THUMBNAIL_WIDTH = 112;
 const THUMBNAIL_HEIGHT = 76;
 const FRAME_PADDING = 1.14;
@@ -17,8 +22,12 @@ export class BlueprintThumbnailRenderer {
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  private readonly width: number;
+  private readonly height: number;
 
-  public constructor() {
+  public constructor(options: BlueprintThumbnailRendererOptions = {}) {
+    this.width = Math.max(32, Math.floor(options.width ?? THUMBNAIL_WIDTH));
+    this.height = Math.max(32, Math.floor(options.height ?? THUMBNAIL_HEIGHT));
     this.renderer = new THREE.WebGLRenderer({
       alpha: true,
       antialias: true,
@@ -28,7 +37,7 @@ export class BlueprintThumbnailRenderer {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setClearColor(0x000000, 0);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-    this.renderer.setSize(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, false);
+    this.renderer.setSize(this.width, this.height, false);
     this.camera.position.z = 20;
   }
 
@@ -49,7 +58,7 @@ export class BlueprintThumbnailRenderer {
     rig.root.position.set(-centerX, -centerY, 0);
     this.scene.add(rig.root);
 
-    const aspect = THUMBNAIL_WIDTH / THUMBNAIL_HEIGHT;
+    const aspect = this.width / this.height;
     const viewHeight = Math.max(
       bounds.height * FRAME_PADDING,
       bounds.width * FRAME_PADDING / aspect,

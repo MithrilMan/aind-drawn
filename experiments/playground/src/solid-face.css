@@ -67,6 +67,11 @@ h1 { font-size: 42px; line-height: .9; }
 .lab-viewport { overflow: hidden; background: linear-gradient(#ded6c7, #eee5d5 70%); }
 .lab-viewport canvas { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; }
 .lab-viewport canvas:active { cursor: grabbing; }
+.raster-proof { position: absolute; z-index: 3; left: 16px; bottom: 16px; display: grid; grid-template-columns: 86px 1fr; align-items: center; width: 235px; min-height: 96px; margin: 0; border: 1px solid #82776a; background: rgb(249 244 233 / 88%); box-shadow: 2px 3px 0 rgb(60 50 42 / 15%); pointer-events: none; }
+.raster-proof img { width: 86px; height: 94px; object-fit: contain; border-right: 1px dashed #a99d8c; }
+.raster-proof figcaption { display: grid; gap: 3px; padding: 9px; }
+.raster-proof strong { font-family: 'Kalam', cursive; color: #8e4f3d; font-size: 15px; }
+.raster-proof span { font-size: 8px; line-height: 1.45; text-transform: uppercase; letter-spacing: .08em; }
 .viewport-label { position: absolute; z-index: 2; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; padding: 9px 12px; border-bottom: 1px solid rgb(66 57 49 / 28%); color: #5d554c; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; pointer-events: none; }
 .axis-mark { position: absolute; z-index: 2; right: 18px; bottom: 18px; width: 42px; height: 42px; color: #735446; font-size: 9px; pointer-events: none; }
 .axis-mark i { position: absolute; left: 20px; bottom: 8px; background: currentColor; transform-origin: bottom; }

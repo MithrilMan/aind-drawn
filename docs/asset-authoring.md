@@ -1,11 +1,14 @@
 # Procedural asset authoring
 
-The library separates a generated asset into four contracts:
+The library separates a generated asset into five contracts when one semantic
+identity has more than one representation:
 
-1. A **recipe** is complete, immutable, versioned, serializable data.
-2. A **layout** derives world geometry, bounds, anchors, and part dimensions.
-3. A **blueprint** binds named visual parts to geometry, colliders, sockets, states, and interactions.
-4. A **runtime** adapts those parts to a renderer and applies transient state.
+1. An **identity recipe** owns representation-independent semantic choices.
+2. A **representation recipe** references that identity and adds only medium,
+   finish, topology, or other representation-specific policy.
+3. A **layout** derives world geometry, bounds, anchors, and part dimensions.
+4. A **blueprint** binds named visual parts to geometry, colliders, sockets, states, and interactions.
+5. A **runtime** adapts those parts to a renderer and applies transient state.
 
 Drawing code consumes a complete recipe. It must not make new semantic random
 choices while rasterizing; otherwise boil frames can change the identity of the
@@ -48,10 +51,13 @@ leaves, and bloom in separate semantic layers even though they do not animate.
 The parts share root and crown anchors through one layout, while tree collision
 comes from the same stem geometry used by the drawing.
 
-`src/assets/solid-face` is the smooth-solid reference. Its recipe persists
-identity and finish, its layout places facial features on an analytic surface,
-and its blueprint emits serialisable geometry and material roles. The Three.js
-objects exist only after `SolidRig` consumes that blueprint.
+`src/assets/character-identity` is the multi-representation reference. A single
+`CharacterIdentityRecipe` owns species, proportions, palette, facial features,
+hair, outfit, and body semantics. `src/assets/character` adds raster-medium
+policy, while `src/assets/solid-face` adds solid finish and depth policy. The
+solid layout places the shared facial intent on an analytic surface and its
+blueprint emits serialisable geometry and material roles. Three.js objects
+exist only after `SolidRig` consumes that blueprint.
 
 ## Deterministic recipes
 
@@ -66,6 +72,11 @@ const doorRandom = tree.random('vehicle:door');
 Persist the resulting values in the recipe. Adding a roof rack must not reroll
 the wheel size of every existing vehicle. Boil noise is already namespaced by
 asset, layer, state, and frame in `SpriteRig`.
+
+For a multi-representation family, generate each semantic choice once in the
+identity recipe. Adapters may translate normalized intent into different
+coordinate systems, but must not reroll eyes, palette, proportions, or other
+identity data.
 
 ## Blueprint rules
 

@@ -12,6 +12,13 @@ vocabulary. Pose, gait intensity, facing, playback, and restart drive both the
 solid rig and a live graphite `SpriteRig`; scene lighting and drag controls
 remain experiment code.
 
+The building representation lab at
+`http://127.0.0.1:4173/solid-building.html` projects one shared architectural
+identity into the existing hand-drawn construction and a complete solid asset.
+It exposes cottage, townhouse, apartment, and high-rise casting, real depth,
+roof volume, spatial balconies, and the same stateful door interaction in both
+representations.
+
 ## Available operations
 
 - add characters, buildings, platforms, multipart plants, and props from the catalog;
@@ -51,7 +58,7 @@ out of sync.
 
 Character animation is intentionally not serialized as an editor property.
 Characters remain alive through the animator's autonomic layer; games drive
-the public `CharacterAnimator` pose and locomotion inputs from actual gameplay
+the public `CharacterAnimator` pose inputs from actual gameplay
 state instead of baking a demo dropdown into level data.
 
 Buildings and platforms use semantic resizing. During a pointer drag the

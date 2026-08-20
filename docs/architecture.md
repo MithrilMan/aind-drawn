@@ -37,6 +37,10 @@ Recipes persist generated parameters rather than relying on the current
 generator implementation to recreate historical content. A version field makes
 future migrations explicit.
 
+The package is currently greenfield and unpublished. Obsolete contracts are
+removed together with their call sites; compatibility factories, aliases, and
+legacy document migrations are not maintained before a released format exists.
+
 For characters, `CharacterIdentityRecipe` owns semantic identity once. Raster
 and solid recipes reference that same immutable object and add only
 representation style. Changing graphite to watercolour or skin to ceramic must
@@ -71,7 +75,16 @@ same boundary instead of pretending a voxel field is a smooth mesh recipe.
 CharacterIdentityRecipe
   ├─ RasterCharacterStyle -> CharacterRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidCharacterStyle  -> SolidCharacterRecipe -> SolidAssetBlueprint -> SolidRig
+
+BuildingIdentityRecipe
+  ├─ RasterBuildingStyle  -> RasterBuildingRecipe -> AssetBlueprint -> SpriteRig
+  └─ SolidBuildingStyle   -> SolidBuildingRecipe  -> SolidAssetBlueprint -> SolidRig
 ```
+
+Identity includes spatial topology when it changes meaning across projections.
+A crown is a `wrap`, not merely the front outline visible in a drawing; a door
+is `articulated`, not a dark rectangle. Raster adapters may collapse hidden
+dimensions, while solid adapters must preserve them.
 
 Representation layouts share normalized semantic intent, not renderer
 coordinates. Eye spacing is measured from the face centre as a fraction of the
@@ -113,8 +126,9 @@ the drawing core remains compatible with `OffscreenCanvas` and test doubles.
 
 `SolidAssetBlueprint` is JSON-compatible data. It publishes a node hierarchy,
 named parts, geometry specifications, physical material roles, 3D bounds,
-colliders, and sockets. Supported geometry primitives are superellipsoids,
-extruded 2D profiles, and indexed or flat triangle meshes.
+colliders, sockets, and node-transform interactions. Supported geometry
+primitives are boxes, superellipsoids, extruded 2D profiles, and indexed or flat
+triangle meshes.
 
 `pointOnSuperellipsoid` is shared by layout and mesh generation. It evaluates
 the same serialisable radial field used by the raster head outline. Base
@@ -131,6 +145,12 @@ follow; `SolidCharacterAnimator` adds rest-pose body nodes, locomotion,
 breathing, and tail motion. Both reset their targets before applying transforms,
 so animation never accumulates drift or rebuilds geometry. The rig owns and
 disposes all generated GPU resources.
+
+Buildings use the same boundary without character concepts. A shared building
+identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,
+chimney, and palette. The raster adapter emits semantic drawing layers; the
+solid adapter emits facade volume, roof geometry, windows, spatial balconies,
+an articulated door node, matching colliders, and the same entry socket.
 
 Raster and solid character animators consume the same transient
 `CharacterMotion` vocabulary (`idle`, `walk`, `run`, `airborne`, `sit`, `sleep`,

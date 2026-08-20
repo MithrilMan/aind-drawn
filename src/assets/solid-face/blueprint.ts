@@ -26,6 +26,11 @@ import {
   type SolidFaceSourceRecipe,
 } from './layout.js';
 import {
+  createHairShellGeometry,
+  createHairTuftGeometry,
+  createHairWrapGeometry,
+} from './hair-geometry.js';
+import {
   type SolidFaceRecipe,
 } from './recipe.js';
 
@@ -210,6 +215,7 @@ function addEyeParts(
   addGlint(radius * 0.42);
 }
 
+
 function addHairParts(
   add: (part: SolidPartDefinition) => void,
   recipe: SolidFaceSourceRecipe,
@@ -217,18 +223,43 @@ function addHairParts(
 ): void {
   const profile = createCharacterHairProfile(recipe.identity.hair);
   if (profile === null) return;
-  const [radiusX, radiusY, radiusZ] = layout.shape.radii;
-  const outline = Object.freeze(profile.outline.map(([x, y]) => Object.freeze([
-    x * radiusX,
-    y * radiusY,
-  ] as const)));
-  add({
-    id: `hair:${profile.style}`, node: 'head', order: 10,
-    geometry: plate(outline, radiusZ * profile.depth, radiusZ * 0.08),
-    materialId: 'hair',
-    placement: solidPlacement([0, 0, radiusZ * profile.front]),
-    motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
-  });
+  const addGeometry = (
+    id: string,
+    order: number,
+    geometry: SolidPartDefinition['geometry'],
+  ): void => {
+    add({
+      id, node: 'head', order, geometry,
+      materialId: 'hair', placement: solidPlacement([0, 0, 0]),
+      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+    });
+  };
+
+  if (profile.spatial.kind === 'surface-cluster') {
+    addGeometry(
+      `hair:${profile.style}`,
+      11,
+      createHairTuftGeometry(layout.shape, profile.spatial.tufts, profile.spatial.radialClearance, 0),
+    );
+    return;
+  }
+  if (profile.spatial.kind === 'head-shell') {
+    addGeometry(`hair:${profile.style}`, 10, createHairShellGeometry(layout.shape, profile.spatial));
+    if (profile.spatial.tufts !== null) {
+      addGeometry(
+        `hair:${profile.style}:tufts`,
+        11,
+        createHairTuftGeometry(
+          layout.shape,
+          profile.spatial.tufts,
+          profile.spatial.radialClearance,
+          profile.spatial.thickness,
+        ),
+      );
+    }
+    return;
+  }
+  addGeometry(`hair:${profile.style}`, 10, createHairWrapGeometry(layout.shape, profile.spatial));
 }
 
 export function createSolidFaceBlueprint(
@@ -373,6 +404,7 @@ export function createSolidFaceBlueprint(
       }),
     ]),
     sockets: layout.sockets,
+    interactions: Object.freeze([]),
   });
 }
 

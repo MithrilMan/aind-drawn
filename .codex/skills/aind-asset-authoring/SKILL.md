@@ -1,6 +1,6 @@
 ---
 name: aind-asset-authoring
-description: Design, add, or revise procedural asset classes in the aind-drawn repository, including props, characters, scenery, vehicles, layers, recipes, colliders, sockets, interactions, animation, catalog integration, and authoring tests. Use when an object type or visual family must be created or when deciding whether an asset belongs in the prop registry or needs its own family.
+description: Design, add, or revise procedural asset families in the aind-drawn repository, including representation-neutral identity, raster and solid projections, spatial topology, props, characters, buildings, vehicles, layers, recipes, colliders, sockets, interactions, animation, catalog integration, and authoring tests.
 ---
 
 # AIND asset authoring
@@ -21,6 +21,9 @@ Before editing, read:
 For a real-volume asset, also read `src/assets/solid-types.ts`,
 `src/core/geometry3.ts`, and the `src/assets/solid-character/` reference family.
 Read `src/assets/solid-face/` as the reusable surface-mounted feature component.
+Read `src/assets/building-identity/` and `src/assets/solid-building/` when the
+asset is architectural, modular, or needs a non-character multi-representation
+reference.
 
 For a character representation, also read
 `src/assets/character-identity/recipe.ts`. Character adapters must consume that
@@ -48,6 +51,49 @@ gameplay. Prefer a dedicated family for vehicles, doors, machinery, and
 containers that open.
 
 State the classification and the concrete reason before implementation.
+
+## Model identity before representation
+
+When an asset family has or plausibly needs more than one representation,
+create `src/assets/<family>-identity/` before authoring adapters. Identity owns
+all deterministic semantic and spatial choices that must survive projection:
+archetype, proportions, part inventory, palette roles, topology, attachment,
+interaction intent, and normalized feature placement.
+
+Each representation recipe references that exact immutable identity and adds
+only representation policy:
+
+- raster: medium, tone, line pressure, bake policy;
+- solid: finish, mesh density, physical material policy;
+- inked solid: contour, semantic stroke, and hatching policy.
+
+Do not put a drawing medium in shared identity. Do not rerun an identity factory
+inside an adapter. A seed shared by two independent generators is not shared
+identity; it is two implementations hoping never to drift.
+
+Use domain vocabulary for archetypes. Characters may have a biological or
+fictional `species`; buildings have an `archetype` such as cottage, townhouse,
+apartment, or high-rise. Reuse the architectural pattern, not the biological
+word.
+
+## Preserve spatial topology
+
+A front silhouette is insufficient whenever a feature has meaningful volume.
+Classify each such feature before selecting geometry:
+
+- `surface`: follows a host surface, such as an eyelid, seam, or painted mark;
+- `front-extrusion`: intentionally camera-facing or plate-like; never use it as a fallback for hair, hats, roofs, wheels, or another part that visibly occupies depth;
+- `head-shell` / surface shell: follows a host surface with authored coverage, lower boundary, clearance, thickness, and relief;
+- `surface-cluster`: a localized set of true volumes anchored to a host surface; use it for tufts, thorns, knobs, or other details that must not become a clipped partial shell;
+- `wrap`: surrounds or follows a host circumference, such as a crown, collar,
+  gutter, bracelet, or pipe;
+- `volume`: occupies independent three-dimensional space;
+- `articulated`: owns a pivot or node and changes transform by state.
+
+Store that intent in the identity-derived profile or layout. Raster adapters
+may collapse it to a 2D outline, but solid adapters must not reconstruct it from
+that outline. Use stable surface coordinates, sockets, or normalized host radii
+instead of adapter-local world-space guesses.
 
 ## Add a static prop
 
@@ -78,6 +124,8 @@ barrel only.
 - Persist generated feature values in the recipe.
 - Generate shared character semantics once in `CharacterIdentityRecipe`.
 - Keep raster, smooth-solid, voxel, and future adapters free of semantic rerolls.
+- Preserve feature topology and attachment across adapters; projection may lose
+  visible dimensions, identity must not lose their meaning.
 - Share normalized intent across representations, not pixel or surface coordinates.
 - Derive drawing and gameplay geometry from the same layout.
 - Keep independently stateful parts in independent layers.
@@ -91,7 +139,9 @@ barrel only.
 - Derive 3D feature placement from the same analytic or modelled surface used
   to build the mesh. Use stable semantic part IDs and real node pivots.
 - Dispose solid GPU resources through `SolidRig.dispose()`.
-- Avoid compatibility shims unless a released serialized recipe requires a migration.
+- Do not add compatibility shims before a serialized recipe format has actually been released.
+- While the package remains greenfield and unpublished, update all call sites
+  and delete obsolete contracts instead of adding legacy aliases or migrations.
 
 ## Integrate the consumer
 
@@ -105,6 +155,8 @@ Add tests that prove:
 
 - identical seeds and options produce equal recipes;
 - representations created from one identity preserve the same semantic values;
+- wrapped and volumetric features occupy the expected axes instead of collapsing
+  into front plates;
 - feature namespaces do not affect unrelated parameters;
 - expected layers and pivots exist;
 - bounds, colliders, and sockets agree with layout;
@@ -112,5 +164,6 @@ Add tests that prove:
 - other families remain unchanged.
 
 Run `pnpm verify`. Then inspect representative seeds in the in-app browser at
-the primary desktop width and a narrow width. Report the chosen classification,
-public API changes, tests, and any remaining consumer work.
+every viewport class the experiment claims to support. For the current
+desktop-only playground and labs, desktop QA is sufficient. Report the chosen
+classification, public API changes, tests, and any remaining consumer work.

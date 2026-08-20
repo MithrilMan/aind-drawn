@@ -100,8 +100,22 @@ function createMeshGeometry(
   return geometry;
 }
 
+function createBoxGeometry(
+  spec: Extract<SolidGeometrySpec, { type: 'box' }>,
+): THREE.BufferGeometry {
+  if (spec.size.some((value) => !(value > 0) || !Number.isFinite(value))) {
+    throw new RangeError('Box dimensions must be positive finite numbers');
+  }
+  const segments = spec.segments ?? [1, 1, 1];
+  return new THREE.BoxGeometry(
+    ...spec.size,
+    ...segments.map((value) => Math.max(1, Math.floor(value))) as [number, number, number],
+  );
+}
+
 export function createSolidGeometry(spec: SolidGeometrySpec): THREE.BufferGeometry {
   if (spec.type === 'superellipsoid') return createSuperellipsoidGeometry(spec);
   if (spec.type === 'extruded-profile') return createExtrudedProfileGeometry(spec);
+  if (spec.type === 'box') return createBoxGeometry(spec);
   return createMeshGeometry(spec);
 }

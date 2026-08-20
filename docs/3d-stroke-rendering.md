@@ -14,8 +14,8 @@ The target look is built from three cooperating systems:
 3. seeded surface hatching with restrained temporal boil.
 
 This keeps an eye line attached to the eye socket, a sleeve seam attached to
-the arm, and a mouth expression attached to the animated face while the camera
-moves around the character.
+the arm, a cornice attached to a facade, and a mouth expression attached to the
+animated face while the camera moves around the asset.
 
 ## Why a hybrid is necessary
 
@@ -103,11 +103,11 @@ inked solid.
 
 ## Delivery sequence
 
-1. Add a Three.js contour pass to the existing solid-character experiment.
-2. Author semantic eye, mouth, and hair strokes against current surface frames.
+1. Add one Three.js contour pass that consumes any `SolidAssetBlueprint`.
+2. Prove semantic strokes on a character face and a building facade.
 3. Add stable graphite hatching and shared boil timing.
-4. Generalise the contract to props and scenery after one character and one
-   hard-surface asset prove the coordinate model.
+4. Extend authoring to props and plants after organic and architectural assets
+   prove the coordinate model.
 
 The fourth step is deliberately last. Generalising before those two proofs
 would produce a handsome type system for geometry nobody has successfully

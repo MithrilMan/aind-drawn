@@ -258,6 +258,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
       }),
     ]),
     sockets: layout.sockets,
+    interactions: Object.freeze([]),
   });
 }
 

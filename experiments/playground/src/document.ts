@@ -1,5 +1,7 @@
 import {
+  BUILDING_ARCHETYPES,
   MEDIUM_IDS,
+  type BuildingArchetype,
   type DoorStyle,
   type MediumId,
   type RoofStyle,
@@ -25,6 +27,7 @@ export const ASSET_KINDS = [
 export type AssetKind = typeof ASSET_KINDS[number];
 
 export type BuildingSettings = {
+  archetype: BuildingArchetype | null;
   roof: RoofStyle | null;
   balcony: boolean | null;
   chimney: boolean | null;
@@ -114,8 +117,14 @@ function isDoorStyle(value: unknown): value is DoorStyle {
   return value === 'arched' || value === 'panel' || value === 'plank';
 }
 
+function isBuildingArchetype(value: unknown): value is BuildingArchetype {
+  return typeof value === 'string'
+    && BUILDING_ARCHETYPES.includes(value as BuildingArchetype);
+}
+
 export function defaultBuildingSettings(): BuildingSettings {
   return {
+    archetype: null,
     roof: null,
     balcony: null,
     chimney: null,
@@ -125,13 +134,13 @@ export function defaultBuildingSettings(): BuildingSettings {
 }
 
 function parseBuildingSettings(value: unknown, objectIndex: number): BuildingSettings {
-  if (value === undefined) return defaultBuildingSettings();
   if (!isRecord(value)) {
     throw new TypeError(`House ${objectIndex + 1} has invalid settings.`);
   }
-  const { roof, balcony, chimney, doorStyle, doorState } = value;
+  const { archetype, roof, balcony, chimney, doorStyle, doorState } = value;
   if (
-    (roof !== null && !isRoofStyle(roof))
+    (archetype !== null && !isBuildingArchetype(archetype))
+    || (roof !== null && !isRoofStyle(roof))
     || (balcony !== null && typeof balcony !== 'boolean')
     || (chimney !== null && typeof chimney !== 'boolean')
     || (doorStyle !== null && !isDoorStyle(doorStyle))
@@ -139,7 +148,7 @@ function parseBuildingSettings(value: unknown, objectIndex: number): BuildingSet
   ) {
     throw new TypeError(`House ${objectIndex + 1} has invalid settings.`);
   }
-  return { roof, balcony, chimney, doorStyle, doorState };
+  return { archetype, roof, balcony, chimney, doorStyle, doorState };
 }
 
 export function defaultSize(kind: AssetKind): Readonly<{ width: number; height: number }> {
@@ -205,6 +214,7 @@ export function createInitialDocument(): SceneDocument {
   house.width = 5.4;
   house.height = 5.8;
   house.building = {
+    archetype: 'townhouse',
     roof: 'mansard',
     balcony: true,
     chimney: true,

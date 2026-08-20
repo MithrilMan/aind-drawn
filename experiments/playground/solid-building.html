@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#e9dfcc">
+    <meta name="description" content="A focused test bench for projecting one procedural building identity into raster and solid representations.">
+    <title>AIND DRAWN / Building Representation Lab</title>
+  </head>
+  <body>
+    <main class="solid-lab" data-building-lab>
+      <header class="lab-header">
+        <div>
+          <a href="./" class="back-link">← Atelier</a>
+          <p class="lab-kicker">AIND DRAWN / EXPERIMENT 03</p>
+          <h1>Building representation lab</h1>
+        </div>
+        <p class="lab-purpose">One architectural identity, projected into hand-drawn raster and semantic 3D volume.</p>
+      </header>
+
+      <section class="lab-workspace">
+        <aside class="lab-controls" aria-label="Building identity parameters">
+          <div class="control-heading">
+            <span>Recipe</span>
+            <button type="button" data-reroll>Reroll seed</button>
+          </div>
+          <label>Seed<input type="number" name="seed" value="4107" step="1"></label>
+          <label>Building type
+            <select name="archetype">
+              <option value="cottage">Cottage</option>
+              <option value="townhouse" selected>Townhouse</option>
+              <option value="apartment">Apartment</option>
+              <option value="high-rise">High-rise</option>
+            </select>
+          </label>
+          <label>Width<input type="number" name="width" value="5.8" min="2" max="16" step="0.2"></label>
+          <label>Height<input type="number" name="height" value="7.2" min="2.5" max="28" step="0.2"></label>
+          <label>Roof
+            <select name="roof">
+              <option value="">Generated from seed</option>
+              <option value="flat">Flat</option>
+              <option value="gable">Gable</option>
+              <option value="crooked">Crooked</option>
+              <option value="shed">Shed</option>
+              <option value="mansard">Mansard</option>
+            </select>
+          </label>
+          <label>Physical finish
+            <select name="finish">
+              <option value="matte">Matte</option>
+              <option value="ceramic">Ceramic</option>
+              <option value="rubber">Rubber</option>
+              <option value="metal">Metal</option>
+            </select>
+          </label>
+          <label>Door state
+            <select name="doorState">
+              <option value="closed">Closed</option>
+              <option value="open">Open</option>
+            </select>
+          </label>
+          <div class="lab-note">
+            <strong>Inspect real structure</strong>
+            <p>Drag to rotate. Roofs, balconies, windows, chimney, door hinge, colliders, and sockets derive from one building identity.</p>
+          </div>
+        </aside>
+
+        <div class="lab-viewport" data-viewport aria-label="Interactive three-dimensional solid building preview">
+          <div class="viewport-label"><span>Perspective / entrance face</span><span data-render-stats>Building solid rig…</span></div>
+          <canvas data-canvas></canvas>
+          <figure class="raster-proof">
+            <img data-raster-preview alt="Hand-drawn rendering of the same generated building identity">
+            <figcaption><strong>Same structure</strong><span>Raster adapter / shared identity</span></figcaption>
+          </figure>
+          <div class="axis-mark" aria-hidden="true"><i class="axis-y"></i><i class="axis-x"></i><span>Y</span><b>X</b></div>
+        </div>
+
+        <aside class="lab-inspector" aria-label="Generated asset contract">
+          <p class="lab-kicker">Blueprint</p>
+          <h2>Semantic output</h2>
+          <dl>
+            <div><dt>Identity</dt><dd data-identity-seed>—</dd></div>
+            <div><dt>Type</dt><dd data-identity-type>—</dd></div>
+            <div><dt>Floors / bays</dt><dd data-identity-grid>—</dd></div>
+            <div><dt>Depth</dt><dd data-identity-depth>—</dd></div>
+            <div><dt>Nodes</dt><dd data-node-count>—</dd></div>
+            <div><dt>Parts</dt><dd data-part-count>—</dd></div>
+            <div><dt>Interactions</dt><dd data-interaction-count>—</dd></div>
+            <div><dt>Colliders</dt><dd data-collider-count>—</dd></div>
+          </dl>
+          <div class="part-list-block">
+            <h3>Named parts</h3>
+            <ol data-part-list></ol>
+          </div>
+        </aside>
+      </section>
+    </main>
+    <script type="module" src="/src/solid-building-main.ts"></script>
+  </body>
+</html>

@@ -1,11 +1,21 @@
 import * as THREE from 'three';
 
-import type { SolidAssetBlueprint, SolidNodeDefinition } from '../assets/solid-types.js';
+import type {
+  SolidAssetBlueprint,
+  SolidInteractionDefinition,
+  SolidNodeDefinition,
+  SolidNodeState,
+} from '../assets/solid-types.js';
 import { surfaceFrame } from '../core/geometry3.js';
 import { createSolidGeometry } from './solid-geometry.js';
 import { createSolidMaterial, type SolidMaterialFactoryOptions } from './solid-materials.js';
 
 type SolidPartMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>;
+type NodeRestTransform = Readonly<{
+  position: THREE.Vector3;
+  quaternion: THREE.Quaternion;
+  scale: THREE.Vector3;
+}>;
 
 export type SolidRigOptions = SolidMaterialFactoryOptions;
 
@@ -18,8 +28,10 @@ export class SolidRig {
   public readonly blueprint: SolidAssetBlueprint;
 
   private readonly nodes = new Map<string, THREE.Group>();
+  private readonly nodeRest = new Map<string, NodeRestTransform>();
   private readonly parts = new Map<string, SolidPartMesh>();
   private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
+  private readonly interactionStates = new Map<string, string>();
   private disposed = false;
 
   public constructor(blueprint: SolidAssetBlueprint, options: SolidRigOptions = {}) {
@@ -61,6 +73,7 @@ export class SolidRig {
       parent.add(mesh);
       this.parts.set(part.id, mesh);
     }
+    this.initializeInteractions(blueprint.interactions);
   }
 
   public get nodeIds(): readonly string[] {
@@ -71,12 +84,35 @@ export class SolidRig {
     return [...this.parts.keys()];
   }
 
+  public get interactionIds(): readonly string[] {
+    return [...this.interactionStates.keys()];
+  }
+
   public getNode(id: string): THREE.Group | null {
     return this.nodes.get(id) ?? null;
   }
 
   public getPart(id: string): SolidPartMesh | null {
     return this.parts.get(id) ?? null;
+  }
+
+  public getInteractionState(id: string): string | null {
+    return this.interactionStates.get(id) ?? null;
+  }
+
+  public setInteractionState(id: string, state: string): void {
+    const interaction = this.requireInteraction(id);
+    if (!interaction.states.includes(state)) {
+      throw new RangeError(`Solid interaction ${id} does not define state ${state}`);
+    }
+    for (const binding of interaction.nodeBindings) {
+      const nodeState = binding.stateByInteractionState[state];
+      if (nodeState === undefined) {
+        throw new Error(`Solid interaction ${id} has no ${state} transform for ${binding.nodeId}`);
+      }
+      this.applyNodeState(binding.nodeId, nodeState);
+    }
+    this.interactionStates.set(id, state);
   }
 
   public dispose(): void {
@@ -86,7 +122,9 @@ export class SolidRig {
     for (const material of this.materials.values()) material.dispose();
     this.parts.clear();
     this.nodes.clear();
+    this.nodeRest.clear();
     this.materials.clear();
+    this.interactionStates.clear();
     this.root.clear();
   }
 
@@ -111,6 +149,11 @@ export class SolidRig {
         attach(definition.parentNode, next).add(node);
       }
       this.nodes.set(id, node);
+      this.nodeRest.set(id, Object.freeze({
+        position: node.position.clone(),
+        quaternion: node.quaternion.clone(),
+        scale: node.scale.clone(),
+      }));
       return node;
     };
 
@@ -121,6 +164,67 @@ export class SolidRig {
     const node = this.nodes.get(id);
     if (node === undefined) throw new Error(`Unknown solid node: ${id}`);
     return node;
+  }
+
+  private initializeInteractions(definitions: readonly SolidInteractionDefinition[]): void {
+    const ids = new Set<string>();
+    for (const definition of definitions) {
+      if (ids.has(definition.id)) throw new Error(`Duplicate solid interaction id: ${definition.id}`);
+      ids.add(definition.id);
+      if (!definition.states.includes(definition.initialState)) {
+        throw new Error(`Solid interaction ${definition.id} has an invalid initial state`);
+      }
+      const sensor = this.blueprint.colliders.find(
+        (collider) => collider.id === definition.sensorColliderId,
+      );
+      if (sensor?.kind !== 'sensor') {
+        throw new Error(`Solid interaction ${definition.id} requires sensor ${definition.sensorColliderId}`);
+      }
+      if (this.blueprint.sockets[definition.activationSocketId] === undefined) {
+        throw new Error(
+          `Solid interaction ${definition.id} requires socket ${definition.activationSocketId}`,
+        );
+      }
+      for (const binding of definition.nodeBindings) {
+        this.requireNode(binding.nodeId);
+        for (const state of definition.states) {
+          if (binding.stateByInteractionState[state] === undefined) {
+            throw new Error(
+              `Solid interaction ${definition.id} has no ${state} transform for ${binding.nodeId}`,
+            );
+          }
+        }
+      }
+      this.interactionStates.set(definition.id, definition.initialState);
+      for (const binding of definition.nodeBindings) {
+        const state = binding.stateByInteractionState[definition.initialState];
+        if (state !== undefined) this.applyNodeState(binding.nodeId, state);
+      }
+    }
+  }
+
+  private applyNodeState(id: string, state: SolidNodeState): void {
+    const node = this.requireNode(id);
+    const rest = this.nodeRest.get(id);
+    if (rest === undefined) throw new Error(`Solid node ${id} has no rest transform`);
+    node.position.copy(rest.position);
+    node.quaternion.copy(rest.quaternion);
+    node.scale.copy(rest.scale);
+    if (state.translation !== undefined) node.position.add(new THREE.Vector3(...state.translation));
+    if (state.rotation !== undefined) {
+      node.quaternion.multiply(
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(...state.rotation, 'XYZ')),
+      );
+    }
+    if (state.scale !== undefined) {
+      node.scale.multiply(new THREE.Vector3(...state.scale));
+    }
+  }
+
+  private requireInteraction(id: string): SolidInteractionDefinition {
+    const interaction = this.blueprint.interactions.find((candidate) => candidate.id === id);
+    if (interaction === undefined) throw new Error(`Unknown solid interaction: ${id}`);
+    return interaction;
   }
 }
 

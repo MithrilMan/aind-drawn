@@ -20,9 +20,10 @@ pnpm verify
 pnpm dev
 ```
 
-The atelier is then available at `http://127.0.0.1:4173/`; the focused 3D
-contract test lives at `http://127.0.0.1:4173/solid-face.html`. Their controls and
-scene-document boundary are documented in
+The atelier is then available at `http://127.0.0.1:4173/`. Focused shared-
+identity labs live at `http://127.0.0.1:4173/solid-face.html` and
+`http://127.0.0.1:4173/solid-building.html`. Their controls and scene-document
+boundary are documented in
 [`experiments/playground/README.md`](experiments/playground/README.md).
 
 The project pins the package-manager version in `package.json`. On Codex
@@ -87,8 +88,8 @@ solidAnimator.update(deltaSeconds);
 
 // Game state drives authored poses. Walk and run share one gait phase and
 // every transition crossfades over the autonomic breath, blink, gaze, and sway.
-drawingAnimator.update(deltaSeconds, { locomotion: 'run', speed: 0.9, facing: -1 });
-solidAnimator.update(deltaSeconds, { locomotion: 'run', speed: 0.9, facing: -1 });
+drawingAnimator.update(deltaSeconds, { pose: 'run', speed: 0.9, facing: -1 });
+solidAnimator.update(deltaSeconds, { pose: 'run', speed: 0.9, facing: -1 });
 
 // The owner of the Three.js scene must release GPU resources.
 drawing.dispose();
@@ -97,11 +98,11 @@ solid.dispose();
 
 `CharacterIdentityRecipe` is the serialisable source of truth for species,
 proportions, palette, face, hair, outfit, and appendages. Raster medium and
-physical finish belong to separate representation recipes. The compatibility
-factories `createCharacterRecipe` and `createSolidFaceRecipe` remain available
-when only the focused raster or face representation is needed. The complete
-solid blueprint exposes articulated body nodes, face parts, outfit, tail,
-colliders, and sockets without importing Three.js into asset code.
+physical finish belong to separate representation recipes. Focused raster and
+face factories are convenience consumers of that contract, not alternate
+identity generators. The complete solid blueprint exposes articulated body
+nodes, face parts, outfit, tail, colliders, and sockets without importing
+Three.js into asset code.
 
 Convergence is geometric rather than cosmetic: both representations evaluate
 the same radial head field, half-width eye spacing, head-relative hairstyle

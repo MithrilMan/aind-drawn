@@ -91,19 +91,30 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
   const hairProfile = createCharacterHairProfile(identity.hair);
   const hairX = hairProfile?.outline.map(([x]) => x * radii[0]) ?? [];
   const hairY = hairProfile?.outline.map(([, y]) => y * radii[1]) ?? [];
+  const hairExpansion = hairProfile === null
+    ? 0
+    : hairProfile.spatial.kind === 'head-shell'
+      ? Math.min(...radii) * (
+        hairProfile.spatial.radialClearance
+        + hairProfile.spatial.thickness
+        + hairProfile.spatial.crownLift
+        + hairProfile.spatial.ridgeWave.amplitude
+      )
+      : hairProfile.spatial.kind === 'surface-cluster'
+        ? Math.min(...radii) * (
+          hairProfile.spatial.radialClearance + hairProfile.spatial.tufts.height
+        )
+        : Math.min(radii[0], radii[2]) * hairProfile.spatial.radialClearance
+          + radii[1] * hairProfile.spatial.peakHeight;
   const localMinimum: Point3 = [
-    Math.min(surfaceBounds.minimum[0], ...hairX),
-    Math.min(surfaceBounds.minimum[1], ...hairY),
-    hairProfile === null
-      ? surfaceBounds.minimum[2]
-      : Math.min(surfaceBounds.minimum[2], radii[2] * (hairProfile.front - hairProfile.depth)),
+    Math.min(surfaceBounds.minimum[0] - hairExpansion, ...hairX),
+    Math.min(surfaceBounds.minimum[1] - hairExpansion, ...hairY),
+    surfaceBounds.minimum[2] - hairExpansion,
   ];
   const localMaximum: Point3 = [
-    Math.max(surfaceBounds.maximum[0], ...hairX),
-    Math.max(surfaceBounds.maximum[1], ...hairY),
-    hairProfile === null
-      ? surfaceBounds.maximum[2]
-      : Math.max(surfaceBounds.maximum[2], radii[2] * hairProfile.front),
+    Math.max(surfaceBounds.maximum[0] + hairExpansion, ...hairX),
+    Math.max(surfaceBounds.maximum[1] + hairExpansion, ...hairY),
+    surfaceBounds.maximum[2] + hairExpansion,
   ];
   return Object.freeze({
     shape,

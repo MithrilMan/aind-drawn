@@ -10,6 +10,7 @@ import {
   characterEyeCenterY,
   characterHeadShapeField,
   characterMouthCenterY,
+  createBuildingIdentity,
   createCharacterHairProfile,
   createCharacterMouthProfile,
   createCharacterIdentity,
@@ -17,15 +18,19 @@ import {
   createCharacterRecipe,
   createPlantBlueprint,
   createPlantRecipe,
+  createPlatformBlueprint,
+  createPlatformRecipe,
   createPropBlueprint,
   createPropRecipe,
-  createSceneryBlueprint,
-  createSceneryRecipe,
+  createRasterBuildingBlueprint,
+  createRasterBuildingRecipe,
   createRasterCharacterBlueprint,
   createRasterCharacterRecipe,
   createSolidCharacterFaceBlueprint,
   createSolidCharacterBlueprint,
   createSolidCharacterRecipe,
+  createSolidBuildingBlueprint,
+  createSolidBuildingRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
   pointOnSuperellipsoid,
@@ -113,7 +118,7 @@ describe('deterministic generation', () => {
     );
   });
 
-  it('keeps compatibility factories semantically aligned for the same character seed', () => {
+  it('keeps seed convenience factories semantically aligned', () => {
     const raster = createCharacterRecipe(8128, { species: 'cat', shape: 'wide' });
     const solid = createSolidFaceRecipe(8128, { species: 'cat', shape: 'wide' });
 
@@ -333,7 +338,7 @@ describe('asset contracts', () => {
     expect(new Set(signatures).size).toBe(signatures.length);
   });
 
-  it('scales the same hairstyle silhouette into raster and solid head space', () => {
+  it('projects a shared hairstyle as a raster silhouette and a head-conforming solid shell', () => {
     const identity = createCharacterIdentity(108, { hairStyle: 'bob' });
     const profile = createCharacterHairProfile(identity.hair);
     const blueprint = createSolidCharacterBlueprint(identity);
@@ -341,16 +346,25 @@ describe('asset contracts', () => {
     const hair = blueprint.parts.find(({ id }) => id === 'hair:bob');
     expect(profile).not.toBeNull();
     expect(head?.geometry.type).toBe('superellipsoid');
-    expect(hair?.geometry.type).toBe('extruded-profile');
+    expect(profile?.spatial.kind).toBe('head-shell');
+    expect(hair?.geometry.type).toBe('mesh');
     if (profile === null || head?.geometry.type !== 'superellipsoid'
-      || hair?.geometry.type !== 'extruded-profile') return;
-    const solidPoint = hair.geometry.outline[0];
-    const sharedPoint = profile.outline[0];
-    expect(solidPoint).toBeDefined();
-    expect(sharedPoint).toBeDefined();
-    if (solidPoint === undefined || sharedPoint === undefined) return;
-    expect(solidPoint[0] / head.geometry.radii[0]).toBeCloseTo(sharedPoint[0], 6);
-    expect(solidPoint[1] / head.geometry.radii[1]).toBeCloseTo(sharedPoint[1], 6);
+      || hair?.geometry.type !== 'mesh') return;
+    const zCoordinates = hair.geometry.vertices.map((vertex) => vertex[2]);
+    expect(Math.min(...zCoordinates)).toBeLessThan(-head.geometry.radii[2]);
+    expect(Math.max(...zCoordinates)).toBeGreaterThan(head.geometry.radii[2]);
+    expect(profile.outline.length).toBeGreaterThan(3);
+  });
+
+  it('never represents authored hair as a front extrusion', () => {
+    for (const hairStyle of ['cap', 'bob', 'fringe', 'spikes', 'tuft', 'crown'] as const) {
+      const identity = createCharacterIdentity(108, { hairStyle });
+      const profile = createCharacterHairProfile(identity.hair);
+      const hair = createSolidCharacterBlueprint(identity).parts
+        .find(({ id }) => id === `hair:${hairStyle}`);
+      expect(profile?.spatial.kind).not.toBe('front-extrusion');
+      expect(hair?.geometry.type).toBe('mesh');
+    }
   });
 
   it('builds distinct mouth geometry for semantic styles and facial expressions', () => {
@@ -364,21 +378,22 @@ describe('asset contracts', () => {
       .not.toEqual(createCharacterMouthProfile(identity.mouth, 'sad').outline);
   });
 
-  it('provides gameplay geometry for props and scenery without reading pixels', () => {
+  it('provides gameplay geometry for props and platforms without reading pixels', () => {
     const crate = createPropBlueprint(createPropRecipe(5, { prop: 'crate' }));
-    const platform = createSceneryBlueprint(createSceneryRecipe(6, {
-      scenery: 'platform',
+    const platform = createPlatformBlueprint(createPlatformRecipe(6, {
       width: 4,
       height: 0.75,
     }));
     expect(crate.colliders).toHaveLength(1);
     expect(platform.colliders[0]).toMatchObject({ width: 4, height: 0.75 });
     expect(platform.sockets.top?.y).toBe(0.75);
+    expect(() => createPlatformRecipe(6, { width: 0 })).toThrow(/width/i);
   });
 
   it('always exposes a stateful building door as gameplay metadata', () => {
-    const recipe = createSceneryRecipe(612, { scenery: 'building', balcony: true, chimney: true });
-    const building = createSceneryBlueprint(recipe);
+    const identity = createBuildingIdentity(612, { balcony: true, chimney: true });
+    const recipe = createRasterBuildingRecipe(identity);
+    const building = createRasterBuildingBlueprint(recipe);
     expect(building.layers.find(({ id }) => id === 'door')?.states).toEqual(['closed', 'open']);
     expect(building.colliders).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'door:sensor', kind: 'sensor' }),
@@ -392,25 +407,83 @@ describe('asset contracts', () => {
   });
 
   it('scales deterministic balcony count and placement with building dimensions', () => {
-    const small = createSceneryRecipe(811, {
-      scenery: 'building', width: 3.8, height: 3.8, balcony: true,
+    const small = createBuildingIdentity(811, {
+      archetype: 'townhouse', width: 3.8, height: 3.8, balcony: true,
     });
-    const medium = createSceneryRecipe(811, {
-      scenery: 'building', width: 5.4, height: 5.8, balcony: true,
+    const medium = createBuildingIdentity(811, {
+      archetype: 'townhouse', width: 5.4, height: 5.8, balcony: true,
     });
-    const wide = createSceneryRecipe(811, {
-      scenery: 'building', width: 12, height: 4, balcony: true,
+    const wide = createBuildingIdentity(811, {
+      archetype: 'townhouse', width: 12, height: 4, balcony: true,
     });
     expect(small.balconies).toHaveLength(1);
     expect(medium.balconies.length).toBeGreaterThan(1);
     expect(wide.balconies.length).toBeGreaterThan(medium.balconies.length);
-    expect(createSceneryRecipe(811, {
-      scenery: 'building', width: 12, height: 4, balcony: true,
+    expect(createBuildingIdentity(811, {
+      archetype: 'townhouse', width: 12, height: 4, balcony: true,
     }).balconies).toEqual(wide.balconies);
     for (const balcony of wide.balconies) {
       expect(balcony.floorFromGround).toBeGreaterThanOrEqual(1);
       expect(balcony.floorFromGround).toBeLessThan(wide.floors);
       expect(balcony.startColumn + balcony.columnSpan).toBeLessThanOrEqual(wide.columns);
     }
+  });
+
+  it('projects one building identity into raster and solid representations', () => {
+    const identity = createBuildingIdentity(1440, {
+      archetype: 'apartment', width: 8.4, height: 11.2,
+      roof: 'flat', balcony: true, chimney: false,
+    });
+    const rasterRecipe = createRasterBuildingRecipe(identity, { medium: 'watercolor' });
+    const solidRecipe = createSolidBuildingRecipe(identity, { finish: 'ceramic' });
+    const raster = createRasterBuildingBlueprint(rasterRecipe);
+    const solid = createSolidBuildingBlueprint(solidRecipe);
+
+    expect(rasterRecipe.identity).toBe(identity);
+    expect(solidRecipe.identity).toBe(identity);
+    expect(raster.seed).toBe(identity.seed);
+    expect(solid.seed).toBe(identity.seed);
+    expect(solid.parts.map(({ id }) => id)).toEqual(expect.arrayContaining([
+      'building:shell', 'building:roof', 'door', 'balcony:0:floor',
+    ]));
+    expect(solid.interactions[0]).toMatchObject({
+      id: 'door', sensorColliderId: 'door:sensor', activationSocketId: 'door:entry',
+    });
+    expect(JSON.parse(JSON.stringify(identity))).toEqual(identity);
+    expect(JSON.parse(JSON.stringify(solid))).toEqual(solid);
+  });
+
+  it('gives building archetypes distinct structural casting', () => {
+    const identities = ['cottage', 'townhouse', 'apartment', 'high-rise'].map(
+      (archetype) => createBuildingIdentity(777, {
+        archetype: archetype as 'cottage' | 'townhouse' | 'apartment' | 'high-rise',
+      }),
+    );
+    expect(new Set(identities.map(({ archetype }) => archetype)).size).toBe(4);
+    expect(identities[3]?.floors).toBeGreaterThan(identities[0]?.floors ?? 0);
+    expect(identities[3]?.height).toBeGreaterThan(identities[0]?.height ?? 0);
+    expect(identities[0]?.floors).toBeLessThanOrEqual(2);
+    expect(identities[3]?.floors).toBeGreaterThanOrEqual(10);
+    expect(identities.every(({ door }) => door.column >= 0)).toBe(true);
+  });
+
+  it('rejects invalid authored building dimensions at the identity boundary', () => {
+    expect(() => createBuildingIdentity(777, { width: 0 })).toThrow(/width/i);
+    expect(() => createBuildingIdentity(777, { height: Number.NaN })).toThrow(/height/i);
+    expect(() => createBuildingIdentity(777, { depth: Number.POSITIVE_INFINITY }))
+      .toThrow(/depth/i);
+  });
+
+  it('encodes crown topology as a closed volume around the head', () => {
+    const identity = createCharacterIdentity(505, { hairStyle: 'crown' });
+    const profile = createCharacterHairProfile(identity.hair);
+    const blueprint = createSolidCharacterBlueprint(identity);
+    const crown = blueprint.parts.find(({ id }) => id === 'hair:crown');
+    expect(profile?.spatial.kind).toBe('head-wrap');
+    expect(crown?.geometry.type).toBe('mesh');
+    if (crown?.geometry.type !== 'mesh') return;
+    const zCoordinates = crown.geometry.vertices.map((vertex) => vertex[2]);
+    expect(Math.min(...zCoordinates)).toBeLessThan(0);
+    expect(Math.max(...zCoordinates)).toBeGreaterThan(0);
   });
 });

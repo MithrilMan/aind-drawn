@@ -1,17 +1,20 @@
 import {
   createCharacterBlueprint,
   createCharacterRecipe,
+  createBuildingIdentity,
   createPlantBlueprint,
   createPlantRecipe,
+  createPlatformBlueprint,
+  createPlatformRecipe,
   createPropBlueprint,
   createPropRecipe,
-  createSceneryBlueprint,
-  createSceneryRecipe,
+  createRasterBuildingBlueprint,
+  createRasterBuildingRecipe,
   type AssetBlueprint,
   type CharacterSpecies,
   type PlantSpecies,
   type PropKind,
-  type SceneryRecipe,
+  type RasterBuildingRecipe,
 } from '../../../src/index.js';
 import type { AssetKind, SceneObjectData } from './document.js';
 
@@ -97,31 +100,27 @@ export function createObjectBlueprint(data: SceneObjectData): AssetBlueprint {
   if (data.kind !== 'building' && data.kind !== 'platform') {
     throw new Error(`Unsupported catalog asset: ${data.kind}`);
   }
-  const sceneryOptions = {
-    scenery: data.kind,
-    medium: data.medium,
-    width: data.width,
-    height: data.height,
-  } as const;
-  if (data.kind === 'building' && data.building !== null) {
-    return createSceneryBlueprint(createBuildingRecipe(data));
+  if (data.kind === 'building') {
+    return createRasterBuildingBlueprint(createBuildingRecipe(data));
   }
-  return createSceneryBlueprint(createSceneryRecipe(data.seed, sceneryOptions));
+  return createPlatformBlueprint(createPlatformRecipe(data.seed, {
+    medium: data.medium, width: data.width, height: data.height,
+  }));
 }
 
-export function createBuildingRecipe(data: SceneObjectData): SceneryRecipe {
+export function createBuildingRecipe(data: SceneObjectData): RasterBuildingRecipe {
   if (data.kind !== 'building' || data.building === null) {
     throw new TypeError('A building scene object is required.');
   }
-  const { roof, doorStyle, balcony, chimney } = data.building;
-  return createSceneryRecipe(data.seed, {
-    scenery: 'building',
-    medium: data.medium,
+  const { archetype, roof, doorStyle, balcony, chimney } = data.building;
+  const identity = createBuildingIdentity(data.seed, {
     width: data.width,
     height: data.height,
+    ...(archetype === null ? {} : { archetype }),
     ...(roof === null ? {} : { roof }),
     ...(doorStyle === null ? {} : { doorStyle }),
     ...(balcony === null ? {} : { balcony }),
     ...(chimney === null ? {} : { chimney }),
   });
+  return createRasterBuildingRecipe(identity, { medium: data.medium });
 }

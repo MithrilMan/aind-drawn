@@ -68,7 +68,7 @@ export class SolidCharacterAnimator {
     }
     const delta = clamp(deltaSeconds, 0, 0.1);
     const speed = clamp(motion.speed ?? 0, 0, 1);
-    const pose = motion.pose ?? motion.locomotion ?? 'idle';
+    const pose = motion.pose ?? 'idle';
     this.elapsed += delta;
     this.face.update(delta);
     this.resetBodyNodes();

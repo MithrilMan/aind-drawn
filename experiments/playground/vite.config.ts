@@ -13,6 +13,7 @@ export default defineConfig({
       input: {
         atelier: fileURLToPath(new URL('./index.html', import.meta.url)),
         solidFace: fileURLToPath(new URL('./solid-face.html', import.meta.url)),
+        solidBuilding: fileURLToPath(new URL('./solid-building.html', import.meta.url)),
       },
     },
   },

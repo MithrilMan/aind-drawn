@@ -92,6 +92,7 @@ h1 { font-size: 42px; line-height: .9; }
 .lab-viewport > canvas:active { cursor: grabbing; }
 .raster-proof { position: absolute; z-index: 3; left: 16px; bottom: 16px; display: grid; grid-template-columns: 94px 1fr; align-items: center; width: 245px; min-height: 96px; margin: 0; border: 1px solid #82776a; background: rgb(249 244 233 / 88%); box-shadow: 2px 3px 0 rgb(60 50 42 / 15%); pointer-events: none; }
 .raster-proof canvas { display: block; width: 94px; height: 94px; border-right: 1px dashed #a99d8c; }
+.raster-proof img { display: block; width: 94px; height: 94px; object-fit: contain; border-right: 1px dashed #a99d8c; }
 .raster-proof figcaption { display: grid; gap: 3px; padding: 9px; }
 .raster-proof strong { font-family: 'Kalam', cursive; color: #8e4f3d; font-size: 15px; }
 .raster-proof span { font-size: 8px; line-height: 1.45; text-transform: uppercase; letter-spacing: .08em; }

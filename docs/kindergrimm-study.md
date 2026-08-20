@@ -100,7 +100,7 @@ Il port TypeScript irrigidisce questo modello:
 
 | Fase | Tipo pubblico | Responsabilità |
 | --- | --- | --- |
-| Identità | `CharacterIdentityRecipe`, `PropRecipe`, `SceneryRecipe` | dato semantico JSON completo e versionato |
+| Identità | `CharacterIdentityRecipe`, `BuildingIdentityRecipe`, `PropRecipe` | dato semantico JSON completo e versionato |
 | Rappresentazione | `CharacterRecipe`, `SolidCharacterRecipe` | medium, finitura e policy proprie della tecnica |
 | Geometria | layout e `AssetBlueprint` | layer, bone, bounds, socket e collider |
 | Raster | callback `LayerDefinition.draw` | segni Canvas 2D deterministici |

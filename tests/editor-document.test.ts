@@ -17,32 +17,14 @@ describe('playground scene document', () => {
     expect(parseSceneDocument(JSON.stringify(document))).toEqual(document);
   });
 
-  it('drops the obsolete editor animation field from legacy documents', () => {
-    const legacy = createInitialDocument() as unknown as {
+  it('rejects building records without the current authored contract', () => {
+    const incomplete = createInitialDocument() as unknown as {
       version: 1;
       name: string;
       objects: Record<string, unknown>[];
     };
-    if (legacy.objects[1] !== undefined) legacy.objects[1].animation = 'walk';
-    const parsed = parseSceneDocument(JSON.stringify(legacy));
-    expect(parsed.objects[1]).not.toHaveProperty('animation');
-  });
-
-  it('migrates older building records to seeded feature settings', () => {
-    const legacy = createInitialDocument() as unknown as {
-      version: 1;
-      name: string;
-      objects: Record<string, unknown>[];
-    };
-    delete legacy.objects.find(({ kind }) => kind === 'building')?.building;
-    const parsed = parseSceneDocument(JSON.stringify(legacy));
-    expect(parsed.objects.find(({ kind }) => kind === 'building')?.building).toEqual({
-      roof: null,
-      balcony: null,
-      chimney: null,
-      doorStyle: null,
-      doorState: 'closed',
-    });
+    delete incomplete.objects.find(({ kind }) => kind === 'building')?.building;
+    expect(() => parseSceneDocument(JSON.stringify(incomplete))).toThrow(/invalid settings/i);
   });
 
   it('rejects invalid authored building states', () => {

@@ -1,9 +1,10 @@
-import type { Bounds, SceneryRecipe } from '../../../src/index.js';
+import type { Bounds, RasterBuildingRecipe } from '../../../src/index.js';
 import { createBuildingRecipe, createObjectBlueprint } from './catalog.js';
 import type { SceneObjectData } from './document.js';
 import { BlueprintThumbnailRenderer } from './blueprint-thumbnail.js';
 
 export type BuildingOptionProperty =
+  | 'buildingArchetype'
   | 'buildingRoof'
   | 'buildingDoorStyle'
   | 'buildingBalcony'
@@ -23,6 +24,17 @@ type FeaturePreview = Readonly<{
 }>;
 
 const GROUPS: readonly VariantGroup[] = Object.freeze([
+  {
+    property: 'buildingArchetype',
+    label: 'Building type',
+    variants: Object.freeze([
+      { value: 'seeded', label: 'Seeded' },
+      { value: 'cottage', label: 'Cottage' },
+      { value: 'townhouse', label: 'Townhouse' },
+      { value: 'apartment', label: 'Apartment' },
+      { value: 'high-rise', label: 'High-rise' },
+    ]),
+  },
   {
     property: 'buildingRoof',
     label: 'Roof',
@@ -76,6 +88,7 @@ const GROUPS: readonly VariantGroup[] = Object.freeze([
 function selectedValue(data: SceneObjectData, property: BuildingOptionProperty): string {
   const building = data.building;
   if (building === null) return '';
+  if (property === 'buildingArchetype') return building.archetype ?? 'seeded';
   if (property === 'buildingRoof') return building.roof ?? 'seeded';
   if (property === 'buildingDoorStyle') return building.doorStyle ?? 'seeded';
   if (property === 'buildingBalcony') return building.balcony === null ? 'seeded' : building.balcony ? 'present' : 'absent';
@@ -85,12 +98,26 @@ function selectedValue(data: SceneObjectData, property: BuildingOptionProperty):
 
 function featurePreview(
   data: SceneObjectData,
-  recipe: SceneryRecipe,
+  recipe: RasterBuildingRecipe,
   property: BuildingOptionProperty,
 ): FeaturePreview {
   const width = data.width;
   const height = data.height;
-  const cellWidth = width / recipe.columns;
+  const cellWidth = width / recipe.identity.columns;
+  if (property === 'buildingArchetype') {
+    return {
+      layerIds: Object.freeze([
+        'building:chimney', 'building:shell', 'building:roof',
+        'building:balconies', 'door',
+      ]),
+      frameBounds: Object.freeze({
+        x: -width / 2 - 0.18,
+        y: -0.08,
+        width: width + 0.36,
+        height: height + 0.2,
+      }),
+    };
+  }
   if (property === 'buildingRoof') {
     const featureHeight = Math.max(1.05, Math.min(1.75, height * 0.32));
     return {
@@ -104,19 +131,19 @@ function featurePreview(
     };
   }
   if (property === 'buildingDoorStyle' || property === 'buildingDoorState') {
-    const centerX = -width / 2 + cellWidth * (recipe.door.column + 0.5);
+    const centerX = -width / 2 + cellWidth * (recipe.identity.door.column + 0.5);
     return {
       layerIds: Object.freeze(['door']),
       frameBounds: Object.freeze({
         x: centerX - Math.max(0.65, cellWidth * 0.55),
         y: -0.08,
         width: Math.max(1.3, cellWidth * 1.1),
-        height: Math.max(1.35, Math.min(2.1, height / recipe.floors * 1.35)),
+        height: Math.max(1.35, Math.min(2.1, height / recipe.identity.floors * 1.35)),
       }),
     };
   }
   if (property === 'buildingChimney') {
-    const centerX = recipe.chimney.side === 'left' ? -width * 0.28 : width * 0.28;
+    const centerX = recipe.identity.chimney.side === 'left' ? -width * 0.28 : width * 0.28;
     const featureWidth = Math.max(0.72, Math.min(0.98, width * 0.18));
     const featureHeight = Math.max(0.9, Math.min(1.3, height * 0.23));
     return {
@@ -147,7 +174,12 @@ export function applyBuildingOption(
 ): void {
   const building = data.building;
   if (building === null) return;
-  if (property === 'buildingRoof') {
+  if (property === 'buildingArchetype') {
+    if (value === 'seeded' || value === 'cottage' || value === 'townhouse'
+      || value === 'apartment' || value === 'high-rise') {
+      building.archetype = value === 'seeded' ? null : value;
+    }
+  } else if (property === 'buildingRoof') {
     if (value === 'seeded' || value === 'flat' || value === 'gable' || value === 'crooked' || value === 'shed' || value === 'mansard') {
       building.roof = value === 'seeded' ? null : value;
     }

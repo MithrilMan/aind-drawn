@@ -5,7 +5,7 @@ identity has more than one representation:
 
 1. An **identity recipe** owns representation-independent semantic choices.
 2. A **representation recipe** references that identity and adds only medium,
-   finish, topology, or other representation-specific policy.
+   finish, mesh density, or other representation-specific policy.
 3. A **layout** derives world geometry, bounds, anchors, and part dimensions.
 4. A **blueprint** binds named visual parts to geometry, colliders, sockets, states, and interactions.
 5. A **runtime** adapts those parts to a renderer and applies transient state.
@@ -68,6 +68,20 @@ units. Expression variants derive from the same mouth profile factory. Add a
 new hairstyle or mouth family there first, then make each representation consume
 it. Do not add a second adapter-local silhouette table.
 
+`src/assets/building-identity` is the non-character multi-representation
+reference. Its archetypes are cottage, townhouse, apartment, and high-rise;
+the term is deliberately not `species`. Raster and solid building recipes
+reference the same identity. Balconies, roof volume, door hinge, colliders, and
+entry sockets therefore remain structurally aligned across projections.
+
+Identity-derived feature profiles must also preserve spatial topology. Use an
+honest intent such as `surface`, `head-shell`, `surface-cluster`, `wrap`,
+`volume`, or `articulated` where a front silhouette would discard meaning.
+`front-extrusion` is reserved for deliberately planar parts. Character hair is
+the reference: a bob is a conforming shell, a tuft is a cluster of volumes
+anchored to the head surface, and a crown is a closed wrap. The raster adapter
+may use their front outlines; the solid adapter must not turn them into plates.
+
 ## Deterministic recipes
 
 Allocate one seed namespace per semantic feature:
@@ -94,6 +108,9 @@ identity data.
 - Keep independently stateful parts in separate layers.
 - Use a sensor collider and activation socket for each interaction.
 - Bind interaction states to layer states through `InteractionDefinition`.
+- Bind solid interaction states to semantic nodes through
+  `SolidInteractionDefinition`; state changes transform the node at its real
+  pivot and never replace renderer objects.
 - Never infer physics or interaction regions from texture alpha.
 - Choose pivots at the physical joint: wheel center, door hinge, limb shoulder.
 - Keep local layer order small; `SpriteRig.drawRank` assigns the global block.
@@ -102,9 +119,9 @@ identity data.
 - Keep material intent in `SolidMaterialSpec` and lighting/environment policy in
   the runtime or scene.
 
-The building door is the reference interaction: the `door` layer exposes
-`closed` and `open`, `door:sensor` defines proximity, `door:entry` defines the
-actor anchor, and the `door` portal interaction connects them.
+The building door is the cross-representation interaction reference. Raster
+binds `closed` and `open` layer states; solid binds those states to the hinged
+`door` node. Both use `door:sensor`, `door:entry`, and the same portal intent.
 
 ## Integration checklist
 
@@ -115,7 +132,8 @@ actor anchor, and the `door` portal interaction connects them.
 5. Test state validation and animation in the runtime when applicable.
 6. Dispose generated resources through `SpriteRig.dispose()` or `SolidRig.dispose()`.
 7. Run `pnpm verify`.
-8. Inspect representative seeds in the internal browser at desktop and narrow widths.
+8. Inspect representative seeds in the internal browser at every width the
+   experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under
 `.codex/skills` for the step-by-step implementation workflow.

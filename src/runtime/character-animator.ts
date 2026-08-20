@@ -14,13 +14,10 @@ export const CHARACTER_POSES = [
 ] as const;
 
 export type CharacterPose = typeof CHARACTER_POSES[number];
-export type Locomotion = 'idle' | 'walk' | 'run' | 'airborne';
 
 export type CharacterMotion = Readonly<{
-  /** Preferred high-level animation state. */
+  /** High-level authored pose blended with autonomous motion. */
   pose?: CharacterPose;
-  /** Backwards-compatible locomotion input for game loops. */
-  locomotion?: Locomotion;
   speed?: number;
   facing?: -1 | 1;
   talking?: boolean;
@@ -121,7 +118,7 @@ export class CharacterAnimator {
     const delta = clamp(deltaSeconds, 0, 0.1);
     const speed = clamp(motion.speed ?? 0, 0, 1);
     this.elapsed += delta;
-    this.targetPose = motion.pose ?? motion.locomotion ?? 'idle';
+    this.targetPose = motion.pose ?? 'idle';
     this.updatePoseWeights(delta);
     const weights = this.normalizedWeights();
     const gaitFrequency = weights.walk * 1.6 + weights.run * 2.7;

@@ -18,8 +18,13 @@ const requiredExports = [
   'createRasterCharacterBlueprint',
   'createPropBlueprint',
   'createPropRecipe',
-  'createSceneryBlueprint',
-  'createSceneryRecipe',
+  'createBuildingIdentity',
+  'createRasterBuildingBlueprint',
+  'createRasterBuildingRecipe',
+  'createSolidBuildingBlueprint',
+  'createSolidBuildingRecipe',
+  'createPlatformBlueprint',
+  'createPlatformRecipe',
   'createSolidFaceBlueprint',
   'createSolidFaceRecipe',
   'createSolidCharacterBlueprint',
@@ -40,17 +45,22 @@ const cat = library.createCharacterBlueprint(firstCat);
 assert.ok(cat.layers.some(({ id }) => id === 'muzzle'), 'Compiled cat is missing its muzzle');
 assert.ok(cat.layers.some(({ id }) => id === 'tail'), 'Compiled cat is missing its tail');
 
-const buildingRecipe = library.createSceneryRecipe(612, {
-  scenery: 'building',
+const buildingIdentity = library.createBuildingIdentity(612, {
+  archetype: 'townhouse',
   roof: 'mansard',
   balcony: true,
   chimney: true,
   doorStyle: 'arched',
 });
-const building = library.createSceneryBlueprint(buildingRecipe);
+const building = library.createRasterBuildingBlueprint(
+  library.createRasterBuildingRecipe(buildingIdentity),
+);
 assert.ok(building.layers.some(({ id }) => id === 'door'), 'Compiled building is missing its door layer');
 assert.equal(building.interactions[0]?.id, 'door', 'Compiled building is missing its door interaction');
 assert.ok(building.sockets['door:entry'], 'Compiled building is missing its entry socket');
+const solidBuilding = library.createSolidBuildingBlueprint(buildingIdentity);
+assert.equal(solidBuilding.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
+assert.ok(solidBuilding.parts.some(({ id }) => id === 'building:roof'), 'Compiled solid building is missing its roof volume');
 
 const crateDefinition = library.propDefinition('crate');
 assert.equal(crateDefinition.kind, 'crate');

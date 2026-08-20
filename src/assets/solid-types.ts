@@ -28,9 +28,16 @@ export type MeshGeometrySpec = Readonly<{
   smooth: boolean;
 }>;
 
+export type BoxGeometrySpec = Readonly<{
+  type: 'box';
+  size: Point3;
+  segments?: readonly [x: number, y: number, z: number];
+}>;
+
 export type SolidGeometrySpec =
   | SuperellipsoidGeometrySpec
   | ExtrudedProfileGeometrySpec
+  | BoxGeometrySpec
   | MeshGeometrySpec;
 
 export type SolidNodeDefinition = Readonly<{
@@ -81,6 +88,27 @@ export type BoxCollider3 = Readonly<{
 export type Collider3 = BoxCollider3;
 export type SocketMap3 = Readonly<Record<string, Point3>>;
 
+export type SolidNodeState = Readonly<{
+  translation?: Point3;
+  rotation?: Point3;
+  scale?: Point3;
+}>;
+
+export type SolidInteractionNodeBinding = Readonly<{
+  nodeId: string;
+  stateByInteractionState: Readonly<Record<string, SolidNodeState>>;
+}>;
+
+export type SolidInteractionDefinition = Readonly<{
+  id: string;
+  kind: 'toggle' | 'portal';
+  sensorColliderId: string;
+  activationSocketId: string;
+  initialState: string;
+  states: readonly string[];
+  nodeBindings: readonly SolidInteractionNodeBinding[];
+}>;
+
 export type SolidAssetBlueprint = Readonly<{
   representation: 'solid';
   id: string;
@@ -92,6 +120,7 @@ export type SolidAssetBlueprint = Readonly<{
   materials: readonly SolidMaterialSpec[];
   colliders: readonly Collider3[];
   sockets: SocketMap3;
+  interactions: readonly SolidInteractionDefinition[];
 }>;
 
 export type SolidRecipeHeader = Readonly<{

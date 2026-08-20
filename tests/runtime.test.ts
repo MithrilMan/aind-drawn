@@ -8,6 +8,7 @@ import {
   SolidRig,
   SpriteRig,
   createCharacterBlueprint,
+  createBuildingIdentity,
   createCharacterRecipe,
   createPropBlueprint,
   createPropRecipe,
@@ -15,6 +16,7 @@ import {
   createSolidFaceRecipe,
   createCharacterIdentity,
   createSolidCharacterBlueprint,
+  createSolidBuildingBlueprint,
   type AssetBlueprint,
   type CanvasFactory,
 } from '../src/index.js';
@@ -161,7 +163,7 @@ describe('sprite rig runtime', () => {
     const gaitSamples: Readonly<{ left: number; right: number }>[] = Array.from(
       { length: 10 },
       (): Readonly<{ left: number; right: number }> => {
-        animator.update(0.05, { locomotion: 'walk', speed: 1 });
+        animator.update(0.05, { pose: 'walk', speed: 1 });
         return {
           left: rig.getBone('leg:left')?.rotation.z ?? 0,
           right: rig.getBone('leg:right')?.rotation.z ?? 0,
@@ -191,6 +193,22 @@ describe('sprite rig runtime', () => {
 });
 
 describe('solid rig runtime', () => {
+  it('applies representation-neutral interaction states to solid nodes', () => {
+    const blueprint = createSolidBuildingBlueprint(createBuildingIdentity(812, {
+      archetype: 'townhouse', width: 5.6, height: 7.2,
+    }));
+    const rig = new SolidRig(blueprint);
+    const door = rig.getNode('door');
+    expect(rig.interactionIds).toEqual(['door']);
+    expect(rig.getInteractionState('door')).toBe('closed');
+    expect(door?.rotation.y).toBeCloseTo(0);
+    rig.setInteractionState('door', 'open');
+    expect(rig.getInteractionState('door')).toBe('open');
+    expect(Math.abs(door?.rotation.y ?? 0)).toBeGreaterThan(1);
+    expect(() => { rig.setInteractionState('door', 'missing'); }).toThrow(RangeError);
+    rig.dispose();
+  });
+
   it('builds semantic meshes and animates the rest pose without geometry rebuilds', () => {
     const blueprint = createSolidFaceBlueprint(createSolidFaceRecipe(404, {
       species: 'human', shape: 'round', finish: 'ceramic',
@@ -239,7 +257,7 @@ describe('solid rig runtime', () => {
     animator.update(0.12);
     expect(head?.position.distanceTo(headBefore ?? new THREE.Vector3())).toBeGreaterThan(0);
     for (let index = 0; index < 8; index += 1) {
-      animator.update(0.05, { locomotion: 'walk', speed: 1 });
+      animator.update(0.05, { pose: 'walk', speed: 1 });
     }
     expect(Math.abs(rig.getNode('leg:left')?.rotation.x ?? 0)).toBeGreaterThan(0.1);
     expect(rig.getNode('leg:right')?.rotation.x).toBeCloseTo(

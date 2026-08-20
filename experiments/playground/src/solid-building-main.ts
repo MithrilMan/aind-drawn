@@ -4,14 +4,18 @@ import * as THREE from 'three';
 
 import {
   InkedSolidPass,
+  InkedSolidStrokeRig,
   SolidRig,
   createBuildingIdentity,
   createInkedSolidBlueprint,
+  inkedSolidMediumDefaults,
   createRasterBuildingBlueprint,
   createRasterBuildingRecipe,
   createSolidBuildingBlueprint,
+  createSolidBuildingInkStrokes,
   type AssetBlueprint,
   type BuildingArchetype,
+  type MediumId,
   type RoofStyle,
   type SolidFinishId,
 } from '../../../src/index.js';
@@ -39,11 +43,13 @@ const heightInput = requiredElement('[name="height"]') as HTMLInputElement;
 const roofInput = requiredElement('[name="roof"]') as HTMLSelectElement;
 const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
 const renderStyleInput = requiredElement('[name="renderStyle"]') as HTMLSelectElement;
+const mediumInput = requiredElement('[name="medium"]') as HTMLSelectElement;
 const lineWeightInput = requiredElement('[name="lineWeight"]') as HTMLSelectElement;
 const hatchingInput = requiredElement('[name="hatching"]') as HTMLInputElement;
 const lineBoilInput = requiredElement('[name="lineBoil"]') as HTMLInputElement;
 const doorStateInput = requiredElement('[name="doorState"]') as HTMLSelectElement;
 const rasterImage = requiredElement('[data-raster-preview]') as HTMLImageElement;
+const rasterMedium = requiredElement('[data-raster-medium]') as HTMLElement;
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -78,26 +84,40 @@ scene.add(floor);
 const thumbnailRenderer = new BlueprintThumbnailRenderer({ width: 220, height: 220 });
 let rig: SolidRig | null = null;
 let inkedPass: InkedSolidPass | null = null;
+let strokeRig: InkedSolidStrokeRig | null = null;
 let rasterBlueprint: AssetBlueprint | null = null;
 let rotationX = -0.08;
 let rotationY = -0.36;
 
 function updateInkedRendering(): void {
   if (rig === null) return;
+  const medium = mediumInput.value as MediumId;
+  const defaults = inkedSolidMediumDefaults(medium);
   const boil = lineBoilInput.checked;
+  hatchingInput.disabled = defaults.hatching === null;
+  hatchingInput.closest('label')?.toggleAttribute('hidden', defaults.hatching === null);
   const blueprint = createInkedSolidBlueprint(rig.blueprint, {
+    medium,
     contour: {
-      width: Number(lineWeightInput.value),
-      jitter: boil ? 0.34 : 0,
-      boilFramesPerSecond: boil ? 6 : 0,
+      width: defaults.contour.width * Number(lineWeightInput.value),
+      jitter: boil ? defaults.contour.jitter : 0,
+      boilFramesPerSecond: boil ? defaults.contour.boilFramesPerSecond : 0,
     },
-    hatching: hatchingInput.checked ? {
-      jitter: boil ? 0.025 : 0,
-      boilFramesPerSecond: boil ? 5 : 0,
-    } : null,
+    ...(hatchingInput.checked && defaults.hatching !== null ? {
+      hatching: {
+        jitter: boil ? defaults.hatching.jitter : 0,
+        boilFramesPerSecond: boil ? defaults.hatching.boilFramesPerSecond : 0,
+      },
+    } : { hatching: null }),
+    strokes: createSolidBuildingInkStrokes(rig.blueprint),
   });
+  strokeRig?.dispose();
   if (inkedPass === null) inkedPass = new InkedSolidPass(renderer, blueprint);
   else inkedPass.setBlueprint(blueprint);
+  strokeRig = new InkedSolidStrokeRig(blueprint, rig);
+  const inked = renderStyleInput.value === 'inked';
+  strokeRig.visible = inked;
+  finishInput.disabled = inked;
   inkedPass.setSize(
     Math.max(1, viewport?.clientWidth ?? 1),
     Math.max(1, viewport?.clientHeight ?? 1),
@@ -105,7 +125,9 @@ function updateInkedRendering(): void {
   );
   const stats = root?.querySelector<HTMLElement>('[data-render-stats]');
   if (stats !== null && stats !== undefined) {
-    const style = renderStyleInput.value === 'inked' ? 'inked-solid' : 'smooth solid';
+    const style = inked
+      ? `${blueprint.strokes.length} strokes / ${medium} doodle 3D`
+      : 'smooth solid';
     stats.textContent = `${rig.blueprint.parts.length} meshes / ${style}`;
   }
 }
@@ -158,6 +180,8 @@ function updateContract(): void {
 }
 
 function rebuild(): void {
+  strokeRig?.dispose();
+  strokeRig = null;
   rig?.root.removeFromParent();
   rig?.dispose();
   const identity = createBuildingIdentity(Number(seedInput.value) || 0, {
@@ -166,7 +190,11 @@ function rebuild(): void {
     height: Number(heightInput.value),
     ...(roofInput.value === '' ? {} : { roof: roofInput.value as RoofStyle }),
   });
-  rasterBlueprint = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity));
+  rasterBlueprint = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity, {
+    medium: mediumInput.value as MediumId,
+  }));
+  rasterMedium.textContent = `${mediumInput.selectedOptions[0]?.textContent ?? 'Medium'} / same medium and identity`;
+  rasterImage.alt = `${mediumInput.selectedOptions[0]?.textContent ?? 'Hand-drawn'} rendering of the same generated building identity`;
   rig = new SolidRig(createSolidBuildingBlueprint(identity, {
     finish: finishInput.value as SolidFinishId,
   }));
@@ -189,11 +217,13 @@ function rebuild(): void {
 }
 
 for (const input of [
-  seedInput, archetypeInput, widthInput, heightInput, roofInput, finishInput,
+  seedInput, archetypeInput, widthInput, heightInput, roofInput, finishInput, mediumInput,
 ]) {
   input.addEventListener('change', rebuild);
 }
-for (const input of [renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput]) {
+for (const input of [
+  renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput,
+]) {
   input.addEventListener('change', updateInkedRendering);
 }
 doorStateInput.addEventListener('change', () => {
@@ -250,8 +280,9 @@ function animate(time: number): void {
 function dispose(): void {
   cancelAnimationFrame(frame);
   observer.disconnect();
-  rig?.dispose();
+  strokeRig?.dispose();
   inkedPass?.dispose();
+  rig?.dispose();
   thumbnailRenderer.dispose();
   floorGeometry.dispose();
   floorMaterial.dispose();

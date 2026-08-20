@@ -5,6 +5,7 @@ import {
   CharacterAnimator,
   SolidCharacterAnimator,
   SolidFaceAnimator,
+  InkedSolidStrokeRig,
   SolidRig,
   SpriteRig,
   createCharacterBlueprint,
@@ -15,6 +16,8 @@ import {
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
   createCharacterIdentity,
+  createInkedSolidBlueprint,
+  createSolidCharacterInkStrokes,
   createSolidCharacterBlueprint,
   createSolidBuildingBlueprint,
   type AssetBlueprint,
@@ -193,6 +196,33 @@ describe('sprite rig runtime', () => {
 });
 
 describe('solid rig runtime', () => {
+  it('parents semantic ink strokes to their owning animated solid parts', () => {
+    const solid = createSolidCharacterBlueprint(createCharacterIdentity(818, {
+      hairStyle: 'cap',
+    }));
+    const inked = createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
+      strokes: createSolidCharacterInkStrokes(solid),
+    });
+    const rig = new SolidRig(solid);
+    const strokes = new InkedSolidStrokeRig(inked, rig);
+    expect(strokes.strokeIds).toEqual(expect.arrayContaining([
+      'face:cheek:left', 'face:cheek:right', 'clothing:collar-seam',
+    ]));
+    expect(rig.getPart('head')?.children.some(
+      ({ name }) => name === 'stroke:face:cheek:left',
+    )).toBe(true);
+    expect(rig.getPart('body:torso')?.children.some(
+      ({ name }) => name === 'stroke:clothing:collar-seam',
+    )).toBe(true);
+    strokes.visible = false;
+    expect(strokes.visible).toBe(false);
+    strokes.dispose();
+    expect(rig.getPart('head')?.children.some(({ name }) => name.startsWith('stroke:')))
+      .toBe(false);
+    rig.dispose();
+  });
+
   it('applies representation-neutral interaction states to solid nodes', () => {
     const blueprint = createSolidBuildingBlueprint(createBuildingIdentity(812, {
       archetype: 'townhouse', width: 5.6, height: 7.2,

@@ -4,18 +4,22 @@ import * as THREE from 'three';
 
 import {
   InkedSolidPass,
+  InkedSolidStrokeRig,
   SolidCharacterAnimator,
   SolidRig,
   createCharacterIdentity,
   createInkedSolidBlueprint,
+  inkedSolidMediumDefaults,
   createRasterCharacterBlueprint,
   createSolidCharacterBlueprint,
+  createSolidCharacterInkStrokes,
   type CharacterEyeStyle,
   type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentitySpecies,
   type CharacterMotion,
   type CharacterPose,
+  type MediumId,
   type SolidFaceExpression,
   type SolidFinishId,
 } from '../../../src/index.js';
@@ -71,6 +75,7 @@ const eyeStyleInput = requiredElement('[name="eyeStyle"]') as HTMLSelectElement;
 const hairStyleInput = requiredElement('[name="hairStyle"]') as HTMLSelectElement;
 const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
 const renderStyleInput = requiredElement('[name="renderStyle"]') as HTMLSelectElement;
+const mediumInput = requiredElement('[name="medium"]') as HTMLSelectElement;
 const lineWeightInput = requiredElement('[name="lineWeight"]') as HTMLSelectElement;
 const hatchingInput = requiredElement('[name="hatching"]') as HTMLInputElement;
 const lineBoilInput = requiredElement('[name="lineBoil"]') as HTMLInputElement;
@@ -88,9 +93,11 @@ const speedOutput = requiredElement('[data-speed-output]') as HTMLOutputElement;
 const motionStatus = requiredElement('[data-motion-status]') as HTMLElement;
 const motionStatusRow = requiredElement('[data-motion-status-row]') as HTMLElement;
 const rasterCanvas = requiredElement('[data-raster-preview]') as HTMLCanvasElement;
+const rasterMedium = requiredElement('[data-raster-medium]') as HTMLElement;
 
 let rig: SolidRig | null = null;
 let inkedPass: InkedSolidPass | null = null;
+let strokeRig: InkedSolidStrokeRig | null = null;
 let animator: SolidCharacterAnimator | null = null;
 let rotationX = 0;
 let rotationY = 0;
@@ -99,20 +106,33 @@ const rasterPreview = new CharacterRasterPreview(rasterCanvas);
 
 function updateInkedRendering(): void {
   if (rig === null) return;
+  const medium = mediumInput.value as MediumId;
+  const defaults = inkedSolidMediumDefaults(medium);
   const boil = lineBoilInput.checked;
+  hatchingInput.disabled = defaults.hatching === null;
+  hatchingInput.closest('label')?.toggleAttribute('hidden', defaults.hatching === null);
   const blueprint = createInkedSolidBlueprint(rig.blueprint, {
+    medium,
     contour: {
-      width: Number(lineWeightInput.value),
-      jitter: boil ? 0.34 : 0,
-      boilFramesPerSecond: boil ? 6 : 0,
+      width: defaults.contour.width * Number(lineWeightInput.value),
+      jitter: boil ? defaults.contour.jitter : 0,
+      boilFramesPerSecond: boil ? defaults.contour.boilFramesPerSecond : 0,
     },
-    hatching: hatchingInput.checked ? {
-      jitter: boil ? 0.025 : 0,
-      boilFramesPerSecond: boil ? 5 : 0,
-    } : null,
+    ...(hatchingInput.checked && defaults.hatching !== null ? {
+      hatching: {
+        jitter: boil ? defaults.hatching.jitter : 0,
+        boilFramesPerSecond: boil ? defaults.hatching.boilFramesPerSecond : 0,
+      },
+    } : { hatching: null }),
+    strokes: createSolidCharacterInkStrokes(rig.blueprint),
   });
+  strokeRig?.dispose();
   if (inkedPass === null) inkedPass = new InkedSolidPass(renderer, blueprint);
   else inkedPass.setBlueprint(blueprint);
+  strokeRig = new InkedSolidStrokeRig(blueprint, rig);
+  const inked = renderStyleInput.value === 'inked';
+  strokeRig.visible = inked;
+  finishInput.disabled = inked;
   inkedPass.setSize(
     Math.max(1, viewport?.clientWidth ?? 1),
     Math.max(1, viewport?.clientHeight ?? 1),
@@ -120,7 +140,9 @@ function updateInkedRendering(): void {
   );
   const stats = root?.querySelector<HTMLElement>('[data-render-stats]');
   if (stats !== null && stats !== undefined) {
-    const style = renderStyleInput.value === 'inked' ? 'inked-solid' : 'smooth solid';
+    const style = inked
+      ? `${blueprint.strokes.length} strokes / ${medium} doodle 3D`
+      : 'smooth solid';
     stats.textContent = `${rig.blueprint.parts.length} meshes / ${style}`;
   }
 }
@@ -199,6 +221,8 @@ function updateContract(): void {
 }
 
 function rebuild(): void {
+  strokeRig?.dispose();
+  strokeRig = null;
   rig?.root.removeFromParent();
   rig?.dispose();
   const identity = createCharacterIdentity(Number(seedInput.value) || 0, {
@@ -220,9 +244,10 @@ function rebuild(): void {
   animator = new SolidCharacterAnimator(rig, { autoGaze: autoGazeInput.checked });
   animator.setExpression(expressionInput.value as SolidFaceExpression);
   rasterPreview.setBlueprint(
-    createRasterCharacterBlueprint(identity, { medium: 'graphite' }),
+    createRasterCharacterBlueprint(identity, { medium: mediumInput.value as MediumId }),
     { autoGaze: autoGazeInput.checked },
   );
+  rasterMedium.textContent = `${mediumInput.selectedOptions[0]?.textContent ?? 'Medium'} / same medium and pose`;
   rasterPreview.setExpression(expressionInput.value as SolidFaceExpression);
   const identityValues: Readonly<Record<string, string>> = {
     '[data-identity-seed]': String(identity.seed),
@@ -243,11 +268,13 @@ function rebuild(): void {
 }
 
 for (const input of [
-  seedInput, speciesInput, shapeInput, eyeStyleInput, hairStyleInput, finishInput,
+  seedInput, speciesInput, shapeInput, eyeStyleInput, hairStyleInput, finishInput, mediumInput,
 ]) {
   input.addEventListener('change', rebuild);
 }
-for (const input of [renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput]) {
+for (const input of [
+  renderStyleInput, lineWeightInput, hatchingInput, lineBoilInput,
+]) {
   input.addEventListener('change', updateInkedRendering);
 }
 framingInput.addEventListener('change', frameCharacter);
@@ -335,8 +362,9 @@ function animate(time: number): void {
 function dispose(): void {
   cancelAnimationFrame(frame);
   observer.disconnect();
-  rig?.dispose();
+  strokeRig?.dispose();
   inkedPass?.dispose();
+  rig?.dispose();
   rasterPreview.dispose();
   floorGeometry.dispose();
   floorMaterial.dispose();

@@ -12,6 +12,7 @@ const requiredExports = [
   'SpriteRig',
   'SolidRig',
   'InkedSolidPass',
+  'InkedSolidStrokeRig',
   'SolidCharacterAnimator',
   'createCharacterBlueprint',
   'createCharacterIdentity',
@@ -31,6 +32,9 @@ const requiredExports = [
   'createSolidCharacterBlueprint',
   'createSolidCharacterFaceBlueprint',
   'createInkedSolidBlueprint',
+  'inkedSolidMediumDefaults',
+  'createSolidCharacterInkStrokes',
+  'createSolidBuildingInkStrokes',
   'propDefinition',
 ];
 
@@ -63,9 +67,13 @@ assert.ok(building.sockets['door:entry'], 'Compiled building is missing its entr
 const solidBuilding = library.createSolidBuildingBlueprint(buildingIdentity);
 assert.equal(solidBuilding.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
 assert.ok(solidBuilding.parts.some(({ id }) => id === 'building:roof'), 'Compiled solid building is missing its roof volume');
-const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding);
+const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding, {
+  medium: 'graphite',
+  strokes: library.createSolidBuildingInkStrokes(solidBuilding),
+});
 assert.equal(inkedBuilding.solid, solidBuilding, 'Inked solids must retain the source solid blueprint');
 assert.equal(inkedBuilding.representation, 'inked-solid');
+assert.ok(inkedBuilding.strokes.length > 0, 'Compiled inked building is missing semantic strokes');
 
 const crateDefinition = library.propDefinition('crate');
 assert.equal(crateDefinition.kind, 'crate');

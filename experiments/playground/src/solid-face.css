@@ -63,6 +63,7 @@ h1 { font-size: 42px; line-height: .9; }
 .control-heading button { border: 1px solid #8e4f3d; background: transparent; padding: 5px 7px; cursor: pointer; font-size: 9px; text-transform: uppercase; }
 .lab-controls > label { display: grid; gap: 6px; margin: 0 0 13px; font-size: 10px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 .lab-controls input[type='number'], .lab-controls select { width: 100%; height: 34px; border: 1px solid #9c9283; border-radius: 0; background: #faf5e9; padding: 0 9px; }
+.lab-controls select:disabled { cursor: not-allowed; opacity: .45; background: #e9e0d0; }
 .lab-controls .check-row { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 8px; margin-top: 18px; }
 .check-row input { accent-color: #8e4f3d; }
 .motion-panel, .ink-panel { min-width: 0; margin: 19px -3px 0; border: 0; border-top: 1px dashed #887d6e; padding: 15px 3px 0; }

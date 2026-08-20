@@ -2,9 +2,10 @@ import * as THREE from 'three';
 
 import type { InkedSolidBlueprint } from '../assets/inked-solid/blueprint.js';
 import type { RgbColor } from '../core/sketch.js';
+import type { MediumId } from '../materials/medium.js';
 
 type InkedUniforms = {
-  beautyTexture: { value: THREE.Texture };
+  albedoTexture: { value: THREE.Texture };
   normalTexture: { value: THREE.Texture };
   positionTexture: { value: THREE.Texture };
   depthTexture: { value: THREE.DepthTexture };
@@ -18,6 +19,13 @@ type InkedUniforms = {
   contourJitter: { value: number };
   contourFrame: { value: number };
   contourSeed: { value: number };
+  fillPigmentStrength: { value: number };
+  fillShadeStrength: { value: number };
+  fillShadeSteps: { value: number };
+  fillVariationStrength: { value: number };
+  fillVariationScale: { value: number };
+  fillTextureMode: { value: number };
+  fillSeed: { value: number };
   hatchColor: { value: THREE.Color };
   hatchScale: { value: number };
   hatchStrength: { value: number };
@@ -32,6 +40,24 @@ type InkedUniforms = {
   paperGrain: { value: number };
   paperSeed: { value: number };
 };
+
+type MaterialOwner = {
+  material: THREE.Material | THREE.Material[];
+};
+
+type MaterialSwap = Readonly<{
+  mesh: MaterialOwner;
+  material: THREE.Material | THREE.Material[];
+}>;
+
+const FILL_TEXTURE_MODE: Readonly<Record<MediumId, number>> = Object.freeze({
+  graphite: 0,
+  ink: 1,
+  watercolor: 2,
+  oil: 3,
+  chalk: 4,
+  marker: 5,
+});
 
 const FULLSCREEN_VERTEX = /* glsl */`
   varying vec2 inkedUv;
@@ -60,7 +86,7 @@ const LOCAL_POSITION_FRAGMENT = /* glsl */`
 `;
 
 const COMPOSITE_FRAGMENT = /* glsl */`
-  uniform sampler2D beautyTexture;
+  uniform sampler2D albedoTexture;
   uniform sampler2D normalTexture;
   uniform sampler2D positionTexture;
   uniform sampler2D depthTexture;
@@ -74,6 +100,13 @@ const COMPOSITE_FRAGMENT = /* glsl */`
   uniform float contourJitter;
   uniform float contourFrame;
   uniform float contourSeed;
+  uniform float fillPigmentStrength;
+  uniform float fillShadeStrength;
+  uniform float fillShadeSteps;
+  uniform float fillVariationStrength;
+  uniform float fillVariationScale;
+  uniform float fillTextureMode;
+  uniform float fillSeed;
   uniform vec3 hatchColor;
   uniform float hatchScale;
   uniform float hatchStrength;
@@ -122,15 +155,26 @@ const COMPOSITE_FRAGMENT = /* glsl */`
 
   float hatchLine(vec2 point, float angle, float phase) {
     vec2 direction = vec2(cos(angle), sin(angle));
+    vec2 tangent = vec2(-direction.y, direction.x);
     float pencilWander = (valueNoise(point * 0.19 + vec2(phase, angle * 3.1)) - 0.5) * 0.18;
     float coordinate = dot(point, direction) + phase + pencilWander;
     float distanceToLine = abs(fract(coordinate) - 0.5);
     float antialias = max(fwidth(coordinate) * 0.8, 0.006);
-    return 1.0 - smoothstep(
+    float line = 1.0 - smoothstep(
       hatchLineWidth - antialias,
       hatchLineWidth + antialias,
       distanceToLine
     );
+    float segmentCoordinate = dot(point, tangent) * 0.55 + phase * 0.37;
+    float segmentAmount = fract(segmentCoordinate);
+    float segment = smoothstep(0.06, 0.18, segmentAmount)
+      * (1.0 - smoothstep(0.72, 0.92, segmentAmount));
+    float keep = smoothstep(
+      0.28,
+      0.64,
+      hash21(vec2(floor(coordinate), floor(segmentCoordinate)) + phase)
+    );
+    return line * segment * keep;
   }
 
   float triplanarHatch(vec3 localPosition, vec3 localNormal, float angle, float phase) {
@@ -140,6 +184,40 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     return hatchLine(point.yz, angle, phase) * weight.x
       + hatchLine(point.xz, angle, phase + 0.31) * weight.y
       + hatchLine(point.xy, angle, phase + 0.67) * weight.z;
+  }
+
+  float triplanarNoise(vec3 localPosition, vec3 localNormal, float scale, float phase) {
+    vec3 weight = pow(abs(localNormal), vec3(4.0));
+    weight /= max(weight.x + weight.y + weight.z, 0.0001);
+    vec3 point = localPosition * scale;
+    return valueNoise(point.yz + phase) * weight.x
+      + valueNoise(point.xz + phase * 1.37) * weight.y
+      + valueNoise(point.xy + phase * 1.91) * weight.z;
+  }
+
+  float brushBands(vec2 point, float phase) {
+    float wander = (valueNoise(point * 0.18 + phase) - 0.5) * 0.9;
+    float band = sin((point.x + point.y * 0.16 + wander) * 6.2831853) * 0.5 + 0.5;
+    float brokenPass = valueNoise(point * vec2(0.12, 0.48) + phase * 1.7);
+    return mix(0.5, band, 0.38) + (brokenPass - 0.5) * 0.32;
+  }
+
+  float triplanarBrush(vec3 localPosition, vec3 localNormal, float scale, float phase) {
+    vec3 weight = pow(abs(localNormal), vec3(4.0));
+    weight /= max(weight.x + weight.y + weight.z, 0.0001);
+    vec3 point = localPosition * scale;
+    return brushBands(point.yz, phase) * weight.x
+      + brushBands(point.xz, phase + 0.37) * weight.y
+      + brushBands(point.xy, phase + 0.71) * weight.z;
+  }
+
+  float triplanarSpeckle(vec3 localPosition, vec3 localNormal, float scale, float phase) {
+    vec3 weight = pow(abs(localNormal), vec3(4.0));
+    weight /= max(weight.x + weight.y + weight.z, 0.0001);
+    vec3 point = localPosition * scale * 7.2;
+    return valueNoise(point.yz + phase) * weight.x
+      + valueNoise(point.xz + phase * 1.37) * weight.y
+      + valueNoise(point.xy + phase * 1.91) * weight.z;
   }
 
   void main() {
@@ -153,9 +231,11 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     vec2 edgeStep = pixel * contourWidth;
 
     float centerDepth = sampledDepth(sampleUv);
+    float stableDepth = sampledDepth(inkedUv);
     float depthDifference = 0.0;
     float normalDifference = 0.0;
     vec3 centerNormal = sampledNormal(sampleUv);
+    vec3 stableNormal = sampledNormal(inkedUv);
     vec2 offsets[4];
     offsets[0] = vec2(edgeStep.x, 0.0);
     offsets[1] = vec2(-edgeStep.x, 0.0);
@@ -182,15 +262,85 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     );
     float contour = max(depthEdge, normalEdge) * contourOpacity;
 
-    vec4 beauty = texture2D(beautyTexture, inkedUv);
-    float surface = step(centerDepth, 9.0e5);
-    vec3 localPosition = texture2D(positionTexture, sampleUv).xyz;
+    vec4 albedo = texture2D(albedoTexture, inkedUv);
+    float surface = step(stableDepth, 9.0e5);
+    vec3 localPosition = texture2D(positionTexture, inkedUv).xyz;
     vec3 localNormal = normalize(cross(dFdx(localPosition), dFdy(localPosition)));
+    vec3 doodleLight = normalize(vec3(-0.38, 0.58, 0.72));
+    float diffuse = clamp(dot(stableNormal, doodleLight), 0.0, 1.0);
+    float shadeLevels = max(1.0, fillShadeSteps - 1.0);
+    float steppedDiffuse = floor(diffuse * shadeLevels + 0.5) / shadeLevels;
+    float shapeTone = mix(1.0, 0.72 + steppedDiffuse * 0.28, fillShadeStrength);
+    float fillNoise = triplanarNoise(
+      localPosition,
+      localNormal,
+      fillVariationScale,
+      fillSeed * 31.0
+    );
+    float fineNoise = triplanarNoise(
+      localPosition,
+      localNormal,
+      fillVariationScale * 4.3,
+      fillSeed * 47.0 + 0.31
+    );
+    float brush = triplanarBrush(
+      localPosition,
+      localNormal,
+      fillVariationScale,
+      fillSeed * 17.0
+    );
+    float speckle = triplanarSpeckle(
+      localPosition,
+      localNormal,
+      fillVariationScale,
+      fillSeed * 83.0
+    );
+    float mediumVariation = fillNoise - 0.5;
+    float pigmentDarkening = 0.0;
+    if (fillTextureMode < 0.5) {
+      // Graphite: porous coverage and visible paper tooth.
+      mediumVariation = (fillNoise - 0.5) * 0.45 + (fineNoise - 0.5) * 0.8;
+      pigmentDarkening = max(0.0, 0.5 - fineNoise) * 0.08;
+    } else if (fillTextureMode < 1.5) {
+      // Ink: mostly continuous fill with small pooling irregularities.
+      mediumVariation = (fillNoise - 0.5) * 0.35 + (fineNoise - 0.5) * 0.2;
+      pigmentDarkening = smoothstep(0.56, 0.9, fillNoise) * 0.08;
+    } else if (fillTextureMode < 2.5) {
+      // Watercolour: broad overlapping washes, not pencil hatching.
+      float wash = triplanarNoise(
+        localPosition,
+        localNormal,
+        fillVariationScale * 0.52,
+        fillSeed * 61.0 + 0.73
+      );
+      mediumVariation = (fillNoise - 0.5) * 0.82 + (wash - 0.5) * 1.18;
+      pigmentDarkening = smoothstep(0.58, 0.9, wash) * 0.14;
+    } else if (fillTextureMode < 3.5) {
+      // Oil: dense pigment with directional bristle marks.
+      mediumVariation = (brush - 0.5) * 0.7 + (fillNoise - 0.5) * 0.28;
+      pigmentDarkening = (1.0 - brush) * 0.085;
+    } else if (fillTextureMode < 4.5) {
+      // Chalk: coarse granular pickup with frequent paper gaps.
+      mediumVariation = (fineNoise - 0.5) * 0.38
+        + (fillNoise - 0.5) * 0.2
+        + (speckle - 0.5) * 0.84;
+      pigmentDarkening = max(0.0, speckle - 0.64) * 0.08;
+    } else {
+      // Marker: translucent parallel passes and overlap bands.
+      mediumVariation = (brush - 0.5) * 0.42 + (fillNoise - 0.5) * 0.18;
+      pigmentDarkening = smoothstep(0.76, 0.96, brush) * 0.025;
+    }
+    float pigmentCoverage = clamp(
+      fillPigmentStrength + mediumVariation * fillVariationStrength,
+      0.0,
+      1.0
+    );
+    vec3 pigment = albedo.rgb * shapeTone * (1.0 - pigmentDarkening);
     float hatchBoil = valueNoise(
       localPosition.xy * 0.73 + vec2(hatchFrame * 1.17, hatchSeed * 19.0)
     ) - 0.5;
     float hatchPhase = hatchSeed * 23.0 + hatchBoil * hatchJitter * hatchScale;
-    float luminance = dot(beauty.rgb, vec3(0.2126, 0.7152, 0.0722));
+    float luminance = dot(pigment, vec3(0.2126, 0.7152, 0.0722));
     float darkness = 1.0 - luminance;
     float firstFamily = triplanarHatch(localPosition, localNormal, 0.72, hatchPhase);
     float secondFamily = triplanarHatch(localPosition, localNormal, -0.76, hatchPhase + 0.43);
@@ -199,14 +349,16 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float hatch = clamp(firstFamily * firstAmount + secondFamily * secondAmount, 0.0, 1.0)
       * hatchStrength * surface;
 
-    vec3 color = mix(beauty.rgb, paperColor, paperTint * surface);
-    float grain = hash21(gl_FragCoord.xy + vec2(paperSeed * 97.0, paperSeed * 53.0)) - 0.5;
+    vec3 color = mix(albedo.rgb, mix(paperColor, pigment, pigmentCoverage), surface);
+    color = mix(color, paperColor, paperTint * surface);
+    float grain = valueNoise(
+      gl_FragCoord.xy / 3.2 + vec2(paperSeed * 97.0, paperSeed * 53.0)
+    ) - 0.5;
     color = clamp(color + grain * paperGrain * surface, 0.0, 1.0);
     color = mix(color, hatchColor, hatch);
     color = mix(color, contourColor, contour);
-    float alpha = max(beauty.a, contour);
+    float alpha = max(albedo.a, contour);
     gl_FragColor = vec4(color, alpha);
-    #include <tonemapping_fragment>
     #include <colorspace_fragment>
   }
 `;
@@ -240,7 +392,7 @@ function createTarget(
  * marks stay attached while semantic nodes animate or the asset rotates.
  */
 export class InkedSolidPass {
-  private readonly beautyTarget: THREE.WebGLRenderTarget;
+  private readonly albedoTarget: THREE.WebGLRenderTarget;
   private readonly normalTarget: THREE.WebGLRenderTarget;
   private readonly positionTarget: THREE.WebGLRenderTarget;
   private readonly normalMaterial = new THREE.MeshNormalMaterial({
@@ -257,6 +409,7 @@ export class InkedSolidPass {
   private readonly compositeGeometry = new THREE.PlaneGeometry(2, 2);
   private readonly compositeScene = new THREE.Scene();
   private readonly compositeCamera = new THREE.Camera();
+  private readonly albedoMaterials = new Map<THREE.Material, THREE.MeshBasicMaterial>();
   private blueprint: InkedSolidBlueprint;
   private disposed = false;
 
@@ -265,12 +418,12 @@ export class InkedSolidPass {
     blueprint: InkedSolidBlueprint,
   ) {
     this.blueprint = blueprint;
-    this.beautyTarget = createTarget(1, 1, {
+    this.albedoTarget = createTarget(1, 1, {
       depthBuffer: true,
       stencilBuffer: false,
     });
-    this.beautyTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
-    this.beautyTarget.depthTexture.format = THREE.DepthFormat;
+    this.albedoTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
+    this.albedoTarget.depthTexture.format = THREE.DepthFormat;
     this.normalTarget = createTarget(1, 1, { depthBuffer: true, stencilBuffer: false });
     this.positionTarget = createTarget(1, 1, {
       depthBuffer: true,
@@ -278,10 +431,10 @@ export class InkedSolidPass {
       type: THREE.HalfFloatType,
     });
     this.uniforms = {
-      beautyTexture: { value: this.beautyTarget.texture },
+      albedoTexture: { value: this.albedoTarget.texture },
       normalTexture: { value: this.normalTarget.texture },
       positionTexture: { value: this.positionTarget.texture },
-      depthTexture: { value: this.beautyTarget.depthTexture },
+      depthTexture: { value: this.albedoTarget.depthTexture },
       resolution: { value: new THREE.Vector2(1, 1) },
       projectionInverse: { value: new THREE.Matrix4() },
       contourColor: { value: new THREE.Color() },
@@ -292,6 +445,13 @@ export class InkedSolidPass {
       contourJitter: { value: 0 },
       contourFrame: { value: 0 },
       contourSeed: { value: 0 },
+      fillPigmentStrength: { value: 0.84 },
+      fillShadeStrength: { value: 0.24 },
+      fillShadeSteps: { value: 4 },
+      fillVariationStrength: { value: 0.14 },
+      fillVariationScale: { value: 3.6 },
+      fillTextureMode: { value: 0 },
+      fillSeed: { value: 0 },
       hatchColor: { value: new THREE.Color() },
       hatchScale: { value: 1 },
       hatchStrength: { value: 0 },
@@ -313,7 +473,7 @@ export class InkedSolidPass {
       depthTest: false,
       depthWrite: false,
       blending: THREE.NoBlending,
-      toneMapped: true,
+      toneMapped: false,
     });
     const quad = new THREE.Mesh(this.compositeGeometry, this.compositeMaterial);
     quad.frustumCulled = false;
@@ -324,7 +484,8 @@ export class InkedSolidPass {
   public setBlueprint(blueprint: InkedSolidBlueprint): void {
     this.assertAlive();
     this.blueprint = blueprint;
-    const { contour, hatching, paper } = blueprint;
+    const { contour, fill, hatching, paper } = blueprint;
+    this.disposeAlbedoMaterials();
     this.uniforms.contourColor.value.copy(colorFromRgb(contour.color));
     this.uniforms.contourWidth.value = contour.width;
     this.uniforms.contourOpacity.value = contour.opacity;
@@ -332,6 +493,13 @@ export class InkedSolidPass {
     this.uniforms.normalThreshold.value = contour.normalThreshold;
     this.uniforms.contourJitter.value = contour.jitter;
     this.uniforms.contourSeed.value = normalizedSeed(contour.seed);
+    this.uniforms.fillPigmentStrength.value = fill.pigmentStrength;
+    this.uniforms.fillShadeStrength.value = fill.shadeStrength;
+    this.uniforms.fillShadeSteps.value = fill.shadeSteps;
+    this.uniforms.fillVariationStrength.value = fill.variationStrength;
+    this.uniforms.fillVariationScale.value = fill.variationScale;
+    this.uniforms.fillTextureMode.value = FILL_TEXTURE_MODE[fill.texture];
+    this.uniforms.fillSeed.value = normalizedSeed(fill.seed);
     this.uniforms.hatchColor.value.copy(colorFromRgb(hatching?.color ?? contour.color));
     this.uniforms.hatchScale.value = hatching?.scale ?? 1;
     this.uniforms.hatchStrength.value = hatching?.strength ?? 0;
@@ -350,7 +518,7 @@ export class InkedSolidPass {
     this.assertAlive();
     const targetWidth = Math.max(1, Math.round(width * pixelRatio));
     const targetHeight = Math.max(1, Math.round(height * pixelRatio));
-    this.beautyTarget.setSize(targetWidth, targetHeight);
+    this.albedoTarget.setSize(targetWidth, targetHeight);
     this.normalTarget.setSize(targetWidth, targetHeight);
     this.positionTarget.setSize(targetWidth, targetHeight);
     this.uniforms.resolution.value.set(targetWidth, targetHeight);
@@ -377,11 +545,16 @@ export class InkedSolidPass {
     try {
       this.renderer.xr.enabled = false;
       this.renderer.autoClear = true;
-      scene.overrideMaterial = null;
-      this.renderer.setRenderTarget(this.beautyTarget);
-      this.renderer.render(scene, camera);
-
       this.renderer.shadowMap.autoUpdate = false;
+      scene.overrideMaterial = null;
+      const swaps = this.applyAlbedoMaterials(scene);
+      try {
+        this.renderer.setRenderTarget(this.albedoTarget);
+        this.renderer.render(scene, camera);
+      } finally {
+        this.restoreMaterials(swaps);
+      }
+
       scene.background = null;
       scene.fog = null;
       scene.overrideMaterial = this.normalMaterial;
@@ -408,7 +581,7 @@ export class InkedSolidPass {
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.beautyTarget.dispose();
+    this.albedoTarget.dispose();
     this.normalTarget.dispose();
     this.positionTarget.dispose();
     this.normalMaterial.dispose();
@@ -416,6 +589,64 @@ export class InkedSolidPass {
     this.compositeGeometry.dispose();
     this.compositeMaterial.dispose();
     this.compositeScene.clear();
+    this.disposeAlbedoMaterials();
+  }
+
+  private applyAlbedoMaterials(
+    scene: THREE.Scene,
+  ): readonly MaterialSwap[] {
+    const swaps: MaterialSwap[] = [];
+    scene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const mesh = object as MaterialOwner;
+      const material = mesh.material;
+      swaps.push(Object.freeze({ mesh, material }));
+      mesh.material = Array.isArray(material)
+        ? material.map((entry) => this.albedoMaterial(entry))
+        : this.albedoMaterial(material);
+    });
+    return swaps;
+  }
+
+  private restoreMaterials(
+    swaps: readonly MaterialSwap[],
+  ): void {
+    for (const { mesh, material } of swaps) mesh.material = material;
+  }
+
+  private albedoMaterial(source: THREE.Material): THREE.MeshBasicMaterial {
+    const cached = this.albedoMaterials.get(source);
+    if (cached !== undefined) return cached;
+    const surface = source as THREE.Material & Readonly<{
+      color?: THREE.Color;
+      map?: THREE.Texture | null;
+      alphaMap?: THREE.Texture | null;
+      vertexColors?: boolean;
+      fog?: boolean;
+    }>;
+    const material = new THREE.MeshBasicMaterial({
+      color: surface.color?.clone() ?? new THREE.Color(0xffffff),
+      map: surface.map ?? null,
+      alphaMap: surface.alphaMap ?? null,
+      vertexColors: surface.vertexColors,
+      fog: surface.fog ?? true,
+      opacity: source.opacity,
+      transparent: source.transparent,
+      alphaTest: source.alphaTest,
+      side: source.side,
+      depthTest: source.depthTest,
+      depthWrite: source.depthWrite,
+      visible: source.visible,
+      toneMapped: false,
+    });
+    material.colorWrite = source.colorWrite;
+    this.albedoMaterials.set(source, material);
+    return material;
+  }
+
+  private disposeAlbedoMaterials(): void {
+    for (const material of this.albedoMaterials.values()) material.dispose();
+    this.albedoMaterials.clear();
   }
 
   private assertAlive(): void {

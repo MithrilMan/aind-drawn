@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  MEDIUM_IDS,
   Random,
   SeedTree,
   buildCharacterLayout,
@@ -17,6 +18,7 @@ import {
   createCharacterBlueprint,
   createCharacterRecipe,
   createInkedSolidBlueprint,
+  inkedSolidMediumDefaults,
   createPlantBlueprint,
   createPlantRecipe,
   createPlatformBlueprint,
@@ -29,8 +31,10 @@ import {
   createRasterCharacterRecipe,
   createSolidCharacterFaceBlueprint,
   createSolidCharacterBlueprint,
+  createSolidCharacterInkStrokes,
   createSolidCharacterRecipe,
   createSolidBuildingBlueprint,
+  createSolidBuildingInkStrokes,
   createSolidBuildingRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
@@ -457,33 +461,104 @@ describe('asset contracts', () => {
   it('adds one renderer-neutral ink policy to different solid asset families', () => {
     const characterSolid = createSolidCharacterBlueprint(createCharacterIdentity(304));
     const buildingSolid = createSolidBuildingBlueprint(createBuildingIdentity(304));
-    const characterInk = createInkedSolidBlueprint(characterSolid);
-    const buildingInk = createInkedSolidBlueprint(buildingSolid);
+    const characterInk = createInkedSolidBlueprint(characterSolid, {
+      medium: 'graphite',
+      strokes: createSolidCharacterInkStrokes(characterSolid),
+    });
+    const buildingInk = createInkedSolidBlueprint(buildingSolid, {
+      medium: 'graphite',
+      strokes: createSolidBuildingInkStrokes(buildingSolid),
+    });
 
     expect(characterInk.representation).toBe('inked-solid');
     expect(characterInk.solid).toBe(characterSolid);
     expect(buildingInk.solid).toBe(buildingSolid);
     expect(characterInk.contour).toEqual(buildingInk.contour);
     expect(characterInk.hatching).toEqual(buildingInk.hatching);
+    expect(characterInk.fill).toEqual(buildingInk.fill);
+    expect(characterInk.strokes.length).toBeGreaterThan(0);
+    expect(buildingInk.strokes.length).toBeGreaterThan(0);
+    expect(characterInk.strokes.every(({ partId }) => (
+      characterSolid.parts.some(({ id }) => id === partId)
+    ))).toBe(true);
+    expect(buildingInk.strokes.some(({ id }) => id.startsWith('facade:floor-seam'))).toBe(true);
     expect(JSON.parse(JSON.stringify(characterInk))).toEqual(characterInk);
     expect(Object.isFrozen(characterInk)).toBe(true);
     expect(Object.isFrozen(characterInk.contour.color)).toBe(true);
   });
 
+  it('projects every raster medium into a distinct volumetric drawing policy', () => {
+    const identity = createCharacterIdentity(304);
+    const solid = createSolidCharacterBlueprint(identity);
+    const projections = MEDIUM_IDS.map((medium) => {
+      const raster = createRasterCharacterBlueprint(identity, { medium });
+      const inked = createInkedSolidBlueprint(solid, { medium });
+      expect(raster.medium).toBe(medium);
+      expect(inked.medium).toBe(medium);
+      expect(inked.fill.texture).toBe(medium);
+      expect(inkedSolidMediumDefaults(medium)).toBe(inkedSolidMediumDefaults(medium));
+      expect(Object.isFrozen(inkedSolidMediumDefaults(medium))).toBe(true);
+      expect(Object.isFrozen(inkedSolidMediumDefaults(medium).contour.color)).toBe(true);
+      return JSON.stringify({
+        contour: inked.contour,
+        fill: inked.fill,
+        hatching: inked.hatching,
+        paper: inked.paper,
+      });
+    });
+    expect(new Set(projections).size).toBe(MEDIUM_IDS.length);
+  });
+
   it('validates ink policies without mutating solid semantics', () => {
     const solid = createSolidBuildingBlueprint(createBuildingIdentity(902));
     const withoutHatching = createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
       contour: { width: 2.2, jitter: 0 },
       hatching: null,
     });
     expect(withoutHatching.hatching).toBeNull();
     expect(withoutHatching.contour.width).toBe(2.2);
     expect(withoutHatching.solid.parts).toBe(solid.parts);
-    expect(() => createInkedSolidBlueprint(solid, { contour: { width: 0 } }))
+    expect(() => createInkedSolidBlueprint(solid, {
+      medium: 'graphite', contour: { width: 0 },
+    }))
       .toThrow(/width/i);
     expect(() => createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
       hatching: { shadowStart: 0.8, crossHatchStart: 0.3 },
     })).toThrow(/crossHatchStart/i);
+    expect(() => createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
+      strokes: [{
+        id: 'missing-owner', partId: 'missing', radius: 0.01,
+        path: { type: 'part-local', points: [[0, 0, 0], [1, 0, 0]] },
+      }],
+    })).toThrow(/unknown part/i);
+    expect(() => createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
+      strokes: [{
+        id: 'invalid-loop', partId: 'door', radius: 0.01, closed: true,
+        path: { type: 'part-local', points: [[0, 0, 0], [1, 0, 0]] },
+      }],
+    })).toThrow(/at least three/i);
+  });
+
+  it('keeps doodle fill and strokes independent from smooth physical finish', () => {
+    const identity = createCharacterIdentity(321, { hairStyle: 'cap' });
+    const matte = createSolidCharacterBlueprint(identity, { finish: 'matte' });
+    const metal = createSolidCharacterBlueprint(identity, { finish: 'metal' });
+    const matteInk = createInkedSolidBlueprint(matte, {
+      medium: 'graphite',
+      strokes: createSolidCharacterInkStrokes(matte),
+    });
+    const metalInk = createInkedSolidBlueprint(metal, {
+      medium: 'graphite',
+      strokes: createSolidCharacterInkStrokes(metal),
+    });
+    expect(matte.materials.some(({ finish }) => finish === 'matte')).toBe(true);
+    expect(metal.materials.some(({ finish }) => finish === 'metal')).toBe(true);
+    expect(matteInk.fill).toEqual(metalInk.fill);
+    expect(matteInk.strokes).toEqual(metalInk.strokes);
   });
 
   it('gives building archetypes distinct structural casting', () => {

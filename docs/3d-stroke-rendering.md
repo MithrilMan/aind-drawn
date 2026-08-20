@@ -7,11 +7,13 @@ representations of one semantic asset identity. A third, **inked-solid**
 representation can combine real volume with hand-authored marks, but it must
 not be implemented by projecting the raster sprite onto a mesh.
 
-The target look is built from three cooperating systems:
+The target look is built from four cooperating systems driven by the same
+`MediumId` vocabulary used by raster assets:
 
-1. semantic surface strokes attached to named parts;
-2. view-dependent contours and creases;
-3. seeded surface hatching with restrained temporal boil.
+1. physical-finish-independent doodle pigment;
+2. semantic surface strokes attached to named parts;
+3. view-dependent contours and creases;
+4. medium-specific seeded surface texture with restrained temporal boil.
 
 This keeps an eye line attached to the eye socket, a sleeve seam attached to
 the arm, a cornice attached to a facade, and a mouth expression attached to the
@@ -29,13 +31,14 @@ The inked-solid projection therefore separates the responsibilities:
 
 | Stroke source | Coordinate space | Typical use | Animation behaviour |
 | --- | --- | --- | --- |
+| Doodle fill | Part-local position and view normal | Graphite pickup, wash, bristle marks, chalk grain, or marker passes | Ignores PBR finish; follows the rendered surface |
 | Semantic stroke | Part-local surface coordinates | Mouth, eyelid, hair, seams, scars | Inherits the semantic node transform |
 | Contour pass | Screen space from depth and normals | Silhouette and selected creases | Recomputed for the active camera |
-| Hatch field | UV or triplanar object space | Graphite shading and material grain | Stable on the surface; seed controls boil |
+| Medium field | Triplanar object space | Graphite hatch, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Stable on the surface; seed controls boil |
 
-The generic contour and hatching systems are now implemented. Semantic surface
-strokes remain the next layer; they require an honest surface-coordinate model
-and must not be faked with triangulation edges.
+All four systems are implemented. Family adapters author semantic marks while
+the runtime remains asset-agnostic; marks are never inferred from triangulation
+edges.
 
 ## Implemented contract
 
@@ -59,34 +62,57 @@ type InkedSolidBlueprint = Readonly<{
   id: string;
   kind: string;
   seed: Seed;
+  medium: MediumId;
   solid: SolidAssetBlueprint;
   contour: InkedSolidContourPolicy;
+  fill: InkedSolidFillPolicy;
   hatching: InkedSolidHatchPolicy | null;
   paper: InkedSolidPaperPolicy;
+  strokes: readonly InkedSolidStrokeSpec[];
 }>;
 ```
 
-The policy is serialisable and contains no Three.js objects. Setting
-`hatching: null` disables graphite without changing the source solid. The
-runtime consumer is `InkedSolidPass`, used unchanged by both the character and
-building labs.
+The policy is serialisable and contains no Three.js objects. Medium is required:
+there is no second 3D-only drawing taxonomy and no implicit fallback hidden in
+the runtime. `inkedSolidMediumDefaults(medium)` compiles the shared medium into
+volumetric contour, coverage, surface, and paper policies; explicit options are
+advanced overrides. Setting `hatching: null` disables hatch families without
+changing the rest of the medium or the source solid. The runtime consumer is
+`InkedSolidPass`, used unchanged by both the character and building labs.
+
+```ts
+const raster = createRasterCharacterBlueprint(identity, { medium: 'watercolor' });
+const inked = createInkedSolidBlueprint(solid, {
+  medium: 'watercolor',
+  strokes: createSolidCharacterInkStrokes(solid),
+});
+```
 
 ## Rendering pipeline
 
-### 1. Semantic marks — next extension
+### 1. Doodle pigment
 
-The planned `SurfaceStrokeSpec` must identify a stable location on an authored
-primitive or mesh, not a Three.js world-space point. For a superellipsoid this
-can be a pair of surface parameters plus an offset; for a mesh it can be a
-triangle id and barycentric coordinates. The runtime will resolve narrow ribbon
-geometry slightly above the surface. Ribbons are the
-default because their width can remain approximately constant on screen;
-tubes are useful only when a stroke must read as physical wire or thick paint.
-Each mark has a stable seed, named owner, and local coordinates. Facial
-expressions switch semantic stroke variants exactly as the current solid mouth
-parts do.
+The pass temporarily replaces scene mesh materials with unlit albedo adapters
+that preserve semantic color, opacity, maps, and sidedness. It never renders
+the smooth solid's roughness, metalness, clearcoat, or specular response.
+Discrete normal-based volume shading, object-local medium coverage, paper tint,
+and coherent grain are then composed in the final shader. Graphite, ink,
+watercolor, oil, charcoal, and marker compile to distinct coverage functions.
+The same asset can therefore remain ceramic in `Smooth solid` and become a
+watercolor volume in `Doodle 3D` without changing identity or rebuilding geometry.
 
-### 2. Contours
+### 2. Semantic marks
+
+`InkedSolidStrokeSpec` has a stable ID and named owner part. A path is either
+explicit part-local points or superellipsoid surface directions plus a lift.
+The latter survives proportion and head-shape changes because the runtime
+resolves it against the owner's analytic surface. `InkedSolidStrokeRig` builds
+thin five-sided tubes and parents them directly to the owner mesh. These are
+deliberately real ink volumes: whiskers can leave a face, a collar seam follows
+an animated torso, and a door inset follows its hinge. Closed paths require at
+least three points, all owners are validated, and seeded wobble is stable.
+
+### 3. Contours
 
 `InkedSolidPass` renders beauty with depth, then a normal buffer. The composite
 shader detects relative view-depth discontinuities and normal creases. Line
@@ -94,14 +120,18 @@ width is screen-space and therefore remains legible as the camera moves.
 Seeded low-frequency displacement is quantised by the configured boil frame
 rate; independent noise every frame would be shimmer, not pencil.
 
-### 3. Graphite surface
+### 4. Medium surface
 
 The pass renders an additional half-float object-local position buffer. The
 composite shader derives the local surface normal from position derivatives and
-builds triplanar hatch families modulated by beauty luminance. This extra buffer
-is deliberate: screen- or world-space hatching would swim over a rotating limb
-or hinged door. Seeded wander breaks the mechanical grid, while the quantised
-boil remains stable between ticks.
+builds the selected medium field. Graphite and ink may add broken hatch
+families; watercolor uses broad low-frequency washes; oil and marker use
+directional bands; chalk uses coarse granular pickup. This extra buffer is
+deliberate: screen- or world-space marks would swim over a rotating limb or
+hinged door. Seeded wander breaks mechanical repetition, while quantised boil
+remains stable between ticks. Line-boil displacement applies only to contour
+lookup; albedo, surface membership, and local position remain stable. Moving the
+fill lookup would tear paper-colored gaps around overlapping semantic parts.
 
 ## 2.5D variant
 
@@ -116,13 +146,15 @@ inked solid.
 
 1. **Shipped:** one generic Three.js contour pass consuming any
    `SolidAssetBlueprint` through `InkedSolidBlueprint`.
-2. **Shipped:** stable object-local graphite hatching and quantised boil timing.
+2. **Shipped:** all six raster media projected into stable object-local fields,
+   with quantised boil timing.
 3. **Shipped proof:** the same runtime on a complete animated character and an
    interactive building.
-4. **Next:** semantic surface strokes on a character face and building facade.
-5. **Then:** extend stroke authoring to props and plants after those two proofs
-   validate the coordinate model.
+4. **Shipped:** physical-finish-independent doodle pigment.
+5. **Shipped:** semantic surface strokes on character face/body and building
+   facade/roof/door, including cat whiskers and articulated ownership.
+6. **Next:** extend semantic authoring to vehicles, props, and plants as those
+   solid families are introduced.
 
-The fifth step is deliberately last. Generalising stroke coordinates before those two proofs
-would produce a handsome type system for geometry nobody has successfully
-drawn yet.
+The runtime is already generic. New families add stroke recipes, not shader
+branches or renderer subclasses.

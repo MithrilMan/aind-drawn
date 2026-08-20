@@ -22,11 +22,21 @@ choice: a `SpriteRig` can live in a Three.js scene, while a `SolidRig` can be
 rendered orthographically in a 2.5D game.
 
 When an existing solid needs a three-dimensional hand-drawn projection, wrap
-its completed `SolidAssetBlueprint` with `createInkedSolidBlueprint`. Contour,
-hatching, paper tint, and boil timing are representation policy; they must not
+its completed `SolidAssetBlueprint` with `createInkedSolidBlueprint` and pass an
+explicit shared `MediumId`. Pigment,
+contour, semantic strokes, hatching, paper tint, and boil timing are representation policy; they must not
 reroll geometry or enter the family identity. The same public runtime is used
 for characters, buildings, vehicles, and props with real volume. Do not create
-a family-specific post-process shader.
+a family-specific post-process shader or a parallel set of 3D-only drawing
+media. Use `inkedSolidMediumDefaults` only when a consumer needs to derive an
+advanced override such as a line-weight multiplier.
+
+Author semantic strokes in the family adapter. Use a
+`superellipsoid-surface` path when the mark follows an analytic host and a
+`part-local` path when it belongs to a box, profile, mesh, or deliberately
+leaves the surface. Every stroke names its owner part. Do not store Three.js
+curves or world coordinates in the blueprint; `InkedSolidStrokeRig` resolves
+and parents the runtime geometry.
 
 Use the static prop registry when all of these are true:
 
@@ -128,6 +138,15 @@ identity data.
 - Keep inked-solid policy in `InkedSolidBlueprint`; screen-space contours belong
   to the camera pass and hatching coordinates must stay local to the rendered
   geometry so articulated parts do not swim through the marks.
+- Do not feed physical finish into doodle fill. Preserve semantic material
+  color, then let the inked runtime own paper pigment and volume shading.
+- Use the same `MediumId` for raster and inked-solid projections of one preview.
+  `skin`, `glass`, `metal`, and other physical finishes belong only to smooth
+  solid rendering; they are not drawing media and must not leak into doodle policy.
+- Add a new drawing medium once in `src/materials/medium.ts` and its volumetric
+  policy in `src/assets/inked-solid/medium-projection.ts`; add a new generic
+  shader field in `InkedSolidPass` only when its surface statistics cannot reuse
+  an existing one. Do not add asset-family-specific medium presets.
 
 The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
@@ -140,10 +159,13 @@ binds `closed` and `open` layer states; solid binds those states to the hinged
 3. Extend the serializable experiment document only for authored parameters.
 4. Add deterministic recipe tests and blueprint contract tests.
 5. Test state validation and animation in the runtime when applicable.
-6. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
-   and `InkedSolidPass.dispose()` when that representation is active.
-7. Run `pnpm verify`.
-8. Inspect representative seeds in the internal browser at every width the
+6. Test every public medium through both raster and inked-solid projections;
+   both outputs must retain the same `MediumId` and distinct deterministic policy.
+7. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
+   `InkedSolidPass.dispose()`, and `InkedSolidStrokeRig.dispose()` when that
+   representation is active. Dispose strokes before their owner solid rig.
+8. Run `pnpm verify`.
+9. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under

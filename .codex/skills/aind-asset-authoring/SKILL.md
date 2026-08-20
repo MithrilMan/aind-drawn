@@ -26,8 +26,9 @@ asset is architectural, modular, or needs a non-character multi-representation
 reference.
 
 For three-dimensional hand-drawn rendering, also read
-`docs/3d-stroke-rendering.md`, `src/assets/inked-solid/blueprint.ts`, and
-`src/runtime/inked-solid-pass.ts`. Ink policy wraps a completed solid blueprint;
+`docs/3d-stroke-rendering.md`, `src/assets/inked-solid/blueprint.ts`,
+`src/runtime/inked-solid-pass.ts`, and `src/runtime/inked-solid-stroke-rig.ts`.
+Ink policy wraps a completed solid blueprint;
 it is not a replacement solid family.
 
 For a character representation, also read
@@ -146,9 +147,25 @@ barrel only.
 - Dispose solid GPU resources through `SolidRig.dispose()`.
 - Wrap the exact solid blueprint with `createInkedSolidBlueprint`; never copy,
   reroll, or specialize its semantic geometry for the inked projection.
+- Pass an explicit shared `MediumId` to `createInkedSolidBlueprint`. Raster and
+  inked-solid previews of one asset must use the same medium. Never invent a
+  second 3D-only drawing-medium taxonomy.
 - Keep contours camera-dependent and hatch coordinates object-local. A hatch
   texture that swims while a node animates is a broken attachment, not style.
 - Reuse `InkedSolidPass` across asset families and dispose it explicitly.
+- Doodle fill preserves semantic albedo but bypasses smooth-solid roughness,
+  metalness, clearcoat, and specular response. Never disguise PBR as paper with
+  a post-process tint.
+- Treat `SolidFinishId` and `MediumId` as orthogonal. Physical finishes such as
+  skin, glass, ceramic, or metal affect only smooth solid rendering. Add new
+  medium behaviour centrally in `src/materials/medium.ts` and
+  `src/assets/inked-solid/medium-projection.ts`; extend the generic
+  `InkedSolidPass` field only when necessary, never a family adapter.
+- Author semantic marks in the family adapter. Use superellipsoid surface
+  directions for analytic hosts and part-local points for boxes, profiles,
+  meshes, or paths that leave a surface. Always name and validate the owner part.
+- Resolve semantic marks through `InkedSolidStrokeRig`; parent them to the
+  owner mesh and dispose the stroke rig before `SolidRig`.
 - Do not add compatibility shims before a serialized recipe format has actually been released.
 - While the package remains greenfield and unpublished, update all call sites
   and delete obsolete contracts instead of adding legacy aliases or migrations.
@@ -174,6 +191,10 @@ Add tests that prove:
 - other families remain unchanged.
 - one inked-solid policy works on at least one organic and one architectural
   solid family without family-specific renderer branches.
+- physical finish changes smooth rendering without changing doodle fill or
+  semantic stroke data.
+- every public `MediumId` compiles to a deterministic raster and volumetric
+  policy with the same ID and a visibly distinct surface character.
 
 Run `pnpm verify`. Then inspect representative seeds in the in-app browser at
 every viewport class the experiment claims to support. For the current

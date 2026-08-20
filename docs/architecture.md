@@ -59,13 +59,13 @@ blueprint then describes how those decisions become renderable data:
 | --- | --- | --- |
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
 | Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
-| Inked solid | A smooth-solid blueprint plus deterministic contour, hatch, and paper policy | `InkedSolidPass` around `SolidRig` |
+| Inked solid | A smooth-solid blueprint plus doodle fill, semantic strokes, contour, hatch, and paper policy | `InkedSolidPass` and `InkedSolidStrokeRig` around `SolidRig` |
 
 The inked-solid projection is implemented as a representation adapter around
-the exact smooth-solid blueprint. It adds camera-derived contours and stable
-object-local surface hatching without copying geometry or semantic state.
-Authored semantic surface marks remain a separate extension because a mouth,
-seam, or cornice needs named ownership rather than edge detection. See
+the exact smooth-solid blueprint. It adds physical-finish-independent pigment,
+camera-derived contours, stable object-local surface hatching, and authored
+semantic marks without copying geometry or semantic state. A mouth, seam, or
+cornice has named ownership rather than being guessed by edge detection. See
 [`3d-stroke-rendering.md`](3d-stroke-rendering.md) for the rendering boundary.
 
 Three.js belongs to runtime adapters, not recipes or geometry contracts. A game
@@ -77,12 +77,12 @@ same boundary instead of pretending a voxel field is a smooth mesh recipe.
 CharacterIdentityRecipe
   ├─ RasterCharacterStyle -> CharacterRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidCharacterStyle  -> SolidCharacterRecipe -> SolidAssetBlueprint -> SolidRig
-                                                          └─ InkedSolidBlueprint -> InkedSolidPass
+                                                          └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
 
 BuildingIdentityRecipe
   ├─ RasterBuildingStyle  -> RasterBuildingRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidBuildingStyle   -> SolidBuildingRecipe  -> SolidAssetBlueprint -> SolidRig
-                                                          └─ InkedSolidBlueprint -> InkedSolidPass
+                                                          └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
 ```
 
 Identity includes spatial topology when it changes meaning across projections.
@@ -157,12 +157,17 @@ solid adapter emits facade volume, roof geometry, windows, spatial balconies,
 an articulated door node, matching colliders, and the same entry socket.
 
 `createInkedSolidBlueprint` wraps any `SolidAssetBlueprint` by reference and
-adds immutable drawing policy only. `InkedSolidPass` renders beauty, depth and
-normals, plus an object-local position buffer. The composite shader derives
+adds immutable drawing policy only. It requires the same `MediumId` used by
+raster recipes; `inkedSolidMediumDefaults` compiles that medium into volumetric
+coverage, surface marks, contour, and paper policy. Physical `SolidFinishId`
+remains an orthogonal smooth-rendering concern. `InkedSolidPass` renders unlit semantic
+albedo with depth, normals, and an object-local position buffer. The composite shader derives
 camera-dependent silhouettes and creases from depth/normals while building
-triplanar graphite from local coordinates. The marks therefore remain attached
-when a rig, limb, roof, or door moves. The pass owns and disposes its render
-targets, override materials, shader, and fullscreen geometry.
+medium-specific pigment and triplanar surface character from local coordinates. Smooth-solid
+roughness, metalness, and clearcoat never enter this path. `InkedSolidStrokeRig`
+resolves family-authored paths into small ink volumes parented to their owner
+parts, so marks remain attached when a rig, limb, roof, or door moves. Both
+runtimes own and dispose their generated GPU resources.
 
 Raster and solid character animators consume the same transient
 `CharacterMotion` vocabulary (`idle`, `walk`, `run`, `airborne`, `sit`, `sleep`,

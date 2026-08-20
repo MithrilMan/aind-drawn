@@ -45,7 +45,7 @@
               <option value="mansard">Mansard</option>
             </select>
           </label>
-          <label>Physical finish
+          <label>Smooth-solid finish
             <select name="finish">
               <option value="matte">Matte</option>
               <option value="ceramic">Ceramic</option>
@@ -57,20 +57,30 @@
             <legend>Three-dimensional drawing</legend>
             <label>Render style
               <select name="renderStyle">
-                <option value="inked">Hand-drawn 3D</option>
+                <option value="inked">Doodle 3D</option>
                 <option value="smooth">Smooth solid</option>
+              </select>
+            </label>
+            <label>Medium
+              <select name="medium">
+                <option value="graphite" selected>Graphite</option>
+                <option value="ink">Ink</option>
+                <option value="watercolor">Watercolor</option>
+                <option value="oil">Oil</option>
+                <option value="chalk">Charcoal</option>
+                <option value="marker">Marker</option>
               </select>
             </label>
             <label>Line weight
               <select name="lineWeight">
-                <option value="0.9">Fine</option>
-                <option value="1.35" selected>Regular</option>
-                <option value="2.1">Bold</option>
+                <option value="0.72">Fine</option>
+                <option value="1" selected>Regular</option>
+                <option value="1.55">Bold</option>
               </select>
             </label>
-            <label class="check-row"><input type="checkbox" name="hatching" checked><span>Surface hatching</span></label>
+            <label class="check-row"><input type="checkbox" name="hatching" checked><span>Hatched shading</span></label>
             <label class="check-row"><input type="checkbox" name="lineBoil" checked><span>Restrained line boil</span></label>
-            <small>One generic contour and graphite pass; no building-specific shader.</small>
+            <small>The selected 2D medium is projected onto the volume. Smooth physical finish is bypassed.</small>
           </fieldset>
           <label>Door state
             <select name="doorState">
@@ -89,7 +99,7 @@
           <canvas data-canvas></canvas>
           <figure class="raster-proof">
             <img data-raster-preview alt="Hand-drawn rendering of the same generated building identity">
-            <figcaption><strong>Same structure</strong><span>Raster adapter / shared identity</span></figcaption>
+            <figcaption><strong>Same structure</strong><span data-raster-medium>Graphite / same medium and identity</span></figcaption>
           </figure>
           <div class="axis-mark" aria-hidden="true"><i class="axis-y"></i><i class="axis-x"></i><span>Y</span><b>X</b></div>
         </div>

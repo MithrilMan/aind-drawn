@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   CharacterAnimator,
+  SolidCharacterAnimator,
   SolidFaceAnimator,
   SolidRig,
   SpriteRig,
@@ -12,6 +13,8 @@ import {
   createPropRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
+  createCharacterIdentity,
+  createSolidCharacterBlueprint,
   type AssetBlueprint,
   type CanvasFactory,
 } from '../src/index.js';
@@ -209,5 +212,33 @@ describe('solid rig runtime', () => {
     expect(pupil?.scale.x).toBeGreaterThan(1);
     rig.dispose();
     expect(rig.partIds).toEqual([]);
+  });
+
+  it('keeps a complete solid body articulated while the face animator targets the head', () => {
+    const blueprint = createSolidCharacterBlueprint(createCharacterIdentity(5150, {
+      species: 'cat', hairStyle: 'none',
+    }));
+    const rig = new SolidRig(blueprint);
+    const torso = rig.getNode('torso');
+    const head = rig.getNode('head');
+    const tail = rig.getPart('tail:4');
+    expect(torso).not.toBeNull();
+    expect(head?.parent).toBe(torso);
+    expect(rig.getNode('arm:left')?.parent).toBe(torso);
+    expect(tail?.quaternion.equals(new THREE.Quaternion())).toBe(false);
+
+    const headBefore = head?.position.clone();
+    const animator = new SolidCharacterAnimator(rig, { autoBlink: false, autoGaze: false });
+    animator.setGaze(1, 0.3, 1);
+    animator.update(0.12);
+    expect(head?.position.distanceTo(headBefore ?? new THREE.Vector3())).toBeGreaterThan(0);
+    for (let index = 0; index < 8; index += 1) {
+      animator.update(0.05, { locomotion: 'walk', speed: 1 });
+    }
+    expect(Math.abs(rig.getNode('leg:left')?.rotation.x ?? 0)).toBeGreaterThan(0.1);
+    expect(rig.getNode('leg:right')?.rotation.x).toBeCloseTo(
+      -(rig.getNode('leg:left')?.rotation.x ?? 0),
+    );
+    rig.dispose();
   });
 });

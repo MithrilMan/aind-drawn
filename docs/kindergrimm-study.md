@@ -101,7 +101,7 @@ Il port TypeScript irrigidisce questo modello:
 | Fase | Tipo pubblico | Responsabilità |
 | --- | --- | --- |
 | Identità | `CharacterIdentityRecipe`, `PropRecipe`, `SceneryRecipe` | dato semantico JSON completo e versionato |
-| Rappresentazione | `CharacterRecipe`, `SolidFaceRecipe` | medium, finitura e policy proprie della tecnica |
+| Rappresentazione | `CharacterRecipe`, `SolidCharacterRecipe` | medium, finitura e policy proprie della tecnica |
 | Geometria | layout e `AssetBlueprint` | layer, bone, bounds, socket e collider |
 | Raster | callback `LayerDefinition.draw` | segni Canvas 2D deterministici |
 | Runtime | `SpriteRig` | texture, piani, stati, animazione e disposal |
@@ -171,13 +171,14 @@ ricostruite durante l'animazione.
 Nel port questo diventa un confine pubblico, non un sottoprogetto gloss:
 
 - `CharacterIdentityRecipe` è la fonte semantica condivisa con la versione a matita;
-- `SolidFaceRecipe` aggiunge solo finitura, profondità e policy della rappresentazione;
+- `SolidCharacterRecipe` aggiunge solo finitura, profondità e policy della rappresentazione;
 - `SolidAssetBlueprint` contiene solo dati serializzabili;
 - `SolidGeometrySpec` descrive superellissoidi, profili estrusi e mesh;
 - `SurfaceAnchor` unifica punto, normale e roll;
 - `SolidMaterialSpec` dichiara ruolo cromatico e finitura fisica;
 - `SolidRig` è l'adapter Three.js e possiede le risorse GPU;
 - `SolidFaceAnimator` anima le parti semantiche senza rebuild.
+- `SolidCharacterAnimator` aggiunge locomozione e moto autonomico ai nodi del corpo.
 
 La scena fotografica, le softbox e il crowd layout restano fuori: sono politiche
 di presentazione. Il core conserva invece ciò che serve anche a un gioco 2.5D,
@@ -249,9 +250,12 @@ un layer outfit e mani colorate visibili. Il frame Rayman senza arti non è stat
 portato: funziona per statuine frontali, ma rimuoverebbe informazione proprio al
 rig destinato a locomozione e interazioni. `src/assets/character-identity`
 mantiene ora specie, palette, proporzioni e tratti facciali una sola volta;
-`src/assets/character` e `src/assets/solid-face` li proiettano rispettivamente
-nel raster a matita e sulla superficie volumetrica. Il runtime solido porta
-profili estrusi, materiali fisici, rig semantico e animazione facciale 3D.
+`src/assets/character` e `src/assets/solid-character` li proiettano
+rispettivamente nel raster a matita e in un rig volumetrico completo. Il
+componente `src/assets/solid-face` monta occhi, bocca, naso e capelli sulla
+superficie della testa ed è riusato anche dal blueprint completo. Il runtime
+solido porta profili estrusi, materiali fisici, articolazioni corporee,
+locomozione e animazione facciale 3D.
 
 Il packer fotografico resta documentato ma fuori dal core. Diventerà sensato
 quando il playground avrà un comando esplicito di auto-composizione basato sui

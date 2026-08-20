@@ -63,6 +63,7 @@ export class SolidFaceAnimator {
   private readonly definitions = new Map<string, SolidPartDefinition>();
   private readonly head: THREE.Group;
   private readonly headRest: THREE.Vector3;
+  private readonly faceUnit: number;
   private elapsed = 0;
   private nextBlink: number;
   private blinkProgress = -1;
@@ -90,6 +91,10 @@ export class SolidFaceAnimator {
     if (head === null) throw new Error('Solid face animator requires a head node');
     this.head = head;
     this.headRest = head.position.clone();
+    const headPart = rig.blueprint.parts.find((part) => part.id === 'head');
+    this.faceUnit = headPart?.geometry.type === 'superellipsoid'
+      ? headPart.geometry.radii[1]
+      : (rig.blueprint.bounds.maximum[1] - rig.blueprint.bounds.minimum[1]) * 0.5;
     this.nextBlink = 1 + this.random.float(0, 2.8);
     this.nextGaze = 0.8 + this.random.float(0, 3.2);
     for (const definition of rig.blueprint.parts) {
@@ -181,7 +186,7 @@ export class SolidFaceAnimator {
   private writePose(): void {
     const expression = EXPRESSIONS[this.expression];
     const blinkWave = this.blinkProgress < 0 ? 1 : 1 - Math.sin(this.blinkProgress * Math.PI);
-    const unit = (this.rig.blueprint.bounds.maximum[1] - this.rig.blueprint.bounds.minimum[1]) * 0.5;
+    const unit = this.faceUnit;
     for (const [id, definition] of this.definitions) {
       const mesh = this.rig.getPart(id);
       const rest = this.rest.get(id);

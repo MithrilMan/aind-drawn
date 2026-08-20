@@ -5,8 +5,9 @@ the foundation for a level editor. It does not import drawing internals.
 
 Run `pnpm dev` and open `http://127.0.0.1:4173/`. The focused Three.js consumer
 at `http://127.0.0.1:4173/solid-face.html` projects one shared character identity
-into a live hand-drawn raster preview and a smooth-solid face. It exposes the
-identity parameters and emitted semantic parts; scene lighting and drag
+into a live hand-drawn raster preview and a complete smooth-solid character.
+It exposes generated and explicit eye/hair variants, full-character and face
+framing, articulated nodes, and emitted semantic parts; scene lighting and drag
 controls remain experiment code.
 
 ## Available operations

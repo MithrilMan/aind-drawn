@@ -45,6 +45,28 @@
               <option value="wide">Wide</option>
             </select>
           </label>
+          <label>Eye style
+            <select name="eyeStyle">
+              <option value="">Generated from seed</option>
+              <option value="saucer">Saucer</option>
+              <option value="dot">Dot</option>
+              <option value="sleepy">Sleepy</option>
+              <option value="void">Void</option>
+              <option value="star">Star</option>
+            </select>
+          </label>
+          <label>Hair style
+            <select name="hairStyle">
+              <option value="">Generated from seed</option>
+              <option value="none">None</option>
+              <option value="cap">Cap</option>
+              <option value="bob">Bob</option>
+              <option value="fringe">Fringe</option>
+              <option value="spikes">Spikes</option>
+              <option value="tuft">Tuft</option>
+              <option value="crown">Crown</option>
+            </select>
+          </label>
           <label>Physical finish
             <select name="finish">
               <option value="skin">Skin</option>
@@ -53,6 +75,12 @@
               <option value="ceramic">Ceramic</option>
               <option value="rubber">Rubber</option>
               <option value="metal">Metal</option>
+            </select>
+          </label>
+          <label>Camera framing
+            <select name="framing">
+              <option value="full">Full character</option>
+              <option value="face">Face close-up</option>
             </select>
           </label>
           <label>Expression
@@ -66,12 +94,12 @@
           </label>
           <label class="check-row"><input type="checkbox" name="autoGaze" checked><span>Autonomous gaze</span></label>
           <div class="lab-note">
-            <strong>Inspect the volume</strong>
-            <p>Drag to rotate. The face remains attached to the generated surface; animation changes transforms only.</p>
+            <strong>Inspect the complete rig</strong>
+            <p>Drag to rotate. Body joints and facial features remain attached to semantic nodes; animation changes transforms only.</p>
           </div>
         </aside>
 
-        <div class="lab-viewport" data-viewport aria-label="Interactive three-dimensional solid face preview">
+        <div class="lab-viewport" data-viewport aria-label="Interactive three-dimensional solid character preview">
           <div class="viewport-label"><span>Perspective / +Z face</span><span data-render-stats>Building solid rig…</span></div>
           <canvas data-canvas></canvas>
           <figure class="raster-proof">
@@ -87,7 +115,7 @@
           <dl>
             <div><dt>Identity</dt><dd data-identity-seed>—</dd></div>
             <div><dt>Species</dt><dd data-identity-species>—</dd></div>
-            <div><dt>Head / eyes</dt><dd data-identity-features>—</dd></div>
+            <div><dt>Head / eyes / hair</dt><dd data-identity-features>—</dd></div>
             <div><dt>Nodes</dt><dd data-node-count>—</dd></div>
             <div><dt>Parts</dt><dd data-part-count>—</dd></div>
             <div><dt>Materials</dt><dd data-material-count>—</dd></div>

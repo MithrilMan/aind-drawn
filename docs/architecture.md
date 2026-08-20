@@ -64,7 +64,7 @@ same boundary instead of pretending a voxel field is a smooth mesh recipe.
 ```text
 CharacterIdentityRecipe
   ├─ RasterCharacterStyle -> CharacterRecipe -> AssetBlueprint -> SpriteRig
-  └─ SolidCharacterStyle  -> SolidFaceRecipe -> SolidAssetBlueprint -> SolidRig
+  └─ SolidCharacterStyle  -> SolidCharacterRecipe -> SolidAssetBlueprint -> SolidRig
 ```
 
 Representation layouts share normalized semantic intent, not coordinates. Eye
@@ -116,6 +116,7 @@ the head when its exponent changes from round to block-like.
 
 `SolidRig` resolves pure specifications to Three.js geometry and physical
 materials. Each semantic part remains an independent mesh. `SolidFaceAnimator`
-resets those meshes to their rest transforms before applying blink, gaze, head
-follow, and expression offsets, so animation never accumulates drift or
-rebuilds geometry. The rig owns and disposes all generated GPU resources.
+owns blink, gaze, head follow, and expression offsets; `SolidCharacterAnimator`
+adds rest-pose body nodes, locomotion, breathing, and tail motion. Both reset
+their targets before applying transforms, so animation never accumulates drift
+or rebuilds geometry. The rig owns and disposes all generated GPU resources.

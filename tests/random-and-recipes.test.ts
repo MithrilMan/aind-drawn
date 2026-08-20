@@ -5,6 +5,7 @@ import {
   SeedTree,
   buildCharacterLayout,
   buildPlantLayout,
+  buildSolidCharacterLayout,
   buildSolidFaceLayout,
   createCharacterIdentity,
   createCharacterBlueprint,
@@ -18,6 +19,7 @@ import {
   createRasterCharacterBlueprint,
   createRasterCharacterRecipe,
   createSolidCharacterFaceBlueprint,
+  createSolidCharacterBlueprint,
   createSolidCharacterRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
@@ -121,6 +123,53 @@ describe('deterministic generation', () => {
       .toBeCloseTo(solidLayout.shape.radii[0] / solidLayout.shape.radii[1]);
     expect(Object.isFrozen(identity.palette.skin)).toBe(true);
   });
+
+  it('keeps authored eye and hair overrides inside the shared identity', () => {
+    const identity = createCharacterIdentity(1618, {
+      species: 'creature',
+      eyeStyle: 'star',
+      alternateEyeStyle: 'dot',
+      hairStyle: 'bob',
+      mouthStyle: 'open',
+      outfitStyle: 'stripe',
+    });
+
+    expect(identity.eyes).toMatchObject({ style: 'star', alternateStyle: 'dot' });
+    expect(identity.hair.style).toBe('bob');
+    expect(identity.mouth.style).toBe('open');
+    expect(identity.outfit.style).toBe('stripe');
+    expect(createRasterCharacterRecipe(identity).identity).toBe(identity);
+    expect(createSolidCharacterRecipe(identity).identity).toBe(identity);
+  });
+
+  it('applies identity overrides without rerolling unrelated measurements', () => {
+    const generated = createCharacterIdentity(2048, { species: 'human' });
+    const authored = createCharacterIdentity(2048, {
+      species: 'human',
+      shape: generated.head.shape === 'wide' ? 'tall' : 'wide',
+      eyeStyle: generated.eyes.style === 'star' ? 'dot' : 'star',
+      alternateEyeStyle: null,
+      mouthStyle: generated.mouth.style === 'open' ? 'flat' : 'open',
+      hairStyle: generated.hair.style === 'bob' ? 'fringe' : 'bob',
+    });
+
+    expect(authored.head).toMatchObject({
+      wobble: generated.head.wobble,
+      tilt: generated.head.tilt,
+    });
+    expect(authored.eyes).toMatchObject({
+      spacing: generated.eyes.spacing,
+      size: generated.eyes.size,
+      verticalOffset: generated.eyes.verticalOffset,
+      glint: generated.eyes.glint,
+    });
+    expect(authored.mouth).toMatchObject({
+      width: generated.mouth.width,
+      verticalOffset: generated.mouth.verticalOffset,
+    });
+    expect(authored.hair.height).toBe(generated.hair.height);
+    expect(authored.body).toEqual(generated.body);
+  });
 });
 
 describe('asset contracts', () => {
@@ -207,6 +256,52 @@ describe('asset contracts', () => {
     const blueprint = createSolidFaceBlueprint(recipe);
     expect(blueprint.colliders[0]).toMatchObject({ shape: 'box', center: layout.center });
     expect(blueprint.sockets.face).toBeDefined();
+  });
+
+  it('builds a complete solid character from semantic nodes and one body layout', () => {
+    const identity = createCharacterIdentity(4107, {
+      species: 'cat', hairStyle: 'none', eyeStyle: 'saucer', alternateEyeStyle: null,
+    });
+    const recipe = createSolidCharacterRecipe(identity, { finish: 'matte' });
+    const layout = buildSolidCharacterLayout(recipe);
+    const blueprint = createSolidCharacterBlueprint(recipe);
+
+    expect(blueprint.kind).toBe('solid-character');
+    expect(blueprint.nodes.map(({ id }) => id)).toEqual(expect.arrayContaining([
+      'root', 'torso', 'head', 'arm:left', 'arm:right',
+      'leg:left', 'leg:right', 'tail',
+    ]));
+    expect(blueprint.parts.map(({ id }) => id)).toEqual(expect.arrayContaining([
+      'body:torso', 'arm:left', 'arm:right', 'hand:left', 'hand:right',
+      'leg:left', 'leg:right', 'foot:left', 'foot:right', 'head',
+      'ear:left', 'ear:right', 'muzzle:left', 'muzzle:right', 'tail:0',
+    ]));
+    expect(blueprint.sockets).toEqual(layout.sockets);
+    expect(blueprint.colliders.map(({ id }) => id)).toEqual(['body', 'head']);
+    expect(JSON.parse(JSON.stringify(blueprint))).toEqual(blueprint);
+  });
+
+  it('maps asymmetric eyes and every hair family without collapsing variants', () => {
+    const identity = createCharacterIdentity(99, {
+      species: 'creature',
+      eyeStyle: 'star',
+      alternateEyeStyle: 'dot',
+      hairStyle: 'fringe',
+    });
+    const blueprint = createSolidCharacterBlueprint(identity);
+    const ids = blueprint.parts.map(({ id }) => id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'eye:left:star', 'eye:right:pupil',
+      'hair:cap', 'hair:fringe:0',
+    ]));
+    expect(ids).not.toContain('eye:right:white');
+
+    const signatures = ['none', 'cap', 'bob', 'fringe', 'spikes', 'tuft', 'crown'].map(
+      (hairStyle) => createSolidCharacterBlueprint(createCharacterIdentity(99, {
+        hairStyle: hairStyle as typeof identity.hair.style,
+      })).parts.filter(({ id }) => id.startsWith('hair:')).map(({ id }) => id).join('|'),
+    );
+    expect(new Set(signatures).size).toBe(signatures.length);
   });
 
   it('provides gameplay geometry for props and scenery without reading pixels', () => {

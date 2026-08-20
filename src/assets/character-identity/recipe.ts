@@ -58,6 +58,11 @@ export type CharacterIdentityRecipe = Readonly<{
 export type CharacterIdentityOptions = Readonly<{
   species?: CharacterIdentitySpecies;
   shape?: CharacterHeadShape;
+  eyeStyle?: CharacterEyeStyle;
+  alternateEyeStyle?: CharacterEyeStyle | null;
+  mouthStyle?: CharacterMouthStyle;
+  hairStyle?: CharacterHairStyle;
+  outfitStyle?: CharacterOutfitStyle;
 }>;
 
 const HAIR_COLORS: readonly RgbColor[] = [
@@ -182,15 +187,20 @@ export function createCharacterIdentity(
   const outfitRandom = tree.random('character:outfit');
   const tailRandom = tree.random('character:tail');
   const detailsRandom = tree.random('character:face-details');
-  const eyeStyle = eyesRandom.weighted(casting.eyes);
+  const generatedEyeStyle = eyesRandom.weighted(casting.eyes);
+  const eyeStyle = options.eyeStyle ?? generatedEyeStyle;
   const isCreature = species === 'nightmare' || species === 'creature';
-  const headShape = options.shape ?? headRandom.weighted(casting.heads);
+  const generatedHeadShape = headRandom.weighted(casting.heads);
+  const headShape = options.shape ?? generatedHeadShape;
   const headWidthFactor = headShape === 'wide' ? 1.12 : headShape === 'tall' ? 0.9 : 1;
   const headHeightFactor = headShape === 'tall' ? 1.12 : headShape === 'wide' ? 0.92 : 1;
-  const alternateStyle = eyesRandom.chance(isCreature ? 0.55 : 0.22)
+  const generatedAlternateStyle = eyesRandom.chance(isCreature ? 0.55 : 0.22)
     ? eyesRandom.weighted(casting.eyes)
     : null;
-  const hairStyle = species === 'cat' || species === 'robot'
+  const alternateStyle = options.alternateEyeStyle !== undefined
+    ? options.alternateEyeStyle
+    : generatedAlternateStyle;
+  const generatedHairStyle = species === 'cat' || species === 'robot'
     ? 'none'
     : hairRandom.weighted<CharacterHairStyle>([
       { value: 'none', weight: 2 }, { value: 'cap', weight: 3 },
@@ -198,13 +208,16 @@ export function createCharacterIdentity(
       { value: 'spikes', weight: 2 }, { value: 'tuft', weight: 1 },
       { value: 'crown', weight: species === 'creature' ? 1 : 0 },
     ]);
-  const outfitStyle = species === 'cat'
+  const hairStyle = options.hairStyle ?? generatedHairStyle;
+  const generatedOutfitStyle = species === 'cat'
     ? 'plain'
     : outfitRandom.weighted<CharacterOutfitStyle>([
       { value: 'plain', weight: 5 }, { value: 'stripe', weight: 3 },
       { value: 'star', weight: 2 },
       { value: 'buttons', weight: species === 'human' || species === 'robot' ? 2 : 1 },
     ]);
+  const outfitStyle = options.outfitStyle ?? generatedOutfitStyle;
+  const generatedMouthStyle = mouthFor(species, mouthRandom);
 
   return Object.freeze({
     version: 1,
@@ -244,7 +257,7 @@ export function createCharacterIdentity(
       size: detailsRandom.float(0.08, 0.13),
     }),
     mouth: Object.freeze({
-      style: mouthFor(species, mouthRandom),
+      style: options.mouthStyle ?? generatedMouthStyle,
       width: mouthRandom.float(0.2, 0.43),
       verticalOffset: mouthRandom.float(0.28, 0.43),
     }),

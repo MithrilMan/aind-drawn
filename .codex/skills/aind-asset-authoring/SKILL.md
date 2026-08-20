@@ -19,7 +19,8 @@ Before editing, read:
 - `src/assets/types.ts`
 
 For a real-volume asset, also read `src/assets/solid-types.ts`,
-`src/core/geometry3.ts`, and the `src/assets/solid-face/` reference family.
+`src/core/geometry3.ts`, and the `src/assets/solid-character/` reference family.
+Read `src/assets/solid-face/` as the reusable surface-mounted feature component.
 
 For a character representation, also read
 `src/assets/character-identity/recipe.ts`. Character adapters must consume that

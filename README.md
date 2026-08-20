@@ -58,12 +58,12 @@ generation pipeline live in
 ```ts
 import {
   CharacterAnimator,
-  SolidFaceAnimator,
+  SolidCharacterAnimator,
   SolidRig,
   SpriteRig,
   createCharacterIdentity,
   createRasterCharacterBlueprint,
-  createSolidCharacterFaceBlueprint,
+  createSolidCharacterBlueprint,
 } from '@mithrilman/aind-drawn';
 
 const identity = createCharacterIdentity(4107, {
@@ -72,14 +72,14 @@ const identity = createCharacterIdentity(4107, {
 const rasterBlueprint = createRasterCharacterBlueprint(identity, {
   medium: 'graphite',
 });
-const solidBlueprint = createSolidCharacterFaceBlueprint(identity, {
+const solidBlueprint = createSolidCharacterBlueprint(identity, {
   finish: 'ceramic',
 });
 
 const drawing = new SpriteRig(rasterBlueprint, { boilFrames: 3 });
 const drawingAnimator = new CharacterAnimator(drawing);
 const solid = new SolidRig(solidBlueprint);
-const solidAnimator = new SolidFaceAnimator(solid);
+const solidAnimator = new SolidCharacterAnimator(solid);
 
 scene.add(drawing.root, solid.root);
 drawingAnimator.update(deltaSeconds, { pose: 'idle' });
@@ -88,6 +88,7 @@ solidAnimator.update(deltaSeconds);
 // Game state drives authored poses. Walk and run share one gait phase and
 // every transition crossfades over the autonomic breath, blink, gaze, and sway.
 drawingAnimator.update(deltaSeconds, { locomotion: 'run', speed: 0.9, facing: -1 });
+solidAnimator.update(deltaSeconds, { locomotion: 'run', speed: 0.9, facing: -1 });
 
 // The owner of the Three.js scene must release GPU resources.
 drawing.dispose();
@@ -98,7 +99,9 @@ solid.dispose();
 proportions, palette, face, hair, outfit, and appendages. Raster medium and
 physical finish belong to separate representation recipes. The compatibility
 factories `createCharacterRecipe` and `createSolidFaceRecipe` remain available
-when only one representation is needed.
+when only the focused raster or face representation is needed. The complete
+solid blueprint exposes articulated body nodes, face parts, outfit, tail,
+colliders, and sockets without importing Three.js into asset code.
 
 Raster blueprints contain draw callbacks and are rebuilt from recipes. Solid
 blueprints contain serialisable geometry specifications.

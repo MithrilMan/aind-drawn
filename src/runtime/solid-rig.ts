@@ -51,6 +51,12 @@ export class SolidRig {
         );
         mesh.quaternion.setFromRotationMatrix(matrix);
       }
+      if (part.placement.rotation !== undefined) {
+        const localRotation = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(...part.placement.rotation, 'XYZ'),
+        );
+        mesh.quaternion.multiply(localRotation);
+      }
       parent.add(mesh);
       this.parts.set(part.id, mesh);
     }

@@ -3,11 +3,13 @@ import './solid-face.css';
 import * as THREE from 'three';
 
 import {
-  SolidFaceAnimator,
+  SolidCharacterAnimator,
   SolidRig,
   createCharacterIdentity,
   createRasterCharacterBlueprint,
-  createSolidCharacterFaceBlueprint,
+  createSolidCharacterBlueprint,
+  type CharacterEyeStyle,
+  type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentitySpecies,
   type SolidFaceExpression,
@@ -61,15 +63,44 @@ function requiredElement(selector: string): Element {
 const seedInput = requiredElement('[name="seed"]') as HTMLInputElement;
 const speciesInput = requiredElement('[name="species"]') as HTMLSelectElement;
 const shapeInput = requiredElement('[name="shape"]') as HTMLSelectElement;
+const eyeStyleInput = requiredElement('[name="eyeStyle"]') as HTMLSelectElement;
+const hairStyleInput = requiredElement('[name="hairStyle"]') as HTMLSelectElement;
 const finishInput = requiredElement('[name="finish"]') as HTMLSelectElement;
+const framingInput = requiredElement('[name="framing"]') as HTMLSelectElement;
 const expressionInput = requiredElement('[name="expression"]') as HTMLSelectElement;
 const autoGazeInput = requiredElement('[name="autoGaze"]') as HTMLInputElement;
 
 let rig: SolidRig | null = null;
-let animator: SolidFaceAnimator | null = null;
+let animator: SolidCharacterAnimator | null = null;
 let rotationX = 0;
 let rotationY = 0;
 const thumbnailRenderer = new BlueprintThumbnailRenderer({ width: 180, height: 180 });
+
+function frameCharacter(): void {
+  const blueprint = rig?.blueprint;
+  if (blueprint === undefined) return;
+  const faceMode = framingInput.value === 'face';
+  const head = blueprint.parts.find((part) => part.id === 'head');
+  const headRadii = head?.geometry.type === 'superellipsoid'
+    ? head.geometry.radii
+    : [0.5, 0.5, 0.5] as const;
+  const centerY = faceMode
+    ? blueprint.sockets.head?.[1] ?? 1
+    : (blueprint.bounds.minimum[1] + blueprint.bounds.maximum[1]) * 0.5;
+  const halfHeight = faceMode
+    ? headRadii[1] * 1.55
+    : (blueprint.bounds.maximum[1] - blueprint.bounds.minimum[1]) * 0.58;
+  const halfWidth = faceMode
+    ? headRadii[0] * 1.55
+    : (blueprint.bounds.maximum[0] - blueprint.bounds.minimum[0]) * 0.58;
+  const verticalDistance = halfHeight / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5));
+  const horizontalDistance = halfWidth
+    / Math.tan(THREE.MathUtils.degToRad(camera.fov * 0.5))
+    / Math.max(0.5, camera.aspect);
+  const distance = Math.max(verticalDistance, horizontalDistance) * 1.12;
+  camera.position.set(0, centerY, distance);
+  camera.lookAt(0, centerY, 0);
+}
 
 function updateContract(): void {
   const blueprint = rig?.blueprint;
@@ -102,13 +133,20 @@ function rebuild(): void {
   const identity = createCharacterIdentity(Number(seedInput.value) || 0, {
     species: speciesInput.value as CharacterIdentitySpecies,
     shape: shapeInput.value as CharacterHeadShape,
+    ...(eyeStyleInput.value === '' ? {} : {
+      eyeStyle: eyeStyleInput.value as CharacterEyeStyle,
+      alternateEyeStyle: null,
+    }),
+    ...(hairStyleInput.value === '' ? {} : {
+      hairStyle: hairStyleInput.value as CharacterHairStyle,
+    }),
   });
-  rig = new SolidRig(createSolidCharacterFaceBlueprint(identity, {
+  rig = new SolidRig(createSolidCharacterBlueprint(identity, {
     finish: finishInput.value as SolidFinishId,
   }));
   rig.root.rotation.set(rotationX, rotationY, 0);
   scene.add(rig.root);
-  animator = new SolidFaceAnimator(rig, { autoGaze: autoGazeInput.checked });
+  animator = new SolidCharacterAnimator(rig, { autoGaze: autoGazeInput.checked });
   animator.setExpression(expressionInput.value as SolidFaceExpression);
   const rasterPreview = requiredElement('[data-raster-preview]') as HTMLImageElement;
   rasterPreview.src = thumbnailRenderer.render(
@@ -117,18 +155,24 @@ function rebuild(): void {
   const identityValues: Readonly<Record<string, string>> = {
     '[data-identity-seed]': String(identity.seed),
     '[data-identity-species]': identity.species,
-    '[data-identity-features]': `${identity.head.shape} / ${identity.eyes.style}`,
+    '[data-identity-features]': `${identity.head.shape} / ${identity.eyes.style}${
+      identity.eyes.alternateStyle === null ? '' : `→${identity.eyes.alternateStyle}`
+    } / ${identity.hair.style}`,
   };
   for (const [selector, value] of Object.entries(identityValues)) {
     const target = root?.querySelector<HTMLElement>(selector);
     if (target !== null && target !== undefined) target.textContent = value;
   }
   updateContract();
+  frameCharacter();
 }
 
-for (const input of [seedInput, speciesInput, shapeInput, finishInput]) {
+for (const input of [
+  seedInput, speciesInput, shapeInput, eyeStyleInput, hairStyleInput, finishInput,
+]) {
   input.addEventListener('change', rebuild);
 }
+framingInput.addEventListener('change', frameCharacter);
 expressionInput.addEventListener('change', () => {
   animator?.setExpression(expressionInput.value as SolidFaceExpression);
 });
@@ -165,6 +209,7 @@ const observer = new ResizeObserver(() => {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  frameCharacter();
 });
 observer.observe(viewport);
 

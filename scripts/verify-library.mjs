@@ -11,6 +11,7 @@ const library = await import(entryUrl.href);
 const requiredExports = [
   'SpriteRig',
   'SolidRig',
+  'SolidCharacterAnimator',
   'createCharacterBlueprint',
   'createCharacterIdentity',
   'createCharacterRecipe',
@@ -21,6 +22,7 @@ const requiredExports = [
   'createSceneryRecipe',
   'createSolidFaceBlueprint',
   'createSolidFaceRecipe',
+  'createSolidCharacterBlueprint',
   'createSolidCharacterFaceBlueprint',
   'propDefinition',
 ];

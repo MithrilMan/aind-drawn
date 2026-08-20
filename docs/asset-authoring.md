@@ -54,10 +54,12 @@ comes from the same stem geometry used by the drawing.
 `src/assets/character-identity` is the multi-representation reference. A single
 `CharacterIdentityRecipe` owns species, proportions, palette, facial features,
 hair, outfit, and body semantics. `src/assets/character` adds raster-medium
-policy, while `src/assets/solid-face` adds solid finish and depth policy. The
-solid layout places the shared facial intent on an analytic surface and its
-blueprint emits serialisable geometry and material roles. Three.js objects
-exist only after `SolidRig` consumes that blueprint.
+policy, while `src/assets/solid-character` adds solid finish, depth, body
+topology, articulated nodes, colliders, and sockets. `src/assets/solid-face`
+is the focused face projection reused by the complete character. The face
+layout places shared facial intent on an analytic surface and both blueprints
+emit serialisable geometry and material roles. Three.js objects exist only
+after `SolidRig` consumes a blueprint.
 
 ## Deterministic recipes
 

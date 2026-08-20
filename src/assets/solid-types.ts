@@ -40,6 +40,8 @@ export type SolidNodeDefinition = Readonly<{
 export type SolidPlacement = Readonly<{
   position: Point3;
   surface?: SurfaceAnchor;
+  /** Local Euler rotation applied after surface alignment, in XYZ order. */
+  rotation?: Point3;
 }>;
 
 export type SolidPartMotion = Readonly<{

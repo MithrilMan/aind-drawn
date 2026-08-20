@@ -8,6 +8,9 @@ import {
 } from '../../core/geometry3.js';
 import { clamp } from '../../core/geometry.js';
 import type { SolidFaceRecipe } from './recipe.js';
+import type { SolidCharacterRecipe } from '../solid-character/recipe.js';
+
+export type SolidFaceSourceRecipe = SolidFaceRecipe | SolidCharacterRecipe;
 
 export type SolidFaceLayout = Readonly<{
   shape: Superellipsoid;
@@ -22,12 +25,12 @@ export type SolidFaceLayout = Readonly<{
   at: (x: number, y: number, proud?: number, roll?: number) => SurfaceAnchor;
 }>;
 
-export function buildSolidFaceLayout(recipe: SolidFaceRecipe): SolidFaceLayout {
+export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLayout {
   const identity = recipe.identity;
   const radii: Point3 = [
-    identity.head.width,
-    identity.head.height,
-    recipe.style.depth,
+    identity.head.width * 0.5,
+    identity.head.height * 0.5,
+    recipe.style.depth * 0.5,
   ];
   const shape: Superellipsoid = Object.freeze({ radii, exponent: recipe.style.exponent });
   const center: Point3 = [0, radii[1], 0];

@@ -29,8 +29,8 @@ type InkedUniforms = {
   contourFrame: { value: number };
   contourSeed: { value: number };
   fillPigmentStrength: { value: number };
-  fillShadeStrength: { value: number };
-  fillShadeSteps: { value: number };
+  planeSeparationStrength: { value: number };
+  planeSeparationSteps: { value: number };
   fillVariationStrength: { value: number };
   fillVariationScale: { value: number };
   fillTextureMode: { value: number };
@@ -126,8 +126,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
   uniform float contourFrame;
   uniform float contourSeed;
   uniform float fillPigmentStrength;
-  uniform float fillShadeStrength;
-  uniform float fillShadeSteps;
+  uniform float planeSeparationStrength;
+  uniform float planeSeparationSteps;
   uniform float fillVariationStrength;
   uniform float fillVariationScale;
   uniform float fillTextureMode;
@@ -356,8 +356,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float partPhase = anchorData.b * 19.0;
     vec3 doodleLight = normalize(vec3(-0.38, 0.58, 0.72));
     float diffuse = clamp(dot(stableNormal, doodleLight), 0.0, 1.0);
-    float shadeLevels = max(1.0, fillShadeSteps - 1.0);
-    float steppedDiffuse = floor(diffuse * shadeLevels + 0.5) / shadeLevels;
+    float planeLevels = max(1.0, planeSeparationSteps - 1.0);
+    float steppedPlaneTone = floor(diffuse * planeLevels + 0.5) / planeLevels;
 
     // The owner anchor keeps marks attached during animation. Authored carrier
     // topology decides whether the visible normal may turn the drawing field:
@@ -376,19 +376,20 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float grazing = smoothstep(0.18, 0.92, 1.0 - abs(stableNormal.z));
     surfacePosition.x *= mix(1.0, 1.34, grazing * facetedResponse);
 
-    // Volume changes deposition density and stroke pressure, never the authored
-    // pigment RGB. Pigment beds remain restrained while visible gesture marks
-    // carry most of the light-versus-shadow separation.
-    float shadowAmount = 1.0 - steppedDiffuse;
+    // Pigment and gesture marks are deposited filler on smooth carriers, not
+    // fake illumination. Only authored faceted topology may use drawing light
+    // to separate adjacent planes; even there the authored RGB stays intact.
+    float opposedToDrawingLight = 1.0 - steppedPlaneTone;
+    float planeSeparation = opposedToDrawingLight * facetedResponse;
     float pigmentShapeDensity = mix(
       1.0,
-      1.0 + shadowAmount * 0.18,
-      fillShadeStrength
+      1.0 + planeSeparation * 0.18,
+      planeSeparationStrength
     );
     float markShapeDensity = mix(
       1.0,
-      1.0 + shadowAmount * 0.86,
-      fillShadeStrength
+      1.0 + planeSeparation * 0.86,
+      planeSeparationStrength
     );
     float fillNoise = viewNoise(
       depositedPosition,
@@ -500,6 +501,16 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       0.76,
       viewBrush(surfacePosition, markScale, surfacePhase)
     );
+    float bristlePickup = smoothstep(
+      0.3,
+      0.72,
+      viewNoise(
+        depositedPosition * vec2(0.31, 0.11),
+        markScale,
+        markPhase + 1.37
+      )
+    );
+    bristleMark *= mix(0.14, 1.0, bristlePickup);
     float solidMark = mix(
       0.72,
       1.0,
@@ -537,7 +548,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       // Watercolour is a broad translucent stain, not a sparse binary patch.
       pigmentBed *= mix(0.64, 1.0, fillNoise) * mix(0.82, 1.0, pigmentCoverage);
     } else if (fillTextureMode < 3.5) {
-      pigmentBed *= mix(0.88, 1.0, brush);
+      pigmentBed *= mix(0.96, 1.0, brush);
     } else if (fillTextureMode < 4.5) {
       pigmentBed *= mix(0.55, 1.0, smoothstep(0.16, 0.82, speckle));
     } else {
@@ -566,8 +577,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
         markScale * 0.46,
         surfacePhase + 0.57
       );
-      vec3 loaded = pigment * mix(0.48, 0.88, bristleTone);
-      vec3 dry = mix(pigment, paperColor, mix(0.08, 0.3, bristleTone));
+      vec3 loaded = pigment * mix(0.72, 1.0, bristleTone);
+      vec3 dry = clamp(pigment * mix(0.9, 1.14, bristleTone), 0.0, 1.0);
       gesturePigment = mix(loaded, dry, bristleTone);
     }
     color = mix(color, gesturePigment, clamp(depositedPigment, 0.0, 1.0));
@@ -687,8 +698,8 @@ export class InkedSolidPass {
       contourFrame: { value: 0 },
       contourSeed: { value: 0 },
       fillPigmentStrength: { value: 0.84 },
-      fillShadeStrength: { value: 0.24 },
-      fillShadeSteps: { value: 4 },
+      planeSeparationStrength: { value: 0.24 },
+      planeSeparationSteps: { value: 4 },
       fillVariationStrength: { value: 0.14 },
       fillVariationScale: { value: 3.6 },
       fillTextureMode: { value: 0 },
@@ -732,8 +743,8 @@ export class InkedSolidPass {
     this.uniforms.contourJitter.value = contour.jitter;
     this.uniforms.contourSeed.value = normalizedSeed(contour.seed);
     this.uniforms.fillPigmentStrength.value = deposition.pigmentStrength;
-    this.uniforms.fillShadeStrength.value = deposition.shadeStrength;
-    this.uniforms.fillShadeSteps.value = deposition.shadeSteps;
+    this.uniforms.planeSeparationStrength.value = deposition.planeSeparationStrength;
+    this.uniforms.planeSeparationSteps.value = deposition.planeSeparationSteps;
     this.uniforms.fillVariationStrength.value = deposition.variationStrength;
     this.uniforms.fillVariationScale.value = deposition.variationScale;
     this.uniforms.fillTextureMode.value = FILL_TEXTURE_MODE[deposition.texture];

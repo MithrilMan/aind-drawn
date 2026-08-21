@@ -144,10 +144,19 @@ Create one concept per file where the family needs it:
   or representation-only policy when a shared family identity already exists.
 - `layout.ts`: one derivation for part dimensions, bounds, sockets, and collider geometry.
 - `blueprint.ts`: stable named layers, joints, pivots, states, draw callbacks, colliders, sockets, and interactions.
+- `authoring.ts`: public semantic parameter metadata, defaults, choices, and
+  focused raster preview layer IDs when a generic editor must customize the family.
 - an animator under `src/runtime/` only for transient motion that is not authored recipe data.
 
 Export the family through `src/index.ts`. Make experiments depend on that public
 barrel only.
+
+An authoring schema describes safe identity inputs; it does not reflect over a
+generated blueprint. Use `AssetFamilyAuthoringSchema` and validate it at module
+load. Keep the factory adapter explicit because only the family knows how a
+parameter maps to recipe invariants. Generic editor shells may render the schema,
+defaults, and previews without branching on `character`, `building`, or future
+family IDs.
 
 ## Preserve invariants
 
@@ -158,6 +167,11 @@ barrel only.
 - Preserve feature topology and attachment across adapters; projection may lose
   visible dimensions, identity must not lose their meaning.
 - Share normalized intent across representations, not pixel or surface coordinates.
+- Treat facial decoration as shared semantic data. Eyelids, eye bags, wrinkles,
+  scars, and cheek marks belong to an identity-derived eye or face profile and
+  are emitted only by the styles that own them. Never add an unconditional
+  raster-only or solid-only face stroke, and never use adapter-local surface
+  coordinates as its source of truth.
 - Derive drawing and gameplay geometry from the same layout.
 - Keep independently stateful parts in independent layers.
 - Place pivots at physical joints.
@@ -181,14 +195,15 @@ barrel only.
   Camera movement must update projection continuously without random seed or
   colour changes at quantized thresholds.
 - Use the visible surface normal to rotate and foreshorten directional gesture
-  fields on explicitly faceted carrier topology and to vary mark density under
-  the discrete drawing light. Adjacent planes sharing a material must not
+  fields on explicitly faceted carrier topology and, only there, to vary mark
+  density under the discrete drawing light. Adjacent planes sharing a material must not
   receive one uniform screen-space hatch. Keep camera response continuous;
   never classify camera-facing planes into arbitrary style buckets that can
   flicker during rotation. Derive smooth-versus-faceted flow from authored
   geometry topology, not screen-space normal derivatives. Smooth meshes and
-  superellipsoids retain view-oriented 2D marks; normal response may change
-  density and pressure but must not bend their paths.
+  superellipsoids retain view-oriented 2D marks with light-invariant deposited
+  density: their geometry may occlude the marks, but it must not turn filler
+  into a simulated shadow field.
 - Preserve exact carrier geometry, colliders, sockets, and pivots. Put the
   doodle's imprecision in generic projection policy: static low-frequency
   contour wander and pressure variation, broken pickup, echoes, plus optional
@@ -198,9 +213,10 @@ barrel only.
   segment masks that turn one stroke into aligned dashes or apparent kinks;
   reserve complete breaks for authored marks with semantic intent.
 - Keep view-field frequency and phase invariant within one carrier region.
-  Drawing light may modulate pressure or opacity, or reveal an additional
-  fixed-frequency pass; never rescale or rephase the field per pixel because
-  quantized tone boundaries would become visible seams.
+  On faceted carriers, drawing light may modulate pressure or opacity, or reveal
+  an additional fixed-frequency pass; never rescale or rephase the field per
+  pixel because quantized tone boundaries would become visible seams. On smooth
+  carriers, treat medium marks as deposited filler and keep lighting out of them.
 - Let the shared medium compiler project material roles into mark styles. Hair,
   cloth, facade, glass, and unknown roles may require different deposition, but
   the generic renderer must never branch on an asset family or semantic part ID.
@@ -213,6 +229,11 @@ barrel only.
 - Calibrate inked-solid mark density and opacity against the shared raster
   medium's tone semantics and relative spacing. Test representative `light`,
   `hatch`, `scribble`, and `black` tones instead of tuning per-family scales.
+- Project each medium from its raster deposition operation, not from generic
+  tone labels alone. For example, Watercolour uses layered translucent coverage
+  without directional hatch, Ink keeps one restrained hatch vocabulary while
+  tone changes fill coverage, and Oil uses an opaque bed plus broken pigment
+  daubs. Do not reinterpret these filler operations as shadow bands.
 - Keep line boil on view-dependent contour passes. View-synthesized medium marks
   follow animated owner parts but never use boil frames; paper grain alone stays
   stationary in screen space.
@@ -247,6 +268,16 @@ barrel only.
   medium deposition.
 - Resolve semantic marks through `InkedSolidStrokeRig`; parent them to the
   owner mesh and dispose the stroke rig before `SolidRig`.
+- Put the complete attachment rule for secondary effects such as tears, drips,
+  sparks, smoke, or labels in the shared semantic profile. Store normalized
+  clearance there, then let every adapter account for its projected effect
+  extent so the visible tip or edge attaches to the intended feature; never
+  align only the effect centre with adapter-local literals.
+- Share temporal pose blending across raster and solid runtimes. A pose switch
+  must traverse the same normalized weights and transition duration in every
+  projection. When a planar gesture crosses a volumetric silhouette, articulate
+  the solid part around its real joint and move it in front of the carrier
+  volume instead of allowing mesh penetration.
 - Do not add compatibility shims before a serialized recipe format has actually been released.
 - While the package remains greenfield and unpublished, update all call sites
   and delete obsolete contracts instead of adding legacy aliases or migrations.

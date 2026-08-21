@@ -6,18 +6,21 @@
   "description": "Deterministic procedural assets with hand-drawn sprite and semantic solid runtimes.",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "build": "node scripts/clean.mjs && tsc -p tsconfig.lib.json && vite build --config experiments/playground/vite.config.ts",
+    "build": "node scripts/clean.mjs && tsc -p tsconfig.lib.json && pnpm build:experiments",
     "build:lib": "tsc -p tsconfig.lib.json",
-    "build:experiments": "vite build --config experiments/playground/vite.config.ts",
+    "build:experiments": "pnpm build:playground && pnpm build:projection-studio",
+    "build:playground": "vite build --config experiments/playground/vite.config.ts",
+    "build:projection-studio": "vite build --config experiments/projection-studio/vite.config.ts",
     "clean": "node scripts/clean.mjs",
     "dev": "vite --config experiments/playground/vite.config.ts",
+    "dev:projection-studio": "vite --config experiments/projection-studio/vite.config.ts",
     "lint": "eslint .",
     "reference:verify": "node scripts/verify-reference.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify:artifact": "node scripts/verify-library.mjs",
-    "verify": "tsc -p tsconfig.json --noEmit && eslint . && vitest run && node scripts/clean.mjs && tsc -p tsconfig.lib.json && node scripts/verify-library.mjs && vite build --config experiments/playground/vite.config.ts"
+    "verify": "tsc -p tsconfig.json --noEmit && eslint . && vitest run && node scripts/clean.mjs && tsc -p tsconfig.lib.json && node scripts/verify-library.mjs && pnpm build:experiments"
   },
   "dependencies": {
     "three": "0.185.1"

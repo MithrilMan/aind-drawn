@@ -1,0 +1,62 @@
+{
+  "fixtureId": "character-4104-graphite",
+  "provenance": "Repository-backed controls and deterministic character identity seed 4104.",
+  "product": {
+    "eyebrow": "AIND DRAWN / EXPERIMENT 05",
+    "title": "Projection studio",
+    "summary": "One identity. Two drawings. Every angle."
+  },
+  "recipe": {
+    "assetFamily": "Character",
+    "availableAssetFamilies": ["Character", "Building"],
+    "assetFamilyPickerLabel": "Choose an asset family",
+    "seed": 4104,
+    "medium": "Graphite",
+    "availableMedia": ["Graphite", "Ink", "Watercolor", "Oil", "Charcoal", "Marker"]
+  },
+  "views": {
+    "raster": {
+      "label": "Drawn 2D",
+      "title": "Front reference",
+      "footer": "Front plane / same identity / live motion"
+    },
+    "doodle3d": {
+      "label": "3D view",
+      "title": "Current view",
+      "renderMode": "Doodle",
+      "availableRenderModes": ["Doodle", "Solid"],
+      "footer": "Yaw 28° / pitch −4° / drag to orbit"
+    },
+    "syncStatus": "2D and 3D stay in sync"
+  },
+  "workspace": {
+    "activePanel": "Animate",
+    "panels": ["Animate", "Customize"],
+    "customizeTitle": "Make it yours",
+    "customizeHint": "Each option redraws both views from the same identity."
+  },
+  "characterControls": {
+    "pose": "Idle",
+    "poses": ["Idle", "Walk", "Run", "Airborne", "Sit", "Sleep", "Play"],
+    "expression": "Idle",
+    "expressions": ["Idle", "Happy", "Angry", "Sad", "Surprised", "Scared", "Crying", "Sleeping"],
+    "playback": "Playing",
+    "speed": "70%",
+    "autoGaze": true
+  },
+  "viewControls": {
+    "renderMode": "Doodle",
+    "availableRenderModes": ["Doodle", "Solid"],
+    "turntable": false,
+    "turntableSpeed": "12°/s",
+    "rotation": "28°",
+    "lineBoil": true,
+    "solidFinish": "Skin",
+    "availableSolidFinishes": ["Matte", "Glossy", "Rubber", "Ceramic", "Skin", "Metal"]
+  },
+  "adverseState": {
+    "title": "The 3D view could not start",
+    "message": "The 2D reference is still active. Retry the 3D renderer without losing this recipe.",
+    "action": "Retry 3D"
+  }
+}

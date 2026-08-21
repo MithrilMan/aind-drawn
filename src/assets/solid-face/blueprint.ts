@@ -413,12 +413,15 @@ export function createSolidFaceBlueprint(
 
   const [headRadiusX, headRadiusY] = layout.shape.radii;
   const tearProfile = createCharacterTearProfile(identity);
+  const tearTopExtent = tearProfile.length * headRadiusY * 0.58;
+  const tearAnchorOffset = tearTopExtent
+    + layout.eyeRadius * (1 + tearProfile.attachmentClearanceInEyeRadii);
   layout.eyeAnchors.forEach((eyeAnchor, index) => {
     const side = index === 0 ? -1 : 1;
     const sideId = side < 0 ? 'left' : 'right';
     const tearAnchor = moveOnSurface(
       eyeAnchor,
-      [0, -layout.eyeRadius * 0.72],
+      [0, -tearAnchorOffset],
       layout.eyeRadius * 0.2,
     );
     add({

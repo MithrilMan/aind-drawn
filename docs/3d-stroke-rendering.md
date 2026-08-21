@@ -85,9 +85,11 @@ volumetric contour, coverage, material-role view marks, and paper policies.
 `SolidMaterialSpec.drawing.tone` preserves authored tonal hierarchy such as
 `light`, `black`, or `scribble` across raster and inked-solid projections;
 material role remains the generic fallback when no tone is authored. Explicit
-options are advanced overrides. Setting `viewMarks: false` disables gesture
-marks without removing the pigment bed, the rest of the medium, or the source solid. The runtime consumer is
-`InkedSolidPass`, used unchanged by both the character and building labs.
+options are authoring diagnostics, not alternate user-facing render styles.
+Setting `viewMarks: false` may isolate the pigment bed while debugging, but a
+truthful Doodle projection keeps the medium's gesture marks enabled. The runtime
+consumer is `InkedSolidPass`, used unchanged by both the character and building
+labs.
 
 ```ts
 const raster = createRasterCharacterBlueprint(identity, { medium: 'watercolor' });
@@ -113,10 +115,11 @@ The smooth solid's roughness, metalness, clearcoat, specular response, and even
 its unlit continuous colour are therefore absent from Doodle 3D. Semantic
 material RGB is the exact pigment source used by authored or procedural marks.
 It is never pre-mixed with contour ink or paper and is never multiplied by
-normal lighting. Discrete normal-based tone changes deposited opacity and mark
-density instead of hue; paper, pigment, and contour remain separate composite
-layers. Paper-space coverage, paper response, and coherent grain modulate that
-synthesis. Graphite, ink, watercolor, oil, chalk, and
+normal lighting. Smooth carriers keep light-invariant deposited density. Only
+authored faceted carriers may use quantized plane separation to change pressure
+or mark density across adjacent hard planes, never hue; paper, pigment, and
+contour remain separate composite layers. Paper-space coverage, paper response,
+and coherent grain modulate that synthesis. Graphite, ink, watercolor, oil, chalk, and
 marker compile to distinct view fields. The same asset can remain ceramic in
 `Smooth solid` and become a watercolor drawing with real occlusion and volume
 in `Doodle 3D` without changing identity or rebuilding geometry.
@@ -151,9 +154,11 @@ The pass renders a material-mark buffer. Each solid material's authored drawing
 tone, or its role when no tone is authored, compiles to a renderer-neutral mark
 style and coverage. Graphite hair can therefore retain the exact seeded
 `black`, `hatch`, or `scribble` hierarchy selected by the shared drawing style;
-generic skin and facades receive broken hatch, and clothing receives crosshatch;
-watercolor, oil, chalk, and marker compile to wash, bristle, stipple, and marker
-fields. The composite shader generates those fields in normalized paper space
+generic skin and facades receive broken hatch, and clothing receives crosshatch.
+Each medium then preserves its raster deposition operation: Watercolour uses
+layered translucent coverage without directional bands, Ink reveals one fine
+hatch only at the same tone densities as raster, and Oil combines an opaque bed
+with broken bristle daubs. The composite shader generates those fields in normalized paper space
 and clips them by the material membership visible from the active camera.
 Graphite tone density is calibrated to the raster medium's relative spacing and
 alpha: `light` remains an unhatched pigment bed, ordinary hatch retains its
@@ -170,13 +175,14 @@ carrier topology, the visible surface normal rotates and foreshortens
 directional marks while discrete drawing light changes their density and
 pressure. Adjacent wall or roof planes therefore separate through hatch flow
 and tone even when they share one material. Smooth meshes and superellipsoids
-retain one view-oriented 2D field; their normal changes density and pressure but
-never bends marks into topographic rings. This classification is authored in
+retain one view-oriented 2D field at light-invariant deposited density. Their
+geometry controls occlusion but never bends marks into topographic rings or
+reinterprets filler as shadow. This classification is authored in
 geometry smoothing rather than inferred from screen-space derivatives, so zoom
 cannot change it. Pencil pickup varies continuously along each path; paper
 abrasion may thin a stroke but does not split it into periodic, misaligned
-dashes. Drawing light may change deposited opacity or add a fixed-frequency
-secondary pass, but it never changes a field's scale or phase per pixel; doing
+dashes. On faceted carriers, drawing light may change deposited opacity or add a
+fixed-frequency secondary pass, but it never changes a field's scale or phase per pixel; doing
 so would restart strokes at every tone boundary. Limbs, tears, doors, and other
 articulated parts still carry coherent marks through animation without becoming
 UV textures. Stationary screen-space grain belongs to the paper, while

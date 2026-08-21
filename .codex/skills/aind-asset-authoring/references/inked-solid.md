@@ -64,6 +64,11 @@ Every visible carrier region starts as opaque drawing paper. The medium
 deposits an irregular bed using semantic pigment colour. Continuous mesh albedo
 and PBR lighting never enter the final doodle.
 
+Derive that bed and its visible gestures from the raster operation, not from a
+generic notion of shading. Watercolour is layered translucent coverage, Ink is
+coverage plus its restrained density-gated hatch, and Oil is an opaque bed plus
+broken pigment daubs. Preserve those distinctions centrally for every family.
+
 ### View-synthesised marks
 
 The shared medium compiler maps material role or authored tone to hatch,
@@ -71,6 +76,10 @@ crosshatch, scribble, stipple, wash, bristle, marker, or solid marks. Fields are
 view-oriented, translated by the projected origin of their owning semantic
 part, and clipped by material membership. Animation therefore carries marks
 without turning them into UV textures.
+
+These marks are the medium's visible fill vocabulary, not optional lighting.
+Keep them enabled in product views. `viewMarks: false` is an authoring diagnostic
+for isolating the pigment bed, not a user-facing Doodle style.
 
 ### Contours
 
@@ -98,9 +107,9 @@ deposition; they do not simulate an entire fill.
 Doodle 3D synthesises a fresh 2D drawing for the current camera, but adjacent
 hard planes still need visual separation.
 
-- Superellipsoids and `mesh.smooth: true` retain one view-oriented field.
-  Their normals may change deposited pressure or opacity, never bend, rescale,
-  or rephase the stroke path.
+- Superellipsoids and `mesh.smooth: true` retain one view-oriented field at
+  light-invariant deposited density. Their normals control occlusion, never
+  turn filler into shadow or bend, rescale, or rephase the stroke path.
 - Boxes, extruded profiles, and `mesh.smooth: false` are faceted carriers.
   Their visible plane normal may rotate and foreshorten directional marks.
 - A geometric crease belongs in authored topology/smoothing, not in a
@@ -108,9 +117,13 @@ hard planes still need visual separation.
   camera distance, zoom, and viewport resolution.
 - Two hard planes separated by a small angle may use different mark flow; a
   smoothly shaded sphere must never reveal its triangulation.
-- Keep field frequency and phase invariant inside one carrier region. Drawing
-  light may change pressure or opacity, or reveal another fixed-frequency pass.
-  Per-pixel scale changes create visible seams at quantised tone boundaries.
+- Keep field frequency and phase invariant inside one carrier region. On a
+  faceted carrier, drawing light may change pressure or opacity, or reveal
+  another fixed-frequency pass. Per-pixel scale changes create visible seams at
+  quantised tone boundaries. Smooth carriers ignore drawing light for filler.
+- Name this policy as plane separation (`planeSeparationStrength` and
+  `planeSeparationSteps`), never shading. It articulates authored hard faces and
+  must not imply a shadow system in the drawing medium.
 - Vary pencil pickup continuously along the path. Do not impose periodic masks
   that split one line into aligned dashes and apparent kinks.
 

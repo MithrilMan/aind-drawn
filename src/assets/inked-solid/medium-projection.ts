@@ -52,8 +52,8 @@ const BASE_MARK: InkedSolidViewMarkDefaults = Object.freeze({
 
 const BASE_DEPOSITION = Object.freeze({
   pigmentStrength: 0.84,
-  shadeStrength: 0.24,
-  shadeSteps: 4,
+  planeSeparationStrength: 0.24,
+  planeSeparationSteps: 4,
   variationStrength: 0.14,
   variationScale: 3.6,
 });
@@ -61,6 +61,14 @@ const BASE_DEPOSITION = Object.freeze({
 const BASE_PAPER = Object.freeze({
   color: PAPER_RGB,
   grainStrength: 0.025,
+});
+
+const TONE_DENSITY: Readonly<Record<ToneStyle, number>> = Object.freeze({
+  black: 1,
+  hatch: 0.72,
+  scribble: 0.62,
+  stipple: 0.5,
+  light: 0.34,
 });
 
 function projection(
@@ -170,6 +178,85 @@ function graphiteViewMark(
   return resolveTone('hatch');
 }
 
+function inkViewMark(
+  base: InkedSolidViewMarkDefaults,
+  role: string,
+  authoredTone?: ToneStyle,
+): InkedSolidViewMarkDefaults {
+  if (role === 'eye-white') {
+    return Object.freeze({ ...base, style: 'none', strength: 0, coverage: 0 });
+  }
+  if (role === 'linework') {
+    return Object.freeze({
+      ...base, style: 'solid', strength: 0.96, coverage: 0.98,
+      lineWidth: base.lineWidth * 1.3,
+    });
+  }
+  if (role === 'liquid') {
+    return Object.freeze({
+      ...base, style: 'wash', strength: 0.44, coverage: 0.3,
+      scale: base.scale * 0.7,
+    });
+  }
+  if (role === 'body') {
+    // Raster ink skin is two translucent washes plus a fine hatch. It is not
+    // a shadow field and must remain lighter than authored black ink masses.
+    return Object.freeze({
+      ...base, style: 'hatch', strength: 0.22, coverage: 0.26,
+    });
+  }
+
+  const tone = authoredTone ?? (role === 'hair' ? 'black' : 'hatch');
+  const density = TONE_DENSITY[tone];
+  return Object.freeze({
+    ...base,
+    // Raster Ink always uses the same restrained hatch vocabulary; tone only
+    // changes deposited coverage and whether that hatch becomes visible.
+    style: density > 0.6 ? 'hatch' : 'none',
+    strength: density > 0.6 ? 0.2 : 0,
+    coverage: role === 'window' ? Math.min(0.18, 0.16 + density * 0.74)
+      : 0.16 + density * 0.74,
+  });
+}
+
+function watercolorViewMark(
+  base: InkedSolidViewMarkDefaults,
+  role: string,
+  authoredTone?: ToneStyle,
+): InkedSolidViewMarkDefaults {
+  if (role === 'eye-white') {
+    return Object.freeze({ ...base, style: 'none', strength: 0, coverage: 0 });
+  }
+  if (role === 'linework') {
+    return Object.freeze({
+      ...base, style: 'solid', strength: 0.72, coverage: 0.94,
+      lineWidth: base.lineWidth * 1.15,
+    });
+  }
+  if (role === 'liquid') {
+    return Object.freeze({
+      ...base, style: 'wash', strength: 0.46, coverage: 0.32,
+      scale: base.scale * 0.7,
+    });
+  }
+
+  const tone = authoredTone ?? (role === 'hair' ? 'black' : 'hatch');
+  const density = TONE_DENSITY[tone];
+  const layers = 2 + Math.round(density * 2);
+  const alpha = 0.1 + density * 0.13;
+  const rasterCoverage = 1 - (1 - alpha) ** layers;
+  return Object.freeze({
+    ...base,
+    // Watercolour is layered translucent filler. Blooms and granulation come
+    // from deposition variation; a directional view mark would invent bands
+    // that the raster medium never draws.
+    style: 'none',
+    strength: 0,
+    coverage: role === 'body' ? 1 - (1 - 0.14) ** 2
+      : role === 'window' ? rasterCoverage * 0.55 : rasterCoverage,
+  });
+}
+
 function oilViewMark(
   base: InkedSolidViewMarkDefaults,
   role: string,
@@ -205,7 +292,7 @@ function oilViewMark(
     ...base,
     style: tone === 'stipple' ? 'stipple' : tone === 'scribble' ? 'scribble' : 'bristle',
     strength: strengthByTone[tone],
-    coverage: role === 'window' ? 0.72 : tone === 'black' ? 0.98 : 0.95,
+    coverage: role === 'window' ? 0.78 : tone === 'black' ? 0.99 : 0.98,
     scale: base.scale * (tone === 'light' ? 0.9 : tone === 'black' ? 1.12 : 1),
     lineWidth: base.lineWidth * (tone === 'black' ? 1.16 : 1),
   });
@@ -218,6 +305,8 @@ function projectViewMark(
   authoredTone?: ToneStyle,
 ): InkedSolidViewMarkDefaults {
   if (medium === 'graphite') return graphiteViewMark(base, role, authoredTone);
+  if (medium === 'ink') return inkViewMark(base, role, authoredTone);
+  if (medium === 'watercolor') return watercolorViewMark(base, role, authoredTone);
   if (medium === 'oil') return oilViewMark(base, role, authoredTone);
   if (role === 'liquid') {
     return Object.freeze({
@@ -340,8 +429,8 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     },
     deposition: {
       pigmentStrength: 0.38,
-      shadeStrength: 0.52,
-      shadeSteps: 4,
+      planeSeparationStrength: 0.52,
+      planeSeparationSteps: 4,
       variationStrength: 0.24,
       variationScale: 4.2,
     },
@@ -354,13 +443,13 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     contour: { width: 1.6, opacity: 0.96, jitter: 0.26, wander: 1.15 },
     deposition: {
       pigmentStrength: 0.9,
-      shadeStrength: 0.2,
-      shadeSteps: 3,
+      planeSeparationStrength: 0.12,
+      planeSeparationSteps: 3,
       variationStrength: 0.1,
       variationScale: 3.2,
     },
     viewMark: {
-      style: 'hatch', strength: 0.48, coverage: 0.34, scale: 7.4, lineWidth: 0.078,
+      style: 'hatch', strength: 0.2, coverage: 0.34, scale: 12.5, lineWidth: 0.045,
     },
     paper: { grainStrength: 0.012 },
   }),
@@ -370,13 +459,13 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     },
     deposition: {
       pigmentStrength: 0.68,
-      shadeStrength: 0.12,
-      shadeSteps: 5,
+      planeSeparationStrength: 0.12,
+      planeSeparationSteps: 5,
       variationStrength: 0.5,
       variationScale: 1.8,
     },
     viewMark: {
-      style: 'wash', strength: 0.72, coverage: 0.38, scale: 4.2, lineWidth: 0.08,
+      style: 'none', strength: 0, coverage: 0.38, scale: 4.2, lineWidth: 0.08,
     },
     paper: { grainStrength: 0.012 },
   }),
@@ -386,13 +475,13 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     },
     deposition: {
       pigmentStrength: 0.88,
-      shadeStrength: 0.34,
-      shadeSteps: 7,
+      planeSeparationStrength: 0.34,
+      planeSeparationSteps: 7,
       variationStrength: 0.32,
       variationScale: 4.2,
     },
     viewMark: {
-      style: 'bristle', strength: 0.82, coverage: 0.95, scale: 9.4, lineWidth: 0.11,
+      style: 'bristle', strength: 0.82, coverage: 0.95, scale: 15.2, lineWidth: 0.075,
     },
     paper: { grainStrength: 0.008 },
   }),
@@ -400,8 +489,8 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     contour: { width: 1.48, opacity: 0.68, jitter: 0.46, wander: 1.95 },
     deposition: {
       pigmentStrength: 0.72,
-      shadeStrength: 0.26,
-      shadeSteps: 3,
+      planeSeparationStrength: 0.26,
+      planeSeparationSteps: 3,
       variationStrength: 0.25,
       variationScale: 8.2,
     },
@@ -414,8 +503,8 @@ const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Ob
     contour: { width: 1.48, opacity: 0.9, jitter: 0.12, wander: 0.95 },
     deposition: {
       pigmentStrength: 0.82,
-      shadeStrength: 0.12,
-      shadeSteps: 3,
+      planeSeparationStrength: 0.12,
+      planeSeparationSteps: 3,
       variationStrength: 0.14,
       variationScale: 2.4,
     },

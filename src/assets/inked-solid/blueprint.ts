@@ -65,8 +65,10 @@ export type InkedSolidPaperPolicy = Readonly<{
 export type InkedSolidDepositionPolicy = Readonly<{
   texture: MediumId;
   pigmentStrength: number;
-  shadeStrength: number;
-  shadeSteps: number;
+  /** Extra mark pressure used only to separate authored faceted planes. */
+  planeSeparationStrength: number;
+  /** Quantized plane-pressure levels; smooth carriers ignore them. */
+  planeSeparationSteps: number;
   variationStrength: number;
   variationScale: number;
   seed: number;
@@ -314,8 +316,16 @@ export function createInkedSolidBlueprint(
     deposition: Object.freeze({
       texture: options.medium,
       pigmentStrength: unit('deposition.pigmentStrength', deposition.pigmentStrength),
-      shadeStrength: unit('deposition.shadeStrength', deposition.shadeStrength),
-      shadeSteps: integer('deposition.shadeSteps', deposition.shadeSteps, 2, 8),
+      planeSeparationStrength: unit(
+        'deposition.planeSeparationStrength',
+        deposition.planeSeparationStrength,
+      ),
+      planeSeparationSteps: integer(
+        'deposition.planeSeparationSteps',
+        deposition.planeSeparationSteps,
+        2,
+        8,
+      ),
       variationStrength: unit('deposition.variationStrength', deposition.variationStrength),
       variationScale: positive('deposition.variationScale', deposition.variationScale),
       seed: tree.seed('inked-solid:deposition'),

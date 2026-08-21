@@ -54,6 +54,29 @@ canvas pixels, Three.js materials, or runtime mesh internals.
 All UI labels, messages, accessibility text, sample values, and exported example
 content must be English.
 
+### Publish a generic authoring schema
+
+When more than one consumer must expose the same identity choices, put a public
+`authoring.ts` beside the shared family identity. Declare an
+`AssetFamilyAuthoringSchema` with:
+
+- one stable parameter ID per safe recipe override;
+- an honest user-facing label and optional explanation;
+- a validated default value;
+- choices, numeric bounds, or toggle labels as appropriate;
+- semantic raster layer IDs and optional layer states for focused previews.
+
+The schema is not blueprint reflection. A generated blueprint describes output;
+it cannot say which constructor options are safe, mutually compatible, or useful
+to an author. Keep one explicit family adapter that maps schema values to typed
+recipe options, then let the editor shell generate navigation, choices, defaults,
+and focused previews from the schema. Adding a family should register an adapter;
+it should not require new UI branches for its individual parameters.
+
+Use `createDefaultAssetAuthoringValues` rather than duplicating defaults in an
+experiment. Validate schemas at module load and cover invalid duplicates,
+defaults, and ranges with tests.
+
 ## Render real previews
 
 Every preview, thumbnail, part selector, and comparison view uses the public
@@ -68,6 +91,9 @@ from generated output.
 - A selector for a roof, door, balcony, or other component renders that
   component or a focused public blueprint view; it must not show an unrelated
   full building merely because that was easier to screenshot.
+- Resolve focused bounds from the selected semantic layers. Preserve ancestor
+  bones as invisible anchors when a selected character part is nested; do not
+  reveal the whole head just to position an eye or hair preview.
 
 Use representative seeded examples so rerenders remain comparable. A
 side-by-side convergence lab must share the exact identity and `MediumId`.

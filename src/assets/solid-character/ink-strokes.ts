@@ -80,20 +80,6 @@ export function createSolidCharacterInkStrokes(
   const radius = Math.max(0.005, minimumRadius * 0.012);
   const strokes: InkedSolidStrokeDefinition[] = [];
 
-  for (const side of [-1, 1]) {
-    strokes.push(surfaceStroke(
-      `face:cheek:${side < 0 ? 'left' : 'right'}`,
-      'head',
-      surfaceDirections(5, (amount): Point3 => [
-        side * (0.48 + amount * 0.12),
-        -0.12 - amount * 0.055,
-        1,
-      ]),
-      minimumRadius * 0.026,
-      radius * 0.72,
-    ));
-  }
-
   const hairPart = solid.parts.find(({ id }) => /^hair:(cap|bob|fringe)(:|$)/u.test(id));
   if (hairPart !== undefined) {
     for (const [index, horizontal] of [-0.58, -0.3, 0, 0.3, 0.58].entries()) {

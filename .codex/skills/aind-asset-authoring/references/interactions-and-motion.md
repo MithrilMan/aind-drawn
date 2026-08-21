@@ -92,8 +92,17 @@ motion is an actual requirement.
 
 Share a domain motion contract when raster and solid representations need to
 mirror the same intent. Character `idle`, `walk`, `run`, `airborne`, `sit`,
-`sleep`, and `play` are the current example. Each adapter may interpolate in a
-medium-appropriate way while preserving pose meaning.
+`sleep`, and `play` are the current example. Project one shared temporal pose
+blend into every representation: pose weights, easing, and transition duration
+are domain motion, not renderer policy. Each adapter converts those weights to
+its own transforms while preserving pose meaning.
+
+Planar layer order can hide overlap that becomes a real mesh penetration in a
+solid projection. When a gesture crosses a torso or other carrier silhouette,
+rotate the solid part around its physical joint into the foreground volume;
+do not translate the joint, flatten the mesh, or let the limb tunnel through
+the carrier. Derive clearance from authored geometry where a fixed offset is
+needed.
 
 Do not generalise character gait concepts into unrelated families. Vehicles
 may use signed travel and steering; machinery may use cycle phase and load.
@@ -120,6 +129,10 @@ Add runtime tests proving:
 - repeated updates do not drift from rest transforms;
 - parent motion carries child parts and owned spatial strokes;
 - automatic motion can be disabled for deterministic inspection;
+- the first update after a pose change is intermediate and the shared blend
+  converges without snapping in both raster and solid runtimes;
+- limbs intended to cross a planar silhouette remain in front of the solid
+  carrier volume rather than intersecting it;
 - raster and solid facial adapters preserve the same inner-brow direction and
   eye openness for representative expressions;
 - an extreme expressive seed keeps eyebrow geometry clear of the pupil;

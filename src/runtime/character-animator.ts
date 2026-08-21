@@ -5,26 +5,14 @@ import {
   type CharacterExpression,
 } from '../assets/character-identity/expression-profile.js';
 import type { BonePose, SpriteRig } from './sprite-rig.js';
+import { CharacterPoseBlend } from './character-pose-blend.js';
+import {
+  CHARACTER_POSES,
+  type CharacterMotion,
+  type CharacterPose,
+} from './character-motion.js';
 
-export const CHARACTER_POSES = [
-  'idle',
-  'walk',
-  'run',
-  'airborne',
-  'sit',
-  'sleep',
-  'play',
-] as const;
-
-export type CharacterPose = typeof CHARACTER_POSES[number];
-
-export type CharacterMotion = Readonly<{
-  /** High-level authored pose blended with autonomous motion. */
-  pose?: CharacterPose;
-  speed?: number;
-  facing?: -1 | 1;
-  talking?: boolean;
-}>;
+export { CHARACTER_POSES, type CharacterMotion, type CharacterPose } from './character-motion.js';
 
 export type CharacterAnimatorOptions = Readonly<{
   /** Enables deterministic autonomous blinking. */
@@ -50,8 +38,6 @@ type AutonomicProfile = Readonly<{
   tail: number;
 }>;
 
-const TRANSITION_SECONDS = 0.38;
-
 const AUTONOMIC_BY_POSE: Readonly<Record<CharacterPose, AutonomicProfile>> = {
   idle: { sway: 1, breath: 1, blink: 1, gaze: 1, arms: 1, tail: 1 },
   walk: { sway: 0, breath: 0.5, blink: 1, gaze: 0.5, arms: 0, tail: 1.4 },
@@ -61,10 +47,6 @@ const AUTONOMIC_BY_POSE: Readonly<Record<CharacterPose, AutonomicProfile>> = {
   sleep: { sway: 0, breath: 2.2, blink: 0, gaze: 0, arms: 0, tail: 0 },
   play: { sway: 0.3, breath: 0.5, blink: 1, gaze: 0.5, arms: 0, tail: 1.3 },
 };
-
-function smoothStep(value: number): number {
-  return value * value * (3 - 2 * value);
-}
 
 function emptyPose(): MutablePose {
   return { x: 0, y: 0, rotation: 0, scaleX: 0, scaleY: 0 };
@@ -80,18 +62,9 @@ export class CharacterAnimator {
   private readonly autoBlink: boolean;
   private readonly autoGaze: boolean;
   private readonly faceUnit: number;
-  private readonly poseWeights: Record<CharacterPose, number> = {
-    idle: 1,
-    walk: 0,
-    run: 0,
-    airborne: 0,
-    sit: 0,
-    sleep: 0,
-    play: 0,
-  };
+  private readonly poseBlend = new CharacterPoseBlend();
   private elapsed = 0;
   private gaitPhase = 0;
-  private targetPose: CharacterPose = 'idle';
   private nextBlink: number;
   private blinkUntil = -1;
   private nextGaze: number;
@@ -124,9 +97,7 @@ export class CharacterAnimator {
     const delta = clamp(deltaSeconds, 0, 0.1);
     const speed = clamp(motion.speed ?? 0, 0, 1);
     this.elapsed += delta;
-    this.targetPose = motion.pose ?? 'idle';
-    this.updatePoseWeights(delta);
-    const weights = this.normalizedWeights();
+    const weights = this.poseBlend.update(motion.pose ?? 'idle', delta);
     const faceExpression = weights.sleep > 0.55 ? 'sleeping' : this.expression;
     const gaitFrequency = weights.walk * 1.6 + weights.run * 2.7;
     this.gaitPhase += delta * gaitFrequency * (0.35 + speed * 0.65) * Math.PI * 2;
@@ -140,30 +111,6 @@ export class CharacterAnimator {
     this.rig.root.scale.x = motion.facing ?? 1;
     this.applyFace(profile, motion.talking === true, faceExpression);
     this.rig.updateBoil(this.elapsed);
-  }
-
-  private updatePoseWeights(delta: number): void {
-    const amount = delta / TRANSITION_SECONDS;
-    for (const pose of CHARACTER_POSES) {
-      const target = pose === this.targetPose ? 1 : 0;
-      const current = this.poseWeights[pose];
-      this.poseWeights[pose] = target > current
-        ? Math.min(target, current + amount)
-        : Math.max(target, current - amount);
-    }
-  }
-
-  private normalizedWeights(): Readonly<Record<CharacterPose, number>> {
-    let total = 0;
-    const eased = {} as Record<CharacterPose, number>;
-    for (const pose of CHARACTER_POSES) {
-      const value = smoothStep(this.poseWeights[pose]);
-      eased[pose] = value;
-      total += value;
-    }
-    if (total <= 1e-6) return { ...eased, idle: 1 };
-    for (const pose of CHARACTER_POSES) eased[pose] /= total;
-    return eased;
   }
 
   private blendedAutonomicProfile(

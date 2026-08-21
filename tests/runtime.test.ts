@@ -17,6 +17,7 @@ import {
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
   createCharacterIdentity,
+  createCharacterTearProfile,
   createInkedSolidBlueprint,
   createSolidCharacterInkStrokes,
   createSolidCharacterBlueprint,
@@ -185,6 +186,7 @@ describe('sprite rig runtime', () => {
   });
 
   it('anchors limbs at the top edge while ground props use their bottom edge', () => {
+    const identity = createCharacterIdentity(4107);
     const blueprint = createCharacterBlueprint(createCharacterRecipe(4107));
     for (const id of ['arm:left', 'arm:right', 'leg:left', 'leg:right']) {
       expect(blueprint.layers.find((layer) => layer.id === id)?.pivot).toEqual([0.5, 1]);
@@ -198,6 +200,18 @@ describe('sprite rig runtime', () => {
       .toEqual(['idle', 'crying']);
     expect(blueprint.layers.find(({ id }) => id === 'tear:right')?.parentBone)
       .toBe('head');
+    const tearProfile = createCharacterTearProfile(identity);
+    const rasterEye = blueprint.layers.find(({ id }) => id === 'eye:left');
+    const rasterTear = blueprint.layers.find(({ id }) => id === 'tear:left');
+    expect(tearProfile.attachmentClearanceInEyeRadii).toBeGreaterThan(0);
+    expect(rasterTear?.position.y).toBeLessThan(rasterEye?.position.y ?? 0);
+
+    const solid = createSolidCharacterBlueprint(identity);
+    const solidEye = solid.parts.find(({ id }) => id === 'eye:left:white');
+    const solidTear = solid.parts.find(({ id }) => id === 'tear:left');
+    expect(solidTear?.placement.position[1]).toBeLessThan(
+      solidEye?.placement.position[1] ?? 0,
+    );
   });
 });
 
@@ -313,10 +327,10 @@ describe('solid rig runtime', () => {
     const rig = new SolidRig(solid);
     const strokes = new InkedSolidStrokeRig(inked, rig);
     expect(strokes.strokeIds).toEqual(expect.arrayContaining([
-      'face:cheek:left', 'face:cheek:right', 'clothing:collar-seam',
+      'hair:strand:0', 'clothing:collar-seam',
     ]));
     expect(rig.getPart('head')?.children.some(
-      ({ name }) => name === 'stroke:face:cheek:left',
+      ({ name }) => name === 'stroke:hair:strand:0',
     )).toBe(true);
     expect(rig.getPart('body:torso')?.children.some(
       ({ name }) => name === 'stroke:clothing:collar-seam',
@@ -413,11 +427,31 @@ describe('solid rig runtime', () => {
       -(rig.getNode('leg:left')?.rotation.x ?? 0),
     );
     animator.setExpression('angry');
-    animator.update(0, { pose: 'sleep' });
+    const torsoBeforeSleep = torso?.position.y ?? 0;
+    animator.update(0.05, { pose: 'sleep' });
     expect(animator.currentExpression).toBe('angry');
-    expect(rig.getPart('mouth:sleeping')?.visible).toBe(true);
-    animator.update(0, { pose: 'idle' });
     expect(rig.getPart('mouth:angry')?.visible).toBe(true);
+    const firstSleepStep = torso?.position.y ?? 0;
+    expect(Math.abs(firstSleepStep - torsoBeforeSleep)).toBeLessThan(0.08);
+    for (let index = 0; index < 8; index += 1) {
+      animator.update(0.05, { pose: 'sleep' });
+    }
+    expect(rig.getPart('mouth:sleeping')?.visible).toBe(true);
+    expect((torso?.position.y ?? 0) - firstSleepStep).toBeLessThan(-0.08);
+    for (let index = 0; index < 8; index += 1) {
+      animator.update(0.05, { pose: 'idle' });
+    }
+    expect(rig.getPart('mouth:angry')?.visible).toBe(true);
+
+    animator.setExpression('crying');
+    animator.update(0.05, { pose: 'idle' });
+    rig.root.updateMatrixWorld(true);
+    const torsoBounds = new THREE.Box3().setFromObject(rig.getPart('body:torso') ?? rig.root);
+    for (const side of ['left', 'right'] as const) {
+      const hand = rig.getPart(`hand:${side}`);
+      const handCenter = hand?.getWorldPosition(new THREE.Vector3());
+      expect(handCenter?.z).toBeGreaterThan(torsoBounds.max.z * 0.72);
+    }
     rig.dispose();
   });
 });

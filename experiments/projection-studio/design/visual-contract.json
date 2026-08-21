@@ -1,0 +1,293 @@
+{
+  "$schema": "../../../../C:/Users/redan/.codex/skills/frontend-product-design/assets/visual-contract.schema.json",
+  "contractVersion": 4,
+  "product": "AIND DRAWN Projection Studio",
+  "implementationRevision": "working-tree-2026-08-21.projection-studio-v4",
+  "directionId": "dark-light-table",
+  "mode": "greenfield",
+  "status": "implementation-ready-for-review",
+  "preserve": [
+    "The same repository-generated identity, medium, motion, and expression drive both projections.",
+    "The 2D view remains a front-facing reference while the Doodle or Solid 3D view may orbit independently.",
+    "Every visible control is implemented against the public library or omitted."
+  ],
+  "change": [
+    "Create a standalone desktop comparison instrument with no inspector sidebar.",
+    "Move recipe controls above the twin views and motion plus camera controls into a horizontal lower deck.",
+    "Use a dark animation light-table visual system with luminous paper stages and restrained hand-drawn marks.",
+    "Use one scalable asset-family picker, remove internal renderer readouts, and add a schema-driven Customize workspace beside Animate.",
+    "Switch the shared volumetric rig between Doodle 3D and physically shaded Solid 3D without resetting its state.",
+    "Keep medium marks intrinsic to Doodle rendering and expose physical finish choices only for Solid rendering."
+  ],
+  "discard": [
+    "The existing playground and character-comparison visual language as design authority.",
+    "Generic beige dashboard cards, permanent sidebars, and decorative controls without behavior."
+  ],
+  "productTruth": {
+    "user": "An artist or developer evaluating convergence between procedural raster and volumetric hand-drawn projections on desktop.",
+    "primaryTask": "Select one procedural asset identity and state, compare its synchronized 2D and 3D projections, switch the 3D view between drawn and physically shaded rendering, then rotate or turntable it to inspect divergence.",
+    "coreCapabilities": [
+      { "id": "capability.family", "description": "Switch between the character and building families supported by both projections." },
+      { "id": "capability.recipe", "description": "Change seed and shared drawing medium without desynchronizing identity." },
+      { "id": "capability.state", "description": "Apply character pose and expression or the building door state through the public runtime contracts." },
+      { "id": "capability.playback", "description": "Play, pause, restart, and adjust synchronized character motion." },
+      { "id": "capability.orbit", "description": "Drag, set yaw, reset the camera, or enable a turntable in either 3D rendering style." },
+      { "id": "capability.render-style", "description": "Switch one live solid rig between Doodle 3D and physically shaded Solid 3D, then choose its physical finish without resetting identity, view, motion, expression, or interactions." },
+      { "id": "capability.recovery", "description": "Keep the 2D reference usable and offer retry when the 3D renderer cannot start." }
+    ],
+    "acceptanceCriteria": [
+      "Character is the default family and seed 4104 Graphite is the representative fixture.",
+      "Both projections visibly share the same identity, medium, pose, and expression.",
+      "The 3D view supports pointer orbit, explicit yaw control, reset, and turntable in either rendering style.",
+      "The right view switches between Doodle and Solid rendering while preserving the same live rig, camera, animation, expression, and interaction state.",
+      "Doodle always renders the selected medium's intrinsic pigment and marks; Solid alone exposes the physical finish selector.",
+      "Character controls expose all seven public poses and eight public expressions.",
+      "Building mode replaces character-only controls with real architectural and door controls.",
+      "The experiment builds as an independent static Vite entry suitable for GitHub Pages.",
+      "A generic Customize workspace renders family-authored choices through the public library pipeline without hard-coding the shell per family.",
+      "The desktop layout remains operable at 1180 CSS pixels and above with visible keyboard focus and reduced-motion behavior."
+    ],
+    "outOfScope": [
+      "Mobile and touch-first layout",
+      "Asset authoring or level editing",
+      "Export, persistence, or share links",
+      "Vehicle, plant, or prop families without both raster and solid projections",
+      "Editing per-part physical material recipes inside the studio"
+    ]
+  },
+  "assetInventory": [
+    { "kind": "logo", "status": "not-applicable", "usageConstraint": "Use the live-text AIND DRAWN name; do not invent a mark." },
+    { "kind": "font", "status": "not-found", "usageConstraint": "Use licensed provider fonts with explicit fallbacks." },
+    { "kind": "palette", "status": "not-found", "usageConstraint": "The selected visual direction establishes charcoal, bone paper, oxide red, and oxidized green." },
+    { "kind": "marker", "status": "not-found", "usageConstraint": "The selected visual direction establishes registration crosses, crop corners, thin ink rules, and restrained note stamps." },
+    { "kind": "illustration", "status": "not-applicable", "usageConstraint": "All asset imagery is rendered by the public library pipeline." }
+  ],
+  "typography": {
+    "family": "Cormorant Garamond and IBM Plex Mono",
+    "fallbacks": ["Georgia", "Consolas", "monospace", "serif"],
+    "weights": [400, 500, 600, 700],
+    "loading": "Load Cormorant Garamond, IBM Plex Mono, and Kalam from Google Fonts with explicit local fallbacks.",
+    "roles": ["Cormorant Garamond for product title and view names", "IBM Plex Mono for labels, controls, measurements, and status", "Kalam for sparse human notes only"],
+    "density": "Compact 10–12 px technical labels, 15–18 px controls, and a 30–34 px title; never use handwriting for operational controls.",
+    "evidenceReferenceId": "projection-studio-font-evidence-v2"
+  },
+  "references": [
+    {
+      "id": "style-anchor-dark-light-table",
+      "role": "style-anchor",
+      "use": "visual-system",
+      "source": "imagegen",
+      "path": "experiments/projection-studio/design/references/style-anchor-dark-light-table.png",
+      "digest": "sha256:d50e6707523e1da3625a6a9b2f5426b3ebbdcf70457f5e5bc7383794f57cc85a",
+      "instruction": "Govern the charcoal instrument frame, luminous bone-paper stages, editorial versus technical typography, oxide registration marks, oxidized-green active states, and sparse animation-bench detailing; ignore its bird subject and specimen-board composition."
+    },
+    {
+      "id": "projection-studio-wide-structure",
+      "role": "target-context",
+      "use": "structure",
+      "source": "deterministic",
+      "path": "experiments/projection-studio/design/references/structure-1536x1024.png",
+      "digest": "sha256:69c347ee693318040f0a31e81994eeab42c70ace5290a1c34e5ea8bd6268297c",
+      "instruction": "Govern the desktop region order, equal twin-view allocation, control inventory, bottom-deck anatomy, and usable live-canvas area; ignore its grayscale finish."
+    },
+    {
+      "id": "projection-studio-desktop-target-v1",
+      "role": "target-mock",
+      "use": "governing-composition",
+      "source": "imagegen",
+      "path": "experiments/projection-studio/design/references/target-mock-desktop-v1.png",
+      "digest": "sha256:fc6a5495528060eb7d86ec87cde0800db3b6fb1dde166650435ae520f3409582",
+      "instruction": "Candidate governing desktop composition for user review. Preserve the twin luminous stages, charcoal instrument shell, compact recipe strip, four-part motion deck, and registration language. Live library output replaces the illustrated characters; omit its redundant bottom status strip."
+    },
+    {
+      "id": "projection-studio-desktop-render-v1",
+      "role": "render",
+      "use": "evidence",
+      "source": "browser",
+      "path": ".workbench/projection-studio/implementation-desktop-1536x1024.png",
+      "digest": "sha256:59d93a7b2b0c2a2e8fa4eea2b6522ca10142ed8d86e21e9c9f1ac57ff72016e2",
+      "instruction": "Exact 1536 by 1024 browser render of the character 4104 Graphite nominal implementation at one-to-one scale."
+    },
+    {
+      "id": "projection-studio-font-evidence-v2",
+      "role": "font-evidence",
+      "use": "evidence",
+      "source": "browser",
+      "path": ".workbench/projection-studio/implementation-desktop-1536x1024.png",
+      "digest": "sha256:59d93a7b2b0c2a2e8fa4eea2b6522ca10142ed8d86e21e9c9f1ac57ff72016e2",
+      "instruction": "The target-viewport browser render shows the loaded editorial and monospaced typography in every declared operational role."
+    },
+    {
+      "id": "projection-studio-comparison-board-v1",
+      "role": "comparison-board",
+      "use": "evidence",
+      "source": "deterministic",
+      "path": ".workbench/projection-studio/comparison-board-v1.png",
+      "digest": "sha256:5beb032ec30b7dd8771d36752cbf8079e36ec3ca57fd1c1fe12d92e96f5c16fc",
+      "instruction": "Deterministic reference, browser implementation, and semantic-review board for the approved desktop context."
+    }
+  ],
+  "traits": [
+    {
+      "id": "composition.twin-light-table",
+      "priority": "critical",
+      "instruction": "Keep two equally authoritative paper stages above the fold, divided by a thin registration seam; neither projection becomes a thumbnail or secondary inset at 1x."
+    },
+    {
+      "id": "surface.instrument-frame",
+      "priority": "critical",
+      "instruction": "Use a near-black charcoal frame around luminous bone-paper stages, with fine painted-metal or dark-wood edge cues and no generic floating cards."
+    },
+    {
+      "id": "controls.motion-deck",
+      "priority": "critical",
+      "instruction": "Keep playback, pose, expression, and 3D-view controls in one horizontal lower instrument deck with compact grouped anatomy and a legible active state."
+    },
+    {
+      "id": "marks.registration-language",
+      "priority": "supporting",
+      "instruction": "Use oxide-red registration crosses, corner ticks, measurement rules, and one oxidized-green status language as sparse functional orientation cues."
+    },
+    {
+      "id": "type.editorial-technical",
+      "priority": "critical",
+      "instruction": "Pair an old-style editorial serif for titles with condensed monospaced technical labels; handwriting appears only as a rare note and never replaces controls."
+    }
+  ],
+  "targets": [
+    {
+      "id": "projection-studio-desktop",
+      "kind": "page",
+      "route": "/",
+      "surfaceType": "spatial",
+      "responsive": false,
+      "proofSlice": true,
+      "content": {
+        "path": "experiments/projection-studio/design/content-fixture.json",
+        "digest": "sha256:9e58e59d44a8485b14eed386799e138ed8a9e980d72412bebeabe0d030d96899",
+        "provenance": "User requirements combined with public character, building, medium, motion, expression, and interaction contracts in this repository; no production claims.",
+        "fixtureClass": "source-derived",
+        "useCases": ["Compare synchronized character projections", "Switch the 3D view between Doodle and Solid rendering", "Rotate or turntable the 3D asset", "Switch to a building and operate its door", "Recover from unavailable WebGL without losing the recipe"],
+        "cardinality": { "typical": 7, "dense": 21 },
+        "essentialFields": ["asset family", "seed", "medium", "3D rendering style", "physical finish in Solid mode", "projection label", "camera angle", "pose or interaction state", "expression", "renderer status"],
+        "actions": ["choose family", "change seed", "reroll seed", "change medium", "switch Doodle or Solid rendering", "change physical finish", "play", "pause", "restart", "choose pose", "choose expression", "drag orbit", "set yaw", "reset front", "toggle turntable", "toggle gaze", "toggle line boil", "change door state", "retry 3D"],
+        "states": ["character Doodle nominal", "character Solid nominal", "building nominal", "paused", "turntable active", "3D renderer recoverable error"],
+        "permissions": ["anonymous local user may change all experiment controls"],
+        "errorAndFreshness": ["All data is local and deterministic; a WebGL startup failure preserves recipe and 2D state and exposes Retry 3D."],
+        "coreCapabilityIds": ["capability.family", "capability.recipe", "capability.state", "capability.playback", "capability.orbit", "capability.render-style", "capability.recovery"]
+      },
+      "placeholders": [],
+      "controls": [
+        { "id": "control.family", "status": "functioning" },
+        { "id": "control.seed", "status": "functioning" },
+        { "id": "control.medium", "status": "functioning" },
+        { "id": "control.transport", "status": "functioning" },
+        { "id": "control.pose", "status": "functioning" },
+        { "id": "control.expression", "status": "functioning" },
+        { "id": "control.orbit", "status": "functioning" },
+        { "id": "control.turntable", "status": "functioning" },
+        { "id": "control.render-style", "status": "functioning" },
+        { "id": "control.solid-finish", "status": "functioning" },
+        { "id": "control.doodle-policy", "status": "functioning" },
+        { "id": "control.building-door", "status": "functioning" },
+        { "id": "control.retry-3d", "status": "functioning" }
+      ],
+      "representativeBecause": {
+        "realTask": "Seed 4104 Graphite exercises the exact comparison, motion, expression, and orbit task requested by the user.",
+        "typicalAndDense": "The fixture covers the default character plus every public pose, expression, medium, and the building family switch.",
+        "adverseState": "A recoverable 3D startup failure keeps the 2D reference and recipe intact.",
+        "coreCapabilitiesWork": "The implementation slice must connect every declared control to the repository public API before review.",
+        "noPlaceholders": true
+      },
+      "designRoute": "mock",
+      "traitIds": ["composition.twin-light-table", "surface.instrument-frame", "controls.motion-deck", "marks.registration-language", "type.editorial-technical"],
+      "layerIds": ["studio.live-structure", "studio.instrument-surface", "studio.registration-marks"],
+      "contexts": [
+        {
+          "id": "desktop-primary",
+          "role": "primary",
+          "viewport": { "width": 1536, "height": 1024 },
+          "stateId": "character-nominal",
+          "fixtureId": "character-4104-graphite",
+          "cropScale": 1,
+          "inputReferenceIds": ["style-anchor-dark-light-table"],
+          "structureReferenceId": "projection-studio-wide-structure",
+          "mockReferenceId": "projection-studio-desktop-target-v1",
+          "structureCompliance": {
+            "verdict": "pass",
+            "summary": "The target mock preserves the required header, compact recipe strip, equal twin stages, four-part lower workbench, and readable canvas footers at 1536 by 1024. User-approved deltas replace fixed family buttons with a picker, add an alternate Customize workspace, and remove the redundant bottom readout without reducing either live stage."
+          },
+          "structureConstraints": [
+            "Preserve the top recipe strip with Character selected by default, Building available, seed 4104, Graphite, New seed, and synchronization status.",
+            "Preserve two equal live-render regions labelled Drawn 2D / Front reference and 3D / Current view, with a compact Doodle or Solid switch in the right stage header.",
+            "Preserve the horizontal lower deck with playback, all seven poses, all eight expressions, and 3D orbit plus turntable controls visible without a sidebar.",
+            "Preserve concise canvas footer actions without adding a duplicated bottom recipe or renderer readout.",
+            "Keep the interface fully visible at 1536 by 1024 with each live canvas receiving at least 560 by 460 CSS pixels."
+          ]
+        }
+      ]
+    }
+  ],
+  "layers": [
+    {
+      "id": "studio.live-structure",
+      "medium": "semantic-html",
+      "owners": [{ "type": "directory", "path": "experiments/projection-studio" }],
+      "instruction": "Own all live text, controls, landmarks, status, and both canvas containers in semantic HTML and TypeScript."
+    },
+    {
+      "id": "studio.instrument-surface",
+      "medium": "css",
+      "owners": [{ "type": "file", "path": "experiments/projection-studio/src/style.css" }],
+      "instruction": "Own charcoal frame, bone-paper stages, grouped controls, focus states, texture restraint, and desktop layout in CSS."
+    },
+    {
+      "id": "studio.registration-marks",
+      "medium": "css",
+      "owners": [{ "type": "file", "path": "experiments/projection-studio/src/style.css" }],
+      "instruction": "Own deterministic registration crosses, camera axes, and compact transport glyphs as decorative CSS geometry around live controls and canvases."
+    }
+  ],
+  "comparisons": [
+    {
+      "id": "projection-studio-desktop-comparison-v1",
+      "targetId": "projection-studio-desktop",
+      "contextId": "desktop-primary",
+      "authorityReferenceId": "projection-studio-desktop-target-v1",
+      "renderReferenceId": "projection-studio-desktop-render-v1",
+      "boardReferenceId": "projection-studio-comparison-board-v1",
+      "implementationRevision": "working-tree-2026-08-21.projection-studio-v4",
+      "contentDigest": "sha256:9e58e59d44a8485b14eed386799e138ed8a9e980d72412bebeabe0d030d96899",
+      "viewport": { "width": 1536, "height": 1024 },
+      "stateId": "character-nominal",
+      "fixtureId": "character-4104-graphite",
+      "cropScale": 1,
+      "timestamp": "2026-08-21T12:14:00+02:00"
+    }
+  ],
+  "reviews": [],
+  "approvals": [
+    {
+      "stage": "targets",
+      "subjectIds": ["style-anchor-dark-light-table", "projection-studio-desktop"],
+      "scope": "Approved desktop direction and twin-stage composition, with explicit implementation deltas for a scalable family picker, user-facing language, and schema-driven family customization.",
+      "openCorrections": [],
+      "quote": "si direi che puoi proseguire con quella direzione"
+    },
+    {
+      "stage": "targets",
+      "subjectIds": ["projection-studio-desktop"],
+      "scope": "Add a physically shaded Solid option to the existing right-hand 3D view while preserving the approved composition and shared state.",
+      "openCorrections": [],
+      "quote": "puoi aggiungere anche l'opzione di vedere il modello come 3d non doodle? (cioè quello che ha shading skin, metal, etc?)"
+    }
+  ],
+  "gates": {
+    "engineering": "pass",
+    "productTask": "pass",
+    "contentAdequacy": "pass",
+    "visualFidelity": "unverified",
+    "accessibility": "pass",
+    "userApproval": "received"
+  }
+}

@@ -560,6 +560,17 @@ describe('asset contracts', () => {
     expect(Object.isFrozen(characterInk.contour.color)).toBe(true);
   });
 
+  it('does not invent adapter-only facial marks for saucer eyes', () => {
+    const identity = createCharacterIdentity(4104);
+    const raster = createRasterCharacterBlueprint(identity, { medium: 'graphite' });
+    const solid = createSolidCharacterBlueprint(identity);
+    const strokes = createSolidCharacterInkStrokes(solid);
+
+    expect(identity.eyes.style).toBe('saucer');
+    expect(raster.layers.some(({ id }) => id.startsWith('face:cheek:'))).toBe(false);
+    expect(strokes.some(({ id }) => id.startsWith('face:cheek:'))).toBe(false);
+  });
+
   it('preserves seeded tone hierarchy across raster and inked-solid projections', () => {
     const identity = createCharacterIdentity(4107);
     const raster = createRasterCharacterRecipe(identity, { medium: 'graphite' });
@@ -600,7 +611,7 @@ describe('asset contracts', () => {
     expect(black).toMatchObject({ style: 'scribble', strength: 0.72, coverage: 0.68 });
     expect(black.scale).toBeCloseTo(hatch.scale * 2.5);
     expect(black.lineWidth).toBeCloseTo(hatch.lineWidth * 2.6);
-    expect(graphite.deposition.shadeStrength).toBeGreaterThan(0.4);
+    expect(graphite.deposition.planeSeparationStrength).toBeGreaterThan(0.4);
   });
 
   it('shares facade tone intent between raster and solid building materials', () => {
@@ -640,8 +651,25 @@ describe('asset contracts', () => {
     const inked = createInkedSolidBlueprint(solid, { medium: 'oil' });
     const painted = inked.viewMarks.filter(({ materialRole }) => materialRole !== 'eye-white');
     expect(painted.every(({ coverage }) => coverage >= 0.62)).toBe(true);
-    expect(inked.viewMarks.find(({ materialId }) => materialId === 'skin')?.coverage).toBe(0.95);
+    expect(inked.viewMarks.find(({ materialId }) => materialId === 'skin')?.coverage).toBe(0.98);
     expect(inked.contour.wander).toBeGreaterThan(0);
+  });
+
+  it('projects ink and watercolour as deposited filler rather than invented shading bands', () => {
+    const ink = inkedSolidMediumDefaults('ink');
+    const inkBlack = ink.viewMark('hair', 'black');
+    const inkLight = ink.viewMark('clothing', 'light');
+    expect(inkBlack).toMatchObject({ style: 'hatch', strength: 0.2, coverage: 0.9 });
+    expect(inkLight.style).toBe('none');
+    expect(inkLight.coverage).toBeCloseTo(0.16 + 0.34 * 0.74);
+
+    const watercolour = inkedSolidMediumDefaults('watercolor');
+    const watercolourBlack = watercolour.viewMark('hair', 'black');
+    const watercolourLight = watercolour.viewMark('clothing', 'light');
+    expect(watercolourBlack.style).toBe('none');
+    expect(watercolourLight.style).toBe('none');
+    expect(watercolourBlack.coverage).toBeGreaterThan(watercolourLight.coverage);
+    expect(watercolour.viewMark('linework', 'black').style).toBe('solid');
   });
 
   it('validates ink policies without mutating solid semantics', () => {

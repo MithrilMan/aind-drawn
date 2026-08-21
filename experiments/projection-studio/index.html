@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Compare synchronized 2D, Doodle 3D, and physically shaded procedural assets." />
+    <title>AIND DRAWN — Projection Studio</title>
+  </head>
+  <body>
+    <main class="studio" data-studio>
+      <header class="studio-header">
+        <div>
+          <p class="eyebrow">AIND DRAWN</p>
+          <h1>Projection studio</h1>
+        </div>
+        <p class="studio-summary">One identity. Two drawings. Every angle.</p>
+      </header>
+
+      <section class="recipe-bar" aria-label="Drawing recipe">
+        <div class="recipe-field family-field">
+          <span class="field-label">Asset</span>
+          <button
+            class="family-trigger"
+            type="button"
+            popovertarget="family-picker"
+            aria-haspopup="dialog"
+            data-family-trigger
+          >
+            <img alt="" data-family-trigger-preview />
+            <span>
+              <strong data-family-trigger-label>Character</strong>
+              <small data-family-trigger-description>Faces, creatures, and people</small>
+            </span>
+            <span class="chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div class="family-picker" id="family-picker" popover data-family-picker>
+            <div class="picker-heading">
+              <div>
+                <p class="field-label">Choose an asset</p>
+                <h2>What are we drawing?</h2>
+              </div>
+              <button type="button" class="icon-button" popovertarget="family-picker" popovertargetaction="hide">
+                <span aria-hidden="true">×</span><span class="sr-only">Close asset picker</span>
+              </button>
+            </div>
+            <div class="family-options" data-family-options></div>
+          </div>
+        </div>
+
+        <label class="recipe-field seed-field">
+          <span class="field-label">Seed</span>
+          <input name="seed" type="number" inputmode="numeric" value="4104" data-seed />
+        </label>
+
+        <label class="recipe-field medium-field">
+          <span class="field-label">Medium</span>
+          <select name="medium" data-medium>
+            <option value="graphite">Graphite</option>
+            <option value="ink">Ink</option>
+            <option value="watercolor">Watercolour</option>
+            <option value="oil">Oil</option>
+            <option value="chalk">Charcoal</option>
+            <option value="marker">Marker</option>
+          </select>
+        </label>
+
+        <button class="reroll-button" type="button" data-reroll>
+          <span class="reroll-mark" aria-hidden="true">↻</span>
+          New seed
+        </button>
+
+        <p class="sync-note" role="status" aria-live="polite">
+          <span aria-hidden="true"></span>
+          <span data-sync-status>2D and 3D stay in sync</span>
+        </p>
+      </section>
+
+      <section class="comparison" aria-label="Projection comparison">
+        <article class="drawing-stage raster-stage">
+          <header class="stage-header">
+            <p>Drawn 2D</p>
+            <h2>Front view</h2>
+          </header>
+          <div class="stage-canvas" data-raster-viewport>
+            <canvas aria-label="Front-facing 2D procedural drawing" data-raster-canvas></canvas>
+            <div class="registration registration-top-left" aria-hidden="true"></div>
+            <div class="registration registration-bottom-right" aria-hidden="true"></div>
+          </div>
+          <footer class="stage-footer">
+            <span>Original drawing</span>
+            <span>Same identity</span>
+          </footer>
+        </article>
+
+        <article class="drawing-stage solid-stage">
+          <header class="stage-header">
+            <div class="render-mode-switch" role="group" aria-label="3D rendering style">
+              <button type="button" data-render-mode="doodle" aria-pressed="true">Doodle</button>
+              <button type="button" data-render-mode="solid" aria-pressed="false">Solid</button>
+            </div>
+            <h2>Turned view</h2>
+          </header>
+          <div class="stage-canvas solid-canvas" data-solid-viewport>
+            <canvas aria-label="Rotatable 3D procedural asset. Drag or use arrow keys to rotate." tabindex="0" data-solid-canvas></canvas>
+            <div class="orbit-cue" aria-hidden="true">
+              <span>←</span><span class="orbit-hand">⌖</span><span>→</span>
+            </div>
+            <div class="registration registration-top-right" aria-hidden="true"></div>
+            <div class="registration registration-bottom-left" aria-hidden="true"></div>
+            <section class="renderer-error" hidden data-renderer-error>
+              <p class="field-label">The 3D view paused</p>
+              <h3>The 3D view could not start</h3>
+              <p>The 2D drawing and your choices are still here.</p>
+              <button type="button" class="primary-button" data-retry-3d>Try again</button>
+            </section>
+          </div>
+          <footer class="stage-footer">
+            <span data-view-description>Drag to rotate</span>
+            <span data-turntable-status>Turntable off</span>
+          </footer>
+        </article>
+      </section>
+
+      <section class="workbench" aria-label="Asset controls">
+        <header class="workbench-header">
+          <div class="workspace-tabs" role="tablist" aria-label="Workspace">
+            <button type="button" role="tab" aria-selected="true" aria-controls="animate-panel" id="animate-tab" data-workspace-tab="animate">
+              Animate
+            </button>
+            <button type="button" role="tab" aria-selected="false" aria-controls="customize-panel" id="customize-tab" data-workspace-tab="customize">
+              Customize
+            </button>
+          </div>
+          <p data-workspace-note>Pose it, add expression, then inspect every angle.</p>
+        </header>
+
+        <div class="workspace-panel animate-panel" role="tabpanel" id="animate-panel" aria-labelledby="animate-tab" data-workspace-panel="animate">
+          <section class="control-group playback-controls" data-character-controls>
+            <h3>Playback</h3>
+            <div class="transport">
+              <button type="button" class="control-button active" data-play aria-pressed="true"><span aria-hidden="true">▶</span> Play</button>
+              <button type="button" class="control-button" data-pause aria-pressed="false"><span aria-hidden="true">Ⅱ</span> Pause</button>
+              <button type="button" class="control-button" data-restart><span aria-hidden="true">↺</span> Restart</button>
+            </div>
+            <label class="range-control">
+              <span>Speed</span>
+              <input type="range" min="0" max="1" step="0.05" value="0.7" data-speed />
+              <output data-speed-output>70%</output>
+            </label>
+          </section>
+
+          <section class="control-group" data-character-controls>
+            <h3>Pose</h3>
+            <div class="choice-row" data-pose-options></div>
+          </section>
+
+          <section class="control-group expression-controls" data-character-controls>
+            <h3>Expression</h3>
+            <div class="choice-row" data-expression-options></div>
+          </section>
+
+          <section class="control-group building-action" hidden data-building-controls>
+            <h3>Door</h3>
+            <p>Try the asset’s built-in interaction.</p>
+            <div class="choice-row" data-door-options></div>
+          </section>
+
+          <section class="control-group view-controls">
+            <h3>3D view</h3>
+            <div class="view-actions">
+              <button type="button" class="control-button" data-turntable aria-pressed="false">Turntable</button>
+              <button type="button" class="control-button" data-reset-view>Face front</button>
+            </div>
+            <label class="range-control yaw-control">
+              <span>Turn</span>
+              <input type="range" min="-180" max="180" step="1" value="28" data-yaw />
+              <output data-yaw-output>28°</output>
+            </label>
+            <div class="toggle-row" data-view-option-row>
+              <label data-character-controls><input type="checkbox" checked data-auto-gaze /> Lively gaze</label>
+              <label data-doodle-control><input type="checkbox" checked data-line-boil /> Wobbly lines</label>
+              <label class="finish-control" data-solid-control hidden>
+                <span>Finish</span>
+                <select data-finish aria-label="Solid finish"></select>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div class="workspace-panel customize-panel" role="tabpanel" id="customize-panel" aria-labelledby="customize-tab" hidden data-workspace-panel="customize">
+          <nav class="parameter-tabs" aria-label="Customizable parts" data-parameter-tabs></nav>
+          <section class="parameter-editor" data-parameter-editor>
+            <header>
+              <div>
+                <p class="field-label">Make it yours</p>
+                <h3 data-parameter-title>Choose a part</h3>
+              </div>
+              <p data-parameter-description>Each option redraws both views from the same identity.</p>
+            </header>
+            <div class="variant-options" data-variant-options></div>
+          </section>
+        </div>
+      </section>
+
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

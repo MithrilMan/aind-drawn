@@ -505,6 +505,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   const tailInkAnchor = Object.freeze({ x: 24, y: 116 });
   const pawEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'hand' as const;
   const footEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'foot' as const;
+  const tearProfile = createCharacterTearProfile(recipe.identity);
+  const tearTopExtentPixels = tearProfile.length * layout.head.heightPixels * 0.5 * 0.58;
+  const tearAnchorOffsetPixels = tearTopExtentPixels
+    + layout.eyes.radiusPixels * (1 + tearProfile.attachmentClearanceInEyeRadii);
 
   const layers: LayerDefinition[] = [
     ...(recipe.identity.tail.present ? [layer({
@@ -655,7 +659,8 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       position: {
         x: (side < 0 ? layout.eyes.left.x : layout.eyes.right.x) - headPosition.x,
         y: (side < 0 ? layout.eyes.left.y : layout.eyes.right.y)
-          - headPosition.y - layout.eyes.radiusPixels * 0.62 / pixelsPerUnit,
+          - headPosition.y
+          - tearAnchorOffsetPixels / pixelsPerUnit,
       },
       pivot: [0.5, 0.42], states: ['idle', 'crying'],
       draw: ({ sketch, state }) => {

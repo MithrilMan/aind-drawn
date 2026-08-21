@@ -173,13 +173,15 @@ identity data.
   must still separate through continuous hatch orientation, foreshortening,
   density, and pressure; never assign arbitrary camera-facing style buckets
   that flicker as the camera rotates. Smooth meshes and superellipsoids keep
-  view-oriented 2D strokes and express volume through density and pressure only.
+  view-oriented 2D strokes at light-invariant deposited density; occlusion may
+  reveal their volume, but drawing light must not turn filler into shadow.
   A geometric crease belongs in mesh smoothing topology, not in a
   screen-resolution-dependent curvature test.
 - Keep a synthesized field's frequency and phase invariant across one carrier
-  region. Lighting may modulate pressure or opacity, or reveal an additional
-  fixed-frequency pass; it must not rescale the field per pixel because tone
-  boundaries would become visible stroke seams.
+  region. On faceted topology, lighting may modulate pressure or opacity, or
+  reveal an additional fixed-frequency pass; it must not rescale the field per
+  pixel because tone boundaries would become visible stroke seams. Smooth
+  topology treats medium marks as deposited filler and ignores drawing light.
 - Reserve part-local or surface-following stroke paths for marks with real
   spatial meaning: whiskers, wires, seams, scars, raised outlines, and paths that
   deliberately leave a host. Do not use them to simulate generic medium fill.
@@ -192,10 +194,27 @@ identity data.
   policy in `src/assets/inked-solid/medium-projection.ts`; add a new generic
   shader field in `InkedSolidPass` only when its paper-space statistics cannot reuse
   an existing one. Do not add asset-family-specific medium presets.
+- Derive that volumetric policy from the raster operation itself. Watercolour
+  remains layered translucent coverage rather than directional bands; Ink uses
+  its restrained hatch only at the same tone densities as raster; Oil preserves
+  its opaque pigment bed and broken daubs. A shared tone name does not authorize
+  inventing a different mark vocabulary.
+- Secondary effects own their normalized attachment and clearance in shared
+  identity profiles. Each adapter includes the projected effect extent when it
+  places the visible tip below an eyelid, nozzle, socket, or emitting surface;
+  centre-to-centre adapter offsets are not a semantic attachment contract.
+- Raster and solid character runtimes use the same temporal pose-weight blend.
+  Solid limbs that cross a planar silhouette must articulate in front of the
+  carrier volume around their real joint, never pass through the torso mesh.
 - Model expressive and decorative features as shared normalized constructions
   when they contain semantic subparts or ratios. Eyes, hair, outfit marks, and
   mouths live in identity profiles and are projected by raster and solid
   adapters; do not reroll pupil size or redraw a motif independently.
+- Do not add adapter-only facial decoration to make one projection look richer.
+  An eyelid, eye bag, wrinkle, scar, or cheek mark must come from a shared
+  identity profile and be emitted only by the eye or face styles that own it.
+  A solid surface coordinate is a projection of that semantic mark, not its
+  source of truth.
 
 The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
@@ -204,17 +223,21 @@ binds `closed` and `open` layer states; solid binds those states to the hinged
 ## Integration checklist
 
 1. Export the new public types and factories from `src/index.ts`.
-2. Register the asset in the consumer catalog rather than importing internals.
-3. Extend the serializable experiment document only for authored parameters.
-4. Add deterministic recipe tests and blueprint contract tests.
-5. Test state validation and animation in the runtime when applicable.
-6. Test every public medium through both raster and inked-solid projections;
+2. If generic editors customize the family, publish and validate an
+   `AssetFamilyAuthoringSchema` beside identity. The schema owns safe parameter
+   metadata, defaults, choices, and semantic preview layers; the family adapter
+   still maps values to typed recipe options explicitly.
+3. Register the asset in the consumer catalog rather than importing internals.
+4. Extend the serializable experiment document only for authored parameters.
+5. Add deterministic recipe tests, authoring-schema validation, and blueprint contract tests.
+6. Test state validation and animation in the runtime when applicable.
+7. Test every public medium through both raster and inked-solid projections;
    both outputs must retain the same `MediumId` and distinct deterministic policy.
-7. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
+8. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
    `InkedSolidPass.dispose()`, and `InkedSolidStrokeRig.dispose()` when that
    representation is active. Dispose strokes before their owner solid rig.
-8. Run `pnpm verify`.
-9. Inspect representative seeds in the internal browser at every width the
+9. Run `pnpm verify`.
+10. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under

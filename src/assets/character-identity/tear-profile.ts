@@ -5,6 +5,7 @@ export type CharacterTearProfile = Readonly<{
   width: number;
   length: number;
   fallDistance: number;
+  attachmentClearanceInEyeRadii: number;
   outline: readonly Point[];
 }>;
 
@@ -25,6 +26,10 @@ export function createCharacterTearProfile(
     width,
     length,
     fallDistance: length * 0.72,
+    // The projections place the top of the drop below the lower eyelid, then
+    // add this small semantic breathing room. They must account for their own
+    // projected drop height instead of guessing from its centre.
+    attachmentClearanceInEyeRadii: 0.08,
     outline: freezePoints([
       [0, length * 0.58],
       [width * 0.72, length * 0.18],

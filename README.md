@@ -182,3 +182,7 @@ other consumers built on the same public library.
 - Original inspiration: [KinderGrimm](https://github.com/albertobeiz/kindergrimm)
   by [Alberto Beiz](https://github.com/albertobeiz).
 - AIND Drawn project: [Fabio Angela on X](https://x.com/FabioAngela79).
+
+## License
+
+AIND Drawn is released under the [MIT License](LICENSE).

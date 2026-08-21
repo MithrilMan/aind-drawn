@@ -3,6 +3,7 @@ name: Deploy Projection Studio to GitHub Pages
 on:
   push:
     branches: [master]
+  public:
   workflow_dispatch:
 
 permissions:
@@ -16,6 +17,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch' || github.event.repository.private == false
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository

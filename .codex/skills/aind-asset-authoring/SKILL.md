@@ -89,12 +89,14 @@ only representation policy:
 
 - raster: medium, tone, line pressure, bake policy;
 - solid: finish, mesh density, physical material policy;
-- inked solid: contour, spatial semantic stroke, and material-role
+- inked solid: contour, spatial semantic stroke, and drawing-application
   view-synthesized mark policy.
 
 If a seeded tonal choice must remain recognisable across representations,
 derive it once in an identity-adjacent drawing-style profile and place the
-resolved intent on `SolidMaterialSpec.drawing.tone`. Do not bury it in the
+resolved intent on `SolidMaterialSpec.drawing.tone`. Every solid material also
+declares a generic `drawing.application`; never infer either field from role,
+colour, material ID, or part name. Do not bury tone in the
 raster recipe and ask the inked-solid compiler to guess it from colour or part
 names.
 
@@ -147,6 +149,12 @@ Create one concept per file where the family needs it:
 - `authoring.ts`: public semantic parameter metadata, defaults, choices, and
   focused raster preview layer IDs when a generic editor must customize the family.
 - an animator under `src/runtime/` only for transient motion that is not authored recipe data.
+
+Family-only metadata travels through namespaced `AssetCapability` entries.
+Define the capability ID, payload type, constructor, and reader beside the
+family. Generic layer, solid-part, rig, and renderer contracts carry capability
+data without importing or switching on it. Do not grow shared `motion` or
+`animation` unions whenever a family needs a new behaviour.
 
 Export the family through `src/index.ts`. Make experiments depend on that public
 barrel only.
@@ -217,12 +225,13 @@ family IDs.
   an additional fixed-frequency pass; never rescale or rephase the field per
   pixel because quantized tone boundaries would become visible seams. On smooth
   carriers, treat medium marks as deposited filler and keep lighting out of them.
-- Let the shared medium compiler project material roles into mark styles. Hair,
-  cloth, facade, glass, and unknown roles may require different deposition, but
-  the generic renderer must never branch on an asset family or semantic part ID.
-- Treat an authored material drawing tone as higher-priority intent than the
-  role fallback. Test that raster tone, solid material hint, and inked-solid
-  coverage agree for representative seeds.
+- Let the shared medium compiler project generic drawing applications into mark
+  styles. Families map their own semantics to `paper`, `pigment`, `tint`,
+  `flat`, `ink`, `wash`, or `glaze`; the compiler never receives family,
+  material-role, material-ID, or semantic-part vocabulary.
+- Require an authored drawing application and tone on every solid material.
+  Test that raster tone, solid drawing material spec, and inked-solid coverage agree
+  for representative seeds.
 - Preserve semantic material RGB as the exact inked-solid pigment source.
   Describe volume through deposition opacity and mark density; never pre-mix
   pigment with paper, contour ink, scene fog, or normal-lighting colour.
@@ -263,7 +272,8 @@ family IDs.
   exhaustive provider recipe, any deterministic procedural map bundle, and
   provider lifecycle tests. Asset families declare `SolidMaterialSpec` intent;
   they never instantiate Three.js materials or own finish textures. Add new
-  medium behaviour centrally in `src/materials/medium.ts` and
+  medium behaviour centrally in `src/materials/medium.ts`, add one provider
+  under `src/assets/inked-solid/projection-providers/`, and register it in
   `src/assets/inked-solid/medium-projection.ts`; extend the generic
   `InkedSolidPass` field only when necessary, never a family adapter.
 - Treat `ToneStyle` as density intent, not permission to change a medium's mark
@@ -291,6 +301,9 @@ family IDs.
   projection. When a planar gesture crosses a volumetric silhouette, articulate
   the solid part around its real joint and move it in front of the carrier
   volume instead of allowing mesh penetration.
+- Treat runtime state setters as idempotent commands. Reapplying the current
+  expression, pose request, or interaction state every frame must not restart a
+  blink, transition, one-shot effect, or random schedule.
 - Do not add compatibility shims before a serialized recipe format has actually been released.
 - While the package remains greenfield and unpublished, update all call sites
   and delete obsolete contracts instead of adding legacy aliases or migrations.

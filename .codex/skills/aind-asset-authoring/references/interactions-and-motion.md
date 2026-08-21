@@ -83,6 +83,17 @@ Animator rules:
 - preserve attachment of children and ink strokes through parent transforms;
 - make automatic behaviours such as blink or gaze explicitly configurable for
   deterministic tests and editor previews.
+- make state setters idempotent: assigning the current expression, pose request,
+  or interaction state again must not restart a blink, blend, one-shot effect,
+  or random schedule. Consumers may defensively avoid redundant commands, but
+  the runtime contract must remain safe when they do not.
+
+When an animator needs authored per-layer or per-part metadata, publish it as a
+namespaced `AssetCapability` owned by the family. Keep the payload type,
+constructor, and reader beside that family, and let its animator consume the
+reader. Generic `LayerDefinition`, `SolidPartDefinition`, `SpriteRig`, and
+`SolidRig` must not acquire family-specific motion unions or switch on those
+capability IDs.
 
 Do not create a bespoke animator merely to switch `open` and `closed`; the
 interaction contract already does that. Add interpolation only when continuous
@@ -135,6 +146,7 @@ Add runtime tests proving:
 - visual layers or solid nodes receive the intended state;
 - pivots remain fixed while parts rotate around them;
 - repeated updates do not drift from rest transforms;
+- repeated assignment of the current state does not restart transient motion;
 - parent motion carries child parts and owned spatial strokes;
 - automatic motion can be disabled for deterministic inspection;
 - the first update after a pose change is intermediate and the shared blend

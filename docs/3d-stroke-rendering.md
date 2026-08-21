@@ -35,7 +35,7 @@ The inked-solid projection therefore separates the responsibilities:
 | Pigment deposition | View-oriented, part-anchored drawing space | Graphite pickup, wash, bristle marks, chalk grain, or marker passes | Follows the projected owner part; ignores PBR finish |
 | Semantic stroke | Part-local surface coordinates | Mouth, eyelid, hair, seams, scars | Inherits the semantic node transform |
 | Contour pass | Screen space from depth and normals | Silhouette and selected creases | Recomputed for the active camera |
-| View-mark field | View-oriented, part-anchored drawing space plus material role | Graphite hatch, hair scribble, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Follows articulation; never participates in line boil |
+| View-mark field | View-oriented, part-anchored drawing space plus generic drawing application | Graphite hatch, dense pigment, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Follows articulation; never participates in line boil |
 
 All four systems are implemented. Family adapters author semantic marks while
 the runtime remains asset-agnostic; marks are never inferred from triangulation
@@ -81,10 +81,10 @@ type InkedSolidBlueprint = Readonly<{
 The policy is serialisable and contains no Three.js objects. Medium is required:
 there is no second 3D-only drawing taxonomy and no implicit fallback hidden in
 the runtime. `inkedSolidMediumDefaults(medium)` compiles the shared medium into
-volumetric contour, coverage, material-role view marks, and paper policies.
-`SolidMaterialSpec.drawing.tone` preserves authored tonal hierarchy such as
-`light`, `black`, or `scribble` across raster and inked-solid projections;
-material role remains the generic fallback when no tone is authored. Explicit
+volumetric contour, coverage, drawing-application view marks, and paper policies.
+`SolidMaterialSpec.drawing` explicitly supplies both the deposition application
+and authored tonal hierarchy across raster and solid adapters. There is no
+fallback from asset or material names. Explicit
 options are authoring diagnostics, not alternate user-facing render styles.
 Setting `viewMarks: false` may isolate the pigment bed while debugging, but a
 truthful Doodle projection keeps the medium's gesture marks enabled. The runtime

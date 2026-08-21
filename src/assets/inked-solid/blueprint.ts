@@ -1,6 +1,7 @@
 import type { RgbColor } from '../../core/sketch.js';
 import type { Point3 } from '../../core/geometry3.js';
 import { SeedTree } from '../../core/random.js';
+import type { SolidMaterialSpec } from '../../materials/finish.js';
 import type { MediumId } from '../../materials/medium.js';
 import type { SolidAssetBlueprint } from '../solid-types.js';
 import { inkedSolidMediumDefaults } from './medium-projection.js';
@@ -39,7 +40,8 @@ export const INKED_SOLID_MARK_STYLES: readonly InkedSolidMarkStyle[] = Object.fr
 
 export type InkedSolidViewMarkPolicy = Readonly<{
   materialId: string;
-  materialRole: string;
+  application: SolidMaterialSpec['drawing']['application'];
+  tone: SolidMaterialSpec['drawing']['tone'];
   style: InkedSolidMarkStyle;
   scale: number;
   strength: number;
@@ -236,7 +238,7 @@ export function createInkedSolidBlueprint(
     }
   }
   const viewMarks = Object.freeze(solid.materials.map((material) => {
-    const projected = defaults.viewMark(material.role, material.drawing?.tone);
+    const projected = defaults.viewMark(material.drawing);
     const override = options.viewMarks === false
       ? { style: 'none' as const, strength: 0 }
       : options.viewMarks?.[material.id];
@@ -246,7 +248,8 @@ export function createInkedSolidBlueprint(
     }
     return Object.freeze({
       materialId: material.id,
-      materialRole: material.role,
+      application: material.drawing.application,
+      tone: material.drawing.tone,
       style: mark.style,
       scale: positive(`viewMarks.${material.id}.scale`, mark.scale),
       strength: unit(`viewMarks.${material.id}.strength`, mark.strength),

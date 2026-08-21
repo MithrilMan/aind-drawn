@@ -188,9 +188,11 @@ features whose depth changes their meaning.
 
 ### Materials and gameplay
 
-Materials carry semantic `id`, `role`, colour, and smooth finish. When a seeded
-tone hierarchy must match raster output, derive it next to identity and assign
-`SolidMaterialSpec.drawing.tone`. Never infer tone from part names or RGB.
+Materials carry a semantic `id`, colour, smooth finish, and an explicit generic
+drawing application plus tone. When a seeded tone hierarchy must match raster
+output, derive it next to identity and assign `SolidMaterialSpec.drawing.tone`.
+Map family semantics to `drawing.application` in the family adapter; never infer
+either value from part names, material IDs, or RGB.
 
 Solid colliders currently use boxes. Add a general collider primitive only when
 the domain needs it across families; do not bury a one-off physics type in an

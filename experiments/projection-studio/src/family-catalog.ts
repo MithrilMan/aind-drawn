@@ -5,6 +5,11 @@ import {
   CHARACTER_POSES,
   VEHICLE_AUTHORING_SCHEMA,
   VEHICLE_MOTIONS,
+  CharacterAnimator,
+  SolidCharacterAnimator,
+  SpriteRig,
+  SolidRig,
+  VehicleAnimator,
   createDefaultAssetAuthoringValues,
   createBuildingIdentity,
   createCharacterIdentity,
@@ -45,8 +50,6 @@ import {
   type VehicleArchetype,
   type VehicleDoorCount,
   type VehicleIdentityOptions,
-  type VehicleMotion,
-  type VehicleMotionPreset,
   type VehicleWheelStyle,
 } from '../../../src/index.js';
 
@@ -63,10 +66,26 @@ export type StudioDynamicControl = Readonly<{
   options: readonly StudioChoice[];
 }>;
 
-export type StudioRuntimeMotion =
-  | Readonly<{ kind: 'character'; motion: CharacterMotion; expression: CharacterExpression }>
-  | Readonly<{ kind: 'vehicle'; motion: VehicleMotion }>
-  | Readonly<{ kind: 'static' }>;
+export type StudioRuntimeFrame = Readonly<{
+  deltaSeconds: number;
+  elapsedSeconds: number;
+  speed: number;
+  dynamicState: FamilyDynamicState;
+}>;
+
+export type StudioRuntimeAdapter = Readonly<{
+  update: (frame: StudioRuntimeFrame) => void;
+}>;
+
+export type StudioRuntimeOptions = Readonly<{ autoGaze: boolean }>;
+export type StudioRasterRuntimeFactory = (
+  rig: SpriteRig,
+  options: StudioRuntimeOptions,
+) => StudioRuntimeAdapter;
+export type StudioSolidRuntimeFactory = (
+  rig: SolidRig,
+  options: StudioRuntimeOptions,
+) => StudioRuntimeAdapter;
 
 export type FamilyProjection = Readonly<{
   raster: AssetBlueprint;
@@ -81,6 +100,7 @@ export type StudioFamilyDefinition = Readonly<{
   defaultSeed: number;
   initialYaw: number;
   initialPitch: number;
+  solidFrameScale: number;
   defaultFinish: SolidFinishId;
   rasterViewTitle: string;
   rasterAriaLabel: string;
@@ -97,11 +117,8 @@ export type StudioFamilyDefinition = Readonly<{
     customization: FamilyCustomization,
     finish: SolidFinishId,
   ) => FamilyProjection;
-  createRuntimeMotion: (
-    dynamicState: FamilyDynamicState,
-    speed: number,
-    elapsedSeconds: number,
-  ) => StudioRuntimeMotion;
+  createRasterRuntime: StudioRasterRuntimeFactory;
+  createSolidRuntime: StudioSolidRuntimeFactory;
 }>;
 
 function optionalString(value: AssetAuthoringValue | undefined): string | undefined {
@@ -217,42 +234,56 @@ function vehicleProjection(
   });
 }
 
-function characterRuntimeMotion(
-  state: FamilyDynamicState,
-  speed: number,
-): StudioRuntimeMotion {
+type CharacterRuntime = Readonly<{
+  readonly currentExpression: CharacterExpression;
+  setExpression: (expression: CharacterExpression) => void;
+  update: (deltaSeconds: number, motion: CharacterMotion) => void;
+}>;
+
+function characterRuntime(animator: CharacterRuntime): StudioRuntimeAdapter {
   return Object.freeze({
-    kind: 'character',
-    motion: Object.freeze({
-      pose: (state.pose ?? 'idle') as CharacterPose,
-      speed,
-      facing: 1 as const,
-    }),
-    expression: (state.expression ?? 'idle') as CharacterExpression,
+    update: ({ deltaSeconds, dynamicState, speed }) => {
+      const expression = (dynamicState.expression ?? 'idle') as CharacterExpression;
+      if (animator.currentExpression !== expression) animator.setExpression(expression);
+      animator.update(deltaSeconds, Object.freeze({
+        pose: (dynamicState.pose ?? 'idle') as CharacterPose,
+        speed,
+        facing: 1 as const,
+      }));
+    },
   });
 }
 
-function vehicleRuntimeMotion(
-  state: FamilyDynamicState,
-  speed: number,
-  elapsedSeconds: number,
-): StudioRuntimeMotion {
-  const preset = (state.motion ?? 'parked') as VehicleMotionPreset;
-  const steeringChoice = state.steering ?? 'straight';
-  const signedSpeed = preset === 'reverse' ? -speed : preset === 'parked' ? 0 : speed;
-  const steering = preset === 'showcase'
-    ? Math.sin(elapsedSeconds * 0.8) * 0.72
-    : steeringChoice === 'left' ? -0.72 : steeringChoice === 'right' ? 0.72 : 0;
+function vehicleRuntime(animator: VehicleAnimator): StudioRuntimeAdapter {
   return Object.freeze({
-    kind: 'vehicle',
-    motion: Object.freeze({
-      travelDistance: elapsedSeconds * signedSpeed * 2.4,
-      speed: Math.abs(signedSpeed),
-      steering,
-      suspension: preset === 'showcase' ? 0.78 : 0.42,
-    }),
+    update: ({ deltaSeconds, dynamicState, speed, elapsedSeconds }) => {
+      const preset = dynamicState.motion ?? 'parked';
+      const steeringChoice = dynamicState.steering ?? 'straight';
+      const signedSpeed = preset === 'reverse' ? -speed : preset === 'parked' ? 0 : speed;
+      const steering = preset === 'showcase'
+        ? Math.sin(elapsedSeconds * 0.8) * 0.72
+        : steeringChoice === 'left' ? -0.72 : steeringChoice === 'right' ? 0.72 : 0;
+      animator.update(deltaSeconds, Object.freeze({
+        travelDistance: elapsedSeconds * signedSpeed * 2.4,
+        speed: Math.abs(signedSpeed),
+        steering,
+        suspension: preset === 'showcase' ? 0.78 : 0.42,
+      }));
+    },
   });
 }
+
+function staticRasterRuntime(rig: SpriteRig): StudioRuntimeAdapter {
+  return Object.freeze({
+    update: ({ elapsedSeconds }) => {
+      rig.updateBoil(elapsedSeconds);
+    },
+  });
+}
+
+const staticSolidRuntime: StudioSolidRuntimeFactory = () => Object.freeze({
+  update: () => undefined,
+});
 
 export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze([
   Object.freeze({
@@ -262,6 +293,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     defaultSeed: 4104,
     initialYaw: 28,
     initialPitch: -4,
+    solidFrameScale: 0.62,
     defaultFinish: 'skin',
     rasterViewTitle: 'Front view',
     rasterAriaLabel: 'Front-facing 2D character drawing',
@@ -276,7 +308,12 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: CHARACTER_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(CHARACTER_AUTHORING_SCHEMA),
     createProjection: characterProjection,
-    createRuntimeMotion: characterRuntimeMotion,
+    createRasterRuntime: (rig: SpriteRig, options: StudioRuntimeOptions) => characterRuntime(
+      new CharacterAnimator(rig, { autoGaze: options.autoGaze }),
+    ),
+    createSolidRuntime: (rig: SolidRig, options: StudioRuntimeOptions) => characterRuntime(
+      new SolidCharacterAnimator(rig, { autoGaze: options.autoGaze }),
+    ),
   }),
   Object.freeze({
     id: 'building',
@@ -285,6 +322,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     defaultSeed: 4104,
     initialYaw: -24,
     initialPitch: -6,
+    solidFrameScale: 0.72,
     defaultFinish: 'matte',
     rasterViewTitle: 'Front elevation',
     rasterAriaLabel: 'Front elevation 2D building drawing',
@@ -300,7 +338,8 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: BUILDING_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(BUILDING_AUTHORING_SCHEMA),
     createProjection: buildingProjection,
-    createRuntimeMotion: () => Object.freeze({ kind: 'static' as const }),
+    createRasterRuntime: staticRasterRuntime,
+    createSolidRuntime: staticSolidRuntime,
   }),
   Object.freeze({
     id: 'vehicle',
@@ -309,6 +348,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     defaultSeed: 5101,
     initialYaw: -32,
     initialPitch: -7,
+    solidFrameScale: 0.62,
     defaultFinish: 'glossy',
     rasterViewTitle: 'Side elevation',
     rasterAriaLabel: 'Side elevation 2D vehicle drawing',
@@ -330,7 +370,8 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: VEHICLE_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(VEHICLE_AUTHORING_SCHEMA),
     createProjection: vehicleProjection,
-    createRuntimeMotion: vehicleRuntimeMotion,
+    createRasterRuntime: (rig: SpriteRig) => vehicleRuntime(new VehicleAnimator(rig)),
+    createSolidRuntime: (rig: SolidRig) => vehicleRuntime(new VehicleAnimator(rig)),
   }),
 ]);
 

@@ -25,6 +25,8 @@ import {
   createSolidCharacterInkStrokes,
   createSolidCharacterBlueprint,
   createSolidBuildingBlueprint,
+  characterFlowOf,
+  solidFaceMotionOf,
   type AssetBlueprint,
   type CanvasFactory,
 } from '../src/index.js';
@@ -209,7 +211,7 @@ describe('sprite rig runtime', () => {
     expect(tearProfile.attachmentClearanceInEyeRadii).toBeGreaterThan(0);
     expect(tearProfile.components.map(({ id }) => id)).toEqual(['stream', 'drop', 'bead']);
     expect(rasterTear?.position.y).toBeLessThan(rasterEye?.position.y ?? 0);
-    expect(blueprint.layers.filter(({ animation }) => animation?.role === 'flow')).toHaveLength(6);
+    expect(blueprint.layers.filter((layer) => characterFlowOf(layer) !== undefined)).toHaveLength(6);
 
     const solid = createSolidCharacterBlueprint(identity);
     const solidEye = solid.parts.find(({ id }) => id === 'eye:left:white');
@@ -217,7 +219,8 @@ describe('sprite rig runtime', () => {
     expect(solidTear?.placement.position[1]).toBeLessThan(
       solidEye?.placement.position[1] ?? 0,
     );
-    expect(solid.parts.filter(({ motion }) => motion.role === 'effect')).toHaveLength(6);
+    expect(solid.parts.filter((part) => solidFaceMotionOf(part)?.kind === 'flow-effect'))
+      .toHaveLength(6);
   });
 });
 
@@ -232,9 +235,9 @@ describe('solid rig runtime', () => {
       id,
       provider.create({
         id: `finish:${id}`,
-        role: 'body',
         color: [120 + index, 96, 74] as const,
         finish: id,
+        drawing: { application: 'pigment', tone: 'hatch' },
       }),
     ]));
     expect(materials.get('pearl')?.iridescenceThicknessMap).not.toBeNull();
@@ -248,7 +251,8 @@ describe('solid rig runtime', () => {
     expect(materials.get('crazed')?.normalMap).not.toBeNull();
 
     const sharedWood = provider.create({
-      id: 'finish:wood:second', role: 'body', color: [90, 70, 50], finish: 'wood',
+      id: 'finish:wood:second', color: [90, 70, 50], finish: 'wood',
+      drawing: { application: 'pigment', tone: 'hatch' },
     });
     expect(sharedWood.normalMap).toBe(materials.get('wood')?.normalMap);
     let materialDisposals = 0;
@@ -259,7 +263,8 @@ describe('solid rig runtime', () => {
     expect(materialDisposals).toBe(1);
     expect(textureDisposals).toBe(1);
     expect(() => provider.create({
-      id: 'late', role: 'body', color: [0, 0, 0], finish: 'matte',
+      id: 'late', color: [0, 0, 0], finish: 'matte',
+      drawing: { application: 'pigment', tone: 'hatch' },
     })).toThrow(/disposed/i);
   });
 
@@ -464,6 +469,29 @@ describe('solid rig runtime', () => {
     expect(tear?.visible).toBe(false);
     rig.dispose();
     expect(rig.partIds).toEqual([]);
+  });
+
+  it('does not restart a blink when the same solid expression is assigned every frame', () => {
+    const rig = new SolidRig(createSolidFaceBlueprint(createSolidFaceRecipe(4104, {
+      species: 'human', shape: 'round', finish: 'skin',
+    })));
+    const pupil = rig.getPart('eye:left:pupil');
+    const restScaleY = pupil?.scale.y ?? 0;
+    const animator = new SolidFaceAnimator(rig, { autoBlink: false, autoGaze: false });
+
+    for (let frame = 0; frame < 30; frame += 1) {
+      animator.setExpression('idle');
+      animator.update(1 / 60);
+      expect(pupil?.scale.y).toBeCloseTo(restScaleY, 6);
+    }
+
+    animator.setExpression('angry');
+    animator.update(0.07);
+    expect(pupil?.scale.y).toBeLessThan(restScaleY * 0.2);
+    animator.setExpression('angry');
+    animator.update(0.07);
+    expect(pupil?.scale.y).toBeGreaterThan(restScaleY * 0.5);
+    rig.dispose();
   });
 
   it('keeps a complete solid body articulated while the face animator targets the head', () => {

@@ -67,7 +67,7 @@ function addOutfitParts(
       id: `outfit:${mark.id}`, node: 'torso', order: 8,
       geometry: plate(outline, torsoDepth * 0.12, torsoDepth * 0.035),
       materialId: 'accent', placement: solidPlacement([0, centerY, front]),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: false, receiveShadow: false,
+      castShadow: false, receiveShadow: false,
     });
   }
 }
@@ -99,7 +99,7 @@ function addTailParts(
         [centerX, centerY, 0] as const,
         [0, 0, angle - Math.PI / 2] as const,
       ),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
     x += Math.cos(angle) * segmentLength;
     y += Math.sin(angle) * segmentLength;
@@ -125,7 +125,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
     geometry: ellipsoid(torsoRadii, identity.species === 'robot' ? 4.8 : 2.6, [32, 22]),
     materialId: bodyMaterial,
     placement: solidPlacement([0, layout.torso.height * 0.5, 0] as const),
-    motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
 
   for (const side of [-1, 1] as const) {
@@ -139,7 +139,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
       ] as const, 2.2, [18, 12]),
       materialId: limbMaterial,
       placement: solidPlacement([0, -layout.limbs.armLength * 0.44, 0] as const),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
     const handRadius = layout.limbs.armRadius * (identity.species === 'cat' ? 1.45 : 1.28);
     add({
@@ -151,7 +151,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
       ] as const, 2.2, [16, 10]),
       materialId: 'skin',
       placement: solidPlacement([0, -layout.limbs.armLength * 0.9, handRadius * 0.18] as const),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
 
     add({
@@ -163,7 +163,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
       ] as const, 2.3, [18, 12]),
       materialId: limbMaterial,
       placement: solidPlacement([0, -layout.limbs.legLength * 0.43, 0] as const),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
     const footRadius = layout.limbs.legRadius * 1.34;
     add({
@@ -179,7 +179,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         -layout.limbs.legLength * 0.88,
         footRadius * 0.48,
       ] as const),
-      motion: Object.freeze({ role: 'fixed' }), castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
   }
 
@@ -189,9 +189,9 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
 
   const drawing = createCharacterDrawingStyle(identity);
   const clothMaterial: SolidMaterialSpec = Object.freeze({
-    id: 'cloth', role: 'clothing', color: identity.palette.cloth,
+    id: 'cloth', color: identity.palette.cloth,
     finish: identity.species === 'robot' ? 'metal' : 'matte',
-    drawing: Object.freeze({ tone: drawing.bodyTone }),
+    drawing: Object.freeze({ application: 'pigment', tone: drawing.bodyTone }),
   });
   const materials = Object.freeze([...face.materials, clothMaterial]);
   const bodyTop = layout.limbs.legLength + layout.torso.height;

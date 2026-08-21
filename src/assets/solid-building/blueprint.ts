@@ -111,17 +111,19 @@ function materialSpecs(recipe: SolidBuildingRecipe): readonly SolidMaterialSpec[
   const drawing = createBuildingDrawingStyle(recipe.identity);
   return Object.freeze([
     Object.freeze({
-      id: 'wall', role: 'facade', color: recipe.identity.palette.wall,
+      id: 'wall', color: recipe.identity.palette.wall,
       finish: recipe.style.finish,
-      drawing: Object.freeze({ tone: drawing.facadeTone }),
+      drawing: Object.freeze({ application: 'pigment', tone: drawing.facadeTone }),
     }),
     Object.freeze({
-      id: 'accent', role: 'architectural-accent', color: recipe.identity.palette.accent,
+      id: 'accent', color: recipe.identity.palette.accent,
       finish: recipe.style.finish,
+      drawing: Object.freeze({ application: 'pigment', tone: 'hatch' }),
     }),
     Object.freeze({
-      id: 'glass', role: 'window', color: recipe.identity.palette.glass,
+      id: 'glass', color: recipe.identity.palette.glass,
       finish: recipe.style.windowFinish, roughness: 0.18, clearcoat: 0.62,
+      drawing: Object.freeze({ application: 'glaze', tone: 'hatch' }),
     }),
   ]);
 }
@@ -131,19 +133,17 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
   const identity = recipe.identity;
   const parts: SolidPartDefinition[] = [];
   const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
-  const fixed = Object.freeze({ role: 'fixed' as const });
-
   add({
     id: 'building:shell', node: 'root', order: 0,
     geometry: box([layout.width, layout.wallHeight, layout.depth], [2, 2, 2]),
     materialId: 'wall', placement: placement([0, layout.wallHeight * 0.5, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
   add({
     id: 'building:roof', node: 'root', order: 1,
     geometry: prismFromProfile(roofProfile(layout, recipe), layout.depth * 1.08),
     materialId: 'accent', placement: placement([0, layout.wallHeight, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
 
   const windowWidth = Math.min(layout.bayWidth * 0.48, 0.72);
@@ -158,7 +158,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
         geometry: plate(rectangle(windowWidth, windowHeight), 0.055, 0.01),
         materialId: 'glass',
         placement: placement([x, y - windowHeight * 0.5, layout.depth * 0.5 + 0.045]),
-        motion: fixed, castShadow: false, receiveShadow: false,
+        castShadow: false, receiveShadow: false,
       });
     }
   }
@@ -170,7 +170,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     id: 'door', node: 'door', order: 8,
     geometry: plate(doorOutline, 0.08, identity.door.style === 'plank' ? 0.006 : 0.018),
     materialId: 'accent', placement: placement([layout.door.width * 0.5, 0, 0]),
-    motion: fixed, castShadow: true, receiveShadow: false,
+    castShadow: true, receiveShadow: false,
   });
 
   for (const [balconyIndex, balcony] of identity.balconies.entries()) {
@@ -182,13 +182,13 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     add({
       id: `balcony:${balconyIndex}:floor`, node: 'root', order: 5,
       geometry: box([width, 0.08, 0.48]), materialId: 'accent',
-      placement: placement([x, y, z]), motion: fixed,
+      placement: placement([x, y, z]),
       castShadow: true, receiveShadow: true,
     });
     add({
       id: `balcony:${balconyIndex}:rail`, node: 'root', order: 6,
       geometry: box([width, 0.055, 0.055]), materialId: 'accent',
-      placement: placement([x, y + 0.42, z + 0.22]), motion: fixed,
+      placement: placement([x, y + 0.42, z + 0.22]),
       castShadow: true, receiveShadow: false,
     });
     const posts = Math.max(2, balcony.columnSpan * 2);
@@ -201,7 +201,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
           y + 0.21,
           z + 0.22,
         ]),
-        motion: fixed, castShadow: true, receiveShadow: false,
+        castShadow: true, receiveShadow: false,
       });
     }
   }
@@ -213,7 +213,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
       id: 'building:chimney', node: 'root', order: 2,
       geometry: box([0.38, height, 0.42]), materialId: 'wall',
       placement: placement([x, layout.wallHeight + height * 0.58, 0]),
-      motion: fixed, castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
   }
 

@@ -76,7 +76,7 @@ policy, while `src/assets/solid-character` adds solid finish, depth, body
 topology, articulated nodes, colliders, and sockets. `src/assets/solid-face`
 is the focused face projection reused by the complete character. The face
 layout places shared facial intent on an analytic surface and both blueprints
-emit serialisable geometry and material roles. Three.js objects exist only
+emit serialisable geometry and explicit drawing applications. Three.js objects exist only
 after `SolidRig` consumes a blueprint.
 
 The shared character contract includes more than categorical labels. Head
@@ -143,8 +143,11 @@ identity data.
 - For solids, use stable node and part IDs and mount features through a shared
   `SurfaceAnchor`; do not hand-tune Three.js transforms in the consumer.
 - Keep material intent in `SolidMaterialSpec` and lighting/environment policy in
-  the runtime or scene. When tonal hierarchy is part of cross-representation
-  identity, author `drawing.tone`; do not let each projection reroll it.
+  the runtime or scene. Every material declares both a generic
+  `drawing.application` and `drawing.tone`. The application describes deposition
+  (`pigment`, `tint`, `paper`, `ink`, `wash`, or `glaze`), never an asset role.
+  When tonal hierarchy is part of cross-representation identity, author
+  `drawing.tone`; do not let each projection reroll it.
 - Select physical appearance from `SOLID_FINISH_CATALOG`. The runtime
   `SolidMaterialProvider` is the only place that maps a finish to Three.js
   parameters and procedural maps. Add a finish once to the catalog, its
@@ -200,8 +203,9 @@ identity data.
   `skin`, `wood`, `chrome`, `ceramic`, and other physical finishes belong only
   to smooth solid rendering; they are not drawing media and must not leak into
   doodle policy.
-- Add a new drawing medium once in `src/materials/medium.ts` and its volumetric
-  policy in `src/assets/inked-solid/medium-projection.ts`; add a new generic
+- Add a new drawing medium once in `src/materials/medium.ts`, implement one
+  provider under `src/assets/inked-solid/projection-providers/`, and register it
+  in `medium-projection.ts`; add a new generic
   shader field in `InkedSolidPass` only when its paper-space statistics cannot reuse
   an existing one. Do not add asset-family-specific medium presets.
 - Derive that volumetric policy from the raster operation itself. Watercolour
@@ -235,10 +239,17 @@ The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
 `door` node. Both use `door:sensor`, `door:entry`, and the same portal intent.
 
+Family-specific animation metadata is published as namespaced capabilities.
+The generic layer and solid-part contracts do not contain a growing union of
+character, vehicle, or effect roles. Define a capability ID, payload, constructor,
+and reader beside the owning family; its animator consumes that reader while
+generic rigs remain unaware of the payload.
+
 The vehicle family is the articulated machinery reference. One
 `VehicleIdentityRecipe` owns body archetype, proportions, cabin, wheelbase,
 tyres, doors, details, palette, and useful sockets. Raster wheels and solid
-torus tyres publish rolling metadata consumed by `VehicleAnimator`; rotation is
+torus tyres publish family-owned rolling capabilities consumed by
+`VehicleAnimator`; rotation is
 derived from cumulative signed travel, so frames cannot accumulate drift.
 Doors, bonnet, and cargo remain declarative rig interactions. Projection Studio
 registers these controls through family metadata and does not branch on the

@@ -9,6 +9,7 @@ import {
   type VehicleLayout,
 } from './layout.js';
 import type { RasterVehicleRecipe } from './recipe.js';
+import { vehicleRollingLayerCapability } from './capabilities.js';
 
 function canvasPoint(layout: VehicleLayout, point: Point): Point {
   return [
@@ -225,11 +226,10 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
       position: center,
       pivot: [0.5, 0.5] as const,
       states: ['idle'] as const,
-      animation: Object.freeze({
-        role: 'rolling' as const,
+      capabilities: Object.freeze([vehicleRollingLayerCapability({
         radius: recipe.identity.wheels.radius,
         steering: id === 'wheel:front',
-      }),
+      })]),
       draw: ({ sketch }): void => {
         drawWheel(sketch, recipe, medium);
       },

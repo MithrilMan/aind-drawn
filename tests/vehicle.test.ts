@@ -12,6 +12,8 @@ import {
   createSolidVehicleBlueprint,
   createSolidVehicleInkStrokes,
   createVehicleIdentity,
+  vehicleRollingLayerOf,
+  vehicleRollingPartOf,
   validateAssetFamilyAuthoringSchema,
 } from '../src/index.js';
 
@@ -48,6 +50,8 @@ describe('vehicle asset family', () => {
       (solidFront?.position[0] ?? 0) + identity.dimensions.length * 0.5,
     );
     expect(rasterFront?.position.y).toBeCloseTo(solidFront?.position[1] ?? 0);
+    expect(rasterFront === undefined ? undefined : vehicleRollingLayerOf(rasterFront))
+      .toMatchObject({ radius: identity.wheels.radius, steering: true });
     expect(raster.interactions.map(({ id }) => id)).toEqual(
       solid.interactions.map(({ id }) => id),
     );
@@ -56,6 +60,8 @@ describe('vehicle asset family', () => {
     );
 
     const tyre = solid.parts.find(({ id }) => id === 'wheel:front:left:tyre');
+    expect(tyre === undefined ? undefined : vehicleRollingPartOf(tyre))
+      .toMatchObject({ radius: identity.wheels.radius, steering: true, side: 1 });
     expect(tyre?.geometry.type).toBe('mesh');
     if (tyre?.geometry.type !== 'mesh') return;
     const depth = Math.max(...tyre.geometry.vertices.map(([, , z]) => z))

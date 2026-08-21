@@ -4,16 +4,18 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   InkedSolidPass,
   InkedSolidStrokeRig,
-  SolidCharacterAnimator,
   SolidRig,
-  VehicleAnimator,
   createInkedSolidBlueprint,
   inkedSolidMediumDefaults,
   type InkedSolidStrokeDefinition,
   type MediumId,
   type SolidAssetBlueprint,
 } from '../../../src/index.js';
-import type { StudioRuntimeMotion } from './family-catalog.js';
+import type {
+  FamilyDynamicState,
+  StudioRuntimeAdapter,
+  StudioSolidRuntimeFactory,
+} from './family-catalog.js';
 
 const MINIMUM_PITCH = -38;
 const MAXIMUM_PITCH = 28;
@@ -37,8 +39,7 @@ export class ThreeStage {
   private rig: SolidRig | null = null;
   private pass: InkedSolidPass | null = null;
   private strokeRig: InkedSolidStrokeRig | null = null;
-  private characterAnimator: SolidCharacterAnimator | null = null;
-  private vehicleAnimator: VehicleAnimator | null = null;
+  private runtime: StudioRuntimeAdapter | null = null;
   private solid: SolidAssetBlueprint | null = null;
   private strokes: readonly InkedSolidStrokeDefinition[] = [];
   private medium: MediumId = 'graphite';
@@ -50,6 +51,7 @@ export class ThreeStage {
   private pitch = -4;
   private turntable = false;
   private renderMode: ThreeRenderMode = 'doodle';
+  private solidFrameScale = 0.62;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -91,6 +93,8 @@ export class ThreeStage {
     solid: SolidAssetBlueprint,
     strokes: readonly InkedSolidStrokeDefinition[],
     medium: MediumId,
+    createRuntime: StudioSolidRuntimeFactory,
+    solidFrameScale: number,
     autoGaze: boolean,
   ): void {
     this.strokeRig?.dispose();
@@ -99,13 +103,9 @@ export class ThreeStage {
     this.solid = solid;
     this.strokes = strokes;
     this.medium = medium;
+    this.solidFrameScale = solidFrameScale;
     this.rig = new SolidRig(solid, { environmentMap: this.environmentMap });
-    this.characterAnimator = solid.kind === 'solid-character'
-      ? new SolidCharacterAnimator(this.rig, { autoGaze })
-      : null;
-    this.vehicleAnimator = solid.kind === 'solid-vehicle'
-      ? new VehicleAnimator(this.rig)
-      : null;
+    this.runtime = createRuntime(this.rig, { autoGaze });
     this.applyView();
     this.scene.add(this.rig.root);
     this.rebuildInk();
@@ -141,16 +141,12 @@ export class ThreeStage {
 
   public update(
     deltaSeconds: number,
-    runtimeMotion: StudioRuntimeMotion,
+    dynamicState: FamilyDynamicState,
+    speed: number,
     elapsedSeconds: number,
   ): void {
     if (this.turntable) this.setView(this.yaw + TURNTABLE_DEGREES_PER_SECOND * deltaSeconds);
-    if (runtimeMotion.kind === 'character' && this.characterAnimator !== null) {
-      this.characterAnimator.setExpression(runtimeMotion.expression);
-      this.characterAnimator.update(deltaSeconds, runtimeMotion.motion);
-    } else if (runtimeMotion.kind === 'vehicle' && this.vehicleAnimator !== null) {
-      this.vehicleAnimator.update(deltaSeconds, runtimeMotion.motion);
-    }
+    this.runtime?.update({ deltaSeconds, elapsedSeconds, dynamicState, speed });
     if (this.renderMode === 'doodle') {
       this.pass?.render(this.scene, this.camera, elapsedSeconds);
     } else {
@@ -268,9 +264,9 @@ export class ThreeStage {
     const depth = bounds.maximum[2] - bounds.minimum[2];
     const centerX = (bounds.minimum[0] + bounds.maximum[0]) / 2;
     const centerY = (bounds.minimum[1] + bounds.maximum[1]) / 2;
-    const framing = this.solid?.kind === 'solid-building' ? 0.72 : 0.62;
-    const verticalDistance = height * framing / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
-    const horizontalDistance = width * framing
+    const verticalDistance = height * this.solidFrameScale
+      / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2));
+    const horizontalDistance = width * this.solidFrameScale
       / Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))
       / Math.max(0.5, this.camera.aspect);
     const distance = Math.max(verticalDistance, horizontalDistance, depth * 2.4, 2.5);

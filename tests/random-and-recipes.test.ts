@@ -43,6 +43,7 @@ import {
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
   pointOnSuperellipsoid,
+  solidFaceMotionOf,
 } from '../src/index.js';
 
 describe('deterministic generation', () => {
@@ -421,8 +422,11 @@ describe('asset contracts', () => {
       mouthTongue: true,
     });
     const blueprint = createSolidCharacterBlueprint(identity);
-    const mouths = blueprint.parts.filter(({ motion }) => motion.role === 'mouth');
-    expect(new Set(mouths.map(({ motion }) => motion.expression)))
+    const mouths = blueprint.parts.filter((part) => solidFaceMotionOf(part)?.kind === 'mouth');
+    expect(new Set(mouths.map((part) => {
+      const motion = solidFaceMotionOf(part);
+      return motion?.kind === 'mouth' ? motion.expression : null;
+    })))
       .toEqual(new Set(CHARACTER_EXPRESSIONS));
     expect(mouths.filter(({ visible }) => visible !== false).map(({ id }) => id))
       .toEqual(expect.arrayContaining([
@@ -541,14 +545,14 @@ describe('asset contracts', () => {
     expect(characterInk.solid).toBe(characterSolid);
     expect(buildingInk.solid).toBe(buildingSolid);
     expect(characterInk.contour).toEqual(buildingInk.contour);
-    expect(characterInk.viewMarks.find(({ materialRole }) => materialRole === 'hair')?.style)
+    expect(characterInk.viewMarks.find(({ materialId }) => materialId === 'hair')?.style)
       .toBe('scribble');
-    expect(characterInk.viewMarks.find(({ materialRole }) => materialRole === 'linework')?.style)
+    expect(characterInk.viewMarks.find(({ application }) => application === 'ink')?.style)
       .toBe('solid');
-    expect(characterInk.viewMarks.find(({ materialRole }) => materialRole === 'eye-white')?.style)
+    expect(characterInk.viewMarks.find(({ application }) => application === 'paper')?.style)
       .toBe('none');
-    const facadeTone = buildingSolid.materials.find(({ role }) => role === 'facade')?.drawing?.tone;
-    expect(buildingInk.viewMarks.find(({ materialRole }) => materialRole === 'facade')?.style)
+    const facadeTone = buildingSolid.materials.find(({ id }) => id === 'wall')?.drawing.tone;
+    expect(buildingInk.viewMarks.find(({ materialId }) => materialId === 'wall')?.style)
       .toBe(facadeTone === 'black' ? 'scribble' : facadeTone);
     expect(characterInk.deposition).toEqual(buildingInk.deposition);
     expect(characterInk.strokes.length).toBeGreaterThan(0);
@@ -588,8 +592,8 @@ describe('asset contracts', () => {
     expect(raster.style).toMatchObject({ headTone: 'light', hairTone: 'black' });
     expect(skin?.color).toEqual(identity.palette.skin);
     expect(hair?.color).toEqual(identity.palette.hair);
-    expect(skin?.drawing?.tone).toBe(raster.style.headTone);
-    expect(hair?.drawing?.tone).toBe(raster.style.hairTone);
+    expect(skin?.drawing.tone).toBe(raster.style.headTone);
+    expect(hair?.drawing.tone).toBe(raster.style.hairTone);
     expect(skinMark).toMatchObject({ style: 'hatch', strength: 0.4, coverage: 0.08 });
     expect(hairMark).toMatchObject({ style: 'scribble', strength: 0.72, coverage: 0.68 });
     expect(hairMark?.scale).toBeCloseTo((skinMark?.scale ?? 0) * 2.5);
@@ -600,11 +604,11 @@ describe('asset contracts', () => {
 
   it('calibrates graphite mark density to the shared raster tone hierarchy', () => {
     const graphite = inkedSolidMediumDefaults('graphite');
-    const light = graphite.viewMark('clothing', 'light');
-    const hatch = graphite.viewMark('clothing', 'hatch');
-    const scribble = graphite.viewMark('clothing', 'scribble');
-    const stipple = graphite.viewMark('clothing', 'stipple');
-    const black = graphite.viewMark('clothing', 'black');
+    const light = graphite.viewMark({ application: 'pigment', tone: 'light' });
+    const hatch = graphite.viewMark({ application: 'pigment', tone: 'hatch' });
+    const scribble = graphite.viewMark({ application: 'pigment', tone: 'scribble' });
+    const stipple = graphite.viewMark({ application: 'pigment', tone: 'stipple' });
+    const black = graphite.viewMark({ application: 'pigment', tone: 'black' });
 
     expect(light).toMatchObject({ style: 'none', strength: 0, coverage: 0.03 });
     expect(hatch).toMatchObject({ style: 'hatch', strength: 0.4, coverage: 0.06 });
@@ -622,7 +626,7 @@ describe('asset contracts', () => {
     const solid = createSolidBuildingBlueprint(identity);
     expect(solid.materials.find(({ id }) => id === 'wall')?.color)
       .toEqual(identity.palette.wall);
-    expect(solid.materials.find(({ id }) => id === 'wall')?.drawing?.tone)
+    expect(solid.materials.find(({ id }) => id === 'wall')?.drawing.tone)
       .toBe(raster.style.tone);
   });
 
@@ -651,7 +655,7 @@ describe('asset contracts', () => {
   it('keeps oil pigment opaque while varying bristle character by authored tone', () => {
     const solid = createSolidCharacterBlueprint(createCharacterIdentity(4_103));
     const inked = createInkedSolidBlueprint(solid, { medium: 'oil' });
-    const painted = inked.viewMarks.filter(({ materialRole }) => materialRole !== 'eye-white');
+    const painted = inked.viewMarks.filter(({ application }) => application !== 'paper');
     expect(painted.every(({ coverage }) => coverage >= 0.62)).toBe(true);
     expect(inked.viewMarks.find(({ materialId }) => materialId === 'skin')?.coverage).toBe(0.98);
     expect(inked.contour.wander).toBeGreaterThan(0);
@@ -663,29 +667,30 @@ describe('asset contracts', () => {
     const charcoal = inkedSolidMediumDefaults('chalk');
     const marker = inkedSolidMediumDefaults('marker');
     for (const tone of tones) {
-      expect(oil.viewMark('clothing', tone).style).toBe('bristle');
-      expect(charcoal.viewMark('clothing', tone).style).toBe('stipple');
-      expect(marker.viewMark('clothing', tone).style).toBe('marker');
+      expect(oil.viewMark({ application: 'pigment', tone }).style).toBe('bristle');
+      expect(charcoal.viewMark({ application: 'pigment', tone }).style).toBe('stipple');
+      expect(marker.viewMark({ application: 'pigment', tone }).style).toBe('marker');
     }
-    expect(marker.viewMark('clothing', 'hatch').lineWidth).toBeGreaterThan(0.2);
-    expect(charcoal.viewMark('body', 'hatch').style).not.toBe('hatch');
+    expect(marker.viewMark({ application: 'pigment', tone: 'hatch' }).lineWidth)
+      .toBeGreaterThan(0.2);
+    expect(charcoal.viewMark({ application: 'tint', tone: 'hatch' }).style).not.toBe('hatch');
   });
 
   it('projects ink and watercolour as deposited filler rather than invented shading bands', () => {
     const ink = inkedSolidMediumDefaults('ink');
-    const inkBlack = ink.viewMark('hair', 'black');
-    const inkLight = ink.viewMark('clothing', 'light');
+    const inkBlack = ink.viewMark({ application: 'pigment', tone: 'black' });
+    const inkLight = ink.viewMark({ application: 'pigment', tone: 'light' });
     expect(inkBlack).toMatchObject({ style: 'hatch', strength: 0.2, coverage: 0.9 });
     expect(inkLight.style).toBe('none');
     expect(inkLight.coverage).toBeCloseTo(0.16 + 0.34 * 0.74);
 
     const watercolour = inkedSolidMediumDefaults('watercolor');
-    const watercolourBlack = watercolour.viewMark('hair', 'black');
-    const watercolourLight = watercolour.viewMark('clothing', 'light');
+    const watercolourBlack = watercolour.viewMark({ application: 'pigment', tone: 'black' });
+    const watercolourLight = watercolour.viewMark({ application: 'pigment', tone: 'light' });
     expect(watercolourBlack.style).toBe('none');
     expect(watercolourLight.style).toBe('none');
     expect(watercolourBlack.coverage).toBeGreaterThan(watercolourLight.coverage);
-    expect(watercolour.viewMark('linework', 'black').style).toBe('solid');
+    expect(watercolour.viewMark({ application: 'ink', tone: 'black' }).style).toBe('solid');
   });
 
   it('validates ink policies without mutating solid semantics', () => {

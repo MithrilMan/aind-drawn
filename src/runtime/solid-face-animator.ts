@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import type { SolidPartDefinition } from '../assets/solid-types.js';
+import { solidFaceMotionOf } from '../assets/solid-face/capabilities.js';
 import {
   createCharacterExpressionProfile,
   type CharacterExpression,
@@ -102,6 +103,7 @@ export class SolidFaceAnimator {
   }
 
   public setExpression(expression: SolidFaceExpression): void {
+    if (this.expression === expression) return;
     this.expression = expression;
     if (this.blinkProgress < 0) this.blinkProgress = 0;
   }
@@ -182,50 +184,45 @@ export class SolidFaceAnimator {
       mesh.position.copy(rest.position);
       mesh.quaternion.copy(rest.quaternion);
       mesh.scale.copy(rest.scale);
-      const motion = definition.motion;
-      if (motion.role === 'eye') {
-        if (motion.gazeTravel !== undefined) {
-          mesh.translateX(this.gazeX * motion.gazeTravel[0] * blinkWave);
-          mesh.translateY(this.gazeY * motion.gazeTravel[1] * blinkWave);
-        }
-        const blinkScale = motion.blink === undefined
-          ? 1
-          : Math.max(motion.blink.minimumScaleY, blinkWave);
+      const motion = solidFaceMotionOf(definition);
+      if (motion?.kind === 'eye') {
+        mesh.translateX(this.gazeX * motion.gazeTravel[0] * blinkWave);
+        mesh.translateY(this.gazeY * motion.gazeTravel[1] * blinkWave);
+        const blinkScale = Math.max(motion.blink.minimumScaleY, blinkWave);
         const eyeScale = expression.eyes.scale;
         mesh.scale.set(
           rest.scale.x * eyeScale,
           rest.scale.y * eyeScale * expression.eyes.openness * blinkScale,
           rest.scale.z,
         );
-      } else if (motion.role === 'brow') {
+      } else if (motion?.kind === 'brow') {
         mesh.translateX(this.gazeX * unit * 0.04);
         mesh.translateY(this.gazeY * unit * 0.035 + expression.brows.lift * unit);
         // Profile semantics are face-relative: a positive value raises both
         // inner endpoints. Each adapter owns the conversion to local rotation.
-        mesh.rotateZ(-expression.brows.innerRaise * (motion.side ?? 1));
-      } else if (motion.role === 'mouth') {
+        mesh.rotateZ(-expression.brows.innerRaise * motion.side);
+      } else if (motion?.kind === 'mouth') {
         mesh.translateX(this.headX * unit * 0.04);
         mesh.translateY(this.headY * unit * 0.025);
-        mesh.visible = motion.expression === undefined || motion.expression === this.expression;
-      } else if (motion.role === 'effect' && motion.effect?.kind === 'flow') {
-        const effect = motion.effect;
-        mesh.visible = this.expression === effect.activationState;
+        mesh.visible = motion.expression === this.expression;
+      } else if (motion?.kind === 'flow-effect') {
+        mesh.visible = this.expression === motion.activationState;
         if (mesh.visible) {
-          if (effect.attachment === 'source') {
-            const wave = Math.sin(this.elapsed * 4.4 + effect.phase * Math.PI * 2);
-            const pulse = effect.pulse;
+          if (motion.attachment === 'source') {
+            const wave = Math.sin(this.elapsed * 4.4 + motion.phase * Math.PI * 2);
+            const pulse = motion.pulse;
             mesh.scale.set(
               rest.scale.x * (1 + wave * pulse),
               rest.scale.y * (1 - wave * pulse * 0.32),
               rest.scale.z,
             );
           } else {
-            const fall = (this.elapsed * 0.86 + effect.phase) % 1;
-            const travel = effect.travel;
+            const fall = (this.elapsed * 0.86 + motion.phase) % 1;
+            const travel = motion.travel;
             mesh.translateX(travel[0] * fall);
             mesh.translateY(travel[1] * fall);
             mesh.translateZ(travel[2] * fall);
-            const pulse = 1 + Math.sin(fall * Math.PI) * effect.pulse;
+            const pulse = 1 + Math.sin(fall * Math.PI) * motion.pulse;
             mesh.scale.set(
               rest.scale.x * pulse,
               rest.scale.y * (0.88 + fall * 0.2),

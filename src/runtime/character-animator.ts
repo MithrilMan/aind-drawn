@@ -4,6 +4,7 @@ import {
   createCharacterExpressionProfile,
   type CharacterExpression,
 } from '../assets/character-identity/expression-profile.js';
+import { characterFlowOf } from '../assets/character/capabilities.js';
 import type { BonePose, SpriteRig } from './sprite-rig.js';
 import { CharacterPoseBlend } from './character-pose-blend.js';
 import {
@@ -260,8 +261,8 @@ export class CharacterAnimator {
       this.addPose(poses, 'arm:left', { rotation: 0.16 + heave * 0.12 }, 1);
       this.addPose(poses, 'arm:right', { rotation: -0.16 - heave * 0.12 }, 1);
       for (const layer of this.rig.blueprint.layers) {
-        const animation = layer.animation;
-        if (animation?.role !== 'flow') continue;
+        const animation = characterFlowOf(layer);
+        if (animation === undefined) continue;
         if (animation.attachment === 'source') {
           const wave = Math.sin(this.elapsed * 4.4 + animation.phase * Math.PI * 2);
           this.addPose(poses, layer.bone, {
@@ -344,8 +345,8 @@ export class CharacterAnimator {
         : talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : expression,
     );
     for (const layer of this.rig.blueprint.layers) {
-      const animation = layer.animation;
-      if (animation?.role === 'flow') {
+      const animation = characterFlowOf(layer);
+      if (animation !== undefined) {
         this.stateIfPresent(
           layer.id,
           expression === animation.activationState ? animation.activationState : 'idle',

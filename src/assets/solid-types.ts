@@ -2,7 +2,7 @@ import type { Point } from '../core/geometry.js';
 import type { Bounds3, Point3, RadialDeformation, SurfaceAnchor } from '../core/geometry3.js';
 import type { Seed } from '../core/random.js';
 import type { SolidMaterialSpec } from '../materials/finish.js';
-import type { CharacterExpression } from './character-identity/expression-profile.js';
+import type { AssetCapabilities } from './capabilities.js';
 
 export type SuperellipsoidGeometrySpec = Readonly<{
   type: 'superellipsoid';
@@ -53,34 +53,6 @@ export type SolidPlacement = Readonly<{
   rotation?: Point3;
 }>;
 
-export type SolidPartMotion = Readonly<{
-  role: 'eye' | 'brow' | 'mouth' | 'effect' | 'fixed' | 'rolling';
-  side?: -1 | 1;
-  radius?: number;
-  steering?: boolean;
-  expression?: CharacterExpression;
-  effect?: Readonly<{
-    kind: 'flow';
-    attachment: 'source' | 'free';
-    activationState: string;
-    phase: number;
-    travel: Point3;
-    pulse: number;
-  }>;
-  gazeTravel?: readonly [x: number, y: number];
-  blink?: Readonly<{
-    kind: 'squash';
-    minimumScaleY: number;
-  }>;
-}>;
-
-export type SolidRollingPartMotion = SolidPartMotion & Readonly<{
-  role: 'rolling';
-  radius: number;
-  steering: boolean;
-  side: -1 | 1;
-}>;
-
 export type SolidPartDefinition = Readonly<{
   id: string;
   node: string;
@@ -88,7 +60,7 @@ export type SolidPartDefinition = Readonly<{
   geometry: SolidGeometrySpec;
   materialId: string;
   placement: SolidPlacement;
-  motion: SolidPartMotion;
+  capabilities?: AssetCapabilities;
   visible?: boolean;
   castShadow: boolean;
   receiveShadow: boolean;

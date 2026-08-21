@@ -54,6 +54,7 @@ export class SolidCharacterAnimator {
   }
 
   public setExpression(expression: SolidFaceExpression): void {
+    if (this.requestedExpression === expression) return;
     this.requestedExpression = expression;
     this.face.setExpression(expression);
   }

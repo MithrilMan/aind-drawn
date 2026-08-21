@@ -54,7 +54,8 @@ must not alter inked deposition or semantic strokes.
 Semantic material RGB is the exact pigment source. Do not pre-darken, lighten,
 fog, or mix it with paper, contour ink, or scene lighting. When seeded tonal
 hierarchy must converge with raster output, derive it beside identity and set
-`SolidMaterialSpec.drawing.tone`; material role is only the generic fallback.
+`SolidMaterialSpec.drawing.tone`. Every material also selects a generic
+`drawing.application`; there is no fallback from role, ID, colour, or part name.
 
 ## Understand the four drawing systems
 
@@ -71,8 +72,9 @@ broken pigment daubs. Preserve those distinctions centrally for every family.
 
 ### View-synthesised marks
 
-The shared medium compiler maps material role or authored tone to hatch,
-crosshatch, scribble, stipple, wash, bristle, marker, or solid marks. Fields are
+The shared medium compiler maps the authored generic drawing application and
+tone to hatch, crosshatch, scribble, stipple, wash, bristle, marker, or solid
+marks. Fields are
 view-oriented, translated by the projected origin of their owning semantic
 part, and clipped by material membership. Animation therefore carries marks
 without turning them into UV textures.
@@ -153,7 +155,7 @@ Test that:
 - all public media compile deterministic, distinct policy;
 - raster and inked previews use the same medium and semantic pigment colours;
 - physical finish changes do not change inked policy;
-- authored tone overrides material-role fallback;
+- every material has an explicit generic drawing application and tone;
 - representative light, hatch, scribble, and black tones preserve their
   relative density;
 - one renderer works on at least one organic smooth asset and one architectural

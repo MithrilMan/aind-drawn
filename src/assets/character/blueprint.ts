@@ -12,6 +12,7 @@ import {
   type CharacterTearComponent,
 } from '../character-identity/tear-profile.js';
 import { createCharacterOutfitProfile } from '../character-identity/outfit-profile.js';
+import { characterFlowCapability } from './capabilities.js';
 import { buildCharacterLayout } from './layout.js';
 import {
   createRasterCharacterRecipe,
@@ -677,8 +678,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
             + component.offset[1] * layout.head.heightPixels * 0.5 / pixelsPerUnit,
         },
         pivot: [0.5, 0.5], states: ['idle', 'crying'],
-        animation: Object.freeze({
-          role: 'flow',
+        capabilities: Object.freeze([characterFlowCapability({
           attachment: component.id === 'stream' ? 'source' : 'free',
           activationState: 'crying',
           phase: component.phase + (side < 0 ? 0 : 0.33),
@@ -689,7 +689,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
             y: component.travel[1] * layout.head.heightPixels * 0.5 / pixelsPerUnit,
           }),
           pulse: component.pulse,
-        }),
+        })]),
         draw: ({ sketch, state }) => {
           drawTearComponent(
             sketch,

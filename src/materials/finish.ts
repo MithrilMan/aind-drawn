@@ -1,8 +1,22 @@
 import type { RgbColor } from '../core/sketch.js';
 import type { ToneStyle } from './medium.js';
 
-export type SolidDrawingMaterialHint = Readonly<{
-  /** Representation-neutral tone intent shared by raster and inked-solid projections. */
+export const SOLID_DRAWING_APPLICATIONS = Object.freeze([
+  'paper',
+  'pigment',
+  'tint',
+  'flat',
+  'ink',
+  'wash',
+  'glaze',
+] as const);
+
+export type SolidDrawingApplication = typeof SOLID_DRAWING_APPLICATIONS[number];
+
+export type SolidDrawingMaterialSpec = Readonly<{
+  /** Generic deposition operation; asset-specific material names never enter the compiler. */
+  application: SolidDrawingApplication;
+  /** Representation-neutral density intent shared by raster and inked-solid projections. */
   tone: ToneStyle;
 }>;
 
@@ -26,10 +40,9 @@ export type SolidFinishId = (typeof SOLID_FINISH_CATALOG)[number]['id'];
 
 export type SolidMaterialSpec = Readonly<{
   id: string;
-  role: string;
   color: RgbColor;
   finish: SolidFinishId;
-  drawing?: SolidDrawingMaterialHint;
+  drawing: SolidDrawingMaterialSpec;
   roughness?: number;
   metalness?: number;
   clearcoat?: number;

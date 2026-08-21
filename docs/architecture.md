@@ -14,8 +14,14 @@ Experiments may depend only on the public barrel exported by `src/index.ts`.
 Projection Studio keeps customization, playback, camera, and renderer state
 outside the drawing library. Asset construction crosses the boundary through a
 catalog that maps authoring values to public identity and blueprint factories.
-Family-specific controls and runtime motion are declarative catalog metadata;
-the shell does not branch on family IDs.
+Family-specific controls and runtime adapters are declarative catalog metadata;
+the shell and its rendering stages do not branch on family IDs.
+
+Shared blueprint contracts expose namespaced `AssetCapability` entries as an
+extension boundary. A family owns the capability ID, payload type, constructor,
+and reader. Generic rigs carry those entries without interpreting them. This
+keeps expressions, rolling wheels, fluid effects, and future family vocabulary
+out of `AssetBlueprint`, `SolidAssetBlueprint`, `SpriteRig`, and `SolidRig`.
 
 Transparent layers are ordered in contiguous per-rig blocks. `drawRank` selects
 the block (background, terrain, props, actors); each blueprint layer order is
@@ -157,7 +163,7 @@ the drawing core remains compatible with `OffscreenCanvas` and test doubles.
 ## Solid geometry and runtime
 
 `SolidAssetBlueprint` is JSON-compatible data. It publishes a node hierarchy,
-named parts, geometry specifications, physical material roles, 3D bounds,
+named parts, geometry specifications, physical material intent, 3D bounds,
 colliders, sockets, and node-transform interactions. Supported geometry
 primitives are boxes, superellipsoids, extruded 2D profiles, and indexed or flat
 triangle meshes.
@@ -197,9 +203,11 @@ an articulated door node, matching colliders, and the same entry socket.
 `createInkedSolidBlueprint` wraps any `SolidAssetBlueprint` by reference and
 adds immutable drawing policy only. It requires the same `MediumId` used by
 raster recipes; `inkedSolidMediumDefaults` compiles that medium into volumetric
-coverage, view-synthesized marks, contour, and paper policy. Optional
-`SolidMaterialSpec.drawing.tone` carries seeded tonal hierarchy across
-representations while material roles provide asset-agnostic defaults. Physical
+coverage, view-synthesized marks, contour, and paper policy. Every material
+declares a generic `SolidMaterialSpec.drawing` application and tone.
+Applications such as `pigment`, `tint`, `paper`, `ink`, `wash`, and `glaze`
+describe deposition rather than asset semantics; the selected medium provider
+resolves them without inspecting family, material, or part names. Physical
 `SolidFinishId` remains an orthogonal smooth-rendering concern.
 `InkedSolidPass` renders unlit semantic albedo, depth, normals, and material
 membership. Its composite shader treats the mesh as an invisible G-buffer

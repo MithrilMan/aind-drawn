@@ -159,12 +159,18 @@ function createThreeStage(): void {
 function rebuildProjection(): void {
   const family = currentFamily();
   const projection = family.createProjection(seed, medium, currentCustomization(), currentFinish());
-  rasterStage.setBlueprint(projection.raster, autoGazeInput.checked);
+  rasterStage.setBlueprint(
+    projection.raster,
+    family.createRasterRuntime,
+    autoGazeInput.checked,
+  );
   if (threeStage !== null) {
     threeStage.setProjection(
       projection.solid,
       projection.strokes,
       medium,
+      family.createSolidRuntime,
+      family.solidFrameScale,
       autoGazeInput.checked,
     );
     threeStage.setView(yaw, pitch);
@@ -425,11 +431,9 @@ function animate(now: number): void {
   lastFrameTime = now;
   const delta = playing ? rawDelta : 0;
   if (playing) elapsedSeconds += delta;
-  const runtimeMotion = currentFamily().createRuntimeMotion(
-    currentDynamicState(), speed, elapsedSeconds,
-  );
-  rasterStage.update(delta, elapsedSeconds, runtimeMotion);
-  threeStage?.update(delta, runtimeMotion, elapsedSeconds);
+  const dynamicState = currentDynamicState();
+  rasterStage.update(delta, elapsedSeconds, dynamicState, speed);
+  threeStage?.update(delta, dynamicState, speed, elapsedSeconds);
 }
 
 function dispose(): void {

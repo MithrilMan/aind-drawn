@@ -66,8 +66,8 @@ function curveFromPoints(points: readonly Point3[], closed: boolean): THREE.Curv
 /**
  * Resolves renderer-neutral, part-local stroke paths into thin three-dimensional
  * ink volumes. Parenting each stroke to its owner mesh preserves articulation,
- * expression visibility, and authored part placement without runtime branches
- * for characters, buildings, or future asset families.
+ * state visibility, and authored part placement without runtime branches for
+ * asset families.
  */
 export class InkedSolidStrokeRig {
   private readonly runtimes = new Map<string, StrokeRuntime>();

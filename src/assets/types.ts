@@ -2,6 +2,7 @@ import type { Bounds, Point } from '../core/geometry.js';
 import type { Seed } from '../core/random.js';
 import type { Sketch } from '../core/sketch.js';
 import type { MediumId } from '../materials/medium.js';
+import type { AssetCapabilities } from './capabilities.js';
 
 export type Vector2 = Readonly<{ x: number; y: number }>;
 export type Size2 = Readonly<{ width: number; height: number }>;
@@ -34,32 +35,6 @@ export type LayerDrawContext = Readonly<{
   frame: number;
 }>;
 
-export type FlowLayerAnimationDefinition = Readonly<{
-  role: 'flow';
-  /** Source remains attached; free components travel and restart cyclically. */
-  attachment: 'source' | 'free';
-  /** Layer state that enables this effect in the owning runtime. */
-  activationState: string;
-  /** Normalized phase offset for deterministic cyclic motion. */
-  phase: number;
-  /** Layer-local world displacement over one animation cycle. */
-  travel: Vector2;
-  /** Fractional scale variation around the authored rest shape. */
-  pulse: number;
-}>;
-
-export type RollingLayerAnimationDefinition = Readonly<{
-  role: 'rolling';
-  /** World-space rolling radius used to derive rotation from signed travel. */
-  radius: number;
-  /** Front rolling parts may also receive a steering angle. */
-  steering: boolean;
-}>;
-
-export type LayerAnimationDefinition =
-  | FlowLayerAnimationDefinition
-  | RollingLayerAnimationDefinition;
-
 export type LayerDefinition = Readonly<{
   id: string;
   bone: string;
@@ -71,7 +46,7 @@ export type LayerDefinition = Readonly<{
   position: Vector2;
   pivot: Pivot;
   states: readonly string[];
-  animation?: LayerAnimationDefinition;
+  capabilities?: AssetCapabilities;
   draw: (context: LayerDrawContext) => void;
 }>;
 

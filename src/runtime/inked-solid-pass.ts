@@ -580,8 +580,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       pigmentBed *= mix(0.76, 1.0, markerPass);
     }
     if (markStyle > 7.5) {
-      // Linework, pupils, and mouth interiors must read as authored ink rather
-      // than as half-empty shading fields.
+      // Opaque-ink applications must read as authored linework rather than as
+      // half-empty shading fields.
       pigmentBed = max(
         pigmentBed,
         max(0.985, markCoverage) * mix(0.98, 1.0, fineNoise) * assetSurface

@@ -15,6 +15,7 @@ import {
   type SolidVehicleRecipe,
   type SolidVehicleRecipeOptions,
 } from './recipe.js';
+import { vehicleRollingPartCapability } from './capabilities.js';
 
 function placement(position: Point3, rotation?: Point3) {
   return Object.freeze({ position, ...(rotation === undefined ? {} : { rotation }) });
@@ -125,31 +126,34 @@ function materialSpecs(recipe: SolidVehicleRecipe): readonly SolidMaterialSpec[]
   const drawing = createVehicleDrawingStyle(recipe.identity);
   return Object.freeze([
     Object.freeze({
-      id: 'body', role: 'vehicle-body', color: recipe.identity.palette.body,
-      finish: recipe.style.finish, drawing: Object.freeze({ tone: drawing.bodyTone }),
+      id: 'body', color: recipe.identity.palette.body,
+      finish: recipe.style.finish,
+      drawing: Object.freeze({ application: 'pigment', tone: drawing.bodyTone }),
       clearcoat: 0.5,
     }),
     Object.freeze({
-      id: 'accent', role: 'vehicle-accent', color: recipe.identity.palette.accent,
-      finish: recipe.style.finish, drawing: Object.freeze({ tone: drawing.metalTone }),
+      id: 'accent', color: recipe.identity.palette.accent,
+      finish: recipe.style.finish,
+      drawing: Object.freeze({ application: 'pigment', tone: drawing.metalTone }),
     }),
     Object.freeze({
-      id: 'glass', role: 'window', color: recipe.identity.palette.glass,
-      finish: recipe.style.glassFinish, drawing: Object.freeze({ tone: drawing.glassTone }),
+      id: 'glass', color: recipe.identity.palette.glass,
+      finish: recipe.style.glassFinish,
+      drawing: Object.freeze({ application: 'glaze', tone: drawing.glassTone }),
       roughness: 0.12, clearcoat: 0.82,
     }),
     Object.freeze({
-      id: 'tyre', role: 'tyre', color: recipe.identity.palette.tyre,
-      finish: 'rubber', drawing: Object.freeze({ tone: 'black' as const }), roughness: 0.92,
+      id: 'tyre', color: recipe.identity.palette.tyre,
+      finish: 'rubber', drawing: Object.freeze({ application: 'pigment', tone: 'black' }), roughness: 0.92,
     }),
     Object.freeze({
-      id: 'hub', role: 'wheel-metal', color: recipe.identity.palette.hub,
+      id: 'hub', color: recipe.identity.palette.hub,
       finish: recipe.identity.wheels.style === 'steel' ? 'metal' : 'chrome',
-      drawing: Object.freeze({ tone: drawing.metalTone }), metalness: 0.82,
+      drawing: Object.freeze({ application: 'pigment', tone: drawing.metalTone }), metalness: 0.82,
     }),
     Object.freeze({
-      id: 'light', role: 'lamp', color: recipe.identity.palette.light,
-      finish: 'glossy', drawing: Object.freeze({ tone: 'light' as const }), clearcoat: 1,
+      id: 'light', color: recipe.identity.palette.light,
+      finish: 'glossy', drawing: Object.freeze({ application: 'pigment', tone: 'light' }), clearcoat: 1,
     }),
   ]);
 }
@@ -159,7 +163,6 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
   const layout = buildSolidVehicleLayout(identity);
   const parts: SolidPartDefinition[] = [];
   const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
-  const fixed = Object.freeze({ role: 'fixed' as const });
   const bodyHeight = Math.max(identity.wheels.radius * 0.95, layout.beltHeight - layout.bodyBottom);
 
   add({
@@ -170,12 +173,12 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
       layout.width * 0.5,
     ], 3.6 + identity.body.cornerRoundness),
     materialId: 'body', placement: placement([0, layout.bodyBottom + bodyHeight * 0.52, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
   add({
     id: 'cabin', node: 'chassis', order: 1,
     geometry: cabinGeometry(identity, layout), materialId: 'glass',
-    placement: placement([0, 0, 0]), motion: fixed, castShadow: true, receiveShadow: true,
+    placement: placement([0, 0, 0]), castShadow: true, receiveShadow: true,
   });
   const roofLength = (identity.cabin.endRatio - identity.cabin.startRatio) * layout.length * 0.74;
   add({
@@ -185,7 +188,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
       -layout.length * 0.5 + (identity.cabin.startRatio + identity.cabin.endRatio) * layout.length * 0.5,
       layout.roofHeight + 0.025,
       0,
-    ]), motion: fixed, castShadow: true, receiveShadow: true,
+    ]), castShadow: true, receiveShadow: true,
   });
 
   for (const axle of ['rear', 'front'] as const) {
@@ -196,12 +199,11 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
         id: `${node}:tyre`, node, order: 4,
         geometry: torusWheel(identity.wheels.radius, identity.wheels.width),
         materialId: 'tyre', placement: placement([0, 0, 0]),
-        motion: Object.freeze({
-          role: 'rolling' as const,
+        capabilities: Object.freeze([vehicleRollingPartCapability({
           radius: identity.wheels.radius,
           steering: axle === 'front',
           side: sideSign,
-        }),
+        })]),
         castShadow: true, receiveShadow: true,
       });
       add({
@@ -211,7 +213,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
           identity.wheels.width * 1.05,
           identity.wheels.style === 'sport' ? 20 : 28,
         ),
-        materialId: 'hub', placement: placement([0, 0, 0]), motion: fixed,
+        materialId: 'hub', placement: placement([0, 0, 0]),
         castShadow: true, receiveShadow: true,
       });
     }
@@ -223,26 +225,26 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
       geometry: box([layout.doorLength, layout.doorHeight, 0.065], [2, 2, 1]),
       materialId: 'body',
       placement: placement([-layout.doorLength * 0.5, layout.doorHeight * 0.5, 0]),
-      motion: fixed, castShadow: true, receiveShadow: true,
+      castShadow: true, receiveShadow: true,
     });
     add({
       id: `door:${side}:handle`, node: `door:${side}`, order: 9,
       geometry: roundedVolume([0.11, 0.025, 0.025], 2.8), materialId: 'accent',
       placement: placement([-layout.doorLength * 0.78, layout.doorHeight * 0.78, side === 'left' ? 0.055 : -0.055]),
-      motion: fixed, castShadow: true, receiveShadow: false,
+      castShadow: true, receiveShadow: false,
     });
   }
   add({
     id: 'hood', node: 'hood', order: 7,
     geometry: box([layout.hoodLength, 0.065, layout.width * 0.91], [2, 1, 2]),
     materialId: 'body', placement: placement([layout.hoodLength * 0.5, 0, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
   add({
     id: 'cargo', node: 'cargo', order: 7,
     geometry: box([layout.cargoLength, 0.065, layout.width * 0.91], [2, 1, 2]),
     materialId: 'body', placement: placement([-layout.cargoLength * 0.5, 0, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
 
   for (const side of [-1, 1] as const) {
@@ -253,20 +255,20 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
         layout.length * 0.485,
         layout.bodyBottom + bodyHeight * 0.58,
         side * layout.width * 0.29,
-      ]), motion: fixed, castShadow: false, receiveShadow: false,
+      ]), castShadow: false, receiveShadow: false,
     });
   }
   add({
     id: 'bumper:front', node: 'chassis', order: 10,
     geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), materialId: 'accent',
     placement: placement([layout.length * 0.5, layout.bodyBottom + 0.14, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
   add({
     id: 'bumper:rear', node: 'chassis', order: 10,
     geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), materialId: 'accent',
     placement: placement([-layout.length * 0.5, layout.bodyBottom + 0.14, 0]),
-    motion: fixed, castShadow: true, receiveShadow: true,
+    castShadow: true, receiveShadow: true,
   });
 
   if (identity.details.roofRack) {
@@ -275,7 +277,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
       add({
         id: `roof-rack:${z < 0 ? 'right' : 'left'}`, node: 'chassis', order: 11,
         geometry: roundedVolume([rackLength * 0.5, 0.025, 0.025], 2.4), materialId: 'accent',
-        placement: placement([0, layout.roofHeight + 0.16, z]), motion: fixed,
+        placement: placement([0, layout.roofHeight + 0.16, z]),
         castShadow: true, receiveShadow: false,
       });
     }
@@ -285,7 +287,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
       id: 'spoiler', node: 'chassis', order: 11,
       geometry: roundedVolume([0.3, 0.035, layout.width * 0.42], 3.6), materialId: 'accent',
       placement: placement([-layout.length * 0.43, layout.beltHeight + 0.2, 0]),
-      motion: fixed, castShadow: true, receiveShadow: false,
+      castShadow: true, receiveShadow: false,
     });
   }
   if (identity.details.towHitch) {
@@ -293,7 +295,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
       id: 'tow-hitch', node: 'chassis', order: 11,
       geometry: roundedVolume([0.13, 0.07, 0.07], 2.2), materialId: 'hub',
       placement: placement([-layout.length * 0.55, layout.bodyBottom, 0]),
-      motion: fixed, castShadow: true, receiveShadow: false,
+      castShadow: true, receiveShadow: false,
     });
   }
 

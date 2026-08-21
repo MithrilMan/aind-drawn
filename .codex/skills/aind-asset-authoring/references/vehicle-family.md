@@ -103,7 +103,7 @@ Use true volumes:
 - tyres are wraps or radial volumes, never camera-facing discs;
 - windows follow cabin surfaces or occupy shallow inset volumes;
 - doors own real hinge nodes and remain spatially distinct from body paint;
-- lights, mirrors, racks, and cargo use semantic parts and material roles.
+- lights, mirrors, racks, and cargo use semantic parts and explicit drawing applications.
 
 The solid representation recipe references the same identity and adds only
 finish/mesh policy. Place seat and entry sockets in vehicle-local 3D space.
@@ -112,8 +112,9 @@ Keep the body collider independent from wheel or interaction sensors.
 ## Doodle 3D
 
 Wrap the exact solid blueprint with `createInkedSolidBlueprint` and the same
-medium used by the raster comparison. Generic material-role marks cover body,
-tyres, glass, and accents. Add family-authored spatial strokes only for genuine
+medium used by the raster comparison. The vehicle adapter maps body, tyres,
+glass, and accents to generic drawing applications; the medium compiler never
+learns those vehicle concepts. Add family-authored spatial strokes only for genuine
 features such as panel seams, tyre grooves, window borders, light divisions, or
 lifted wires.
 

@@ -65,9 +65,6 @@ export class SolidRig {
       mesh.userData.partId = part.id;
       mesh.userData.solidAssetId = blueprint.id;
       mesh.userData.materialId = part.materialId;
-      mesh.userData.materialRole = this.blueprint.materials.find(
-        ({ id }) => id === part.materialId,
-      )?.role;
       mesh.position.set(...part.placement.position);
       if (part.placement.surface !== undefined) {
         const frame = surfaceFrame(part.placement.surface.normal, part.placement.surface.roll);

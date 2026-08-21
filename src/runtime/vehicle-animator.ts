@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 
-import type { RollingLayerAnimationDefinition } from '../assets/types.js';
-import type { SolidRollingPartMotion } from '../assets/solid-types.js';
+import {
+  vehicleRollingLayerOf,
+  type VehicleRollingLayerCapability,
+} from '../assets/vehicle/capabilities.js';
+import {
+  vehicleRollingPartOf,
+  type VehicleRollingPartCapability,
+} from '../assets/solid-vehicle/capabilities.js';
 import type { SolidRig } from './solid-rig.js';
 import type { SpriteRig } from './sprite-rig.js';
 
@@ -21,7 +27,7 @@ export type VehicleMotion = Readonly<{
 type SolidWheel = Readonly<{
   node: THREE.Group;
   rest: THREE.Quaternion;
-  motion: SolidRollingPartMotion;
+  motion: VehicleRollingPartCapability;
 }>;
 
 function clamp(value: number, minimum: number, maximum: number): number {
@@ -38,7 +44,7 @@ export class VehicleAnimator {
   private readonly solid: SolidRig | null;
   private readonly rasterWheels: readonly Readonly<{
     id: string;
-    animation: RollingLayerAnimationDefinition;
+    animation: VehicleRollingLayerCapability;
   }>[];
   private readonly solidWheels: readonly SolidWheel[];
   private readonly chassis: THREE.Group | null;
@@ -51,16 +57,14 @@ export class VehicleAnimator {
       this.solid = rig as SolidRig;
       const wheels: SolidWheel[] = [];
       for (const part of this.solid.blueprint.parts) {
-        if (part.motion.role !== 'rolling') continue;
+        const motion = vehicleRollingPartOf(part);
+        if (motion === undefined) continue;
         const node = this.solid.getNode(part.node);
         if (node === null || wheels.some((candidate) => candidate.node === node)) continue;
-        if (part.motion.radius === undefined || part.motion.steering === undefined || part.motion.side === undefined) {
-          throw new Error(`Rolling part ${part.id} is missing kinematic metadata`);
-        }
         wheels.push(Object.freeze({
           node,
           rest: node.quaternion.clone(),
-          motion: part.motion as SolidRollingPartMotion,
+          motion,
         }));
       }
       this.solidWheels = Object.freeze(wheels);
@@ -70,11 +74,12 @@ export class VehicleAnimator {
     } else {
       this.raster = rig as SpriteRig;
       this.solid = null;
-      this.rasterWheels = Object.freeze(this.raster.blueprint.layers.flatMap((layer) => (
-        layer.animation?.role === 'rolling'
-          ? [Object.freeze({ id: layer.bone, animation: layer.animation })]
-          : []
-      )));
+      this.rasterWheels = Object.freeze(this.raster.blueprint.layers.flatMap((layer) => {
+        const animation = vehicleRollingLayerOf(layer);
+        return animation === undefined
+          ? []
+          : [Object.freeze({ id: layer.bone, animation })];
+      }));
       this.solidWheels = Object.freeze([]);
       this.chassis = null;
       this.chassisRestY = 0;

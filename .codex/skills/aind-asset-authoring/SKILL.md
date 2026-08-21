@@ -20,7 +20,7 @@ Then read only the applicable focused reference:
 
 - stateful or animated parts: [references/interactions-and-motion.md](references/interactions-and-motion.md);
 - smooth-solid or Doodle 3D output: [references/inked-solid.md](references/inked-solid.md);
-- playground/editor registration: [references/playground-integration.md](references/playground-integration.md);
+- experiment/editor registration: [references/playground-integration.md](references/playground-integration.md);
 - vehicles and comparable articulated machinery: [references/vehicle-family.md](references/vehicle-family.md).
 
 Do not force every family through every representation. A decal may remain
@@ -133,7 +133,7 @@ instead of adapter-local world-space guesses.
 3. Add one `PropDefinition` entry with base size, draw callback, colliders, and sockets.
 4. Keep semantic random choices in `createPropRecipe`; the draw callback only renders recipe data.
 5. Export no new internal draw helpers.
-6. Register the public kind in the playground document and catalog.
+6. Register the public kind in the active experiment catalog when a consumer needs it.
 7. Add recipe determinism and blueprint geometry tests.
 
 ## Add a dedicated family
@@ -297,9 +297,12 @@ family IDs.
 
 ## Integrate the consumer
 
-Update the playground catalog and its serializable document only when the user
-needs to author the new parameter. Inspector controls must change the recipe,
-not mutate baked textures. Provide state previews for interactive layers.
+Update the active experiment catalog only when the user needs the family there.
+Projection Studio families publish authoring metadata, declarative dynamic
+controls, default transient state, and a runtime-motion adapter beside their
+projection factory. The shell must not branch on family IDs. Inspector controls
+change recipes, not baked textures; interaction controls call rig interaction
+APIs and motion controls feed family animators.
 
 ## Verify
 
@@ -325,5 +328,5 @@ Add tests that prove:
 
 Run `pnpm verify`. Then inspect representative seeds in the in-app browser at
 every viewport class the experiment claims to support. For the current
-desktop-only playground and labs, desktop QA is sufficient. Report the chosen
+desktop-only Projection Studio, desktop QA is sufficient. Report the chosen
 classification, public API changes, tests, and any remaining consumer work.

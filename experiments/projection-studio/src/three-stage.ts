@@ -6,14 +6,14 @@ import {
   InkedSolidStrokeRig,
   SolidCharacterAnimator,
   SolidRig,
+  VehicleAnimator,
   createInkedSolidBlueprint,
   inkedSolidMediumDefaults,
-  type CharacterExpression,
-  type CharacterMotion,
   type InkedSolidStrokeDefinition,
   type MediumId,
   type SolidAssetBlueprint,
 } from '../../../src/index.js';
+import type { StudioRuntimeMotion } from './family-catalog.js';
 
 const MINIMUM_PITCH = -38;
 const MAXIMUM_PITCH = 28;
@@ -37,7 +37,8 @@ export class ThreeStage {
   private rig: SolidRig | null = null;
   private pass: InkedSolidPass | null = null;
   private strokeRig: InkedSolidStrokeRig | null = null;
-  private animator: SolidCharacterAnimator | null = null;
+  private characterAnimator: SolidCharacterAnimator | null = null;
+  private vehicleAnimator: VehicleAnimator | null = null;
   private solid: SolidAssetBlueprint | null = null;
   private strokes: readonly InkedSolidStrokeDefinition[] = [];
   private medium: MediumId = 'graphite';
@@ -99,17 +100,16 @@ export class ThreeStage {
     this.strokes = strokes;
     this.medium = medium;
     this.rig = new SolidRig(solid, { environmentMap: this.environmentMap });
-    this.animator = solid.kind === 'solid-character'
+    this.characterAnimator = solid.kind === 'solid-character'
       ? new SolidCharacterAnimator(this.rig, { autoGaze })
+      : null;
+    this.vehicleAnimator = solid.kind === 'solid-vehicle'
+      ? new VehicleAnimator(this.rig)
       : null;
     this.applyView();
     this.scene.add(this.rig.root);
     this.rebuildInk();
     this.frame();
-  }
-
-  public setExpression(expression: CharacterExpression): void {
-    this.animator?.setExpression(expression);
   }
 
   public setInteractionState(id: string, state: string): void {
@@ -139,9 +139,18 @@ export class ThreeStage {
     this.applyRenderMode();
   }
 
-  public update(deltaSeconds: number, motion: CharacterMotion, elapsedSeconds: number): void {
+  public update(
+    deltaSeconds: number,
+    runtimeMotion: StudioRuntimeMotion,
+    elapsedSeconds: number,
+  ): void {
     if (this.turntable) this.setView(this.yaw + TURNTABLE_DEGREES_PER_SECOND * deltaSeconds);
-    this.animator?.update(deltaSeconds, motion);
+    if (runtimeMotion.kind === 'character' && this.characterAnimator !== null) {
+      this.characterAnimator.setExpression(runtimeMotion.expression);
+      this.characterAnimator.update(deltaSeconds, runtimeMotion.motion);
+    } else if (runtimeMotion.kind === 'vehicle' && this.vehicleAnimator !== null) {
+      this.vehicleAnimator.update(deltaSeconds, runtimeMotion.motion);
+    }
     if (this.renderMode === 'doodle') {
       this.pass?.render(this.scene, this.camera, elapsedSeconds);
     } else {

@@ -258,7 +258,7 @@ solido porta profili estrusi, materiali fisici, articolazioni corporee,
 locomozione e animazione facciale 3D.
 
 Il packer fotografico resta documentato ma fuori dal core. Diventerà sensato
-quando il playground avrà un comando esplicito di auto-composizione basato sui
+quando un editor avrà un comando esplicito di auto-composizione basato sui
 bounds; anticiparlo ora significherebbe aggiungere una politica di scena senza
 un caso d'uso che possa verificarla. N8AO, SEO e share-card sono invece dettagli
 dell'applicazione upstream, non capacità della libreria di disegno.
@@ -276,7 +276,7 @@ Per aggiungere un oggetto non si modifica il runtime:
 5. istanziare il blueprint nel gioco con `SpriteRig`, `SolidRig` o un adapter
    equivalente del consumer.
 
-Il playground applica questa sequenza a personaggi, piante multipart, casse,
+Il prototipo editor applicava questa sequenza a personaggi, piante multipart, casse,
 lanterne, arbusti, cartelli, piattaforme e palazzi. Il documento dell'editor conserva tipo, seed,
 medium e trasformazione; il catalogo ricostruisce i blueprint. Le case vengono
 ridisegnate semanticamente quando cambiano larghezza o altezza, così numero e

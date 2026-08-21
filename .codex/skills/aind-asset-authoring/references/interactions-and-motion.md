@@ -17,7 +17,7 @@ For every interaction, define:
 - one complete binding for every state.
 
 A visible door without a sensor and entry socket is decoration. A sensor whose
-state is hard-coded in the playground is a demo hack. Keep the complete contract
+state is hard-coded in an experiment is a demo hack. Keep the complete contract
 on the asset blueprint.
 
 ## Raster states

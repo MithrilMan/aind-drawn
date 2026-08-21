@@ -3,10 +3,10 @@ import * as THREE from 'three';
 import {
   CharacterAnimator,
   SpriteRig,
+  VehicleAnimator,
   type AssetBlueprint,
-  type CharacterExpression,
-  type CharacterMotion,
 } from '../../../src/index.js';
+import type { StudioRuntimeMotion } from './family-catalog.js';
 
 const FRAME_PADDING = 1.16;
 
@@ -17,7 +17,8 @@ export class RasterStage {
   private readonly viewport: HTMLElement;
   private readonly observer: ResizeObserver;
   private rig: SpriteRig | null = null;
-  private animator: CharacterAnimator | null = null;
+  private characterAnimator: CharacterAnimator | null = null;
+  private vehicleAnimator: VehicleAnimator | null = null;
 
   public constructor(canvas: HTMLCanvasElement, viewport: HTMLElement) {
     this.viewport = viewport;
@@ -36,24 +37,33 @@ export class RasterStage {
     this.rig?.root.removeFromParent();
     this.rig?.dispose();
     this.rig = new SpriteRig(blueprint, { boilFrames: 3 });
-    this.animator = blueprint.kind === 'character'
+    this.characterAnimator = blueprint.kind === 'character'
       ? new CharacterAnimator(this.rig, { autoGaze })
+      : null;
+    this.vehicleAnimator = blueprint.kind === 'vehicle'
+      ? new VehicleAnimator(this.rig)
       : null;
     this.scene.add(this.rig.root);
     this.frame();
-  }
-
-  public setExpression(expression: CharacterExpression): void {
-    this.animator?.setExpression(expression);
   }
 
   public setInteractionState(id: string, state: string): void {
     if (this.rig?.interactionIds.includes(id) === true) this.rig.setInteractionState(id, state);
   }
 
-  public update(deltaSeconds: number, elapsedSeconds: number, motion: CharacterMotion): void {
-    if (this.animator === null) this.rig?.updateBoil(elapsedSeconds);
-    else this.animator.update(deltaSeconds, motion);
+  public update(
+    deltaSeconds: number,
+    elapsedSeconds: number,
+    runtimeMotion: StudioRuntimeMotion,
+  ): void {
+    if (runtimeMotion.kind === 'character' && this.characterAnimator !== null) {
+      this.characterAnimator.setExpression(runtimeMotion.expression);
+      this.characterAnimator.update(deltaSeconds, runtimeMotion.motion);
+    } else if (runtimeMotion.kind === 'vehicle' && this.vehicleAnimator !== null) {
+      this.vehicleAnimator.update(deltaSeconds, runtimeMotion.motion);
+    } else {
+      this.rig?.updateBoil(elapsedSeconds);
+    }
     this.renderer.render(this.scene, this.camera);
   }
 

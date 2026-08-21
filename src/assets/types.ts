@@ -34,7 +34,7 @@ export type LayerDrawContext = Readonly<{
   frame: number;
 }>;
 
-export type LayerAnimationDefinition = Readonly<{
+export type FlowLayerAnimationDefinition = Readonly<{
   role: 'flow';
   /** Source remains attached; free components travel and restart cyclically. */
   attachment: 'source' | 'free';
@@ -47,6 +47,18 @@ export type LayerAnimationDefinition = Readonly<{
   /** Fractional scale variation around the authored rest shape. */
   pulse: number;
 }>;
+
+export type RollingLayerAnimationDefinition = Readonly<{
+  role: 'rolling';
+  /** World-space rolling radius used to derive rotation from signed travel. */
+  radius: number;
+  /** Front rolling parts may also receive a steering angle. */
+  steering: boolean;
+}>;
+
+export type LayerAnimationDefinition =
+  | FlowLayerAnimationDefinition
+  | RollingLayerAnimationDefinition;
 
 export type LayerDefinition = Readonly<{
   id: string;

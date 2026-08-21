@@ -79,7 +79,7 @@
         <article class="drawing-stage raster-stage">
           <header class="stage-header">
             <p>Drawn 2D</p>
-            <h2>Front view</h2>
+              <h2 data-raster-view-title>Front view</h2>
           </header>
           <div class="stage-canvas" data-raster-viewport>
             <canvas aria-label="Front-facing 2D procedural drawing" data-raster-canvas></canvas>
@@ -135,7 +135,7 @@
         </header>
 
         <div class="workspace-panel animate-panel" role="tabpanel" id="animate-panel" aria-labelledby="animate-tab" data-workspace-panel="animate">
-          <section class="control-group playback-controls" data-character-controls>
+          <section class="control-group playback-controls" data-playback-controls>
             <h3>Playback</h3>
             <div class="transport">
               <button type="button" class="control-button active" data-play aria-pressed="true"><span aria-hidden="true">▶</span> Play</button>
@@ -149,21 +149,7 @@
             </label>
           </section>
 
-          <section class="control-group" data-character-controls>
-            <h3>Pose</h3>
-            <div class="choice-row" data-pose-options></div>
-          </section>
-
-          <section class="control-group expression-controls" data-character-controls>
-            <h3>Expression</h3>
-            <div class="choice-row" data-expression-options></div>
-          </section>
-
-          <section class="control-group building-action" hidden data-building-controls>
-            <h3>Door</h3>
-            <p>Try the asset’s built-in interaction.</p>
-            <div class="choice-row" data-door-options></div>
-          </section>
+          <div class="dynamic-controls" data-family-dynamics></div>
 
           <section class="control-group view-controls">
             <h3>3D view</h3>
@@ -177,7 +163,7 @@
               <output data-yaw-output>28°</output>
             </label>
             <div class="toggle-row" data-view-option-row>
-              <label data-character-controls><input type="checkbox" checked data-auto-gaze /> Lively gaze</label>
+              <label data-lively-gaze-control><input type="checkbox" checked data-auto-gaze /> Lively gaze</label>
               <label data-doodle-control><input type="checkbox" checked data-line-boil /> Wobbly lines</label>
               <label class="finish-control" data-solid-control hidden>
                 <span>Finish</span>

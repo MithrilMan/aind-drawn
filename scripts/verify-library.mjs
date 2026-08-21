@@ -25,6 +25,12 @@ const requiredExports = [
   'createRasterBuildingRecipe',
   'createSolidBuildingBlueprint',
   'createSolidBuildingRecipe',
+  'createVehicleIdentity',
+  'createRasterVehicleBlueprint',
+  'createRasterVehicleRecipe',
+  'createSolidVehicleBlueprint',
+  'createSolidVehicleInkStrokes',
+  'VehicleAnimator',
   'createPlatformBlueprint',
   'createPlatformRecipe',
   'createSolidFaceBlueprint',
@@ -74,6 +80,24 @@ const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding, {
 assert.equal(inkedBuilding.solid, solidBuilding, 'Inked solids must retain the source solid blueprint');
 assert.equal(inkedBuilding.representation, 'inked-solid');
 assert.ok(inkedBuilding.strokes.length > 0, 'Compiled inked building is missing semantic strokes');
+
+const vehicleIdentity = library.createVehicleIdentity(5101, {
+  archetype: 'pickup',
+  roofRack: true,
+});
+const vehicle = library.createRasterVehicleBlueprint(
+  library.createRasterVehicleRecipe(vehicleIdentity),
+);
+const solidVehicle = library.createSolidVehicleBlueprint(vehicleIdentity);
+assert.deepEqual(
+  vehicle.interactions.map(({ id }) => id),
+  solidVehicle.interactions.map(({ id }) => id),
+  'Vehicle projections must retain the same interactions',
+);
+assert.ok(
+  solidVehicle.parts.some(({ id }) => id === 'wheel:front:left:tyre'),
+  'Compiled solid vehicle is missing its front tyre volume',
+);
 
 const crateDefinition = library.propDefinition('crate');
 assert.equal(crateDefinition.kind, 'crate');

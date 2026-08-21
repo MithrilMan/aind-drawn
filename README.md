@@ -6,8 +6,9 @@ the intended consumer may be an editor, a 2D game, a 2.5D scene, or a fully 3D
 Three.js world. Semantic generation, layout, representation, and runtime
 rendering remain separate boundaries.
 
-The first consumer lives in [`experiments/playground`](experiments/playground):
-a procedural asset playground and the foundation of a level editor.
+The public consumer is [Projection Studio](experiments/projection-studio): a
+side-by-side workbench for one identity across raster, Doodle 3D, and physical
+solid projections.
 External research sources are reconstructed according to
 [`references/README.md`](references/README.md); their checkouts are intentionally
 not committed.
@@ -20,11 +21,9 @@ pnpm verify
 pnpm dev
 ```
 
-The atelier is then available at `http://127.0.0.1:4173/`. Focused shared-
-identity labs live at `http://127.0.0.1:4173/solid-face.html` and
-`http://127.0.0.1:4173/solid-building.html`. Their controls and scene-document
-boundary are documented in
-[`experiments/playground/README.md`](experiments/playground/README.md).
+Projection Studio is then available at `http://127.0.0.1:4175/`. Its generic
+family catalog, controls, and static-hosting workflow are documented in
+[`experiments/projection-studio/README.md`](experiments/projection-studio/README.md).
 
 The project pins the package-manager version in `package.json`. On Codex
 Desktop, use the bundled `pnpm` runtime if the machine-wide npm installation is
@@ -35,8 +34,8 @@ unavailable.
 - `src/core` — deterministic randomness, 2D/3D geometry, canvas surfaces, and
   the hand-drawn mark vocabulary.
 - `src/materials` — raster media and declarative physical finishes.
-- `src/assets` — recipes and procedural blueprints for characters, multipart
-  plants, props, buildings, and semantic solids.
+- `src/assets` — recipes and procedural blueprints for characters, vehicles,
+  multipart plants, props, buildings, and semantic solids.
 - `src/runtime` — Three.js adapters for sprite baking, solid geometry,
   materials, rigs, and animation.
 - `experiments` — applications that consume only the public library API.

@@ -8,11 +8,10 @@
   "scripts": {
     "build": "node scripts/clean.mjs && tsc -p tsconfig.lib.json && pnpm build:experiments",
     "build:lib": "tsc -p tsconfig.lib.json",
-    "build:experiments": "pnpm build:playground && pnpm build:projection-studio",
-    "build:playground": "vite build --config experiments/playground/vite.config.ts",
+    "build:experiments": "pnpm build:projection-studio",
     "build:projection-studio": "vite build --config experiments/projection-studio/vite.config.ts",
     "clean": "node scripts/clean.mjs",
-    "dev": "vite --config experiments/playground/vite.config.ts",
+    "dev": "vite --config experiments/projection-studio/vite.config.ts",
     "dev:projection-studio": "vite --config experiments/projection-studio/vite.config.ts",
     "lint": "eslint .",
     "reference:verify": "node scripts/verify-reference.mjs",

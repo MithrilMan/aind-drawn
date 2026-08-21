@@ -132,12 +132,16 @@ from travel rather than accumulating per-frame deltas. Door state can be driven
 by the rig interaction API; add continuous hinge interpolation only if a
 consumer actually needs it.
 
-## Playground
+## Projection Studio
 
-Add a `vehicle:car` catalog entry. Expose semantic controls such as body style,
-door state, and optional details. Width and height remain scene transforms
-unless the user explicitly requests regeneration of body proportions. Render
-all thumbnails and part choices through public vehicle factories.
+Register the public `vehicle` family in `experiments/projection-studio/src/family-catalog.ts`.
+Supply its authoring schema, default customization, projection factory,
+declarative dynamic controls, default transient state, and runtime-motion
+adapter. Do not add vehicle markup or a `familyId === 'vehicle'` branch to the
+shell. Semantic controls such as body style, wheel style, doors, rack, and
+spoiler come from `VehicleAuthoringSchema`; drive, reverse, steering, doors,
+bonnet, and cargo controls come from the family dynamics contract. Render all
+family and part previews through public vehicle factories.
 
 ## Vehicle-specific tests
 

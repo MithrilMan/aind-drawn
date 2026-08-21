@@ -1,12 +1,12 @@
-# Playground and editor integration
+# Experiment and editor integration
 
-Read this reference only when the requested asset must appear in
-`experiments/playground/` or another example UI. The library remains the source
-of truth; the experiment is a consumer and authoring surface.
+Read this reference only when the requested asset must appear in Projection
+Studio or another example UI. The library remains the source of truth; an
+experiment is a consumer and authoring surface.
 
-## Register the serialisable scene kind
+## Register the serialisable scene kind when one exists
 
-Update the applicable contracts in `experiments/playground/src/document.ts`:
+If the target consumer owns a serialisable scene document:
 
 - add the literal to `ASSET_KINDS` and therefore `AssetKind`;
 - add a default scene size and English label;
@@ -26,18 +26,16 @@ can disagree with it.
 
 ## Register the catalog entry
 
-Update `experiments/playground/src/catalog.ts`:
+For Projection Studio, update `experiments/projection-studio/src/family-catalog.ts`:
 
-- add an English label and appropriate category;
-- choose minimum dimensions that keep handles usable;
-- set `semanticResize` only when width/height should regenerate meaningful
-  asset proportions rather than merely scale the rendered object;
-- map `SceneObjectData` to public recipe and blueprint factories;
+- add an English label, description, framing, and default finish;
+- map authoring values explicitly to public typed identity options;
+- provide one projection factory returning raster, solid, and semantic strokes;
+- declare family controls, defaults, and a runtime-motion adapter;
 - import everything through `src/index.ts`.
 
-If a new category is genuinely needed, update the category type and UI grouping
-coherently. Do not create a category for one novelty asset when an existing
-domain category is honest.
+The Studio shell renders this contract. Do not add family-specific markup,
+visibility selectors, or hard-coded control handlers.
 
 ## Build controls around recipes
 
@@ -98,9 +96,9 @@ from generated output.
 Use representative seeded examples so rerenders remain comparable. A
 side-by-side convergence lab must share the exact identity and `MediumId`.
 
-## Preserve editor behaviour
+## Preserve consumer behaviour
 
-Adding an asset must not break:
+When the consumer is a scene editor, adding an asset must not break:
 
 - selection by pointer;
 - resize and rotation handles;
@@ -115,13 +113,13 @@ pause/restart mechanism needed for inspection.
 
 ## Verify in the browser
 
-Run `pnpm verify`, start the existing playground development process, and use
+Run `pnpm verify`, start Projection Studio, and use
 the in-app browser. Desktop QA is sufficient while the experiments explicitly
 remain desktop-only.
 
 Check:
 
-- catalog insertion and generated preview;
+- family-picker insertion and generated preview;
 - selection, transform handles, and semantic resize behaviour;
 - inspector labels and clipping/overflow;
 - layer movement before/after neighbouring objects;

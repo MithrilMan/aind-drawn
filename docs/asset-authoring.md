@@ -235,6 +235,15 @@ The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
 `door` node. Both use `door:sensor`, `door:entry`, and the same portal intent.
 
+The vehicle family is the articulated machinery reference. One
+`VehicleIdentityRecipe` owns body archetype, proportions, cabin, wheelbase,
+tyres, doors, details, palette, and useful sockets. Raster wheels and solid
+torus tyres publish rolling metadata consumed by `VehicleAnimator`; rotation is
+derived from cumulative signed travel, so frames cannot accumulate drift.
+Doors, bonnet, and cargo remain declarative rig interactions. Projection Studio
+registers these controls through family metadata and does not branch on the
+`vehicle` family ID.
+
 ## Integration checklist
 
 1. Export the new public types and factories from `src/index.ts`.

@@ -1,13 +1,8 @@
 import './style.css';
 
 import {
-  CHARACTER_EXPRESSIONS,
-  CHARACTER_POSES,
   SOLID_FINISH_CATALOG,
   type AssetAuthoringValue,
-  type CharacterExpression,
-  type CharacterMotion,
-  type CharacterPose,
   type MediumId,
   type SolidFinishId,
 } from '../../../src/index.js';
@@ -18,6 +13,7 @@ import {
   studioFamilyById,
   updateCustomization,
   type FamilyCustomization,
+  type FamilyDynamicState,
   type StudioFamilyDefinition,
   type StudioFamilyId,
 } from './family-catalog.js';
@@ -35,27 +31,6 @@ function required<T extends Element>(selector: string, constructor: ElementConst
     throw new Error(`Projection Studio is missing ${selector}`);
   }
   return element;
-}
-
-function titleCase(value: string): string {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function buttonChoice<T extends string>(
-  values: readonly T[],
-  current: T,
-  onChange: (value: T) => void,
-): readonly HTMLButtonElement[] {
-  return values.map((value) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = titleCase(value);
-    button.setAttribute('aria-pressed', String(value === current));
-    button.addEventListener('click', () => {
-      onChange(value);
-    });
-    return button;
-  });
 }
 
 const rasterCanvas = required('[data-raster-canvas]', HTMLCanvasElement);
@@ -81,6 +56,8 @@ const familyTriggerPreview = required('[data-family-trigger-preview]', HTMLImage
 const familyTriggerLabel = required('[data-family-trigger-label]', HTMLElement);
 const familyTriggerDescription = required('[data-family-trigger-description]', HTMLElement);
 const rendererError = required('[data-renderer-error]', HTMLElement);
+const playbackControls = required('[data-playback-controls]', HTMLElement);
+const familyDynamics = required('[data-family-dynamics]', HTMLElement);
 const customizer = new FamilyCustomizer(
   required('[data-parameter-tabs]', HTMLElement),
   required('[data-parameter-editor]', HTMLElement),
@@ -92,14 +69,11 @@ const rasterStage = new RasterStage(rasterCanvas, rasterViewport);
 let familyId: StudioFamilyId = 'character';
 let seed = 4104;
 let medium: MediumId = 'graphite';
-let pose: CharacterPose = 'idle';
-let expression: CharacterExpression = 'idle';
 let speed = 0.7;
 let playing = true;
 let turntable = false;
 let yaw = 28;
 let pitch = -4;
-let doorState = 'closed';
 let elapsedSeconds = 0;
 let lastFrameTime = performance.now();
 let animationFrame = 0;
@@ -112,6 +86,9 @@ const customizationByFamily = new Map<StudioFamilyId, FamilyCustomization>(
 );
 const finishByFamily = new Map<StudioFamilyId, SolidFinishId>(
   STUDIO_FAMILIES.map((family) => [family.id, family.defaultFinish]),
+);
+const dynamicStateByFamily = new Map<StudioFamilyId, FamilyDynamicState>(
+  STUDIO_FAMILIES.map((family) => [family.id, family.defaultDynamicState]),
 );
 const familyPreviewCache = new Map<string, string>();
 
@@ -138,27 +115,17 @@ function currentFinish(): SolidFinishId {
 
 finishInput.value = currentFinish();
 
-function motion(): CharacterMotion {
-  return Object.freeze({ pose, speed, facing: 1 });
+function currentDynamicState(): FamilyDynamicState {
+  return dynamicStateByFamily.get(familyId) ?? currentFamily().defaultDynamicState;
 }
 
-function setExpression(next: CharacterExpression): void {
-  expression = next;
-  rasterStage.setExpression(expression);
-  threeStage?.setExpression(expression);
-  renderMotionChoices();
-}
-
-function setPose(next: CharacterPose): void {
-  pose = next;
-  renderMotionChoices();
-}
-
-function setDoorState(next: string): void {
-  doorState = next;
-  rasterStage.setInteractionState('door', doorState);
-  threeStage?.setInteractionState('door', doorState);
-  renderMotionChoices();
+function setDynamicValue(controlId: string, value: string): void {
+  dynamicStateByFamily.set(familyId, Object.freeze({
+    ...currentDynamicState(),
+    [controlId]: value,
+  }));
+  applyInteractionStates();
+  renderDynamicControls();
 }
 
 function handleCustomizationChange(parameterId: string, value: AssetAuthoringValue): void {
@@ -193,7 +160,6 @@ function rebuildProjection(): void {
   const family = currentFamily();
   const projection = family.createProjection(seed, medium, currentCustomization(), currentFinish());
   rasterStage.setBlueprint(projection.raster, autoGazeInput.checked);
-  rasterStage.setExpression(expression);
   if (threeStage !== null) {
     threeStage.setProjection(
       projection.solid,
@@ -201,20 +167,27 @@ function rebuildProjection(): void {
       medium,
       autoGazeInput.checked,
     );
-    threeStage.setExpression(expression);
     threeStage.setView(yaw, pitch);
     threeStage.setTurntable(turntable);
     threeStage.setLineBoil(lineBoilInput.checked);
     threeStage.setRenderMode(renderMode);
   }
-  if (familyId === 'building') {
-    rasterStage.setInteractionState('door', doorState);
-    threeStage?.setInteractionState('door', doorState);
-  }
+  applyInteractionStates();
   customizerDirty = true;
   if (activeWorkspace === 'customize') renderCustomizer();
   renderFamilyPicker();
   updateSummary();
+}
+
+function applyInteractionStates(): void {
+  const state = currentDynamicState();
+  for (const control of currentFamily().dynamicControls) {
+    if (control.kind !== 'interaction' || control.interactionId === undefined) continue;
+    const value = state[control.id] ?? control.options[0]?.value;
+    if (value === undefined) continue;
+    rasterStage.setInteractionState(control.interactionId, value);
+    threeStage?.setInteractionState(control.interactionId, value);
+  }
 }
 
 function renderCustomizer(): void {
@@ -306,30 +279,42 @@ function setRenderMode(next: ThreeRenderMode): void {
 }
 
 function renderFamilyControls(): void {
-  const character = familyId === 'character';
-  for (const element of root?.querySelectorAll<HTMLElement>('[data-character-controls]') ?? []) {
-    element.hidden = !character;
-  }
-  for (const element of root?.querySelectorAll<HTMLElement>('[data-building-controls]') ?? []) {
-    element.hidden = character;
-  }
-  required('[data-workspace-note]', HTMLElement).textContent = character
-    ? 'Pose it, add expression, then inspect every angle.'
-    : 'Open the door, reshape the architecture, then inspect every angle.';
+  const family = currentFamily();
+  playbackControls.hidden = !family.playback;
+  required('[data-lively-gaze-control]', HTMLElement).hidden = !family.livelyGaze;
+  required('[data-raster-view-title]', HTMLElement).textContent = family.rasterViewTitle;
+  rasterCanvas.setAttribute('aria-label', family.rasterAriaLabel);
+  required('[data-workspace-note]', HTMLElement).textContent = family.workspaceNote;
   renderThreeModeControls();
-  renderMotionChoices();
+  renderDynamicControls();
 }
 
-function renderMotionChoices(): void {
-  required('[data-pose-options]', HTMLElement).replaceChildren(
-    ...buttonChoice(CHARACTER_POSES, pose, setPose),
-  );
-  required('[data-expression-options]', HTMLElement).replaceChildren(
-    ...buttonChoice(CHARACTER_EXPRESSIONS, expression, setExpression),
-  );
-  required('[data-door-options]', HTMLElement).replaceChildren(
-    ...buttonChoice(['closed', 'open'] as const, doorState, setDoorState),
-  );
+function renderDynamicControls(): void {
+  const state = currentDynamicState();
+  const sections = currentFamily().dynamicControls.map((control) => {
+    const section = document.createElement('section');
+    section.className = 'control-group';
+    const heading = document.createElement('h3');
+    heading.textContent = control.label;
+    const choices = document.createElement('div');
+    choices.className = 'choice-row';
+    choices.setAttribute('role', 'group');
+    choices.setAttribute('aria-label', control.label);
+    const current = state[control.id] ?? control.options[0]?.value;
+    for (const option of control.options) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = option.label;
+      button.setAttribute('aria-pressed', String(option.value === current));
+      button.addEventListener('click', () => {
+        setDynamicValue(control.id, option.value);
+      });
+      choices.append(button);
+    }
+    section.append(heading, choices);
+    return section;
+  });
+  familyDynamics.replaceChildren(...sections);
 }
 
 function updateSummary(): void {
@@ -440,8 +425,11 @@ function animate(now: number): void {
   lastFrameTime = now;
   const delta = playing ? rawDelta : 0;
   if (playing) elapsedSeconds += delta;
-  rasterStage.update(delta, elapsedSeconds, motion());
-  threeStage?.update(delta, motion(), elapsedSeconds);
+  const runtimeMotion = currentFamily().createRuntimeMotion(
+    currentDynamicState(), speed, elapsedSeconds,
+  );
+  rasterStage.update(delta, elapsedSeconds, runtimeMotion);
+  threeStage?.update(delta, runtimeMotion, elapsedSeconds);
 }
 
 function dispose(): void {

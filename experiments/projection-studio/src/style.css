@@ -541,11 +541,11 @@ button {
 
 .animate-panel {
   display: grid;
-  grid-template-columns: 1.05fr 1.25fr 1.4fr 1.45fr;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.animate-panel:has(.building-action:not([hidden])) {
-  grid-template-columns: 1fr 1.6fr;
+.dynamic-controls {
+  display: contents;
 }
 
 .control-group {

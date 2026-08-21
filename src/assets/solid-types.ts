@@ -54,8 +54,10 @@ export type SolidPlacement = Readonly<{
 }>;
 
 export type SolidPartMotion = Readonly<{
-  role: 'eye' | 'brow' | 'mouth' | 'effect' | 'fixed';
+  role: 'eye' | 'brow' | 'mouth' | 'effect' | 'fixed' | 'rolling';
   side?: -1 | 1;
+  radius?: number;
+  steering?: boolean;
   expression?: CharacterExpression;
   effect?: Readonly<{
     kind: 'flow';
@@ -70,6 +72,13 @@ export type SolidPartMotion = Readonly<{
     kind: 'squash';
     minimumScaleY: number;
   }>;
+}>;
+
+export type SolidRollingPartMotion = SolidPartMotion & Readonly<{
+  role: 'rolling';
+  radius: number;
+  steering: boolean;
+  side: -1 | 1;
 }>;
 
 export type SolidPartDefinition = Readonly<{

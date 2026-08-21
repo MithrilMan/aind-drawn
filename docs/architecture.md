@@ -11,20 +11,20 @@ Three.js. Runtime adapters consume immutable asset blueprints and own GPU
 resources.
 Experiments may depend only on the public barrel exported by `src/index.ts`.
 
-The playground keeps its serializable scene document, history, selection and
-transform tools outside the drawing library. Asset construction crosses the
-boundary through a catalog that maps document kinds to public recipe and
-blueprint factories.
+Projection Studio keeps customization, playback, camera, and renderer state
+outside the drawing library. Asset construction crosses the boundary through a
+catalog that maps authoring values to public identity and blueprint factories.
+Family-specific controls and runtime motion are declarative catalog metadata;
+the shell does not branch on family IDs.
 
 Transparent layers are ordered in contiguous per-rig blocks. `drawRank` selects
 the block (background, terrain, props, actors); each blueprint layer order is
 local to that block. Raw layer orders must never be used as global scene order,
 or two assets can interleave part by part.
 
-In the playground document, the object array is the canonical back-to-front
-painter stack. Reordering an object updates that array and then assigns every
-rig a fresh contiguous `drawRank`; there is deliberately no duplicate numeric
-depth property.
+Consumers that own a scene document keep its object array as the canonical
+back-to-front painter stack. Reordering assigns every rig a fresh contiguous
+`drawRank`; there is deliberately no duplicate numeric depth property.
 
 ## Determinism
 
@@ -91,6 +91,11 @@ CharacterIdentityRecipe
 BuildingIdentityRecipe
   ├─ RasterBuildingStyle  -> RasterBuildingRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidBuildingStyle   -> SolidBuildingRecipe  -> SolidAssetBlueprint -> SolidRig
+                                                          └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
+
+VehicleIdentityRecipe
+  ├─ RasterVehicleStyle  -> RasterVehicleRecipe  -> AssetBlueprint -> SpriteRig
+  └─ SolidVehicleStyle   -> SolidVehicleRecipe   -> SolidAssetBlueprint -> SolidRig
                                                           └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
 ```
 

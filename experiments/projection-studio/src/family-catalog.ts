@@ -1,16 +1,25 @@
 import {
   BUILDING_AUTHORING_SCHEMA,
   CHARACTER_AUTHORING_SCHEMA,
+  CHARACTER_EXPRESSIONS,
+  CHARACTER_POSES,
+  VEHICLE_AUTHORING_SCHEMA,
+  VEHICLE_MOTIONS,
   createDefaultAssetAuthoringValues,
   createBuildingIdentity,
   createCharacterIdentity,
+  createVehicleIdentity,
   createRasterBuildingBlueprint,
   createRasterBuildingRecipe,
   createRasterCharacterBlueprint,
+  createRasterVehicleBlueprint,
+  createRasterVehicleRecipe,
   createSolidBuildingBlueprint,
   createSolidBuildingInkStrokes,
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
+  createSolidVehicleBlueprint,
+  createSolidVehicleInkStrokes,
   type AssetAuthoringValue,
   type AssetBlueprint,
   type AssetFamilyAuthoringSchema,
@@ -22,18 +31,42 @@ import {
   type CharacterHeadShape,
   type CharacterIdentityOptions,
   type CharacterIdentitySpecies,
+  type CharacterExpression,
+  type CharacterMotion,
   type CharacterMouthStyle,
   type CharacterOutfitStyle,
+  type CharacterPose,
   type DoorStyle,
   type InkedSolidStrokeDefinition,
   type MediumId,
   type RoofStyle,
   type SolidAssetBlueprint,
   type SolidFinishId,
+  type VehicleArchetype,
+  type VehicleDoorCount,
+  type VehicleIdentityOptions,
+  type VehicleMotion,
+  type VehicleMotionPreset,
+  type VehicleWheelStyle,
 } from '../../../src/index.js';
 
-export type StudioFamilyId = 'character' | 'building';
+export type StudioFamilyId = 'character' | 'building' | 'vehicle';
 export type FamilyCustomization = Readonly<Record<string, AssetAuthoringValue>>;
+export type FamilyDynamicState = Readonly<Record<string, string>>;
+
+export type StudioChoice = Readonly<{ value: string; label: string }>;
+export type StudioDynamicControl = Readonly<{
+  id: string;
+  label: string;
+  kind: 'motion' | 'expression' | 'interaction';
+  interactionId?: string;
+  options: readonly StudioChoice[];
+}>;
+
+export type StudioRuntimeMotion =
+  | Readonly<{ kind: 'character'; motion: CharacterMotion; expression: CharacterExpression }>
+  | Readonly<{ kind: 'vehicle'; motion: VehicleMotion }>
+  | Readonly<{ kind: 'static' }>;
 
 export type FamilyProjection = Readonly<{
   raster: AssetBlueprint;
@@ -49,6 +82,13 @@ export type StudioFamilyDefinition = Readonly<{
   initialYaw: number;
   initialPitch: number;
   defaultFinish: SolidFinishId;
+  rasterViewTitle: string;
+  rasterAriaLabel: string;
+  workspaceNote: string;
+  playback: boolean;
+  livelyGaze: boolean;
+  dynamicControls: readonly StudioDynamicControl[];
+  defaultDynamicState: FamilyDynamicState;
   authoring: AssetFamilyAuthoringSchema;
   defaultCustomization: FamilyCustomization;
   createProjection: (
@@ -57,6 +97,11 @@ export type StudioFamilyDefinition = Readonly<{
     customization: FamilyCustomization,
     finish: SolidFinishId,
   ) => FamilyProjection;
+  createRuntimeMotion: (
+    dynamicState: FamilyDynamicState,
+    speed: number,
+    elapsedSeconds: number,
+  ) => StudioRuntimeMotion;
 }>;
 
 function optionalString(value: AssetAuthoringValue | undefined): string | undefined {
@@ -66,6 +111,19 @@ function optionalString(value: AssetAuthoringValue | undefined): string | undefi
 function optionalBoolean(value: AssetAuthoringValue | undefined): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined;
 }
+
+function optionalNumber(value: AssetAuthoringValue | undefined): number | undefined {
+  return typeof value === 'number' ? value : undefined;
+}
+
+function choices(values: readonly string[]): readonly StudioChoice[] {
+  return Object.freeze(values.map((value) => Object.freeze({
+    value,
+    label: value.charAt(0).toUpperCase() + value.slice(1),
+  })));
+}
+
+const binaryChoices = choices(['closed', 'open']);
 
 function characterProjection(
   seed: number,
@@ -128,6 +186,74 @@ function buildingProjection(
   });
 }
 
+function vehicleProjection(
+  seed: number,
+  medium: MediumId,
+  customization: FamilyCustomization,
+  finish: SolidFinishId,
+): FamilyProjection {
+  const roofRack = optionalBoolean(customization.roofRack);
+  const spoiler = optionalBoolean(customization.spoiler);
+  const options: VehicleIdentityOptions = {
+    ...(optionalString(customization.archetype) === undefined ? {} : {
+      archetype: optionalString(customization.archetype) as VehicleArchetype,
+    }),
+    ...(optionalString(customization.wheelStyle) === undefined ? {} : {
+      wheelStyle: optionalString(customization.wheelStyle) as VehicleWheelStyle,
+    }),
+    ...(optionalNumber(customization.doorCount) === undefined ? {} : {
+      doorCount: optionalNumber(customization.doorCount) as VehicleDoorCount,
+    }),
+    ...(roofRack === undefined ? {} : { roofRack }),
+    ...(spoiler === undefined ? {} : { spoiler }),
+  };
+  const identity = createVehicleIdentity(seed, options);
+  const raster = createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, { medium }));
+  const solid = createSolidVehicleBlueprint(identity, { finish });
+  return Object.freeze({
+    raster,
+    solid,
+    strokes: createSolidVehicleInkStrokes(solid),
+  });
+}
+
+function characterRuntimeMotion(
+  state: FamilyDynamicState,
+  speed: number,
+): StudioRuntimeMotion {
+  return Object.freeze({
+    kind: 'character',
+    motion: Object.freeze({
+      pose: (state.pose ?? 'idle') as CharacterPose,
+      speed,
+      facing: 1 as const,
+    }),
+    expression: (state.expression ?? 'idle') as CharacterExpression,
+  });
+}
+
+function vehicleRuntimeMotion(
+  state: FamilyDynamicState,
+  speed: number,
+  elapsedSeconds: number,
+): StudioRuntimeMotion {
+  const preset = (state.motion ?? 'parked') as VehicleMotionPreset;
+  const steeringChoice = state.steering ?? 'straight';
+  const signedSpeed = preset === 'reverse' ? -speed : preset === 'parked' ? 0 : speed;
+  const steering = preset === 'showcase'
+    ? Math.sin(elapsedSeconds * 0.8) * 0.72
+    : steeringChoice === 'left' ? -0.72 : steeringChoice === 'right' ? 0.72 : 0;
+  return Object.freeze({
+    kind: 'vehicle',
+    motion: Object.freeze({
+      travelDistance: elapsedSeconds * signedSpeed * 2.4,
+      speed: Math.abs(signedSpeed),
+      steering,
+      suspension: preset === 'showcase' ? 0.78 : 0.42,
+    }),
+  });
+}
+
 export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze([
   Object.freeze({
     id: 'character',
@@ -137,9 +263,20 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     initialYaw: 28,
     initialPitch: -4,
     defaultFinish: 'skin',
+    rasterViewTitle: 'Front view',
+    rasterAriaLabel: 'Front-facing 2D character drawing',
+    workspaceNote: 'Pose it, add expression, then inspect every angle.',
+    playback: true,
+    livelyGaze: true,
+    dynamicControls: Object.freeze([
+      Object.freeze({ id: 'pose', label: 'Pose', kind: 'motion', options: choices(CHARACTER_POSES) }),
+      Object.freeze({ id: 'expression', label: 'Expression', kind: 'expression', options: choices(CHARACTER_EXPRESSIONS) }),
+    ]),
+    defaultDynamicState: Object.freeze({ pose: 'idle', expression: 'idle' }),
     authoring: CHARACTER_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(CHARACTER_AUTHORING_SCHEMA),
     createProjection: characterProjection,
+    createRuntimeMotion: characterRuntimeMotion,
   }),
   Object.freeze({
     id: 'building',
@@ -149,9 +286,51 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     initialYaw: -24,
     initialPitch: -6,
     defaultFinish: 'matte',
+    rasterViewTitle: 'Front elevation',
+    rasterAriaLabel: 'Front elevation 2D building drawing',
+    workspaceNote: 'Open the door, reshape the architecture, then inspect every angle.',
+    playback: false,
+    livelyGaze: false,
+    dynamicControls: Object.freeze([
+      Object.freeze({
+        id: 'door', label: 'Door', kind: 'interaction', interactionId: 'door', options: binaryChoices,
+      }),
+    ]),
+    defaultDynamicState: Object.freeze({ door: 'closed' }),
     authoring: BUILDING_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(BUILDING_AUTHORING_SCHEMA),
     createProjection: buildingProjection,
+    createRuntimeMotion: () => Object.freeze({ kind: 'static' as const }),
+  }),
+  Object.freeze({
+    id: 'vehicle',
+    label: 'Vehicle',
+    description: 'City cars, coupés, saloons, vans, and pickups',
+    defaultSeed: 5101,
+    initialYaw: -32,
+    initialPitch: -7,
+    defaultFinish: 'glossy',
+    rasterViewTitle: 'Side elevation',
+    rasterAriaLabel: 'Side elevation 2D vehicle drawing',
+    workspaceNote: 'Drive it, steer it, open its moving parts, then inspect every angle.',
+    playback: true,
+    livelyGaze: false,
+    dynamicControls: Object.freeze([
+      Object.freeze({ id: 'motion', label: 'Motion', kind: 'motion', options: choices(VEHICLE_MOTIONS) }),
+      Object.freeze({ id: 'steering', label: 'Steering', kind: 'motion', options: choices(['left', 'straight', 'right']) }),
+      Object.freeze({ id: 'doorLeft', label: 'Left door', kind: 'interaction', interactionId: 'door:left', options: binaryChoices }),
+      Object.freeze({ id: 'doorRight', label: 'Right door', kind: 'interaction', interactionId: 'door:right', options: binaryChoices }),
+      Object.freeze({ id: 'hood', label: 'Bonnet', kind: 'interaction', interactionId: 'hood', options: binaryChoices }),
+      Object.freeze({ id: 'cargo', label: 'Cargo', kind: 'interaction', interactionId: 'cargo', options: binaryChoices }),
+    ]),
+    defaultDynamicState: Object.freeze({
+      motion: 'parked', steering: 'straight', doorLeft: 'closed', doorRight: 'closed',
+      hood: 'closed', cargo: 'closed',
+    }),
+    authoring: VEHICLE_AUTHORING_SCHEMA,
+    defaultCustomization: createDefaultAssetAuthoringValues(VEHICLE_AUTHORING_SCHEMA),
+    createProjection: vehicleProjection,
+    createRuntimeMotion: vehicleRuntimeMotion,
   }),
 ]);
 

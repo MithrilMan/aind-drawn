@@ -413,39 +413,56 @@ export function createSolidFaceBlueprint(
 
   const [headRadiusX, headRadiusY] = layout.shape.radii;
   const tearProfile = createCharacterTearProfile(identity);
-  const tearTopExtent = tearProfile.length * headRadiusY * 0.58;
-  const tearAnchorOffset = tearTopExtent
-    + layout.eyeRadius * (1 + tearProfile.attachmentClearanceInEyeRadii);
+  const tearAnchorOffset = layout.eyeRadius
+    * (1 + tearProfile.attachmentClearanceInEyeRadii);
   layout.eyeAnchors.forEach((eyeAnchor, index) => {
     const side = index === 0 ? -1 : 1;
     const sideId = side < 0 ? 'left' : 'right';
-    const tearAnchor = moveOnSurface(
-      eyeAnchor,
-      [0, -tearAnchorOffset],
-      layout.eyeRadius * 0.2,
-    );
-    add({
-      id: `tear:${sideId}`,
-      node: 'head',
-      order: 27,
-      geometry: plate(
-        Object.freeze(tearProfile.outline.map(([x, y]) => Object.freeze([
+    tearProfile.components.forEach((component, componentIndex) => {
+      const tearAnchor = moveOnSurface(
+        eyeAnchor,
+        [
+          side * component.offset[0] * headRadiusX,
+          -tearAnchorOffset + component.offset[1] * headRadiusY,
+        ],
+        layout.eyeRadius * (component.id === 'stream' ? 0.18 : 0.24),
+      );
+      const scaledOutline = Object.freeze(component.outline.map(([x, y]) => Object.freeze([
           x * headRadiusX,
           y * headRadiusY,
-        ] as const))),
-        Math.max(0.008, headRadiusY * 0.014),
-        Math.max(0.002, headRadiusY * 0.004),
-      ),
-      materialId: 'tear',
-      placement: placement(tearAnchor),
-      motion: Object.freeze({
-        role: 'tear',
-        side,
-        travel: tearProfile.fallDistance * headRadiusY,
-      }),
-      visible: false,
-      castShadow: false,
-      receiveShadow: false,
+        ] as const)));
+      const halfWidth = Math.max(...scaledOutline.map(([x]) => Math.abs(x)));
+      const halfHeight = Math.max(...scaledOutline.map(([, y]) => Math.abs(y)));
+      const depth = Math.max(0.009, Math.min(halfWidth, halfHeight) * (
+        component.id === 'stream' ? 0.42 : 0.82
+      ));
+      add({
+        id: `tear:${sideId}:${component.id}`,
+        node: 'head',
+        order: 27 + componentIndex * 0.02,
+        geometry: plate(scaledOutline, depth, depth * 0.46),
+        materialId: 'tear',
+        placement: placement(tearAnchor),
+        motion: Object.freeze({
+          role: 'effect',
+          side,
+          effect: Object.freeze({
+            kind: 'flow',
+            attachment: component.id === 'stream' ? 'source' : 'free',
+            activationState: 'crying',
+            phase: component.phase + (side < 0 ? 0 : 0.33),
+            travel: Object.freeze([
+              component.travel[0] === 0 ? 0 : side * component.travel[0] * headRadiusX,
+              component.travel[1] * headRadiusY,
+              0,
+            ] as const),
+            pulse: component.pulse,
+          }),
+        }),
+        visible: false,
+        castShadow: false,
+        receiveShadow: false,
+      });
     });
   });
   for (const expression of CHARACTER_EXPRESSIONS) {

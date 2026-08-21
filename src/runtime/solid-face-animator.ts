@@ -207,14 +207,31 @@ export class SolidFaceAnimator {
         mesh.translateX(this.headX * unit * 0.04);
         mesh.translateY(this.headY * unit * 0.025);
         mesh.visible = motion.expression === undefined || motion.expression === this.expression;
-      } else if (motion.role === 'tear') {
-        mesh.visible = this.expression === 'crying';
+      } else if (motion.role === 'effect' && motion.effect?.kind === 'flow') {
+        const effect = motion.effect;
+        mesh.visible = this.expression === effect.activationState;
         if (mesh.visible) {
-          const phaseOffset = (motion.side ?? 1) < 0 ? 0 : 0.46;
-          const fall = (this.elapsed * 0.82 + phaseOffset) % 1;
-          mesh.translateY(-(motion.travel ?? unit * 0.12) * fall);
-          const pulse = 0.88 + Math.sin(fall * Math.PI) * 0.24;
-          mesh.scale.set(rest.scale.x * pulse, rest.scale.y * (0.82 + fall * 0.34), rest.scale.z);
+          if (effect.attachment === 'source') {
+            const wave = Math.sin(this.elapsed * 4.4 + effect.phase * Math.PI * 2);
+            const pulse = effect.pulse;
+            mesh.scale.set(
+              rest.scale.x * (1 + wave * pulse),
+              rest.scale.y * (1 - wave * pulse * 0.32),
+              rest.scale.z,
+            );
+          } else {
+            const fall = (this.elapsed * 0.86 + effect.phase) % 1;
+            const travel = effect.travel;
+            mesh.translateX(travel[0] * fall);
+            mesh.translateY(travel[1] * fall);
+            mesh.translateZ(travel[2] * fall);
+            const pulse = 1 + Math.sin(fall * Math.PI) * effect.pulse;
+            mesh.scale.set(
+              rest.scale.x * pulse,
+              rest.scale.y * (0.88 + fall * 0.2),
+              rest.scale.z,
+            );
+          }
         }
       }
     }

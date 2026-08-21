@@ -1,13 +1,16 @@
 import { chaikin, closePath, type MutablePoint, type Point } from '../../core/geometry.js';
 import { combineSeed } from '../../core/random.js';
-import { PAPER, type Sketch } from '../../core/sketch.js';
+import { PAPER, PAPER_RGB, type Sketch } from '../../core/sketch.js';
 import { mediumById, type Medium } from '../../materials/medium.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../types.js';
 import type { CharacterIdentityRecipe } from '../character-identity/recipe.js';
 import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
 import { createCharacterEyeProfile } from '../character-identity/eye-profile.js';
 import { createCharacterMouthProfile } from '../character-identity/mouth-profile.js';
-import { createCharacterTearProfile } from '../character-identity/tear-profile.js';
+import {
+  createCharacterTearProfile,
+  type CharacterTearComponent,
+} from '../character-identity/tear-profile.js';
 import { createCharacterOutfitProfile } from '../character-identity/outfit-profile.js';
 import { buildCharacterLayout } from './layout.js';
 import {
@@ -343,36 +346,44 @@ function drawMouth(
   }
 }
 
-function drawTear(
+function drawTearComponent(
   sketch: Sketch,
   recipe: CharacterRecipe,
   state: string,
   side: -1 | 1,
+  component: CharacterTearComponent,
   headWidth: number,
   headHeight: number,
 ): void {
   if (state !== 'crying') return;
-  const profile = createCharacterTearProfile(recipe.identity);
   const centerX = TEAR_CANVAS.width / 2;
-  const centerY = TEAR_CANVAS.height * 0.42;
-  const outline = profile.outline.map(([x, y]): MutablePoint => [
+  const centerY = TEAR_CANVAS.height / 2;
+  const outline = component.outline.map(([x, y]): MutablePoint => [
     centerX + x * headWidth * 0.5,
     centerY - y * headHeight * 0.5,
   ]);
+  sketch.paperFill(outline);
   sketch.setInk(recipe.identity.palette.tear);
-  sketch.inkFill(outline, 0.52);
+  sketch.inkFill(outline, component.id === 'stream' ? 0.28 : 0.42);
   sketch.stroke(closePath(outline), 1.35 * recipe.style.linePressure, {
-    alpha: 0.72,
-    amplitude: 0.24,
-    taper: 0.08,
+    alpha: component.id === 'stream' ? 0.68 : 0.78,
+    amplitude: component.id === 'stream' ? 0.36 : 0.28,
+    taper: component.id === 'stream' ? 0.22 : 0.12,
   });
+  const ys = outline.map(([, y]) => y);
+  const xs = outline.map(([x]) => x);
+  const top = Math.min(...ys);
+  const bottom = Math.max(...ys);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  sketch.setInk(PAPER_RGB);
   sketch.stroke([
-    [centerX - side * 1.4, centerY - profile.length * headHeight * 0.44],
-    [centerX + side * 1.2, centerY - profile.length * headHeight * 0.06],
-  ], 1.05 * recipe.style.linePressure, {
-    alpha: 0.48,
-    amplitude: 0.2,
-    taper: 0.35,
+    [centerX - side * (right - left) * 0.1, top + (bottom - top) * 0.18],
+    [centerX + side * (right - left) * 0.08, top + (bottom - top) * 0.58],
+  ], Math.max(0.75, recipe.style.linePressure * 0.82), {
+    alpha: component.id === 'stream' ? 0.62 : 0.78,
+    amplitude: 0.16,
+    taper: 0.42,
   });
   sketch.setInk(null);
 }
@@ -506,9 +517,8 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   const pawEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'hand' as const;
   const footEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'foot' as const;
   const tearProfile = createCharacterTearProfile(recipe.identity);
-  const tearTopExtentPixels = tearProfile.length * layout.head.heightPixels * 0.5 * 0.58;
-  const tearAnchorOffsetPixels = tearTopExtentPixels
-    + layout.eyes.radiusPixels * (1 + tearProfile.attachmentClearanceInEyeRadii);
+  const tearAnchorOffsetPixels = layout.eyes.radiusPixels
+    * (1 + tearProfile.attachmentClearanceInEyeRadii);
 
   const layers: LayerDefinition[] = [
     ...(recipe.identity.tail.present ? [layer({
@@ -651,29 +661,48 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         state,
       ); },
     }),
-    ...([-1, 1] as const).map((side) => layer({
-      id: `tear:${side < 0 ? 'left' : 'right'}`,
-      bone: `tear:${side < 0 ? 'left' : 'right'}`,
-      parentBone: 'head', order: 4.6, depth: 0.86,
-      canvas: TEAR_CANVAS, pixelsPerUnit,
-      position: {
-        x: (side < 0 ? layout.eyes.left.x : layout.eyes.right.x) - headPosition.x,
-        y: (side < 0 ? layout.eyes.left.y : layout.eyes.right.y)
-          - headPosition.y
-          - tearAnchorOffsetPixels / pixelsPerUnit,
-      },
-      pivot: [0.5, 0.42], states: ['idle', 'crying'],
-      draw: ({ sketch, state }) => {
-        drawTear(
-          sketch,
-          recipe,
-          state,
-          side,
-          layout.head.widthPixels,
-          layout.head.heightPixels,
-        );
-      },
-    })),
+    ...([-1, 1] as const).flatMap((side) => {
+      const sideId = side < 0 ? 'left' : 'right';
+      const eye = side < 0 ? layout.eyes.left : layout.eyes.right;
+      return tearProfile.components.map((component, componentIndex) => layer({
+        id: `tear:${sideId}:${component.id}`,
+        bone: `tear:${sideId}:${component.id}`,
+        parentBone: 'head', order: 4.6 + componentIndex * 0.01, depth: 0.86,
+        canvas: TEAR_CANVAS, pixelsPerUnit,
+        position: {
+          x: eye.x - headPosition.x
+            + side * component.offset[0] * layout.head.widthPixels * 0.5 / pixelsPerUnit,
+          y: eye.y - headPosition.y
+            - tearAnchorOffsetPixels / pixelsPerUnit
+            + component.offset[1] * layout.head.heightPixels * 0.5 / pixelsPerUnit,
+        },
+        pivot: [0.5, 0.5], states: ['idle', 'crying'],
+        animation: Object.freeze({
+          role: 'flow',
+          attachment: component.id === 'stream' ? 'source' : 'free',
+          activationState: 'crying',
+          phase: component.phase + (side < 0 ? 0 : 0.33),
+          travel: Object.freeze({
+            x: component.travel[0] === 0
+              ? 0
+              : side * component.travel[0] * layout.head.widthPixels * 0.5 / pixelsPerUnit,
+            y: component.travel[1] * layout.head.heightPixels * 0.5 / pixelsPerUnit,
+          }),
+          pulse: component.pulse,
+        }),
+        draw: ({ sketch, state }) => {
+          drawTearComponent(
+            sketch,
+            recipe,
+            state,
+            side,
+            component,
+            layout.head.widthPixels,
+            layout.head.heightPixels,
+          );
+        },
+      }));
+    }),
     layer({
       id: 'mouth', bone: 'mouth', order: 5, depth: 0.9,
       canvas: MOUTH_CANVAS, pixelsPerUnit,

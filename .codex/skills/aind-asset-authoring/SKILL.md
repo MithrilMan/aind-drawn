@@ -257,10 +257,20 @@ family IDs.
   brows clear of pupil geometry and express upper-eye pressure through shared
   eye openness or an authored eyelid rather than mesh intersection.
 - Treat `SolidFinishId` and `MediumId` as orthogonal. Physical finishes such as
-  skin, glass, ceramic, or metal affect only smooth solid rendering. Add new
+  skin, wood, chrome, ceramic, or metal affect only smooth solid rendering.
+  Select them from `SOLID_FINISH_CATALOG`; resolve them only through
+  `SolidMaterialProvider`. A new finish requires one catalog entry, one
+  exhaustive provider recipe, any deterministic procedural map bundle, and
+  provider lifecycle tests. Asset families declare `SolidMaterialSpec` intent;
+  they never instantiate Three.js materials or own finish textures. Add new
   medium behaviour centrally in `src/materials/medium.ts` and
   `src/assets/inked-solid/medium-projection.ts`; extend the generic
   `InkedSolidPass` field only when necessary, never a family adapter.
+- Treat `ToneStyle` as density intent, not permission to change a medium's mark
+  vocabulary. Oil answers every tone with loaded brush daubs, charcoal with
+  granular pickup, and marker with broad translucent passes. Never translate
+  an authored `hatch` tone into literal pencil hatching for a medium whose
+  raster implementation does not draw hatch lines.
 - Author semantic marks in the family adapter. Use superellipsoid surface
   directions for analytic hosts and part-local points for boxes, profiles,
   meshes, or paths that leave a surface. Always name and validate the owner
@@ -268,11 +278,14 @@ family IDs.
   medium deposition.
 - Resolve semantic marks through `InkedSolidStrokeRig`; parent them to the
   owner mesh and dispose the stroke rig before `SolidRig`.
-- Put the complete attachment rule for secondary effects such as tears, drips,
-  sparks, smoke, or labels in the shared semantic profile. Store normalized
-  clearance there, then let every adapter account for its projected effect
-  extent so the visible tip or edge attaches to the intended feature; never
-  align only the effect centre with adapter-local literals.
+- Put the complete attachment rule and component topology for secondary effects
+  such as tears, drips, sparks, smoke, or labels in the shared semantic profile.
+  Store normalized clearance, component offsets, flow phase, travel, and pulse
+  there when they are part of the gesture. Separate attached and free-moving
+  components: a wet tear keeps its stream on the eyelid while its drop and bead
+  move independently. Every adapter accounts for projected extent so the
+  visible tip or edge attaches to the intended feature; never translate one
+  monolithic effect or align only its centre with adapter-local literals.
 - Share temporal pose blending across raster and solid runtimes. A pose switch
   must traverse the same normalized weights and transition duration in every
   projection. When a planar gesture crosses a volumetric silhouette, articulate
@@ -305,6 +318,8 @@ Add tests that prove:
   solid family without family-specific renderer branches.
 - physical finish changes smooth rendering without changing doodle deposition or
   semantic stroke data.
+- every public physical finish resolves through one provider; generated maps
+  are shared within its ownership boundary and disposed exactly once.
 - every public `MediumId` compiles to a deterministic raster and inked-solid
   policy with the same ID and a visibly distinct view-synthesized character.
 

@@ -259,10 +259,25 @@ export class CharacterAnimator {
       }, 1);
       this.addPose(poses, 'arm:left', { rotation: 0.16 + heave * 0.12 }, 1);
       this.addPose(poses, 'arm:right', { rotation: -0.16 - heave * 0.12 }, 1);
-      for (const side of ['left', 'right'] as const) {
-        const offset = side === 'left' ? 0 : 0.46;
-        const fall = (this.elapsed * 0.82 + offset) % 1;
-        this.addPose(poses, `tear:${side}`, { y: -fall * 0.08 }, 1);
+      for (const layer of this.rig.blueprint.layers) {
+        const animation = layer.animation;
+        if (animation?.role !== 'flow') continue;
+        if (animation.attachment === 'source') {
+          const wave = Math.sin(this.elapsed * 4.4 + animation.phase * Math.PI * 2);
+          this.addPose(poses, layer.bone, {
+            scaleX: 1 + wave * animation.pulse,
+            scaleY: 1 - wave * animation.pulse * 0.32,
+          }, 1);
+          continue;
+        }
+        const fall = (this.elapsed * 0.86 + animation.phase) % 1;
+        const pulse = 1 + Math.sin(fall * Math.PI) * animation.pulse;
+        this.addPose(poses, layer.bone, {
+          x: animation.travel.x * fall,
+          y: animation.travel.y * fall,
+          scaleX: pulse,
+          scaleY: 0.88 + fall * 0.2,
+        }, 1);
       }
     }
   }
@@ -328,8 +343,15 @@ export class CharacterAnimator {
         ? 'sleeping'
         : talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : expression,
     );
-    this.stateIfPresent('tear:left', expression === 'crying' ? 'crying' : 'idle');
-    this.stateIfPresent('tear:right', expression === 'crying' ? 'crying' : 'idle');
+    for (const layer of this.rig.blueprint.layers) {
+      const animation = layer.animation;
+      if (animation?.role === 'flow') {
+        this.stateIfPresent(
+          layer.id,
+          expression === animation.activationState ? animation.activationState : 'idle',
+        );
+      }
+    }
   }
 
   private addPose(

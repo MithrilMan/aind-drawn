@@ -4,8 +4,8 @@
   "repository": "https://github.com/albertobeiz/kindergrimm.git",
   "checkoutDirectory": "references/kindergrimm",
   "referenceRef": "refs/heads/main",
-  "referenceCommit": "47a996aa1ce08e0c5f7beb3acf486b938f807706",
-  "referenceDate": "2026-08-20T00:31:28+02:00",
+  "referenceCommit": "811214c6dd5de18cc20335cd3d4ab0a06e45ffd4",
+  "referenceDate": "2026-08-21T14:24:00+02:00",
   "reviewedAreas": [
     "src/rng.js",
     "src/sketch.js",

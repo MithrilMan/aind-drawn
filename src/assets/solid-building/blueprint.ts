@@ -112,12 +112,12 @@ function materialSpecs(recipe: SolidBuildingRecipe): readonly SolidMaterialSpec[
   return Object.freeze([
     Object.freeze({
       id: 'wall', role: 'facade', color: recipe.identity.palette.wall,
-      finish: recipe.style.finish, roughness: 0.84,
+      finish: recipe.style.finish,
       drawing: Object.freeze({ tone: drawing.facadeTone }),
     }),
     Object.freeze({
       id: 'accent', role: 'architectural-accent', color: recipe.identity.palette.accent,
-      finish: recipe.style.finish, roughness: 0.72,
+      finish: recipe.style.finish,
     }),
     Object.freeze({
       id: 'glass', role: 'window', color: recipe.identity.palette.glass,

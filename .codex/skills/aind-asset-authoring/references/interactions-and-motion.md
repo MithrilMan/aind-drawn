@@ -107,6 +107,14 @@ needed.
 Do not generalise character gait concepts into unrelated families. Vehicles
 may use signed travel and steering; machinery may use cycle phase and load.
 
+Transient secondary effects follow the same rule. Model their semantic
+components and normalized motion in shared identity-adjacent profiles before
+projecting them. Keep an attached stream, tether, smoke source, or spark emitter
+on its socket; animate free drops, beads, particles, or wisps independently.
+Adapters convert shared offsets and travel into their local units. They do not
+collapse the effect into one texture or mesh and translate the attachment away
+from its source.
+
 Facial expressions use the same rule. Define one representation-neutral
 profile for eye openness, eye scale, brow lift, and brow inner-end raise. Use
 visible semantics rather than renderer signs: a positive inner raise lifts both
@@ -135,5 +143,7 @@ Add runtime tests proving:
   carrier volume rather than intersecting it;
 - raster and solid facial adapters preserve the same inner-brow direction and
   eye openness for representative expressions;
+- attached effect components stay on their source while free components move
+  with deterministic, projection-equivalent phase and travel;
 - an extreme expressive seed keeps eyebrow geometry clear of the pupil;
 - disposing the rig or stroke rig releases and detaches owned resources.

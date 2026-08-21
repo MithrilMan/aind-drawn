@@ -34,6 +34,20 @@ export type LayerDrawContext = Readonly<{
   frame: number;
 }>;
 
+export type LayerAnimationDefinition = Readonly<{
+  role: 'flow';
+  /** Source remains attached; free components travel and restart cyclically. */
+  attachment: 'source' | 'free';
+  /** Layer state that enables this effect in the owning runtime. */
+  activationState: string;
+  /** Normalized phase offset for deterministic cyclic motion. */
+  phase: number;
+  /** Layer-local world displacement over one animation cycle. */
+  travel: Vector2;
+  /** Fractional scale variation around the authored rest shape. */
+  pulse: number;
+}>;
+
 export type LayerDefinition = Readonly<{
   id: string;
   bone: string;
@@ -45,6 +59,7 @@ export type LayerDefinition = Readonly<{
   position: Vector2;
   pivot: Pivot;
   states: readonly string[];
+  animation?: LayerAnimationDefinition;
   draw: (context: LayerDrawContext) => void;
 }>;
 

@@ -7,8 +7,11 @@ import type {
   SolidNodeState,
 } from '../assets/solid-types.js';
 import { surfaceFrame } from '../core/geometry3.js';
-import { createSolidGeometry } from './solid-geometry.js';
-import { createSolidMaterial, type SolidMaterialFactoryOptions } from './solid-materials.js';
+import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
+import {
+  SolidMaterialProvider,
+  type SolidMaterialProviderOptions,
+} from './solid-materials.js';
 
 type SolidPartMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>;
 type NodeRestTransform = Readonly<{
@@ -17,7 +20,7 @@ type NodeRestTransform = Readonly<{
   scale: THREE.Vector3;
 }>;
 
-export type SolidRigOptions = SolidMaterialFactoryOptions;
+export type SolidRigOptions = SolidMaterialProviderOptions & SolidGeometryFactoryOptions;
 
 /**
  * Three.js adapter for data-only solid blueprints. Asset code never imports
@@ -31,16 +34,18 @@ export class SolidRig {
   private readonly nodeRest = new Map<string, NodeRestTransform>();
   private readonly parts = new Map<string, SolidPartMesh>();
   private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
+  private readonly materialProvider: SolidMaterialProvider;
   private readonly interactionStates = new Map<string, string>();
   private disposed = false;
 
   public constructor(blueprint: SolidAssetBlueprint, options: SolidRigOptions = {}) {
     this.blueprint = blueprint;
+    this.materialProvider = new SolidMaterialProvider(options);
     this.root.name = blueprint.id;
     this.root.userData.solidAssetId = blueprint.id;
     for (const spec of blueprint.materials) {
       if (this.materials.has(spec.id)) throw new Error(`Duplicate solid material id: ${spec.id}`);
-      this.materials.set(spec.id, createSolidMaterial(spec, options));
+      this.materials.set(spec.id, this.materialProvider.create(spec));
     }
     this.buildNodes(blueprint.nodes);
     for (const part of [...blueprint.parts].sort((left, right) => left.order - right.order)) {
@@ -48,7 +53,10 @@ export class SolidRig {
       const parent = this.requireNode(part.node);
       const material = this.materials.get(part.materialId);
       if (material === undefined) throw new Error(`Unknown solid material: ${part.materialId}`);
-      const mesh: SolidPartMesh = new THREE.Mesh(createSolidGeometry(part.geometry), material);
+      const mesh: SolidPartMesh = new THREE.Mesh(
+        createSolidGeometry(part.geometry, options),
+        material,
+      );
       mesh.name = `part:${part.id}`;
       mesh.renderOrder = part.order;
       mesh.visible = part.visible ?? true;
@@ -125,7 +133,7 @@ export class SolidRig {
     if (this.disposed) return;
     this.disposed = true;
     for (const part of this.parts.values()) part.geometry.dispose();
-    for (const material of this.materials.values()) material.dispose();
+    this.materialProvider.dispose();
     this.parts.clear();
     this.nodes.clear();
     this.nodeRest.clear();

@@ -434,7 +434,9 @@ describe('asset contracts', () => {
       'ink', 'interior', 'tooth', 'tongue',
     ]));
     expect(createCharacterMouthProfile(identity.mouth, 'angry').strokes.map(({ id }) => id))
-      .toEqual(expect.arrayContaining(['tooth-split', 'tooth-divider:1']));
+      .toEqual(expect.arrayContaining(['tooth-divider:1', 'tooth-divider:3']));
+    expect(createCharacterMouthProfile(identity.mouth, 'crying').layers[0]?.id).toBe('wail');
+    expect(createCharacterMouthProfile(identity.mouth, 'sleeping').layers[0]?.id).toBe('slack');
     expect(createCharacterMouthProfile(identity.mouth, 'happy').layers)
       .not.toEqual(createCharacterMouthProfile(identity.mouth, 'sad').layers);
   });
@@ -653,6 +655,20 @@ describe('asset contracts', () => {
     expect(painted.every(({ coverage }) => coverage >= 0.62)).toBe(true);
     expect(inked.viewMarks.find(({ materialId }) => materialId === 'skin')?.coverage).toBe(0.98);
     expect(inked.contour.wander).toBeGreaterThan(0);
+  });
+
+  it('keeps oil, charcoal, and marker inside their raster mark vocabularies', () => {
+    const tones = ['black', 'hatch', 'scribble', 'stipple', 'light'] as const;
+    const oil = inkedSolidMediumDefaults('oil');
+    const charcoal = inkedSolidMediumDefaults('chalk');
+    const marker = inkedSolidMediumDefaults('marker');
+    for (const tone of tones) {
+      expect(oil.viewMark('clothing', tone).style).toBe('bristle');
+      expect(charcoal.viewMark('clothing', tone).style).toBe('stipple');
+      expect(marker.viewMark('clothing', tone).style).toBe('marker');
+    }
+    expect(marker.viewMark('clothing', 'hatch').lineWidth).toBeGreaterThan(0.2);
+    expect(charcoal.viewMark('body', 'hatch').style).not.toBe('hatch');
   });
 
   it('projects ink and watercolour as deposited filler rather than invented shading bands', () => {

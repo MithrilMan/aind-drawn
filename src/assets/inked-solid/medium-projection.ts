@@ -290,11 +290,85 @@ function oilViewMark(
   const tone = authoredTone ?? (role === 'hair' ? 'black' : 'hatch');
   return Object.freeze({
     ...base,
-    style: tone === 'stipple' ? 'stipple' : tone === 'scribble' ? 'scribble' : 'bristle',
+    // Raster oil always answers tone with the same loaded-brush vocabulary.
+    // Tone changes pigment load and daub density, never switches to pencil or dots.
+    style: 'bristle',
     strength: strengthByTone[tone],
     coverage: role === 'window' ? 0.78 : tone === 'black' ? 0.99 : 0.98,
-    scale: base.scale * (tone === 'light' ? 0.9 : tone === 'black' ? 1.12 : 1),
+    scale: base.scale * (tone === 'light' ? 0.42 : tone === 'black' ? 0.55 : 0.48),
     lineWidth: base.lineWidth * (tone === 'black' ? 1.16 : 1),
+  });
+}
+
+function chalkViewMark(
+  base: InkedSolidViewMarkDefaults,
+  role: string,
+  authoredTone?: ToneStyle,
+): InkedSolidViewMarkDefaults {
+  if (role === 'eye-white') {
+    return Object.freeze({ ...base, style: 'none', strength: 0, coverage: 0 });
+  }
+  if (role === 'linework') {
+    return Object.freeze({
+      ...base, style: 'solid', strength: 0.82, coverage: 0.94,
+      lineWidth: base.lineWidth * 1.25,
+    });
+  }
+  if (role === 'liquid') {
+    return Object.freeze({
+      ...base, style: 'wash', strength: 0.48, coverage: 0.3,
+      scale: base.scale * 0.7,
+    });
+  }
+  const tone = authoredTone ?? (role === 'hair' ? 'black' : 'hatch');
+  const density = TONE_DENSITY[tone];
+  return Object.freeze({
+    ...base,
+    // Charcoal is pigment caught by paper tooth. It never becomes hatching
+    // merely because the authored density happens to be named `hatch`.
+    style: 'stipple',
+    strength: 0.28 + density * 0.42,
+    coverage: role === 'window'
+      ? Math.min(0.24, 0.1 + density * 0.34)
+      : 0.12 + density * 0.5,
+    scale: base.scale * (tone === 'black' ? 1.16 : tone === 'light' ? 0.86 : 1),
+  });
+}
+
+function markerViewMark(
+  base: InkedSolidViewMarkDefaults,
+  role: string,
+  authoredTone?: ToneStyle,
+): InkedSolidViewMarkDefaults {
+  if (role === 'eye-white') {
+    return Object.freeze({ ...base, style: 'none', strength: 0, coverage: 0 });
+  }
+  if (role === 'linework') {
+    return Object.freeze({
+      ...base, style: 'solid', strength: 0.94, coverage: 0.98,
+      lineWidth: base.lineWidth * 1.18,
+    });
+  }
+  if (role === 'liquid') {
+    return Object.freeze({
+      ...base, style: 'wash', strength: 0.5, coverage: 0.34,
+      scale: base.scale * 0.7,
+    });
+  }
+  const tone = authoredTone ?? (role === 'hair' ? 'black' : 'hatch');
+  const density = TONE_DENSITY[tone];
+  const coverage = role === 'body'
+    ? 0.22 + (tone === 'light' ? 0 : density * 0.12)
+    : 0.16 + density * 0.3 + (tone === 'black' ? 0.1 : 0);
+  return Object.freeze({
+    ...base,
+    // Marker uses broad translucent passes for every tone. Thin pencil-like
+    // hatch families are not part of this medium's raster vocabulary.
+    style: 'marker',
+    strength: 0.46 + density * 0.26,
+    coverage: role === 'window' ? Math.min(0.24, coverage) : Math.min(0.9, coverage),
+    scale: base.scale * 1.8,
+    lineWidth: Math.max(base.lineWidth, 0.28),
   });
 }
 
@@ -308,111 +382,8 @@ function projectViewMark(
   if (medium === 'ink') return inkViewMark(base, role, authoredTone);
   if (medium === 'watercolor') return watercolorViewMark(base, role, authoredTone);
   if (medium === 'oil') return oilViewMark(base, role, authoredTone);
-  if (role === 'liquid') {
-    return Object.freeze({
-      ...base,
-      style: 'wash',
-      strength: Math.max(0.48, base.strength),
-      coverage: Math.max(0.3, base.coverage),
-      scale: base.scale * 0.7,
-    });
-  }
-  if (role === 'eye-white') {
-    return Object.freeze({ ...base, style: 'none', strength: 0, coverage: 0 });
-  }
-  if (role === 'linework') {
-    return Object.freeze({
-      ...base,
-      style: 'solid',
-      strength: base.style === 'hatch' ? 0.88 : Math.max(0.72, base.strength),
-      coverage: Math.max(0.92, base.coverage),
-      scale: base.scale * 1.7,
-    });
-  }
-  if (authoredTone !== undefined) {
-    if (authoredTone === 'black') {
-      return Object.freeze({
-        ...base,
-        style: base.style === 'hatch' ? 'scribble' : base.style,
-        strength: Math.max(0.86, base.strength),
-        coverage: Math.max(0.86, base.coverage),
-        scale: base.scale * 1.12,
-        lineWidth: base.lineWidth * 1.12,
-      });
-    }
-    if (authoredTone === 'light') {
-      return Object.freeze({
-        ...base,
-        style: base.style === 'hatch' ? 'hatch' : base.style,
-        strength: base.strength * 0.54,
-        coverage: base.coverage * 0.56,
-      });
-    }
-    if (authoredTone === 'scribble') {
-      return Object.freeze({
-        ...base,
-        style: 'scribble',
-        strength: Math.max(0.58, base.strength),
-        coverage: Math.max(0.3, base.coverage),
-      });
-    }
-    if (authoredTone === 'stipple') {
-      return Object.freeze({
-        ...base,
-        style: 'stipple',
-        strength: Math.max(0.5, base.strength),
-      });
-    }
-    return Object.freeze({ ...base, style: 'hatch' });
-  }
-  if (role === 'hair' && base.style !== 'hatch') {
-    return Object.freeze({
-      ...base,
-      coverage: Math.max(0.66, base.coverage),
-      strength: Math.max(0.62, base.strength),
-    });
-  }
-  if ((role === 'clothing' || role === 'architectural-accent') && base.style !== 'hatch') {
-    return Object.freeze({
-      ...base,
-      coverage: Math.max(role === 'clothing' ? 0.38 : 0.44, base.coverage),
-    });
-  }
-  if (role === 'accent') {
-    return Object.freeze({ ...base, coverage: Math.max(0.42, base.coverage) });
-  }
-  if (base.style === 'hatch') {
-    if (role === 'hair') {
-      return Object.freeze({
-        ...base,
-        style: 'scribble',
-        scale: base.scale * 1.18,
-        strength: 0.72,
-        coverage: Math.max(0.72, base.coverage),
-        lineWidth: base.lineWidth * 1.25,
-      });
-    }
-    if (role === 'clothing' || role === 'architectural-accent') {
-      return Object.freeze({
-        ...base,
-        style: 'crosshatch',
-        strength: role === 'clothing' ? 0.5 : base.strength * 1.15,
-        coverage: role === 'clothing'
-          ? Math.max(0.34, base.coverage)
-          : Math.max(0.42, base.coverage),
-      });
-    }
-    if (role === 'window') {
-      return Object.freeze({
-        ...base,
-        style: 'hatch',
-        scale: base.scale * 0.72,
-        strength: 0.12,
-        coverage: Math.min(0.09, base.coverage),
-      });
-    }
-  }
-  return Object.freeze({ ...base });
+  if (medium === 'chalk') return chalkViewMark(base, role, authoredTone);
+  return markerViewMark(base, role, authoredTone);
 }
 
 const MEDIUM_DEFAULTS: Readonly<Record<MediumId, InkedSolidMediumDefaults>> = Object.freeze({

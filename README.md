@@ -104,6 +104,11 @@ identity generators. The complete solid blueprint exposes articulated body
 nodes, face parts, outfit, tail, colliders, and sockets without importing
 Three.js into asset code.
 
+Smooth solids resolve `matte`, `glossy`, `rubber`, `ceramic`, `pearl`,
+`flocked`, `wood`, `wool`, `resin`, `chrome`, `metal`, `crazed`, and `skin`
+through the public `SolidMaterialProvider`. The provider owns both materials
+and shared procedural maps and is disposed automatically by `SolidRig`.
+
 Convergence is geometric rather than cosmetic: both representations evaluate
 the same radial head field, half-width eye spacing, head-relative hairstyle
 silhouette, mouth placement, and expression profiles. `CharacterAnimator` and

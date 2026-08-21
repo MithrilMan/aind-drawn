@@ -54,10 +54,17 @@ export type SolidPlacement = Readonly<{
 }>;
 
 export type SolidPartMotion = Readonly<{
-  role: 'eye' | 'brow' | 'mouth' | 'tear' | 'fixed';
+  role: 'eye' | 'brow' | 'mouth' | 'effect' | 'fixed';
   side?: -1 | 1;
   expression?: CharacterExpression;
-  travel?: number;
+  effect?: Readonly<{
+    kind: 'flow';
+    attachment: 'source' | 'free';
+    activationState: string;
+    phase: number;
+    travel: Point3;
+    pulse: number;
+  }>;
   gazeTravel?: readonly [x: number, y: number];
   blink?: Readonly<{
     kind: 'squash';

@@ -3,13 +3,29 @@ import * as THREE from 'three';
 import type { SolidGeometrySpec } from '../assets/solid-types.js';
 import { pointOnSuperellipsoid, type Point3 } from '../core/geometry3.js';
 
+export type SolidGeometryFactoryOptions = Readonly<{
+  /** Runtime tessellation scale. One is authored quality; values clamp to 0.2–1. */
+  detail?: number;
+}>;
+
+function resolveDetail(value: number | undefined): number {
+  if (value === undefined) return 1;
+  if (!Number.isFinite(value)) throw new RangeError('Solid geometry detail must be finite');
+  return Math.max(0.2, Math.min(1, value));
+}
+
+function scaledSegments(value: number, minimum: number, detail: number): number {
+  return Math.max(minimum, Math.round(value * detail));
+}
+
 function createSuperellipsoidGeometry(
   spec: Extract<SolidGeometrySpec, { type: 'superellipsoid' }>,
+  detail: number,
 ): THREE.BufferGeometry {
   const geometry = new THREE.SphereGeometry(
     1,
-    Math.max(8, Math.floor(spec.widthSegments)),
-    Math.max(6, Math.floor(spec.heightSegments)),
+    scaledSegments(spec.widthSegments, 12, detail),
+    scaledSegments(spec.heightSegments, 8, detail),
   );
   const positions = geometry.getAttribute('position');
   const normals = geometry.getAttribute('normal');
@@ -33,6 +49,7 @@ function createSuperellipsoidGeometry(
 
 function createExtrudedProfileGeometry(
   spec: Extract<SolidGeometrySpec, { type: 'extruded-profile' }>,
+  detail: number,
 ): THREE.BufferGeometry {
   if (spec.outline.length < 3) {
     throw new RangeError('An extruded profile requires at least three outline points');
@@ -51,9 +68,11 @@ function createExtrudedProfileGeometry(
   const geometry = new THREE.ExtrudeGeometry(shape, {
     depth: spec.depth,
     steps: 1,
-    curveSegments: Math.max(1, Math.floor(spec.curveSegments)),
+    // The serialized outline is a polyline; subdividing its line segments
+    // cannot improve the silhouette and only duplicates vertices.
+    curveSegments: 1,
     bevelEnabled: bevel > 0,
-    bevelSegments: bevel > 0 ? 2 : 0,
+    bevelSegments: bevel > 0 ? scaledSegments(2, 1, detail) : 0,
     bevelSize: bevel,
     bevelThickness: bevel,
   });
@@ -102,6 +121,7 @@ function createMeshGeometry(
 
 function createBoxGeometry(
   spec: Extract<SolidGeometrySpec, { type: 'box' }>,
+  detail: number,
 ): THREE.BufferGeometry {
   if (spec.size.some((value) => !(value > 0) || !Number.isFinite(value))) {
     throw new RangeError('Box dimensions must be positive finite numbers');
@@ -109,13 +129,17 @@ function createBoxGeometry(
   const segments = spec.segments ?? [1, 1, 1];
   return new THREE.BoxGeometry(
     ...spec.size,
-    ...segments.map((value) => Math.max(1, Math.floor(value))) as [number, number, number],
+    ...segments.map((value) => scaledSegments(value, 1, detail)) as [number, number, number],
   );
 }
 
-export function createSolidGeometry(spec: SolidGeometrySpec): THREE.BufferGeometry {
-  if (spec.type === 'superellipsoid') return createSuperellipsoidGeometry(spec);
-  if (spec.type === 'extruded-profile') return createExtrudedProfileGeometry(spec);
-  if (spec.type === 'box') return createBoxGeometry(spec);
+export function createSolidGeometry(
+  spec: SolidGeometrySpec,
+  options: SolidGeometryFactoryOptions = {},
+): THREE.BufferGeometry {
+  const detail = resolveDetail(options.detail);
+  if (spec.type === 'superellipsoid') return createSuperellipsoidGeometry(spec, detail);
+  if (spec.type === 'extruded-profile') return createExtrudedProfileGeometry(spec, detail);
+  if (spec.type === 'box') return createBoxGeometry(spec, detail);
   return createMeshGeometry(spec);
 }

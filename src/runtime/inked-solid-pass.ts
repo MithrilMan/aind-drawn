@@ -227,29 +227,48 @@ const COMPOSITE_FRAGMENT = /* glsl */`
   }
 
   float brushBands(vec2 point, float phase) {
-    vec2 direction = normalize(vec2(0.72, 0.7));
+    // A loaded oil brush leaves short, fat daubs. Continuous parallel bands
+    // read as hatching and belong to neither the raster oil vocabulary nor the
+    // physical gesture of a brush lifting from the paper.
+    vec2 direction = normalize(vec2(0.68, 0.74));
     vec2 acrossDirection = vec2(-direction.y, direction.x);
     float along = dot(point, direction);
     float across = dot(point, acrossDirection);
-    float wander = (valueNoise(vec2(along * 0.17, across * 0.11) + phase) - 0.5) * 0.24;
-    float coordinate = across + wander + phase * 0.07;
-    float distanceToCenter = abs(fract(coordinate) - 0.5);
-    float band = 1.0 - smoothstep(0.18, 0.48, distanceToCenter);
-    float brokenPass = smoothstep(
-      0.18,
-      0.78,
-      valueNoise(vec2(along * 0.34, floor(coordinate)) + phase * 1.7)
-    );
-    float bristle = mix(
-      0.64,
-      1.0,
-      valueNoise(vec2(along * 0.82, floor(coordinate) * 0.37) + phase * 2.3)
-    );
-    return band * mix(0.5, 1.0, brokenPass) * bristle;
+    const vec2 cellSize = vec2(2.35, 0.94);
+    float row = floor(across / cellSize.y);
+    along += mod(row, 2.0) * cellSize.x * 0.46;
+    vec2 cell = floor(vec2(along, across) / cellSize);
+    vec2 local = fract(vec2(along, across) / cellSize) - 0.5;
+    float jitter = valueNoise(cell * 0.73 + vec2(phase, phase * 1.41));
+    local.x += (jitter - 0.5) * 0.24;
+    local.y += (valueNoise(cell * 1.17 + phase * 2.1) - 0.5) * 0.16;
+    float halfLength = mix(0.3, 0.49, jitter);
+    float halfWidth = mix(0.22, 0.36, valueNoise(cell * 0.91 + phase * 3.7));
+    float ellipse = (local.x * local.x) / (halfLength * halfLength)
+      + (local.y * local.y) / (halfWidth * halfWidth);
+    float daub = 1.0 - smoothstep(0.72, 1.08, ellipse);
+    float pickup = mix(0.68, 1.0, valueNoise(cell * 1.83 + phase * 4.3));
+    return daub * pickup;
   }
 
   float viewBrush(vec2 viewPosition, float scale, float phase) {
     return brushBands(viewPosition * scale, phase);
+  }
+
+  float viewMarker(vec2 viewPosition, float scale, float phase) {
+    // Marker fills are broad translucent passes with narrow seams where the
+    // nib overlaps. They are not pencil families with a different colour.
+    vec2 point = viewPosition * scale;
+    vec2 direction = normalize(vec2(0.96, 0.28));
+    vec2 acrossDirection = vec2(-direction.y, direction.x);
+    float along = dot(point, direction);
+    float across = dot(point, acrossDirection);
+    float wander = (valueNoise(vec2(along * 0.13, floor(across)) + phase) - 0.5) * 0.08;
+    float lane = fract(across + wander + phase * 0.07);
+    float distanceToCentre = abs(lane - 0.5);
+    float pass = 1.0 - smoothstep(0.37, 0.49, distanceToCentre);
+    float load = mix(0.72, 1.0, valueNoise(vec2(floor(across), along * 0.08) + phase));
+    return pass * load;
   }
 
   float viewSpeckle(vec2 viewPosition, float scale, float phase) {
@@ -406,6 +425,11 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       fillVariationScale,
       fillSeed * 17.0 + partPhase * 0.73
     );
+    float markerPass = viewMarker(
+      surfacePosition,
+      fillVariationScale * 0.72,
+      fillSeed * 29.0 + partPhase * 0.83
+    );
     float speckle = viewSpeckle(
       depositedPosition,
       fillVariationScale,
@@ -436,7 +460,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
         + (speckle - 0.5) * 0.84;
     } else {
       // Marker: translucent parallel passes and overlap bands.
-      mediumVariation = (brush - 0.5) * 0.42 + (fillNoise - 0.5) * 0.18;
+      mediumVariation = (markerPass - 0.5) * 0.42 + (fillNoise - 0.5) * 0.18;
     }
     float pigmentCoverage = clamp(
       fillPigmentStrength + mediumVariation * fillVariationStrength,
@@ -511,6 +535,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       )
     );
     bristleMark *= mix(0.14, 1.0, bristlePickup);
+    float markerMark = viewMarker(surfacePosition, markScale, surfacePhase);
     float solidMark = mix(
       0.72,
       1.0,
@@ -524,7 +549,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     else if (markStyle < 4.5) viewMark = stippleMark;
     else if (markStyle < 5.5) viewMark = washMark;
     else if (markStyle < 6.5) viewMark = bristleMark;
-    else if (markStyle < 7.5) viewMark = firstFamily * 0.62 + bristleMark * 0.38;
+    else if (markStyle < 7.5) viewMark = markerMark;
     else if (markStyle > 7.5) viewMark = solidMark;
     viewMark *= markStrength * markShapeDensity * surface;
 
@@ -552,7 +577,7 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     } else if (fillTextureMode < 4.5) {
       pigmentBed *= mix(0.55, 1.0, smoothstep(0.16, 0.82, speckle));
     } else {
-      pigmentBed *= mix(0.76, 1.0, brush);
+      pigmentBed *= mix(0.76, 1.0, markerPass);
     }
     if (markStyle > 7.5) {
       // Linework, pupils, and mouth interiors must read as authored ink rather

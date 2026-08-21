@@ -5,7 +5,9 @@ import {
   CharacterAnimator,
   SolidCharacterAnimator,
   SolidFaceAnimator,
+  SolidMaterialProvider,
   InkedSolidStrokeRig,
+  SOLID_FINISH_CATALOG,
   SolidRig,
   SpriteRig,
   createCharacterBlueprint,
@@ -19,6 +21,7 @@ import {
   createCharacterIdentity,
   createCharacterTearProfile,
   createInkedSolidBlueprint,
+  createSolidGeometry,
   createSolidCharacterInkStrokes,
   createSolidCharacterBlueprint,
   createSolidBuildingBlueprint,
@@ -196,26 +199,88 @@ describe('sprite rig runtime', () => {
     expect(blueprint.layers.find((layer) => layer.id === 'arm:right')?.order).toBeGreaterThan(torsoOrder ?? 0);
     const prop = createPropBlueprint(createPropRecipe(4107, { prop: 'lantern' }));
     expect(prop.layers[0]?.pivot).toEqual([0.5, 0]);
-    expect(blueprint.layers.find(({ id }) => id === 'tear:left')?.states)
+    expect(blueprint.layers.find(({ id }) => id === 'tear:left:stream')?.states)
       .toEqual(['idle', 'crying']);
-    expect(blueprint.layers.find(({ id }) => id === 'tear:right')?.parentBone)
+    expect(blueprint.layers.find(({ id }) => id === 'tear:right:drop')?.parentBone)
       .toBe('head');
     const tearProfile = createCharacterTearProfile(identity);
     const rasterEye = blueprint.layers.find(({ id }) => id === 'eye:left');
-    const rasterTear = blueprint.layers.find(({ id }) => id === 'tear:left');
+    const rasterTear = blueprint.layers.find(({ id }) => id === 'tear:left:stream');
     expect(tearProfile.attachmentClearanceInEyeRadii).toBeGreaterThan(0);
+    expect(tearProfile.components.map(({ id }) => id)).toEqual(['stream', 'drop', 'bead']);
     expect(rasterTear?.position.y).toBeLessThan(rasterEye?.position.y ?? 0);
+    expect(blueprint.layers.filter(({ animation }) => animation?.role === 'flow')).toHaveLength(6);
 
     const solid = createSolidCharacterBlueprint(identity);
     const solidEye = solid.parts.find(({ id }) => id === 'eye:left:white');
-    const solidTear = solid.parts.find(({ id }) => id === 'tear:left');
+    const solidTear = solid.parts.find(({ id }) => id === 'tear:left:stream');
     expect(solidTear?.placement.position[1]).toBeLessThan(
       solidEye?.placement.position[1] ?? 0,
     );
+    expect(solid.parts.filter(({ motion }) => motion.role === 'effect')).toHaveLength(6);
   });
 });
 
 describe('solid rig runtime', () => {
+  it('resolves the complete physical finish catalog through one owned provider', () => {
+    expect(SOLID_FINISH_CATALOG.map(({ id }) => id)).toEqual(expect.arrayContaining([
+      'glossy', 'rubber', 'ceramic', 'pearl', 'flocked', 'wood', 'wool',
+      'resin', 'chrome', 'crazed', 'skin',
+    ]));
+    const provider = new SolidMaterialProvider();
+    const materials = new Map(SOLID_FINISH_CATALOG.map(({ id }, index) => [
+      id,
+      provider.create({
+        id: `finish:${id}`,
+        role: 'body',
+        color: [120 + index, 96, 74] as const,
+        finish: id,
+      }),
+    ]));
+    expect(materials.get('pearl')?.iridescenceThicknessMap).not.toBeNull();
+    expect(materials.get('pearl')?.iridescence).toBeGreaterThan(0.8);
+    expect(materials.get('flocked')?.sheen).toBe(1);
+    expect(materials.get('wood')?.normalMap).not.toBeNull();
+    expect(materials.get('wood')?.roughnessMap).not.toBeNull();
+    expect(materials.get('wool')?.normalMap).not.toBeNull();
+    expect(materials.get('resin')?.normalMap).not.toBeNull();
+    expect(materials.get('chrome')?.metalness).toBe(1);
+    expect(materials.get('crazed')?.normalMap).not.toBeNull();
+
+    const sharedWood = provider.create({
+      id: 'finish:wood:second', role: 'body', color: [90, 70, 50], finish: 'wood',
+    });
+    expect(sharedWood.normalMap).toBe(materials.get('wood')?.normalMap);
+    let materialDisposals = 0;
+    let textureDisposals = 0;
+    sharedWood.addEventListener('dispose', () => { materialDisposals += 1; });
+    sharedWood.normalMap?.addEventListener('dispose', () => { textureDisposals += 1; });
+    provider.dispose();
+    expect(materialDisposals).toBe(1);
+    expect(textureDisposals).toBe(1);
+    expect(() => provider.create({
+      id: 'late', role: 'body', color: [0, 0, 0], finish: 'matte',
+    })).toThrow(/disposed/i);
+  });
+
+  it('scales runtime tessellation without changing authored geometry intent', () => {
+    const specification = {
+      type: 'superellipsoid' as const,
+      radii: [1, 1.2, 0.9] as const,
+      exponent: 2.2,
+      widthSegments: 48,
+      heightSegments: 36,
+    };
+    const authored = createSolidGeometry(specification);
+    const reduced = createSolidGeometry(specification, { detail: 0.35 });
+    expect(reduced.getAttribute('position').count)
+      .toBeLessThan(authored.getAttribute('position').count);
+    expect(reduced.boundingBox?.min.x).toBeCloseTo(authored.boundingBox?.min.x ?? 0, 1);
+    expect(reduced.boundingBox?.max.y).toBeCloseTo(authored.boundingBox?.max.y ?? 0, 1);
+    authored.dispose();
+    reduced.dispose();
+  });
+
   it('projects one eyebrow expression contract into raster and solid rigs', () => {
     const identity = createCharacterIdentity(4_104);
     expect(identity.brows.present).toBe(true);
@@ -386,7 +451,7 @@ describe('solid rig runtime', () => {
     animator.update(0.1);
     expect(rig.getPart('mouth:surprised')?.visible).toBe(false);
     expect(rig.getPart('mouth:sad')?.visible).toBe(true);
-    const tear = rig.getPart('tear:left');
+    const tear = rig.getPart('tear:left:drop');
     expect(tear?.visible).toBe(false);
     animator.setExpression('crying');
     animator.update(0.1);

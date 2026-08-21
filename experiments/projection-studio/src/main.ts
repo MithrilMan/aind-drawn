@@ -3,7 +3,7 @@ import './style.css';
 import {
   CHARACTER_EXPRESSIONS,
   CHARACTER_POSES,
-  SOLID_FINISH_IDS,
+  SOLID_FINISH_CATALOG,
   type AssetAuthoringValue,
   type CharacterExpression,
   type CharacterMotion,
@@ -115,10 +115,10 @@ const finishByFamily = new Map<StudioFamilyId, SolidFinishId>(
 );
 const familyPreviewCache = new Map<string, string>();
 
-finishInput.replaceChildren(...SOLID_FINISH_IDS.map((finish) => {
+finishInput.replaceChildren(...SOLID_FINISH_CATALOG.map((finish) => {
   const option = document.createElement('option');
-  option.value = finish;
-  option.textContent = titleCase(finish);
+  option.value = finish.id;
+  option.textContent = finish.label;
   return option;
 }));
 

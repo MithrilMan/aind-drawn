@@ -173,6 +173,16 @@ breathing, and tail motion. Both reset their targets before applying transforms,
 so animation never accumulates drift or rebuilds geometry. The rig owns and
 disposes all generated GPU resources.
 
+Physical material resolution is centralized in `SolidMaterialProvider`.
+`SolidMaterialSpec.finish` selects a renderer policy from the complete public
+catalog; the provider lazily creates and shares deterministic normal,
+roughness, and iridescence maps where a finish needs them. One provider belongs
+to one rig and disposes every material and generated texture it owns. Asset
+families declare material intent only; they neither construct Three.js
+materials nor duplicate procedural texture generators. Runtime geometry detail
+is likewise a `SolidRig` option, scaling authored tessellation without changing
+identity, bounds, sockets, colliders, or serialized mesh topology.
+
 Buildings use the same boundary without character concepts. A shared building
 identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,
 chimney, and palette. The raster adapter emits semantic drawing layers; the

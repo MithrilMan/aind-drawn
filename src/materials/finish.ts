@@ -6,7 +6,23 @@ export type SolidDrawingMaterialHint = Readonly<{
   tone: ToneStyle;
 }>;
 
-export type SolidFinishId = 'matte' | 'glossy' | 'rubber' | 'ceramic' | 'skin' | 'metal';
+export const SOLID_FINISH_CATALOG = Object.freeze([
+  Object.freeze({ id: 'matte', label: 'Matte' }),
+  Object.freeze({ id: 'glossy', label: 'Glossy' }),
+  Object.freeze({ id: 'rubber', label: 'Rubber' }),
+  Object.freeze({ id: 'ceramic', label: 'Ceramic' }),
+  Object.freeze({ id: 'pearl', label: 'Pearl' }),
+  Object.freeze({ id: 'flocked', label: 'Flocked' }),
+  Object.freeze({ id: 'wood', label: 'Wood' }),
+  Object.freeze({ id: 'wool', label: 'Wool' }),
+  Object.freeze({ id: 'resin', label: 'Resin' }),
+  Object.freeze({ id: 'chrome', label: 'Chrome' }),
+  Object.freeze({ id: 'metal', label: 'Metal' }),
+  Object.freeze({ id: 'crazed', label: 'Crazed glaze' }),
+  Object.freeze({ id: 'skin', label: 'Skin' }),
+] as const);
+
+export type SolidFinishId = (typeof SOLID_FINISH_CATALOG)[number]['id'];
 
 export type SolidMaterialSpec = Readonly<{
   id: string;
@@ -19,11 +35,6 @@ export type SolidMaterialSpec = Readonly<{
   clearcoat?: number;
 }>;
 
-export const SOLID_FINISH_IDS: readonly SolidFinishId[] = Object.freeze([
-  'matte',
-  'glossy',
-  'rubber',
-  'ceramic',
-  'skin',
-  'metal',
-]);
+export const SOLID_FINISH_IDS: readonly SolidFinishId[] = Object.freeze(
+  SOLID_FINISH_CATALOG.map(({ id }) => id),
+);

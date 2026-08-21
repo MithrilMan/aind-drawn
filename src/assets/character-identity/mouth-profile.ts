@@ -54,6 +54,24 @@ function rectangle(width: number, height: number): readonly Point[] {
   return [[-width, -height], [width, -height], [width, height], [-width, height]];
 }
 
+function trapezoid(width: number, height: number, lowerScale = 0.94): readonly Point[] {
+  return [
+    [-width, height],
+    [width, height],
+    [width * lowerScale, -height],
+    [-width * lowerScale, -height],
+  ];
+}
+
+function wail(width: number, height: number): readonly Point[] {
+  return band(
+    width,
+    height * 0.23,
+    (normalizedX) => height * 0.58 * (1 - normalizedX * normalizedX),
+    18,
+  );
+}
+
 function band(
   width: number,
   thickness: number,
@@ -176,21 +194,49 @@ export function createCharacterMouthProfile(
 ): CharacterMouthProfile {
   const baseWidth = mouth.width * (mouth.style === 'tiny' ? 0.58 : 1);
   if (expression === 'angry') {
-    return constructedMaw(expression, baseWidth * 0.94, Math.max(0.055, baseWidth * 0.2), 'grit', 4, false);
+    const width = Math.max(0.15, baseWidth * 0.96);
+    const height = Math.max(0.045, width * 0.18);
+    const toothWidth = width * 0.91;
+    const toothHeight = height * 0.72;
+    return Object.freeze({
+      expression,
+      layers: Object.freeze([
+        layer('grit-outline', 'ink', trapezoid(width, height)),
+        layer('teeth', 'tooth', trapezoid(toothWidth, toothHeight)),
+      ]),
+      strokes: Object.freeze(Array.from({ length: 3 }, (_, index) => {
+        const amount = (index + 1) / 4;
+        const topX = -toothWidth + amount * toothWidth * 2;
+        const bottomX = -toothWidth * 0.94 + amount * toothWidth * 1.88;
+        return stroke(`tooth-divider:${index + 1}`, [
+          [topX, toothHeight],
+          [bottomX, -toothHeight],
+        ]);
+      })),
+    });
   }
   if (expression === 'scared' || expression === 'surprised') {
     const factor = expression === 'scared' ? 0.52 : 0.68;
     return constructedMaw(expression, baseWidth * factor, Math.max(0.11, baseWidth * 0.48), 'none', 0, false);
   }
   if (expression === 'crying') {
-    return constructedMaw(expression, baseWidth * 1.08, Math.max(0.09, baseWidth * 0.34), 'none', 0, false);
-  }
-  if (expression === 'sleeping') {
-    const width = baseWidth * 0.34;
-    const outline = band(width, Math.max(0.016, width * 0.09), semanticCurve('flat', 0));
+    const width = Math.max(0.17, baseWidth * 1.16);
+    const height = Math.max(0.105, width * 0.48);
     return Object.freeze({
       expression,
-      layers: Object.freeze([layer('lip', 'ink', outline)]),
+      layers: Object.freeze([layer('wail', 'interior', wail(width, height))]),
+      strokes: Object.freeze([
+        stroke('corner:left', [[-width * 1.04, height * 0.2], [-width * 0.82, -height * 0.08]]),
+        stroke('corner:right', [[width * 1.04, height * 0.2], [width * 0.82, -height * 0.08]]),
+      ]),
+    });
+  }
+  if (expression === 'sleeping') {
+    const width = Math.max(0.035, baseWidth * 0.2);
+    const height = Math.max(0.042, width * 1.18);
+    return Object.freeze({
+      expression,
+      layers: Object.freeze([layer('slack', 'ink', ellipse(width, height, 18))]),
       strokes: Object.freeze([]),
     });
   }

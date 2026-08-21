@@ -145,6 +145,15 @@ identity data.
 - Keep material intent in `SolidMaterialSpec` and lighting/environment policy in
   the runtime or scene. When tonal hierarchy is part of cross-representation
   identity, author `drawing.tone`; do not let each projection reroll it.
+- Select physical appearance from `SOLID_FINISH_CATALOG`. The runtime
+  `SolidMaterialProvider` is the only place that maps a finish to Three.js
+  parameters and procedural maps. Add a finish once to the catalog, its
+  exhaustive provider recipe, and focused provider tests; do not construct
+  materials or textures inside an asset family. The provider owns generated
+  maps, shares them within one rig, and disposes them with that rig.
+- Treat runtime `detail` as tessellation policy. It may scale authored segment
+  counts but must not alter serialized geometry, gameplay bounds, sockets,
+  colliders, or identity. Hand-authored mesh topology is preserved.
 - Keep inked-solid policy in `InkedSolidBlueprint`; screen-space contours belong
   to the camera pass. Procedural medium marks are synthesized in paper space for
   the current projection and clipped by semantic material masks.
@@ -188,8 +197,9 @@ identity data.
 - Do not feed physical finish into pigment deposition. Let the inked runtime
   own paper response, mark coverage, and discrete volume tone.
 - Use the same `MediumId` for raster and inked-solid projections of one preview.
-  `skin`, `glass`, `metal`, and other physical finishes belong only to smooth
-  solid rendering; they are not drawing media and must not leak into doodle policy.
+  `skin`, `wood`, `chrome`, `ceramic`, and other physical finishes belong only
+  to smooth solid rendering; they are not drawing media and must not leak into
+  doodle policy.
 - Add a new drawing medium once in `src/materials/medium.ts` and its volumetric
   policy in `src/assets/inked-solid/medium-projection.ts`; add a new generic
   shader field in `InkedSolidPass` only when its paper-space statistics cannot reuse
@@ -197,12 +207,17 @@ identity data.
 - Derive that volumetric policy from the raster operation itself. Watercolour
   remains layered translucent coverage rather than directional bands; Ink uses
   its restrained hatch only at the same tone densities as raster; Oil preserves
-  its opaque pigment bed and broken daubs. A shared tone name does not authorize
-  inventing a different mark vocabulary.
-- Secondary effects own their normalized attachment and clearance in shared
-  identity profiles. Each adapter includes the projected effect extent when it
-  places the visible tip below an eyelid, nozzle, socket, or emitting surface;
-  centre-to-centre adapter offsets are not a semantic attachment contract.
+  its opaque pigment bed and broken daubs; Charcoal remains granular pickup;
+  Marker remains broad translucent passes. `ToneStyle` expresses density, not
+  a renderer command: a shared `hatch` tone does not authorize literal hatch
+  lines in a medium whose raster operation never draws them.
+- Secondary effects own normalized attachment, component topology, clearance,
+  and flow intent in shared identity profiles. A wet tear, for example, is an
+  attached stream plus independently flowing drop and bead rather than one
+  sprite or plate translated as a block. Each adapter projects those same
+  components and includes their extent when placing the visible tip below an
+  eyelid, nozzle, socket, or emitting surface; centre-to-centre adapter offsets
+  are not a semantic attachment contract.
 - Raster and solid character runtimes use the same temporal pose-weight blend.
   Solid limbs that cross a planar silhouette must articulate in front of the
   carrier volume around their real joint, never pass through the torso mesh.

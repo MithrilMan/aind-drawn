@@ -291,7 +291,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     label: 'Character',
     description: 'People, creatures, and expressive faces',
     defaultSeed: 4104,
-    initialYaw: 28,
+    initialYaw: 0,
     initialPitch: -4,
     solidFrameScale: 0.62,
     defaultFinish: 'skin',

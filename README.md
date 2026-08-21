@@ -1,19 +1,125 @@
-# aind-drawn
+# AIND Drawn
 
-`aind-drawn` is a TypeScript library for deterministic procedural assets. A
-recipe may currently become a layered hand-drawn sprite or a semantic 3D solid;
-the intended consumer may be an editor, a 2D game, a 2.5D scene, or a fully 3D
-Three.js world. Semantic generation, layout, representation, and runtime
-rendering remain separate boundaries.
+**Procedural assets that can be drawn, animated, edited, and projected across
+2D and 3D from one deterministic identity.**
 
-The public consumer is [Projection Studio](experiments/projection-studio): a
-side-by-side workbench for one identity across raster, Doodle 3D, and physical
-solid projections.
-External research sources are reconstructed according to
-[`references/README.md`](references/README.md); their checkouts are intentionally
-not committed.
+[Open Projection Studio](https://mithrilman.github.io/aind-drawn/) ·
+[Read the architecture](docs/architecture.md) ·
+[Author a new asset family](docs/asset-authoring.md)
 
-## Commands
+> **AIND Drawn** is a play on *hand-drawn*: the name keeps the sound and intent
+> of drawing by hand, but introduces **AI** into the process and the tooling.
+
+This repository is an experimental TypeScript library, not a finished product
+or a framework with a frozen API. It explores how procedural assets can keep a
+recognisable identity while changing representation, medium, material, pose,
+expression, interaction state, and point of view.
+
+Today the same identity can drive layered 2D drawings, rotatable Doodle 3D,
+and physically shaded Three.js solids. Tomorrow it may drive games, editors,
+2.5D worlds, generative scenes, animation tools, or experiments we have not
+thought of yet. Projection Studio is the first public experiment, not the
+boundary of the library.
+
+## Where it came from
+
+AIND Drawn began after discovering
+[Alberto Beiz's KinderGrimm](https://github.com/albertobeiz/kindergrimm) on
+Twitter/X. KinderGrimm's procedural characters, hand-drawn media, seeded
+variation, animation, and later 3D explorations made the underlying technique
+worth studying rather than merely admiring from a browser tab.
+
+We used the original repository as a research reference and then evolved the
+ideas into a reusable library architecture. The reviewed upstream revision is
+pinned in [`references/kindergrimm.reference.json`](references/kindergrimm.reference.json),
+the reconstruction process lives in [`references/README.md`](references/README.md),
+and the technical analysis is documented in
+[`docs/kindergrimm-study.md`](docs/kindergrimm-study.md). The external checkout
+is intentionally not committed.
+
+KinderGrimm remains the creative and technical inspiration. AIND Drawn focuses
+on a different problem: making procedural asset generation an extensible,
+representation-independent foundation rather than a single showcase.
+
+## What is different
+
+The important difference is not TypeScript instead of JavaScript. Types are
+useful; architecture is the part that pays rent.
+
+| Concern | AIND Drawn approach | Why it matters |
+| --- | --- | --- |
+| Identity | An immutable, seeded identity owns semantic choices once | The same character, building, or vehicle survives every projection |
+| Representation | Raster, smooth solid, and Doodle 3D are adapters over shared identity | Adding a renderer does not require rerolling the asset |
+| Asset families | Family-specific behavior stays beside that family through namespaced capabilities | The core does not accumulate `if (assetType === ...)` branches |
+| Parts and topology | Blueprints expose semantic parts, joints, pivots, colliders, sockets, and interactions | Assets can participate in games and editors instead of ending as flat pictures |
+| Materials | Drawing media and physical finishes are independent providers | Graphite, oil, marker, skin, wood, chrome, and future systems remain composable |
+| Motion | Runtime animators target semantic parts and share representation-neutral intent | 2D and 3D can mirror poses and expressions without sharing renderer internals |
+| Authoring | Families publish validated authoring schemas | Generic tools can build controls without hard-coded UI for every asset type |
+| Reproducibility | Recipes and random namespaces are deterministic | A seed is testable, serialisable, and safe to revisit |
+
+This separation gives the project a useful property: creating a vehicle should
+not require teaching the generic renderer what a wheel is. The vehicle family
+owns wheel semantics; the rendering pipeline understands geometry, drawing
+applications, materials, strokes, and capabilities. New families extend the
+system at its boundaries instead of leaking vocabulary into lower layers.
+
+## Projection Studio
+
+[Projection Studio](https://mithrilman.github.io/aind-drawn/) is a side-by-side
+workbench for comparing one procedural identity across:
+
+- a layered 2D drawing;
+- a camera-dependent Doodle 3D projection;
+- a physically shaded solid model.
+
+It currently exposes characters, buildings, and vehicles. The UI reads family
+metadata and authoring schemas from the public library, so controls and previews
+can grow without turning the application shell into a catalogue of special
+cases. Previews are generated by the real pipeline, not by illustrative
+stand-ins that can drift from the output.
+
+The experiment also exercises seeded customization, drawing media, physical
+finishes, poses, facial expressions, interactions, articulated parts, camera
+rotation, and turntable inspection.
+
+## Authoring new asset families
+
+The repository includes a Codex skill at
+[`.codex/skills/aind-asset-authoring`](.codex/skills/aind-asset-authoring).
+It is a detailed implementation guide for adding new procedural asset types
+without breaking the architectural boundaries.
+
+The skill covers:
+
+- deciding between a static prop and a dedicated multipart family;
+- deterministic identity, recipes, layout, and blueprints;
+- raster, smooth-solid, and Doodle 3D projections;
+- semantic parts, surface topology, pivots, sockets, and colliders;
+- interactions, animation, and transient effects;
+- provider and capability registration;
+- generic Projection Studio integration;
+- required invariants, tests, and browser verification.
+
+This is deliberately more than a prompt snippet. It records the engineering
+rules needed to keep a new family modular as the library evolves.
+
+## Repository map
+
+- `src/core` — deterministic randomness, 2D/3D geometry, canvas surfaces, and
+  the hand-drawn mark vocabulary.
+- `src/materials` — raster media and declarative physical finishes.
+- `src/assets` — representation-neutral identities, family blueprints,
+  projections, authoring schemas, and capabilities.
+- `src/runtime` — sprite, solid, inked-solid, rig, material, and animation
+  runtimes built on Three.js.
+- `experiments` — applications that consume only the public library API.
+- `docs` — architecture, rendering, reference study, and asset-authoring notes.
+- `.codex/skills` — repository-local agent guidance for extending the system.
+
+## Getting started
+
+Requirements: a modern Node.js runtime and
+[pnpm](https://pnpm.io/). The exact pnpm version is pinned in `package.json`.
 
 ```bash
 pnpm install
@@ -21,39 +127,9 @@ pnpm verify
 pnpm dev
 ```
 
-Projection Studio is then available at `http://127.0.0.1:4175/`. Its generic
-family catalog, controls, and static-hosting workflow are documented in
-[`experiments/projection-studio/README.md`](experiments/projection-studio/README.md).
+Vite prints the local Projection Studio URL when the development server starts.
 
-The project pins the package-manager version in `package.json`. On Codex
-Desktop, use the bundled `pnpm` runtime if the machine-wide npm installation is
-unavailable.
-
-## Library boundaries
-
-- `src/core` — deterministic randomness, 2D/3D geometry, canvas surfaces, and
-  the hand-drawn mark vocabulary.
-- `src/materials` — raster media and declarative physical finishes.
-- `src/assets` — recipes and procedural blueprints for characters, vehicles,
-  multipart plants, props, buildings, and semantic solids.
-- `src/runtime` — Three.js adapters for sprite baking, solid geometry,
-  materials, rigs, and animation.
-- `experiments` — applications that consume only the public library API.
-
-See [`docs/architecture.md`](docs/architecture.md) for invariants and extension
-points.
-
-The asset extension process, including why a car is a dedicated `vehicle`
-family rather than a single-layer prop, is documented in
-[`docs/asset-authoring.md`](docs/asset-authoring.md). A repository-local Codex
-skill under [`.codex/skills/aind-asset-authoring`](.codex/skills/aind-asset-authoring)
-applies the same contracts while implementing new asset classes.
-
-The technical study of the reference implementation and the exact image
-generation pipeline live in
-[`docs/kindergrimm-study.md`](docs/kindergrimm-study.md).
-
-## Shared character identity
+## Minimal example
 
 ```ts
 import {
@@ -66,53 +142,43 @@ import {
   createSolidCharacterBlueprint,
 } from '@mithrilman/aind-drawn';
 
-const identity = createCharacterIdentity(4107, {
-  species: 'human',
-});
-const rasterBlueprint = createRasterCharacterBlueprint(identity, {
-  medium: 'graphite',
-});
-const solidBlueprint = createSolidCharacterBlueprint(identity, {
-  finish: 'ceramic',
-});
+const identity = createCharacterIdentity(4107, { species: 'human' });
 
-const drawing = new SpriteRig(rasterBlueprint, { boilFrames: 3 });
+const drawing = new SpriteRig(createRasterCharacterBlueprint(identity, {
+  medium: 'graphite',
+}));
+const solid = new SolidRig(createSolidCharacterBlueprint(identity, {
+  finish: 'ceramic',
+}));
+
 const drawingAnimator = new CharacterAnimator(drawing);
-const solid = new SolidRig(solidBlueprint);
 const solidAnimator = new SolidCharacterAnimator(solid);
 
+drawingAnimator.setExpression('happy');
+solidAnimator.setExpression('happy');
+drawingAnimator.update(deltaSeconds, { pose: 'run', speed: 0.9 });
+solidAnimator.update(deltaSeconds, { pose: 'run', speed: 0.9 });
+
 scene.add(drawing.root, solid.root);
-drawingAnimator.update(deltaSeconds, { pose: 'idle' });
-solidAnimator.update(deltaSeconds);
 
-// Game state drives authored poses. Walk and run share one gait phase and
-// every transition crossfades over the autonomic breath, blink, gaze, and sway.
-drawingAnimator.update(deltaSeconds, { pose: 'run', speed: 0.9, facing: -1 });
-solidAnimator.update(deltaSeconds, { pose: 'run', speed: 0.9, facing: -1 });
-
-// The owner of the Three.js scene must release GPU resources.
+// The scene owner releases the GPU resources.
 drawing.dispose();
 solid.dispose();
 ```
 
-`CharacterIdentityRecipe` is the serialisable source of truth for species,
-proportions, palette, face, hair, outfit, and appendages. Raster medium and
-physical finish belong to separate representation recipes. Focused raster and
-face factories are convenience consumers of that contract, not alternate
-identity generators. The complete solid blueprint exposes articulated body
-nodes, face parts, outfit, tail, colliders, and sockets without importing
-Three.js into asset code.
+## Experimental status
 
-Smooth solids resolve `matte`, `glossy`, `rubber`, `ceramic`, `pearl`,
-`flocked`, `wood`, `wool`, `resin`, `chrome`, `metal`, `crazed`, and `skin`
-through the public `SolidMaterialProvider`. The provider owns both materials
-and shared procedural maps and is disposed automatically by `SolidRig`.
+The project is greenfield and intentionally evolving. APIs, blueprints, and
+rendering policies may change when a better model appears; backward
+compatibility is not currently a design goal. That freedom is being used to
+find durable abstractions before pretending they are stable.
 
-Convergence is geometric rather than cosmetic: both representations evaluate
-the same radial head field, half-width eye spacing, head-relative hairstyle
-silhouette, mouth placement, and expression profiles. `CharacterAnimator` and
-`SolidCharacterAnimator` both expose `setExpression`; the solid runtime switches
-between authored mouth geometries instead of stretching one neutral plate.
+Potential future experiments include games, level and asset editors, animated
+scenes, 2.5D environments, Three.js worlds, procedural storytelling tools, and
+other consumers built on the same public library.
 
-Raster blueprints contain draw callbacks and are rebuilt from recipes. Solid
-blueprints contain serialisable geometry specifications.
+## Credits and contact
+
+- Original inspiration: [KinderGrimm](https://github.com/albertobeiz/kindergrimm)
+  by [Alberto Beiz](https://github.com/albertobeiz).
+- AIND Drawn project: [Fabio Angela on X](https://x.com/FabioAngela79).

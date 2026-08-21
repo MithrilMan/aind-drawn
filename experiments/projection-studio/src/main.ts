@@ -65,15 +65,17 @@ const customizer = new FamilyCustomizer(
 );
 const familyPreviewRenderer = new BlueprintPreviewRenderer(208, 168);
 const rasterStage = new RasterStage(rasterCanvas, rasterViewport);
+const initialFamily = STUDIO_FAMILIES.find(({ id }) => id === 'character');
+if (initialFamily === undefined) throw new Error('Projection Studio requires a character family');
 
-let familyId: StudioFamilyId = 'character';
-let seed = 4104;
+let familyId: StudioFamilyId = initialFamily.id;
+let seed = initialFamily.defaultSeed;
 let medium: MediumId = 'graphite';
 let speed = 0.7;
 let playing = true;
 let turntable = false;
-let yaw = 28;
-let pitch = -4;
+let yaw = initialFamily.initialYaw;
+let pitch = initialFamily.initialPitch;
 let elapsedSeconds = 0;
 let lastFrameTime = performance.now();
 let animationFrame = 0;

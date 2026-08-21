@@ -11,6 +11,7 @@ import {
   createCharacterBlueprint,
   createBuildingIdentity,
   createCharacterRecipe,
+  createRasterCharacterBlueprint,
   createPropBlueprint,
   createPropRecipe,
   createSolidFaceBlueprint,
@@ -201,6 +202,86 @@ describe('sprite rig runtime', () => {
 });
 
 describe('solid rig runtime', () => {
+  it('projects one eyebrow expression contract into raster and solid rigs', () => {
+    const identity = createCharacterIdentity(4_104);
+    expect(identity.brows.present).toBe(true);
+
+    const authoredRaster = createRasterCharacterBlueprint(identity);
+    const rasterBlueprint: AssetBlueprint = Object.freeze({
+      ...authoredRaster,
+      layers: Object.freeze(authoredRaster.layers.map((layer) => Object.freeze({
+        ...layer,
+        draw: (): void => undefined,
+      }))),
+    });
+    const rasterRig = new SpriteRig(rasterBlueprint, {
+      boilFrames: 1,
+      canvasFactory: inertCanvasFactory,
+    });
+    const rasterAnimator = new CharacterAnimator(rasterRig, {
+      autoBlink: false,
+      autoGaze: false,
+    });
+
+    const solidBlueprint = createSolidCharacterBlueprint(identity);
+    const solidRig = new SolidRig(solidBlueprint);
+    const solidAnimator = new SolidCharacterAnimator(solidRig, {
+      autoBlink: false,
+      autoGaze: false,
+    });
+    const solidLeftBrow = solidRig.getPart('brow:left');
+    const solidRightBrow = solidRig.getPart('brow:right');
+    const solidLeftPupil = solidRig.getPart('eye:left:pupil');
+    if (solidLeftBrow === null || solidRightBrow === null || solidLeftPupil === null) {
+      throw new Error('Seed 4104 must expose two brows and a left pupil');
+    }
+    const leftRest = solidLeftBrow.quaternion.clone();
+    const rightRest = solidRightBrow.quaternion.clone();
+    const pupilRestScaleY = solidLeftPupil.scale.y;
+    const relativeRoll = (
+      rest: THREE.Quaternion,
+      current: THREE.Quaternion,
+    ): number => new THREE.Euler().setFromQuaternion(
+      rest.clone().invert().multiply(current),
+      'XYZ',
+    ).z;
+
+    rasterAnimator.setExpression('angry');
+    rasterAnimator.update(0);
+    solidAnimator.setExpression('angry');
+    solidAnimator.update(0);
+    const rasterAngryLeft = rasterRig.getBone('brow:left')?.rotation.z ?? 0;
+    const rasterAngryRight = rasterRig.getBone('brow:right')?.rotation.z ?? 0;
+    const solidAngryLeft = relativeRoll(leftRest, solidLeftBrow.quaternion);
+    const solidAngryRight = relativeRoll(rightRest, solidRightBrow.quaternion);
+    expect(rasterAngryLeft).toBeLessThan(0);
+    expect(rasterAngryRight).toBeGreaterThan(0);
+    expect(solidAngryLeft).toBeCloseTo(rasterAngryLeft);
+    expect(solidAngryRight).toBeCloseTo(rasterAngryRight);
+    expect(solidLeftPupil.scale.y / pupilRestScaleY).toBeCloseTo(
+      rasterRig.getBone('eye:left')?.scale.y ?? 0,
+    );
+
+    solidRig.root.updateMatrixWorld(true);
+    const browBounds = new THREE.Box3().setFromObject(solidLeftBrow);
+    const pupilBounds = new THREE.Box3().setFromObject(solidLeftPupil);
+    expect(browBounds.min.y).toBeGreaterThan(pupilBounds.max.y);
+
+    rasterAnimator.setExpression('sad');
+    rasterAnimator.update(0);
+    solidAnimator.setExpression('sad');
+    solidAnimator.update(0);
+    const rasterSadLeft = rasterRig.getBone('brow:left')?.rotation.z ?? 0;
+    const rasterSadRight = rasterRig.getBone('brow:right')?.rotation.z ?? 0;
+    expect(rasterSadLeft).toBeGreaterThan(0);
+    expect(rasterSadRight).toBeLessThan(0);
+    expect(relativeRoll(leftRest, solidLeftBrow.quaternion)).toBeCloseTo(rasterSadLeft);
+    expect(relativeRoll(rightRest, solidRightBrow.quaternion)).toBeCloseTo(rasterSadRight);
+
+    rasterRig.dispose();
+    solidRig.dispose();
+  });
+
   it('selects mark flow from carrier topology instead of screen-space curvature', () => {
     expect(inkedSolidSurfaceFlow({
       type: 'superellipsoid', radii: [1, 1, 1], exponent: 2,
@@ -331,6 +412,12 @@ describe('solid rig runtime', () => {
     expect(rig.getNode('leg:right')?.rotation.x).toBeCloseTo(
       -(rig.getNode('leg:left')?.rotation.x ?? 0),
     );
+    animator.setExpression('angry');
+    animator.update(0, { pose: 'sleep' });
+    expect(animator.currentExpression).toBe('angry');
+    expect(rig.getPart('mouth:sleeping')?.visible).toBe(true);
+    animator.update(0, { pose: 'idle' });
+    expect(rig.getPart('mouth:angry')?.visible).toBe(true);
     rig.dispose();
   });
 });

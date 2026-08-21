@@ -86,6 +86,14 @@ units. Expression variants derive from the same mouth profile factory. Add a
 new hairstyle or mouth family there first, then make each representation consume
 it. Do not add a second adapter-local silhouette table.
 
+Eye and eyebrow expression also come from the shared
+`CharacterExpressionProfile`. Name pose values by their visible meaning, not by
+one renderer's coordinate sign: positive `innerRaise` raises both brow ends
+nearest the nose. Adapters may convert that intent into different local
+rotations, but must preserve the same eye openness and brow reading. Keep the
+brow clear of the pupil; use eye openness or an authored eyelid when an
+expression needs to cover the upper eye.
+
 `src/assets/building-identity` is the non-character multi-representation
 reference. Its archetypes are cottage, townhouse, apartment, and high-rise;
 the term is deliberately not `species`. Raster and solid building recipes

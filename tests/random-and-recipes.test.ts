@@ -14,6 +14,7 @@ import {
   characterMouthCenterY,
   createBuildingIdentity,
   createCharacterEyeProfile,
+  createCharacterExpressionProfile,
   createCharacterHairProfile,
   createCharacterMouthProfile,
   createCharacterOutfitProfile,
@@ -436,6 +437,15 @@ describe('asset contracts', () => {
       .toEqual(expect.arrayContaining(['tooth-split', 'tooth-divider:1']));
     expect(createCharacterMouthProfile(identity.mouth, 'happy').layers)
       .not.toEqual(createCharacterMouthProfile(identity.mouth, 'sad').layers);
+  });
+
+  it('defines eyebrow intent in face-relative semantics instead of renderer signs', () => {
+    const angry = createCharacterExpressionProfile('angry');
+    const sad = createCharacterExpressionProfile('sad');
+    expect(angry.brows.innerRaise).toBeLessThan(0);
+    expect(sad.brows.innerRaise).toBeGreaterThan(0);
+    expect(angry.brows.lift).toBeGreaterThanOrEqual(0);
+    expect(angry.eyes.openness).toBeLessThan(sad.eyes.openness);
   });
 
   it('provides gameplay geometry for props and platforms without reading pixels', () => {

@@ -1,6 +1,9 @@
 import { clamp } from '../core/geometry.js';
 import { Random, combineSeed } from '../core/random.js';
-import type { CharacterExpression } from '../assets/character-identity/mouth-profile.js';
+import {
+  createCharacterExpressionProfile,
+  type CharacterExpression,
+} from '../assets/character-identity/expression-profile.js';
 import type { BonePose, SpriteRig } from './sprite-rig.js';
 
 export const CHARACTER_POSES = [
@@ -76,6 +79,7 @@ export class CharacterAnimator {
   private readonly expressionRandom: Random;
   private readonly autoBlink: boolean;
   private readonly autoGaze: boolean;
+  private readonly faceUnit: number;
   private readonly poseWeights: Record<CharacterPose, number> = {
     idle: 1,
     walk: 0,
@@ -101,6 +105,8 @@ export class CharacterAnimator {
     this.rig = rig;
     this.autoBlink = options.autoBlink ?? true;
     this.autoGaze = options.autoGaze ?? true;
+    const headLayer = rig.blueprint.layers.find(({ id }) => id === 'head');
+    this.faceUnit = (headLayer?.world.height ?? rig.blueprint.bounds.height) * 0.25;
     this.expressionRandom = new Random(combineSeed(rig.blueprint.seed, 'character:animation'));
     this.nextBlink = this.expressionRandom.float(1.6, 4.4);
     this.nextGaze = this.expressionRandom.float(2.4, 6.2);
@@ -121,16 +127,18 @@ export class CharacterAnimator {
     this.targetPose = motion.pose ?? 'idle';
     this.updatePoseWeights(delta);
     const weights = this.normalizedWeights();
+    const faceExpression = weights.sleep > 0.55 ? 'sleeping' : this.expression;
     const gaitFrequency = weights.walk * 1.6 + weights.run * 2.7;
     this.gaitPhase += delta * gaitFrequency * (0.35 + speed * 0.65) * Math.PI * 2;
 
     const profile = this.blendedAutonomicProfile(weights);
     const poses = new Map<string, MutablePose>();
     this.applyAuthoredPoses(poses, weights, speed);
-    this.applyAutonomicLife(poses, profile, delta);
+    this.applyAutonomicLife(poses, profile, delta, faceExpression);
+    this.applyExpressionPose(poses, faceExpression);
     this.applyPoses(poses);
     this.rig.root.scale.x = motion.facing ?? 1;
-    this.applyFace(profile, motion.talking === true, weights.sleep);
+    this.applyFace(profile, motion.talking === true, faceExpression);
     this.rig.updateBoil(this.elapsed);
   }
 
@@ -265,6 +273,7 @@ export class CharacterAnimator {
     poses: Map<string, MutablePose>,
     profile: AutonomicProfile,
     delta: number,
+    expression: CharacterExpression,
   ): void {
     const breathTempo = 1.15 / (1 + Math.max(0, profile.breath - 1) * 0.55);
     const breath = Math.sin(this.elapsed * breathTempo);
@@ -290,7 +299,7 @@ export class CharacterAnimator {
       rotation: Math.sin(this.elapsed * 2.6) * 0.13 * profile.tail
         + Math.sin(this.elapsed * 0.47) * 0.07 * profile.tail,
     }, 1);
-    if (this.expression === 'crying') {
+    if (expression === 'crying') {
       const sob = Math.sin(this.elapsed * 5.2);
       const heave = Math.max(0, Math.sin(this.elapsed * 2.6));
       this.addPose(poses, 'torso', {
@@ -308,6 +317,24 @@ export class CharacterAnimator {
         const fall = (this.elapsed * 0.82 + offset) % 1;
         this.addPose(poses, `tear:${side}`, { y: -fall * 0.08 }, 1);
       }
+    }
+  }
+
+  private applyExpressionPose(
+    poses: Map<string, MutablePose>,
+    expression: CharacterExpression,
+  ): void {
+    const face = createCharacterExpressionProfile(expression);
+    for (const side of [-1, 1] as const) {
+      const sideId = side < 0 ? 'left' : 'right';
+      this.addPose(poses, `eye:${sideId}`, {
+        scaleX: face.eyes.scale,
+        scaleY: face.eyes.scale * face.eyes.openness,
+      }, 1);
+      this.addPose(poses, `brow:${sideId}`, {
+        y: face.brows.lift * this.faceUnit,
+        rotation: -face.brows.innerRaise * side,
+      }, 1);
     }
   }
 
@@ -331,12 +358,16 @@ export class CharacterAnimator {
     this.gazePosition += this.gazeVelocity * delta;
   }
 
-  private applyFace(profile: AutonomicProfile, talking: boolean, sleepWeight: number): void {
+  private applyFace(
+    profile: AutonomicProfile,
+    talking: boolean,
+    expression: CharacterExpression,
+  ): void {
     if (this.autoBlink && profile.blink > 0.25 && this.elapsed >= this.nextBlink) {
       this.blinkUntil = this.elapsed + this.expressionRandom.float(0.08, 0.16);
       this.nextBlink = this.blinkUntil + this.expressionRandom.float(1.8, 5.4);
     }
-    const sleeping = sleepWeight > 0.55;
+    const sleeping = expression === 'sleeping';
     const eyeState = sleeping || this.elapsed < this.blinkUntil
       ? 'closed'
       : this.gazePosition < -0.25
@@ -348,10 +379,10 @@ export class CharacterAnimator {
       'mouth',
       sleeping
         ? 'sleeping'
-        : talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : this.expression,
+        : talking && Math.sin(this.elapsed * 13) > 0.15 ? 'open' : expression,
     );
-    this.stateIfPresent('tear:left', this.expression === 'crying' ? 'crying' : 'idle');
-    this.stateIfPresent('tear:right', this.expression === 'crying' ? 'crying' : 'idle');
+    this.stateIfPresent('tear:left', expression === 'crying' ? 'crying' : 'idle');
+    this.stateIfPresent('tear:right', expression === 'crying' ? 'crying' : 'idle');
   }
 
   private addPose(

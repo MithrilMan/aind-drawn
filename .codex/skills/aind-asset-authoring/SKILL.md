@@ -229,6 +229,12 @@ barrel only.
   shared identity/profile data. Eyes, hairlines, outfit motifs, and mouths are
   one normalized construction projected by raster and solid adapters, not two
   unrelated drawings. Never reroll a shared proportion in an adapter.
+- Keep expression intent in a representation-neutral profile. Name asymmetric
+  values by visible face semantics: positive brow `innerRaise` raises both ends
+  nearest the nose, regardless of local axis signs. Raster and solid adapters
+  translate that intent; they must not own separate expression tables. Keep
+  brows clear of pupil geometry and express upper-eye pressure through shared
+  eye openness or an authored eyelid rather than mesh intersection.
 - Treat `SolidFinishId` and `MediumId` as orthogonal. Physical finishes such as
   skin, glass, ceramic, or metal affect only smooth solid rendering. Add new
   medium behaviour centrally in `src/materials/medium.ts` and

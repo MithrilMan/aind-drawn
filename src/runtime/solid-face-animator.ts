@@ -1,7 +1,10 @@
 import * as THREE from 'three';
 
 import type { SolidPartDefinition } from '../assets/solid-types.js';
-import type { CharacterExpression } from '../assets/character-identity/mouth-profile.js';
+import {
+  createCharacterExpressionProfile,
+  type CharacterExpression,
+} from '../assets/character-identity/expression-profile.js';
 import { clamp } from '../core/geometry.js';
 import { Random, combineSeed } from '../core/random.js';
 import type { SolidRig } from './solid-rig.js';
@@ -18,24 +21,6 @@ type RestTransform = Readonly<{
   quaternion: THREE.Quaternion;
   scale: THREE.Vector3;
 }>;
-
-type ExpressionPose = Readonly<{
-  eyeScale?: number;
-  eyeScaleY?: number;
-  browLift?: number;
-  browRoll?: number;
-}>;
-
-const EXPRESSIONS: Readonly<Record<SolidFaceExpression, ExpressionPose>> = {
-  idle: {},
-  happy: { eyeScaleY: 0.78, browLift: 0.1 },
-  angry: { eyeScaleY: 0.88, browLift: -0.16, browRoll: -0.48 },
-  sad: { eyeScaleY: 0.94, browLift: 0.08, browRoll: 0.42 },
-  surprised: { eyeScale: 1.13, browLift: 0.24 },
-  scared: { eyeScale: 1.16, browLift: 0.3, browRoll: 0.24 },
-  crying: { eyeScaleY: 0.48, browLift: 0.12, browRoll: 0.5 },
-  sleeping: { eyeScaleY: 0.06, browLift: 0.06, browRoll: 0.28 },
-};
 
 function criticallyDamped(
   value: number,
@@ -187,7 +172,7 @@ export class SolidFaceAnimator {
   }
 
   private writePose(): void {
-    const expression = EXPRESSIONS[this.expression];
+    const expression = createCharacterExpressionProfile(this.expression);
     const blinkWave = this.blinkProgress < 0 ? 1 : 1 - Math.sin(this.blinkProgress * Math.PI);
     const unit = this.faceUnit;
     for (const [id, definition] of this.definitions) {
@@ -206,16 +191,18 @@ export class SolidFaceAnimator {
         const blinkScale = motion.blink === undefined
           ? 1
           : Math.max(motion.blink.minimumScaleY, blinkWave);
-        const eyeScale = expression.eyeScale ?? 1;
+        const eyeScale = expression.eyes.scale;
         mesh.scale.set(
           rest.scale.x * eyeScale,
-          rest.scale.y * eyeScale * (expression.eyeScaleY ?? 1) * blinkScale,
+          rest.scale.y * eyeScale * expression.eyes.openness * blinkScale,
           rest.scale.z,
         );
       } else if (motion.role === 'brow') {
         mesh.translateX(this.gazeX * unit * 0.04);
-        mesh.translateY(this.gazeY * unit * 0.035 + (expression.browLift ?? 0) * unit);
-        mesh.rotateZ((expression.browRoll ?? 0) * (motion.side ?? 1));
+        mesh.translateY(this.gazeY * unit * 0.035 + expression.brows.lift * unit);
+        // Profile semantics are face-relative: a positive value raises both
+        // inner endpoints. Each adapter owns the conversion to local rotation.
+        mesh.rotateZ(-expression.brows.innerRaise * (motion.side ?? 1));
       } else if (motion.role === 'mouth') {
         mesh.translateX(this.headX * unit * 0.04);
         mesh.translateY(this.headY * unit * 0.025);

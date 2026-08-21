@@ -4,18 +4,7 @@ import type {
   CharacterIdentityRecipe,
   CharacterMouthStyle,
 } from './recipe.js';
-
-export const CHARACTER_EXPRESSIONS = [
-  'idle',
-  'happy',
-  'angry',
-  'sad',
-  'surprised',
-  'scared',
-  'crying',
-  'sleeping',
-] as const;
-export type CharacterExpression = typeof CHARACTER_EXPRESSIONS[number];
+import type { CharacterExpression } from './expression-profile.js';
 
 export type CharacterMouthLayerRole = 'ink' | 'interior' | 'tooth' | 'tongue';
 

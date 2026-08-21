@@ -2,7 +2,7 @@ import type { Point } from '../core/geometry.js';
 import type { Bounds3, Point3, RadialDeformation, SurfaceAnchor } from '../core/geometry3.js';
 import type { Seed } from '../core/random.js';
 import type { SolidMaterialSpec } from '../materials/finish.js';
-import type { CharacterExpression } from './character-identity/mouth-profile.js';
+import type { CharacterExpression } from './character-identity/expression-profile.js';
 
 export type SuperellipsoidGeometrySpec = Readonly<{
   type: 'superellipsoid';

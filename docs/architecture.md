@@ -111,6 +111,14 @@ describe tooth separators, stitches, and other internal marks. Raster and solid
 adapters project the same construction, while expression selects a complete
 profile without rerolling identity.
 
+Facial expression is representation-neutral too. `CharacterExpressionProfile`
+owns eye scale, eye openness, vertical brow lift, and inner-end brow raise.
+Positive inner raise always means that both eyebrow endpoints nearest the nose
+move upward; raster and solid adapters translate that meaning into their local
+rotation signs. Eyebrows remain clear of the pupil volume. A narrowed eye or an
+authored eyelid supplies occlusion pressure instead of pushing a brow mesh
+through the eye.
+
 ## Raster asset contract
 
 An asset generator returns an immutable blueprint containing:

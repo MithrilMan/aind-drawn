@@ -28,6 +28,7 @@ export class SolidCharacterAnimator {
   private readonly rest = new Map<string, RestNode>();
   private elapsed = 0;
   private gaitPhase = 0;
+  private requestedExpression: SolidFaceExpression = 'idle';
 
   public constructor(rig: SolidRig, options: SolidCharacterAnimatorOptions = {}) {
     if (rig.blueprint.kind !== 'solid-character') {
@@ -47,10 +48,11 @@ export class SolidCharacterAnimator {
   }
 
   public get currentExpression(): SolidFaceExpression {
-    return this.face.currentExpression;
+    return this.requestedExpression;
   }
 
   public setExpression(expression: SolidFaceExpression): void {
+    this.requestedExpression = expression;
     this.face.setExpression(expression);
   }
 
@@ -69,10 +71,14 @@ export class SolidCharacterAnimator {
     const delta = clamp(deltaSeconds, 0, 0.1);
     const speed = clamp(motion.speed ?? 0, 0, 1);
     const pose = motion.pose ?? 'idle';
+    const faceExpression = pose === 'sleep' ? 'sleeping' : this.requestedExpression;
     this.elapsed += delta;
+    if (this.face.currentExpression !== faceExpression) {
+      this.face.setExpression(faceExpression);
+    }
     this.face.update(delta);
     this.resetBodyNodes();
-    this.applyAutonomicMotion();
+    this.applyAutonomicMotion(faceExpression);
     this.applyPose(pose, speed, delta);
     this.rig.root.scale.x = motion.facing ?? 1;
   }
@@ -87,7 +93,7 @@ export class SolidCharacterAnimator {
     }
   }
 
-  private applyAutonomicMotion(): void {
+  private applyAutonomicMotion(expression: SolidFaceExpression): void {
     const breath = Math.sin(this.elapsed * 1.15);
     const sway = Math.sin(this.elapsed * 0.58);
     const torso = this.rig.getNode('torso');
@@ -105,7 +111,7 @@ export class SolidCharacterAnimator {
     this.rotateNode('arm:left', 0, 0, Math.sin(this.elapsed * 0.8 + 1.7) * 0.025);
     this.rotateNode('arm:right', 0, 0, -Math.sin(this.elapsed * 0.8) * 0.025);
     this.rotateNode('tail', 0, 0, Math.sin(this.elapsed * 2.1) * 0.1);
-    if (this.face.currentExpression === 'crying') {
+    if (expression === 'crying') {
       const sob = Math.sin(this.elapsed * 5.2);
       const heave = Math.max(0, Math.sin(this.elapsed * 2.6));
       if (torso !== null) {

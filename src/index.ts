@@ -8,6 +8,7 @@ export * from './assets/character/layout.js';
 export * from './assets/character/recipe.js';
 export * from './assets/character-identity/recipe.js';
 export * from './assets/character-identity/drawing-style.js';
+export * from './assets/character-identity/expression-profile.js';
 export * from './assets/character-identity/eye-profile.js';
 export * from './assets/character-identity/head-shape.js';
 export * from './assets/character-identity/hair-profile.js';

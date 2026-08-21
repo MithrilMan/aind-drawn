@@ -14,10 +14,8 @@ import type {
 import { createCharacterHairProfile } from '../character-identity/hair-profile.js';
 import { createCharacterEyeProfile } from '../character-identity/eye-profile.js';
 import { createCharacterTearProfile } from '../character-identity/tear-profile.js';
-import {
-  CHARACTER_EXPRESSIONS,
-  createCharacterMouthProfile,
-} from '../character-identity/mouth-profile.js';
+import { CHARACTER_EXPRESSIONS } from '../character-identity/expression-profile.js';
+import { createCharacterMouthProfile } from '../character-identity/mouth-profile.js';
 import {
   createSolidCharacterRecipe,
   type SolidCharacterRecipe,

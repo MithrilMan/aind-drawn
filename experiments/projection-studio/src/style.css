@@ -112,10 +112,16 @@ button {
   border-bottom: 1px solid var(--rule-strong);
 }
 
-.studio-header > div {
+.studio-brand {
   display: flex;
   align-items: baseline;
   gap: 24px;
+}
+
+.studio-meta {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
 }
 
 .eyebrow,
@@ -147,6 +153,26 @@ button {
   font-size: 17px;
   font-style: italic;
   color: #d1c9b8;
+}
+
+.studio-links {
+  display: flex;
+  gap: 14px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.studio-links a {
+  color: #b9b4a7;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+.studio-links a:hover,
+.studio-links a:focus-visible {
+  color: var(--paper);
+  text-decoration: underline;
 }
 
 .recipe-bar {

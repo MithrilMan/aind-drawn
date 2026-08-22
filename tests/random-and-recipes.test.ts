@@ -920,8 +920,8 @@ describe('asset contracts', () => {
     }
   });
 
-  it('hangs long beards ahead of the torso instead of inflating them into it', () => {
-    for (const seed of [4125, 4129]) {
+  it('keeps the full beard volume ahead of the torso', () => {
+    for (const seed of [4125, 4126, 4129, 4138, 4147]) {
       const identity = createCharacterIdentity(seed, { facialHairStyle: 'full-rounded' });
       const profile = createCharacterFacialHairProfile(identity);
       const solid = createSolidCharacterBlueprint(identity);
@@ -930,16 +930,13 @@ describe('asset contracts', () => {
       const headNode = solid.nodes.find(({ id }) => id === 'head');
       expect(profile).not.toBeNull();
       if (profile === null || beard?.geometry.type !== 'mesh' || headNode === undefined) continue;
-      const bottomIndex = profile.beard.outline.reduce((lowest, point, index, points) => (
-        point[1] < (points[lowest]?.[1] ?? Number.POSITIVE_INFINITY) ? index : lowest
-      ), 0);
-      const bottom = beard.geometry.vertices[bottomIndex];
-      expect((bottom?.[2] ?? 0) + headNode.position[2] - layout.torso.depth)
-        .toBeGreaterThan(0.18);
+      const rearDepth = Math.min(...beard.geometry.vertices.map((vertex) => vertex[2]));
+      expect(rearDepth + headNode.position[2] - layout.torso.depth)
+        .toBeGreaterThan(0.055);
     }
   });
 
-  it('keeps the 4147 beard on one vertical curtain with visible ring depth', () => {
+  it('keeps the beard front fixed while its ring bulges backward', () => {
     const identity = createCharacterIdentity(4147, { facialHairStyle: 'full-rounded' });
     const profile = createCharacterFacialHairProfile(identity);
     const solid = createSolidCharacterBlueprint(identity);
@@ -961,10 +958,13 @@ describe('asset contracts', () => {
       frontDepth - (backDepths[index] ?? frontDepth)
     ));
     const authoredDepth = faceLayout.shape.radii[2] * profile.beard.spatial.depth;
+    const attachmentY = profile.opening.spatial.center[1] * 0.72;
+    const curtainDepth = faceLayout.at(0, attachmentY).point[2];
     expect(Math.max(...frontDepths) - Math.min(...frontDepths))
       .toBeLessThan(faceLayout.shape.radii[2] * 0.08);
-    expect(Math.min(...ringDepths)).toBeGreaterThan(authoredDepth * 0.1);
-    expect(Math.max(...ringDepths)).toBeGreaterThan(authoredDepth * 0.19);
+    expect(Math.min(...ringDepths)).toBeCloseTo(authoredDepth * 0.24);
+    expect(Math.max(...ringDepths)).toBeCloseTo(authoredDepth * 0.64);
+    expect(Math.min(...backDepths)).toBeLessThan(curtainDepth - authoredDepth * 0.3);
   });
 
   it('shares round-ear, eye, and nose dimensions across face projections', () => {

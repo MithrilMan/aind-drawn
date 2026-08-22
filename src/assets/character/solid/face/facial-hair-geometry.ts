@@ -22,6 +22,8 @@ export function createFacialHairRingGeometry(
   // A single vertical tangent keeps the hanging mass attached without turning its side view into a horn.
   const attachmentY = profile.opening.spatial.center[1] * 0.72;
   const curtainZ = at(0, attachmentY).point[2];
+  const boundaryDepth = depth * 0.24;
+  const peakDepth = depth * 0.64;
   const vertices: Point3[] = [];
   const project = (x: number, y: number, proud: number): Point3 => {
     return Object.freeze([x * radiusX, y * radiusY, curtainZ + proud] as const);
@@ -36,10 +38,11 @@ export function createFacialHairRingGeometry(
         const x = outerPoint[0] + (innerPoint[0] - outerPoint[0]) * amount;
         const y = outerPoint[1] + (innerPoint[1] - outerPoint[1]) * amount;
         const clearance = radiusZ * 0.025;
-        const volume = depth * (0.12 + bulge * 0.08);
+        const frontVolume = depth * (0.12 + bulge * 0.08);
+        const shellDepth = boundaryDepth + (peakDepth - boundaryDepth) * bulge;
         const proud = surfaceSide === 'front'
-          ? clearance + volume
-          : clearance;
+          ? clearance + frontVolume
+          : clearance + frontVolume - shellDepth;
         vertices.push(project(x, y, proud));
       }
     }

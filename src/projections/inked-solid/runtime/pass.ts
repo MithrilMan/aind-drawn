@@ -179,14 +179,34 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float angle,
     float phase,
     float lineWidth,
-    float waviness
+    float waviness,
+    float irregularity
   ) {
     vec2 direction = vec2(cos(angle), sin(angle));
     vec2 tangent = vec2(-direction.y, direction.x);
     float along = dot(point, tangent);
-    float pencilWander = (valueNoise(point * 0.19 + vec2(phase, angle * 3.1)) - 0.5) * 0.2;
+    float baseCoordinate = dot(point, direction) + phase;
+    float lineIndex = floor(baseCoordinate);
+    // A pencil field is a family of related gestures, not graph paper. Give
+    // each line a stable lateral offset, then bend it continuously along its
+    // own path. The discontinuity between line cells stays in the empty gap,
+    // so spacing varies without cutting a visible stroke into segments.
+    float lineOffset = (
+      hash21(vec2(lineIndex + phase * 7.1, phase * 13.7)) - 0.5
+    ) * irregularity;
+    float slowWander = valueNoise(vec2(
+      along * 0.075 + phase * 0.41,
+      lineIndex * 0.37 + phase * 1.73
+    )) - 0.5;
+    float fineWander = valueNoise(vec2(
+      along * 0.29 + phase * 1.17,
+      lineIndex * 0.83 + phase * 2.31
+    )) - 0.5;
+    float pencilWander = lineOffset;
+    pencilWander += slowWander * irregularity * 0.72;
+    pencilWander += fineWander * irregularity * 0.28;
     pencilWander += sin(along * 1.7 + phase * 4.1) * waviness;
-    float coordinate = dot(point, direction) + phase + pencilWander;
+    float coordinate = baseCoordinate + pencilWander;
     float distanceToLine = abs(fract(coordinate) - 0.5);
     float antialias = max(fwidth(coordinate) * 0.8, 0.006);
     float line = 1.0 - smoothstep(
@@ -200,13 +220,13 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     // supplies small broken pickup without changing the line trajectory.
     float pickup = valueNoise(vec2(
       along * 0.21 + phase * 0.43,
-      floor(coordinate) * 0.73 + phase * 1.19
+      lineIndex * 0.73 + phase * 1.19
     ));
     float pressure = mix(0.48, 1.0, smoothstep(0.12, 0.82, pickup));
     float abrasion = smoothstep(
       0.08,
       0.3,
-      valueNoise(vec2(along * 0.83, floor(coordinate) * 1.37) + phase * 2.1)
+      valueNoise(vec2(along * 0.83, lineIndex * 1.37) + phase * 2.1)
     );
     return line * pressure * mix(0.58, 1.0, abrasion);
   }
@@ -217,9 +237,17 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float angle,
     float phase,
     float lineWidth,
-    float waviness
+    float waviness,
+    float irregularity
   ) {
-    return pencilLine(viewPosition * scale * 4.2, angle, phase, lineWidth, waviness);
+    return pencilLine(
+      viewPosition * scale * 4.2,
+      angle,
+      phase,
+      lineWidth,
+      waviness,
+      irregularity
+    );
   }
 
   float viewNoise(vec2 viewPosition, float scale, float phase) {
@@ -275,26 +303,61 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     return valueNoise(viewPosition * scale * 7.2 + vec2(phase, phase * 1.91));
   }
 
+  float contourSurfaceKind(vec2 uv, float depth) {
+    if (depth >= 9.0e5) return 0.0;
+    float owner = texture2D(anchorTexture, clamp(uv, vec2(0.0), vec2(1.0))).a;
+    if (owner < 0.25) return 1.0;
+    if (owner < 0.75) return 2.0;
+    return 3.0;
+  }
+
+  float contourPairWeight(
+    vec2 centerUv,
+    vec2 neighbourUv,
+    float centerDepth,
+    float neighbourDepth
+  ) {
+    float centerKind = contourSurfaceKind(centerUv, centerDepth);
+    float neighbourKind = contourSurfaceKind(neighbourUv, neighbourDepth);
+    // Semantic stroke volumes and authored ink shapes already own their
+    // visible boundary. Feeding them back through the contour detector draws
+    // a second outline, then displaced echo/ghost copies turn it into spikes.
+    if (centerKind > 0.5 && centerKind < 2.5) return 0.0;
+    if (neighbourKind > 0.5 && neighbourKind < 2.5) return 0.0;
+    return 1.0;
+  }
+
   float sceneEdge(vec2 uv, vec2 pixel, float width) {
     vec2 stepSize = pixel * width;
     float centerDepth = sampledDepth(uv);
     vec3 centerNormal = sampledNormal(uv);
     float depthDifference = 0.0;
     float normalDifference = 0.0;
-    vec2 offsets[4];
+    vec2 offsets[8];
     offsets[0] = vec2(stepSize.x, 0.0);
     offsets[1] = vec2(-stepSize.x, 0.0);
     offsets[2] = vec2(0.0, stepSize.y);
     offsets[3] = vec2(0.0, -stepSize.y);
-    for (int index = 0; index < 4; index += 1) {
-      float neighbourDepth = sampledDepth(uv + offsets[index]);
+    offsets[4] = vec2(stepSize.x, stepSize.y) * 0.70710678;
+    offsets[5] = vec2(-stepSize.x, stepSize.y) * 0.70710678;
+    offsets[6] = vec2(stepSize.x, -stepSize.y) * 0.70710678;
+    offsets[7] = vec2(-stepSize.x, -stepSize.y) * 0.70710678;
+    for (int index = 0; index < 8; index += 1) {
+      vec2 neighbourUv = uv + offsets[index];
+      float neighbourDepth = sampledDepth(neighbourUv);
+      float pairWeight = contourPairWeight(
+        uv,
+        neighbourUv,
+        centerDepth,
+        neighbourDepth
+      );
       float relativeDifference = abs(centerDepth - neighbourDepth)
         / max(min(centerDepth, neighbourDepth), 0.0001);
-      depthDifference = max(depthDifference, relativeDifference);
+      depthDifference = max(depthDifference, relativeDifference * pairWeight);
       if (centerDepth < 9.0e5 && neighbourDepth < 9.0e5) {
         normalDifference = max(
           normalDifference,
-          1.0 - dot(centerNormal, sampledNormal(uv + offsets[index]))
+          (1.0 - dot(centerNormal, sampledNormal(neighbourUv))) * pairWeight
         );
       }
     }
@@ -355,8 +418,15 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       valueNoise(paperPoint / 31.0 + contourSeed * 53.0)
     );
     float contour = mainEdge * contourOpacity * graphitePickup * pressureWander;
-    contour += echoEdge * contourEchoOpacity * (1.0 - mainEdge * 0.45);
-    contour += ghostEdge * contourGhostOpacity * (1.0 - mainEdge) * (1.0 - echoEdge * 0.4);
+    // Secondary graphite passes may roughen an existing guide, but must never
+    // become detached screen-space antennae around a small feature.
+    float secondaryGuide = smoothstep(0.02, 0.62, mainEdge);
+    contour += echoEdge * contourEchoOpacity * secondaryGuide * (1.0 - mainEdge * 0.55);
+    contour += ghostEdge
+      * contourGhostOpacity
+      * secondaryGuide
+      * (1.0 - mainEdge * 0.72)
+      * (1.0 - echoEdge * 0.4);
     contour = clamp(contour, 0.0, 1.0);
 
     vec4 albedo = texture2D(albedoTexture, inkedUv);
@@ -478,13 +548,16 @@ const COMPOSITE_FRAGMENT = /* glsl */`
     float markScale = max(0.1, (markData.a - 0.5) * 48.0);
     float markPhase = fillSeed * 23.0 + fract(encodedMark) * 17.0 + partPhase;
     float surfacePhase = markPhase + surfaceTurn * 0.37;
+    float graphiteGesture = 1.0 - step(0.5, fillTextureMode);
+    float pencilIrregularity = mix(0.12, 0.46, graphiteGesture);
     float firstFamily = viewPencil(
       surfacePosition,
       markScale,
       0.22,
       surfacePhase,
       markLineWidth,
-      0.025
+      mix(0.025, 0.082, graphiteGesture),
+      pencilIrregularity
     );
     float secondFamily = viewPencil(
       surfacePosition,
@@ -492,7 +565,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       -0.82,
       surfacePhase + 0.43,
       markLineWidth,
-      0.035
+      mix(0.035, 0.098, graphiteGesture),
+      pencilIrregularity
     );
     float scribble = viewPencil(
       surfacePosition,
@@ -500,7 +574,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       1.48,
       surfacePhase + 0.17,
       markLineWidth * 1.15,
-      0.24
+      0.24,
+      max(0.24, pencilIrregularity)
     );
     scribble += viewPencil(
       surfacePosition,
@@ -508,7 +583,8 @@ const COMPOSITE_FRAGMENT = /* glsl */`
       1.22,
       surfacePhase + 0.61,
       markLineWidth * 0.72,
-      0.2
+      0.2,
+      max(0.2, pencilIrregularity)
     ) * 0.52;
     float stippleMark = smoothstep(
       0.7,
@@ -663,8 +739,10 @@ export class InkedSolidPass {
     transparent: true,
   });
   private readonly emptyAnchorMaterial = new THREE.MeshBasicMaterial({
-    colorWrite: false,
-    depthWrite: false,
+    color: 0x000000,
+    blending: THREE.NoBlending,
+    depthWrite: true,
+    toneMapped: false,
   });
   private readonly uniforms: InkedUniforms;
   private readonly compositeMaterial: THREE.ShaderMaterial;
@@ -919,13 +997,18 @@ export class InkedSolidPass {
         return;
       }
       this.projectedAnchor.setFromMatrixPosition(mesh.matrixWorld).project(camera);
+      const part = this.blueprint.solid.parts.find(({ id }) => id === partId);
+      const drawingApplication = part === undefined
+        ? undefined
+        : this.blueprint.solid.materials.find(({ id }) => id === part.materialId)?.drawing.application;
+      const contourOwner = drawingApplication === 'ink' ? 0.5 : 1;
       const anchorMaterial = this.anchorMaterial(partId);
       const anchorData = anchorMaterial.uniforms.anchorData?.value as THREE.Vector4;
       anchorData.set(
         this.projectedAnchor.x * 0.5 + 0.5,
         this.projectedAnchor.y * 0.5 + 0.5,
         normalizedSeed(hashString(`${this.blueprint.deposition.seed}:${partId}`)),
-        1,
+        contourOwner,
       );
       mesh.material = anchorMaterial;
     });

@@ -98,22 +98,6 @@ export function createSolidCharacterInkStrokes(
     }
   }
 
-  const torso = solid.parts.find(({ id }) => id === 'body:torso');
-  if (torso?.geometry.type === 'superellipsoid') {
-    const torsoMinimum = Math.min(...torso.geometry.radii);
-    strokes.push(surfaceStroke(
-      'clothing:collar-seam',
-      torso.id,
-      surfaceDirections(11, (amount): Point3 => [
-        -0.78 + amount * 1.56,
-        0.5 - Math.abs(amount - 0.5) * 0.12,
-        1,
-      ]),
-      torsoMinimum * 0.04,
-      Math.max(0.004, torsoMinimum * 0.018),
-    ));
-  }
-
   if (solid.parts.some(({ id }) => id === 'muzzle:left')) {
     strokes.push(...catWhiskers(shape, radius));
   }

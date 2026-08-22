@@ -149,7 +149,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         handRadius * (identity.species === 'cat' ? 0.72 : 0.9),
         handRadius * 0.82,
       ] as const, 2.2, [16, 10]),
-      materialId: 'skin',
+      materialId: identity.species === 'cat' ? 'skin' : 'accent',
       placement: solidPlacement([0, -layout.limbs.armLength * 0.9, handRadius * 0.18] as const),
       castShadow: true, receiveShadow: true,
     });

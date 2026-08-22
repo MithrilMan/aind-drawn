@@ -131,8 +131,8 @@ explicit part-local points or superellipsoid surface directions plus a lift.
 The latter survives proportion and head-shape changes because the runtime
 resolves it against the owner's analytic surface. `InkedSolidStrokeRig` builds
 thin five-sided tubes and parents them directly to the owner mesh. These are
-deliberately real ink volumes: whiskers can leave a face, a collar seam follows
-an animated torso, and a door inset follows its hinge. Closed paths require at
+deliberately real ink volumes: whiskers can leave a face, a hair strand follows
+an animated head, and a door inset follows its hinge. Closed paths require at
 least three points, all owners are validated, and seeded wobble is stable.
 
 ### 3. Contours
@@ -140,8 +140,13 @@ least three points, all owners are validated, and seeded wobble is stable.
 `InkedSolidPass` renders carrier albedo with depth, then a normal buffer. The composite
 shader detects relative view-depth discontinuities and normal creases. Line
 width is screen-space and therefore remains legible as the camera moves.
-The principal contour is combined with a displaced echo and a wider, faint
-ghost pass. Seeded granulation breaks uniform digital coverage. Static
+Authored ink geometry and semantic stroke volumes own their visible line and
+are excluded from the generic contour detector; outlining them again would
+produce a second boundary whose displaced copies become halos or detached
+spikes. Carrier silhouettes and creases use the principal contour, combined
+with a displaced echo and a wider, faint ghost pass. Those secondary passes are
+gated by the principal guide, so they may roughen a line but cannot introduce a
+new disconnected one. Seeded granulation breaks uniform digital coverage. Static
 low-frequency `wander` displaces the projected guide and modulates pressure, so
 precise carrier edges read as authored strokes without corrupting geometry,
 colliders, or interaction anchors. Animated `jitter` is a separate displacement
@@ -179,8 +184,10 @@ retain one view-oriented 2D field at light-invariant deposited density. Their
 geometry controls occlusion but never bends marks into topographic rings or
 reinterprets filler as shadow. This classification is authored in
 geometry smoothing rather than inferred from screen-space derivatives, so zoom
-cannot change it. Pencil pickup varies continuously along each path; paper
-abrasion may thin a stroke but does not split it into periodic, misaligned
+cannot change it. Pencil pickup varies continuously along each path. Each
+projected pencil line receives a stable seeded lateral offset plus low-frequency
+curvature, avoiding the mechanically regular spacing of a periodic hatch while
+keeping the mark continuous. Paper abrasion may thin a stroke but does not split it into periodic, misaligned
 dashes. On faceted carriers, drawing light may change deposited opacity or add a
 fixed-frequency secondary pass, but it never changes a field's scale or phase per pixel; doing
 so would restart strokes at every tone boundary. Limbs, tears, doors, and other

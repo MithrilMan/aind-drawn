@@ -393,21 +393,34 @@ describe('solid rig runtime', () => {
     });
     const rig = new SolidRig(solid);
     const strokes = new InkedSolidStrokeRig(inked, rig);
-    expect(strokes.strokeIds).toEqual(expect.arrayContaining([
-      'hair:strand:0', 'clothing:collar-seam',
-    ]));
+    expect(strokes.strokeIds).toContain('hair:strand:0');
+    expect(strokes.strokeIds).not.toContain('clothing:collar-seam');
     expect(rig.getPart('head')?.children.some(
       ({ name }) => name === 'stroke:hair:strand:0',
     )).toBe(true);
     expect(rig.getPart('body:torso')?.children.some(
       ({ name }) => name === 'stroke:clothing:collar-seam',
-    )).toBe(true);
+    )).toBe(false);
     strokes.visible = false;
     expect(strokes.visible).toBe(false);
     strokes.dispose();
     expect(rig.getPart('head')?.children.some(({ name }) => name.startsWith('stroke:')))
       .toBe(false);
     rig.dispose();
+  });
+
+  it('keeps small humanoid endpoints on the visible accent deposition', () => {
+    const human = createSolidCharacterBlueprint(createCharacterIdentity(4_107, {
+      species: 'human',
+    }));
+    const cat = createSolidCharacterBlueprint(createCharacterIdentity(4_107, {
+      species: 'cat',
+    }));
+
+    for (const id of ['hand:left', 'hand:right', 'foot:left', 'foot:right']) {
+      expect(human.parts.find((part) => part.id === id)?.materialId).toBe('accent');
+    }
+    expect(cat.parts.find(({ id }) => id === 'hand:left')?.materialId).toBe('skin');
   });
 
   it('applies representation-neutral interaction states to solid nodes', () => {

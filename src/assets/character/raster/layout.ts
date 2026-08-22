@@ -79,13 +79,17 @@ export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
   const mouthY = headCenterPixels + headHeight * 0.5 * characterMouthCenterY(identity);
   const handY = (shoulderYPixels - armLength * 0.78) / PIXELS_PER_UNIT;
 
-  const minimumX = -Math.max(headWidth * 0.58, shoulderX + armLength * 0.45) / PIXELS_PER_UNIT;
+  const faceWidthFactor = identity.ears.style === 'none' ? 0.58 : 0.78;
+  const minimumX = -Math.max(headWidth * faceWidthFactor, shoulderX + armLength * 0.45)
+    / PIXELS_PER_UNIT;
   const bodyMaximumX = -minimumX;
   const tailMaximumX = identity.tail.present
     ? (torsoWidth * 0.4 + HEAD_SCALE * identity.tail.length) / PIXELS_PER_UNIT
     : bodyMaximumX;
   const maximumX = Math.max(bodyMaximumX, tailMaximumX);
-  const maximumY = (headCenterPixels + headHeight * 0.55) / PIXELS_PER_UNIT;
+  const crownFactor = identity.hair.style === 'quiff' || identity.hair.style === 'spikes'
+    || identity.hair.style === 'crown' ? 0.72 : 0.58;
+  const maximumY = (headCenterPixels + headHeight * crownFactor) / PIXELS_PER_UNIT;
 
   return Object.freeze({
     pixelsPerUnit: PIXELS_PER_UNIT,

@@ -81,6 +81,14 @@ units. Expression variants derive from the same mouth profile factory. Add a
 new hairstyle or mouth family there first, then make each representation consume
 it. Do not add a second adapter-local silhouette table.
 
+Character accessories are a typed discriminated union in the identity recipe,
+not renderer callbacks or a generic bag of geometry. Each accessory owns stable
+measurements, colour, semantic subparts, and spatial intent such as `wrap`.
+Eyewear is the reference: raster projects its frontal construction while solid
+emits open rims, bridge, hinges, and temples that reach around the head. Anatomy
+and styling remain separate concepts; ears, noses, and facial hair do not become
+accessories merely because an authoring panel can switch them on.
+
 Eye and eyebrow expression also come from the shared
 `CharacterExpressionProfile`. Name pose values by their visible meaning, not by
 one renderer's coordinate sign: positive `innerRaise` raises both brow ends

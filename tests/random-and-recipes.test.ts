@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  CHARACTER_AUTHORING_SCHEMA,
   CHARACTER_EXPRESSIONS,
   MEDIUM_IDS,
   Random,
@@ -14,7 +15,9 @@ import {
   createBuildingFacadeGeometry,
   createBuildingIdentity,
   createCharacterEyeProfile,
+  createCharacterEyewearProfile,
   createCharacterExpressionProfile,
+  createCharacterFacialHairProfile,
   createCharacterHairProfile,
   createCharacterMouthProfile,
   createCharacterOutfitProfile,
@@ -519,7 +522,9 @@ describe('asset contracts', () => {
   });
 
   it('adds one renderer-neutral ink policy to different solid asset families', () => {
-    const characterSolid = createSolidCharacterBlueprint(createCharacterIdentity(304));
+    const characterSolid = createSolidCharacterBlueprint(createCharacterIdentity(304, {
+      hairStyle: 'cap',
+    }));
     const buildingSolid = createSolidBuildingBlueprint(createBuildingIdentity(304));
     const characterInk = createInkedSolidBlueprint(characterSolid, {
       medium: 'graphite',
@@ -797,5 +802,102 @@ describe('asset contracts', () => {
     const zCoordinates = crown.geometry.vertices.map((vertex) => vertex[2]);
     expect(Math.min(...zCoordinates)).toBeLessThan(0);
     expect(Math.max(...zCoordinates)).toBeGreaterThan(0);
+  });
+
+  it('persists typed accessories independently from anatomy measurements', () => {
+    const generated = createCharacterIdentity(8801, { species: 'human' });
+    const authored = createCharacterIdentity(8801, {
+      species: 'human',
+      eyewearStyle: 'heavy-square',
+      facialHairStyle: 'full-rounded',
+      noseStyle: 'drop',
+      earStyle: 'round',
+      hairStyle: 'quiff',
+    });
+    expect(authored.accessories).toHaveLength(1);
+    expect(authored.accessories[0]).toMatchObject({
+      kind: 'eyewear',
+      style: 'heavy-square',
+      spatial: { kind: 'wrap', host: 'head' },
+    });
+    expect(authored.head).toEqual(generated.head);
+    expect(authored.eyes).toEqual(generated.eyes);
+    expect(authored.body).toEqual(generated.body);
+    expect(JSON.parse(JSON.stringify(authored))).toEqual(createCharacterIdentity(8801, {
+      species: 'human',
+      eyewearStyle: 'heavy-square',
+      facialHairStyle: 'full-rounded',
+      noseStyle: 'drop',
+      earStyle: 'round',
+      hairStyle: 'quiff',
+    }));
+  });
+
+  it('projects the reference face traits through raster, smooth solid, and doodle', () => {
+    const identity = createCharacterIdentity(4104, {
+      species: 'human',
+      shape: 'tall',
+      eyeStyle: 'saucer',
+      alternateEyeStyle: null,
+      mouthStyle: 'frown',
+      hairStyle: 'quiff',
+      facialHairStyle: 'full-rounded',
+      eyewearStyle: 'heavy-square',
+      noseStyle: 'drop',
+      earStyle: 'round',
+      outfitStyle: 'buttons',
+    });
+    const raster = createRasterCharacterBlueprint(identity);
+    const solid = createSolidCharacterBlueprint(identity, { finish: 'skin' });
+    const faceLayout = buildSolidFaceLayout(createSolidCharacterRecipe(identity, {
+      finish: 'skin',
+    }));
+    const rasterIds = raster.layers.map(({ id }) => id);
+    const solidIds = solid.parts.map(({ id }) => id);
+    expect(rasterIds).toEqual(expect.arrayContaining([
+      'ears', 'nose', 'hair', 'accessory:eyewear',
+      'facial-hair:beard', 'facial-hair:opening',
+    ]));
+    expect(solidIds).toEqual(expect.arrayContaining([
+      'ear:left', 'ear:right', 'nose', 'hair:quiff',
+      'facial-hair:beard',
+      'accessory:eyewear:rim:left', 'accessory:eyewear:bridge',
+      'accessory:eyewear:temple:left', 'accessory:eyewear:temple:right',
+    ]));
+    const rim = solid.parts.find(({ id }) => id === 'accessory:eyewear:rim:left');
+    const temple = solid.parts.find(({ id }) => id === 'accessory:eyewear:temple:left');
+    const beard = solid.parts.find(({ id }) => id === 'facial-hair:beard');
+    const mouth = solid.parts.find(({ id }) => id === 'mouth');
+    expect(rim?.geometry.type).toBe('mesh');
+    expect(temple?.geometry.type).toBe('box');
+    expect(beard?.geometry.type).toBe('mesh');
+    expect(solid.parts.some(({ id }) => id === 'facial-hair:opening')).toBe(false);
+    expect(mouth?.placement.position).toEqual(faceLayout.mouthAnchor.point);
+    if (temple?.geometry.type === 'box') {
+      expect(temple.placement.position[2] - temple.geometry.size[2] * 0.5).toBeLessThan(0);
+    }
+    expect(solid.materials.find(({ id }) => id === 'facial-hair')).toMatchObject({
+      finish: 'wool', drawing: { application: 'pigment' },
+    });
+    expect(solid.materials.find(({ id }) => id === 'accessory:eyewear')).toMatchObject({
+      finish: 'rubber', drawing: { application: 'ink', tone: 'black' },
+    });
+    expect(() => createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
+      strokes: createSolidCharacterInkStrokes(solid),
+    })).not.toThrow();
+    expect(createCharacterEyewearProfile(identity)?.spatial.kind).toBe('wrap');
+    expect(createCharacterFacialHairProfile(identity)?.components.map(
+      ({ spatial }) => spatial.kind,
+    )).toEqual([]);
+    expect(createCharacterFacialHairProfile(identity)?.beard.spatial.kind).toBe('volume-ring');
+    expect(createCharacterFacialHairProfile(identity)?.opening.spatial.kind).toBe('aperture');
+  });
+
+  it('exposes face accessories through family-driven authoring controls', () => {
+    const ids = CHARACTER_AUTHORING_SCHEMA.parameters.map(({ id }) => id);
+    expect(ids).toEqual(expect.arrayContaining([
+      'earStyle', 'noseStyle', 'facialHairStyle', 'eyewearStyle',
+    ]));
   });
 });

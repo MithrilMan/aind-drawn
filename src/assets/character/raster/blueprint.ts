@@ -4,6 +4,12 @@ import { PAPER, PAPER_RGB, type Sketch } from '../../../core/sketch.js';
 import { mediumById, type Medium } from '../../../materials/medium.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../../../contracts/raster-asset.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
+import { createCharacterEyewearProfile } from '../identity/accessory-profile.js';
+import {
+  createCharacterFacialHairProfile,
+  type CharacterFacialHairComponent,
+  type CharacterFacialHairProfile,
+} from '../identity/facial-hair-profile.js';
 import { createCharacterHairProfile } from '../identity/hair-profile.js';
 import { createCharacterEyeProfile } from '../identity/eye-profile.js';
 import { createCharacterMouthProfile } from '../identity/mouth-profile.js';
@@ -22,9 +28,10 @@ import {
 } from './recipe.js';
 
 const HEAD_CANVAS: Size2 = Object.freeze({ width: 196, height: 196 });
+const FACIAL_HAIR_CANVAS: Size2 = Object.freeze({ width: 220, height: 260 });
 const EYE_CANVAS: Size2 = Object.freeze({ width: 72, height: 72 });
 const BROW_CANVAS: Size2 = Object.freeze({ width: 72, height: 36 });
-const NOSE_CANVAS: Size2 = Object.freeze({ width: 48, height: 48 });
+const NOSE_CANVAS: Size2 = Object.freeze({ width: 72, height: 96 });
 const MOUTH_CANVAS: Size2 = Object.freeze({ width: 104, height: 66 });
 const TEAR_CANVAS: Size2 = Object.freeze({ width: 48, height: 88 });
 const TAIL_HEIGHT = 150;
@@ -68,13 +75,20 @@ function drawHead(
 }
 
 function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void {
-  if (recipe.identity.species === 'human' || recipe.identity.species === 'robot') {
-    return;
-  }
+  if (recipe.identity.ears.style === 'none') return;
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2;
   for (const side of [-1, 1]) {
-    const points = recipe.identity.species === 'cat'
+    const points = recipe.identity.ears.style === 'round'
+      ? sketch.blobPoints(
+        centerX + side * 58,
+        centerY + 2,
+        22 * recipe.identity.ears.size,
+        27 * recipe.identity.ears.size,
+        0,
+        0.24,
+      )
+      : recipe.identity.species === 'cat'
       ? chaikin([
         [centerX + side * 39, centerY - 29],
         [centerX + side * 55, centerY - 80],
@@ -91,6 +105,15 @@ function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       color: recipe.identity.palette.skin,
     });
     medium.edge(sketch, closePath(points), 3.6 * recipe.style.linePressure, { ghost: true });
+    if (recipe.identity.ears.style === 'round') {
+      sketch.setInk(recipe.identity.palette.skinAccent);
+      sketch.stroke(chaikin([
+        [centerX + side * 51, centerY - 11],
+        [centerX + side * 63, centerY - 1],
+        [centerX + side * 52, centerY + 13],
+      ], false, 2), 3 * recipe.style.linePressure, { alpha: 0.58, taper: 0.24 });
+      sketch.setInk(null);
+    }
   }
 }
 
@@ -282,19 +305,151 @@ function drawBrow(sketch: Sketch, recipe: CharacterRecipe, side: -1 | 1): void {
 function drawNose(sketch: Sketch, recipe: CharacterRecipe): void {
   const centerX = NOSE_CANVAS.width / 2;
   const centerY = NOSE_CANVAS.height / 2;
-  const radius = 3 + recipe.identity.nose.size * 24;
+  const radiusX = 3 + recipe.identity.nose.size * 48;
+  const radiusY = recipe.identity.nose.style === 'drop'
+    ? 5 + recipe.identity.nose.length * 48
+    : 3 + recipe.identity.nose.length * 36;
   sketch.setInk(recipe.identity.species === 'robot'
     ? recipe.identity.palette.accent
-    : recipe.identity.palette.skin);
+    : recipe.identity.nose.style === 'drop'
+      ? recipe.identity.palette.skinAccent
+      : recipe.identity.palette.skin);
   sketch.context.fillStyle = sketch.inkAlpha(0.5);
-  sketch.wobblyEllipse(centerX, centerY, radius, radius * 0.82);
+  sketch.wobblyEllipse(centerX, centerY, radiusX, radiusY);
   sketch.context.fill();
   sketch.setInk(null);
   sketch.stroke(
-    sketch.blobPoints(centerX, centerY, radius, radius * 0.82, 0, 0.2),
+    sketch.blobPoints(centerX, centerY, radiusX, radiusY, 0, 0.2),
     1.8 * recipe.style.linePressure,
     { alpha: 0.62, taper: 0.12 },
   );
+}
+
+function drawFacialHairComponent(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  medium: Medium,
+  component: CharacterFacialHairComponent,
+  headWidth: number,
+  headHeight: number,
+  canvas: Size2,
+): void {
+  const centerX = canvas.width / 2;
+  const centerY = canvas.height / 2;
+  const points: MutablePoint[] = component.outline.map(([x, y]) => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ]);
+  sketch.paperFill(points);
+  medium.tone(sketch, points, {
+    style: recipe.style.hairTone,
+    color: recipe.identity.palette.hair,
+    gap: component.id.startsWith('moustache') ? 5 : 6,
+  });
+  medium.edge(sketch, closePath(points), 2.7 * recipe.style.linePressure, { ghost: true });
+}
+
+function drawFacialHairBeard(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  medium: Medium,
+  profile: CharacterFacialHairProfile,
+  headWidth: number,
+  headHeight: number,
+): void {
+  const centerX = FACIAL_HAIR_CANVAS.width / 2;
+  const centerY = FACIAL_HAIR_CANVAS.height / 2;
+  const points: MutablePoint[] = profile.beard.outline.map(([x, y]) => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ]);
+  sketch.paperFill(points);
+  medium.tone(sketch, points, {
+    style: recipe.style.hairTone,
+    color: recipe.identity.palette.hair,
+    gap: 6,
+  });
+  medium.edge(sketch, closePath(points), 2.9 * recipe.style.linePressure, { ghost: true });
+}
+
+function drawFacialHairOpening(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  medium: Medium,
+  opening: CharacterFacialHairProfile['opening'],
+  headWidth: number,
+  headHeight: number,
+): void {
+  const centerX = FACIAL_HAIR_CANVAS.width / 2;
+  const centerY = FACIAL_HAIR_CANVAS.height / 2;
+  const points: MutablePoint[] = opening.outline.map(([x, y]) => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ]);
+  sketch.paperFill(points);
+  medium.skin(sketch, points, recipe.identity.palette.skin, { gap: 8 });
+  medium.edge(sketch, closePath(points), 1.35 * recipe.style.linePressure, { ghost: true });
+}
+
+function roundedFrameOutline(
+  center: Point,
+  halfWidth: number,
+  halfHeight: number,
+  radius: number,
+): readonly Point[] {
+  const [x, y] = center;
+  return chaikin([
+    [x - halfWidth + radius, y - halfHeight],
+    [x + halfWidth - radius, y - halfHeight],
+    [x + halfWidth, y - halfHeight + radius],
+    [x + halfWidth, y + halfHeight - radius],
+    [x + halfWidth - radius, y + halfHeight],
+    [x - halfWidth + radius, y + halfHeight],
+    [x - halfWidth, y + halfHeight - radius],
+    [x - halfWidth, y - halfHeight + radius],
+  ], true, 2);
+}
+
+function drawEyewear(
+  sketch: Sketch,
+  recipe: CharacterRecipe,
+  headWidth: number,
+  headHeight: number,
+): void {
+  const profile = createCharacterEyewearProfile(recipe.identity);
+  if (profile === null) return;
+  const centerX = HEAD_CANVAS.width / 2;
+  const centerY = HEAD_CANVAS.height / 2;
+  const project = ([x, y]: Point): Point => [
+    centerX + x * headWidth * 0.5,
+    centerY - y * headHeight * 0.5,
+  ];
+  const halfWidth = profile.lensHalfSize[0] * headWidth * 0.5;
+  const halfHeight = profile.lensHalfSize[1] * headHeight * 0.5;
+  const lineWidth = Math.max(4, profile.frameThickness * headWidth);
+  const centers = profile.lensCenters.map(project) as [Point, Point];
+  sketch.setInk(profile.accessory.color);
+  for (const center of centers) {
+    sketch.stroke(
+      closePath(roundedFrameOutline(center, halfWidth, halfHeight, lineWidth * 0.75)),
+      lineWidth,
+      { amplitude: 0.22, taper: 0.04, ghost: true },
+    );
+  }
+  const innerLeft = centers[0][0] + halfWidth;
+  const innerRight = centers[1][0] - halfWidth;
+  const bridgeY = (centers[0][1] + centers[1][1]) * 0.5 - halfHeight * 0.18;
+  sketch.stroke([[innerLeft, bridgeY], [innerRight, bridgeY]], lineWidth, {
+    amplitude: 0.18, taper: 0.04, ghost: true,
+  });
+  const outerY = bridgeY - halfHeight * 0.15;
+  sketch.stroke([
+    [centers[0][0] - halfWidth, outerY], [centerX - headWidth * 0.56, outerY + 8],
+  ], lineWidth * 0.72, { alpha: 0.84, taper: 0.08 });
+  sketch.stroke([
+    [centers[1][0] + halfWidth, outerY], [centerX + headWidth * 0.56, outerY + 8],
+  ], lineWidth * 0.72, { alpha: 0.84, taper: 0.08 });
+  sketch.setInk(null);
 }
 
 function drawMouth(
@@ -518,6 +673,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   const pawEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'hand' as const;
   const footEndpoint = recipe.identity.species === 'cat' ? 'paw' as const : 'foot' as const;
   const tearProfile = createCharacterTearProfile(recipe.identity);
+  const facialHairProfile = createCharacterFacialHairProfile(recipe.identity);
   const tearAnchorOffsetPixels = layout.eyes.radiusPixels
     * (1 + tearProfile.attachmentClearanceInEyeRadii);
 
@@ -612,6 +768,56 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       pivot: [0.5, 0.5], states: ['idle'],
       draw: ({ sketch }) => { drawCatMuzzle(sketch, recipe); },
     })] : []),
+    ...(facialHairProfile === null ? [] : [layer({
+      id: 'facial-hair:beard', bone: 'facial-hair:beard', parentBone: 'head',
+      order: 3.05, depth: 0.735,
+      canvas: FACIAL_HAIR_CANVAS, pixelsPerUnit, position: { x: 0, y: 0 },
+      pivot: [0.5, 0.5], states: ['idle'],
+      draw: ({ sketch }) => {
+        drawFacialHairBeard(
+          sketch,
+          recipe,
+          medium,
+          facialHairProfile,
+          layout.head.widthPixels,
+          layout.head.heightPixels,
+        );
+      },
+    })]),
+    ...(facialHairProfile?.components.map((component, index) => layer({
+      id: `facial-hair:${component.id}`,
+      bone: `facial-hair:${component.id}`,
+      parentBone: 'head', order: 3.15 + index * 0.01, depth: 0.745,
+      canvas: FACIAL_HAIR_CANVAS, pixelsPerUnit, position: { x: 0, y: 0 },
+      pivot: [0.5, 0.5], states: ['idle'],
+      draw: ({ sketch }) => {
+        drawFacialHairComponent(
+          sketch,
+          recipe,
+          medium,
+          component,
+          layout.head.widthPixels,
+          layout.head.heightPixels,
+          FACIAL_HAIR_CANVAS,
+        );
+      },
+    })) ?? []),
+    ...(facialHairProfile === null ? [] : [layer({
+      id: 'facial-hair:opening', bone: 'facial-hair:opening', parentBone: 'head',
+      order: 3.35, depth: 0.755,
+      canvas: FACIAL_HAIR_CANVAS, pixelsPerUnit, position: { x: 0, y: 0 },
+      pivot: [0.5, 0.5], states: ['idle'],
+      draw: ({ sketch }) => {
+        drawFacialHairOpening(
+          sketch,
+          recipe,
+          medium,
+          facialHairProfile.opening,
+          layout.head.widthPixels,
+          layout.head.heightPixels,
+        );
+      },
+    })]),
     ...(recipe.identity.brows.present ? ([-1, 1] as const).map((side) => layer({
       id: `brow:${side < 0 ? 'left' : 'right'}`,
       bone: `brow:${side < 0 ? 'left' : 'right'}`,
@@ -662,6 +868,15 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         state,
       ); },
     }),
+    ...(createCharacterEyewearProfile(recipe.identity) === null ? [] : [layer({
+      id: 'accessory:eyewear', bone: 'accessory:eyewear', parentBone: 'head',
+      order: 4.4, depth: 0.84,
+      canvas: HEAD_CANVAS, pixelsPerUnit, position: { x: 0, y: 0 },
+      pivot: [0.5, 0.5], states: ['idle'],
+      draw: ({ sketch }) => {
+        drawEyewear(sketch, recipe, layout.head.widthPixels, layout.head.heightPixels);
+      },
+    })]),
     ...([-1, 1] as const).flatMap((side) => {
       const sideId = side < 0 ? 'left' : 'right';
       const eye = side < 0 ? layout.eyes.left : layout.eyes.right;

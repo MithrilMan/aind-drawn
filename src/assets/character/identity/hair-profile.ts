@@ -9,6 +9,8 @@ export type CharacterHairTuftCluster = Readonly<{
   height: number;
   radius: number;
   stagger: number;
+  /** Tangential tip displacement in head-height units. */
+  sweep: number;
 }>;
 
 export type CharacterHairProfile = Readonly<{
@@ -139,7 +141,23 @@ export function createCharacterHairProfile(
         kind: 'surface-cluster', radialClearance: 0.035,
         tufts: Object.freeze({
           count: 3, azimuthSpread: 0.76, elevation: 0.76,
-          height: 0.28 + hair.height * 0.18, radius: 0.12, stagger: 0.16,
+          height: 0.28 + hair.height * 0.18, radius: 0.12, stagger: 0.16, sweep: 0,
+        }),
+      }),
+    });
+  }
+  if (hair.style === 'quiff') {
+    return Object.freeze({
+      style: hair.style,
+      outline: smooth([
+        [-0.52, 0.45], [-0.3, 0.92], [0.02, crownY * 1.08],
+        [0.42, crownY * 1.02], [0.72, 0.78], [0.58, 0.48], [0.12, 0.55],
+      ], 2),
+      spatial: Object.freeze({
+        kind: 'surface-cluster', radialClearance: 0.04,
+        tufts: Object.freeze({
+          count: 5, azimuthSpread: 0.68, elevation: 0.8,
+          height: 0.36 + hair.height * 0.24, radius: 0.115, stagger: 0.08, sweep: 0.42,
         }),
       }),
     });
@@ -165,7 +183,7 @@ export function createCharacterHairProfile(
         ridgeWave: Object.freeze({ amplitude: 0.02, count: 9, phase: -0.25 }),
         tufts: Object.freeze({
           count: 9, azimuthSpread: Math.PI * 2, elevation: 0.62,
-          height: 0.3 + hair.height * 0.22, radius: 0.105, stagger: 0.22,
+          height: 0.3 + hair.height * 0.22, radius: 0.105, stagger: 0.22, sweep: 0,
         }),
       }),
   });

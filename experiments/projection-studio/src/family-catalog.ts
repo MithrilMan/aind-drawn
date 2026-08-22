@@ -33,7 +33,10 @@ import {
   type BuildingArchetype,
   type BuildingIdentityOptions,
   type CharacterDentalStyle,
+  type CharacterEarStyle,
   type CharacterEyeStyle,
+  type CharacterEyewearStyle,
+  type CharacterFacialHairStyle,
   type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentityOptions,
@@ -41,6 +44,7 @@ import {
   type CharacterExpression,
   type CharacterMotion,
   type CharacterMouthStyle,
+  type CharacterNoseStyle,
   type CharacterOutfitStyle,
   type CharacterPose,
   type DoorStyle,
@@ -157,11 +161,21 @@ function characterProjection(
   const mouthTeeth = optionalString(customization.mouthTeeth) as CharacterDentalStyle | undefined;
   const mouthTongue = optionalBoolean(customization.mouthTongue);
   const outfitStyle = optionalString(customization.outfitStyle) as CharacterOutfitStyle | undefined;
+  const earStyle = optionalString(customization.earStyle) as CharacterEarStyle | undefined;
+  const noseStyle = optionalString(customization.noseStyle) as CharacterNoseStyle | undefined;
+  const facialHairStyle = optionalString(customization.facialHairStyle) as
+    CharacterFacialHairStyle | undefined;
+  const eyewearStyle = optionalString(customization.eyewearStyle) as
+    CharacterEyewearStyle | undefined;
   const options: CharacterIdentityOptions = {
     species: (optionalString(customization.species) as CharacterIdentitySpecies | undefined) ?? 'human',
     ...(shape === undefined ? {} : { shape }),
     ...(eyeStyle === undefined ? {} : { eyeStyle }),
     ...(hairStyle === undefined ? {} : { hairStyle }),
+    ...(earStyle === undefined ? {} : { earStyle }),
+    ...(noseStyle === undefined ? {} : { noseStyle }),
+    ...(facialHairStyle === undefined ? {} : { facialHairStyle }),
+    ...(eyewearStyle === undefined ? {} : { eyewearStyle }),
     ...(mouthStyle === undefined ? {} : { mouthStyle }),
     ...(mouthTeeth === undefined ? {} : { mouthTeeth }),
     ...(mouthTongue === undefined ? {} : { mouthTongue }),

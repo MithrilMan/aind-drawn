@@ -18,8 +18,39 @@ export type CharacterMouthStyle =
   | 'buckteeth'
   | 'stitch';
 export type CharacterDentalStyle = 'none' | 'row' | 'grit' | 'fangs' | 'buck';
-export type CharacterHairStyle = 'none' | 'cap' | 'bob' | 'fringe' | 'spikes' | 'tuft' | 'crown';
+export type CharacterHairStyle =
+  | 'none'
+  | 'cap'
+  | 'bob'
+  | 'fringe'
+  | 'spikes'
+  | 'tuft'
+  | 'quiff'
+  | 'crown';
 export type CharacterOutfitStyle = 'plain' | 'stripe' | 'star' | 'buttons';
+export type CharacterNoseStyle = 'none' | 'button' | 'drop';
+export type CharacterEarStyle = 'none' | 'round' | 'pointed';
+export type CharacterFacialHairStyle = 'none' | 'full-rounded';
+export type CharacterEyewearStyle = 'none' | 'heavy-square';
+
+export type CharacterEyewearAccessoryRecipe = Readonly<{
+  kind: 'eyewear';
+  style: Exclude<CharacterEyewearStyle, 'none'>;
+  color: RgbColor;
+  lensWidth: number;
+  lensHeight: number;
+  bridgeWidth: number;
+  frameThickness: number;
+  verticalOffset: number;
+  spatial: Readonly<{
+    kind: 'wrap';
+    host: 'head';
+    rearReach: number;
+  }>;
+}>;
+
+/** A representation-neutral, typed extension point for wearable character parts. */
+export type CharacterAccessoryRecipe = CharacterEyewearAccessoryRecipe;
 
 export type CharacterIdentityRecipe = Readonly<{
   version: 1;
@@ -34,6 +65,7 @@ export type CharacterIdentityRecipe = Readonly<{
     ink: RgbColor;
     sclera: RgbColor;
     tear: RgbColor;
+    skinAccent: RgbColor;
   }>;
   head: Readonly<{
     shape: CharacterHeadShape;
@@ -52,7 +84,13 @@ export type CharacterIdentityRecipe = Readonly<{
     glint: boolean;
   }>;
   brows: Readonly<{ present: boolean; lift: number; tilt: number }>;
-  nose: Readonly<{ present: boolean; size: number }>;
+  ears: Readonly<{ style: CharacterEarStyle; size: number }>;
+  nose: Readonly<{
+    present: boolean;
+    style: CharacterNoseStyle;
+    size: number;
+    length: number;
+  }>;
   mouth: Readonly<{
     style: CharacterMouthStyle;
     width: number;
@@ -62,6 +100,13 @@ export type CharacterIdentityRecipe = Readonly<{
     tongue: boolean;
   }>;
   hair: Readonly<{ style: CharacterHairStyle; height: number }>;
+  facialHair: Readonly<{
+    style: CharacterFacialHairStyle;
+    width: number;
+    length: number;
+    bulk: number;
+  }>;
+  accessories: readonly CharacterAccessoryRecipe[];
   body: Readonly<{
     width: number;
     height: number;
@@ -82,6 +127,10 @@ export type CharacterIdentityOptions = Readonly<{
   mouthTeeth?: CharacterDentalStyle;
   mouthTongue?: boolean;
   hairStyle?: CharacterHairStyle;
+  facialHairStyle?: CharacterFacialHairStyle;
+  eyewearStyle?: CharacterEyewearStyle;
+  noseStyle?: CharacterNoseStyle;
+  earStyle?: CharacterEarStyle;
   outfitStyle?: CharacterOutfitStyle;
 }>;
 
@@ -99,6 +148,13 @@ function colorDistance(left: RgbColor, right: RgbColor): number {
 
 function freezeColor(color: RgbColor): RgbColor {
   return Object.freeze([color[0], color[1], color[2]] as const);
+}
+
+function mixColor(left: RgbColor, right: RgbColor, amount: number): RgbColor {
+  const mix = (index: 0 | 1 | 2): number => Math.round(
+    left[index] + (right[index] - left[index]) * amount,
+  );
+  return freezeColor([mix(0), mix(1), mix(2)]);
 }
 
 function pickDistinctColor(
@@ -246,6 +302,9 @@ export function createCharacterIdentity(
   const outfitRandom = tree.random('character:outfit');
   const tailRandom = tree.random('character:tail');
   const detailsRandom = tree.random('character:face-details');
+  const earRandom = tree.random('character:ears');
+  const facialHairRandom = tree.random('character:facial-hair');
+  const eyewearRandom = tree.random('character:accessory:eyewear');
   const generatedEyeStyle = eyesRandom.weighted(casting.eyes);
   const eyeStyle = options.eyeStyle ?? generatedEyeStyle;
   const isCreature = species === 'nightmare' || species === 'creature';
@@ -259,15 +318,37 @@ export function createCharacterIdentity(
   const alternateStyle = options.alternateEyeStyle !== undefined
     ? options.alternateEyeStyle
     : generatedAlternateStyle;
+  // Preserve the established face-detail draw order. New traits use their own
+  // namespaces so adding accessories cannot silently recast existing brows.
+  const browsPresent = (species === 'human' || species === 'creature')
+    && detailsRandom.chance(0.42);
+  const browsLift = detailsRandom.float(0.2, 0.3);
+  const browsTilt = detailsRandom.float(-0.18, 0.18);
   const generatedHairStyle = species === 'cat' || species === 'robot'
     ? 'none'
     : hairRandom.weighted<CharacterHairStyle>([
       { value: 'none', weight: 2 }, { value: 'cap', weight: 3 },
       { value: 'bob', weight: 2 }, { value: 'fringe', weight: 2 },
       { value: 'spikes', weight: 2 }, { value: 'tuft', weight: 1 },
+      { value: 'quiff', weight: species === 'human' ? 1 : 0 },
       { value: 'crown', weight: species === 'creature' ? 1 : 0 },
     ]);
   const hairStyle = options.hairStyle ?? generatedHairStyle;
+  const generatedNoseStyle: CharacterNoseStyle = detailsRandom.chance(
+    species === 'human' ? 0.44 : 0.22,
+  ) ? 'button' : 'none';
+  const noseStyle = options.noseStyle ?? generatedNoseStyle;
+  const generatedEarStyle: CharacterEarStyle = species === 'cat'
+    || species === 'nightmare' || species === 'creature'
+    ? 'pointed'
+    : species === 'human' && earRandom.chance(0.32) ? 'round' : 'none';
+  const earStyle = options.earStyle ?? generatedEarStyle;
+  const generatedFacialHairStyle: CharacterFacialHairStyle = species === 'human'
+    && facialHairRandom.chance(0.16) ? 'full-rounded' : 'none';
+  const facialHairStyle = options.facialHairStyle ?? generatedFacialHairStyle;
+  const generatedEyewearStyle: CharacterEyewearStyle = species === 'human'
+    && eyewearRandom.chance(0.16) ? 'heavy-square' : 'none';
+  const eyewearStyle = options.eyewearStyle ?? generatedEyewearStyle;
   const generatedOutfitStyle = species === 'cat'
     ? 'plain'
     : outfitRandom.weighted<CharacterOutfitStyle>([
@@ -295,6 +376,7 @@ export function createCharacterIdentity(
       ink: freezeColor([31, 29, 28]),
       sclera: freezeColor([241, 235, 215]),
       tear: freezeColor([91, 148, 176]),
+      skinAccent: mixColor(skin, [211, 91, 91], 0.34),
     }),
     head: Object.freeze({
       shape: headShape,
@@ -313,13 +395,20 @@ export function createCharacterIdentity(
       glint: eyesRandom.chance(0.82),
     }),
     brows: Object.freeze({
-      present: (species === 'human' || species === 'creature') && detailsRandom.chance(0.42),
-      lift: detailsRandom.float(0.2, 0.3),
-      tilt: detailsRandom.float(-0.18, 0.18),
+      present: browsPresent,
+      lift: browsLift,
+      tilt: browsTilt,
     }),
+    ears: Object.freeze({ style: earStyle, size: earRandom.float(0.82, 1.18) }),
     nose: Object.freeze({
-      present: detailsRandom.chance(species === 'human' ? 0.44 : 0.22),
-      size: detailsRandom.float(0.08, 0.13),
+      present: noseStyle !== 'none',
+      style: noseStyle,
+      size: noseStyle === 'drop'
+        ? detailsRandom.float(0.15, 0.2)
+        : detailsRandom.float(0.08, 0.13),
+      length: noseStyle === 'drop'
+        ? detailsRandom.float(0.3, 0.4)
+        : detailsRandom.float(0.07, 0.12),
     }),
     mouth: Object.freeze({
       style: mouthStyle,
@@ -330,6 +419,27 @@ export function createCharacterIdentity(
       tongue: options.mouthTongue ?? generatedTongue,
     }),
     hair: Object.freeze({ style: hairStyle, height: hairRandom.float(0.2, 0.48) }),
+    facialHair: Object.freeze({
+      style: facialHairStyle,
+      width: facialHairRandom.float(0.9, 1.08),
+      length: facialHairRandom.float(0.9, 1.14),
+      bulk: facialHairRandom.float(0.88, 1.12),
+    }),
+    accessories: Object.freeze(eyewearStyle === 'none' ? [] : [Object.freeze({
+      kind: 'eyewear' as const,
+      style: eyewearStyle,
+      color: freezeColor(accent),
+      lensWidth: eyewearRandom.float(0.36, 0.41),
+      lensHeight: eyewearRandom.float(0.28, 0.34),
+      bridgeWidth: eyewearRandom.float(0.1, 0.16),
+      frameThickness: eyewearRandom.float(0.035, 0.052),
+      verticalOffset: eyewearRandom.float(-0.025, 0.025),
+      spatial: Object.freeze({
+        kind: 'wrap' as const,
+        host: 'head' as const,
+        rearReach: eyewearRandom.float(0.72, 0.9),
+      }),
+    })]),
     body: Object.freeze({
       width: species === 'cat' ? bodyRandom.float(0.54, 0.72) : bodyRandom.float(0.42, 0.63),
       height: species === 'cat' ? bodyRandom.float(0.38, 0.54) : bodyRandom.float(0.5, 0.72),

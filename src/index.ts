@@ -16,10 +16,12 @@ export * from './assets/building/solid/layout.js';
 export * from './assets/building/solid/recipe.js';
 
 // Character family
+export * from './assets/character/identity/accessory-profile.js';
 export * from './assets/character/identity/authoring.js';
 export * from './assets/character/identity/drawing-style.js';
 export * from './assets/character/identity/expression-profile.js';
 export * from './assets/character/identity/eye-profile.js';
+export * from './assets/character/identity/facial-hair-profile.js';
 export * from './assets/character/identity/hair-profile.js';
 export * from './assets/character/identity/head-shape.js';
 export * from './assets/character/identity/mouth-profile.js';

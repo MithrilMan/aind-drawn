@@ -55,7 +55,10 @@ export function createHairTuftGeometry(
       minimumRadius * (radialClearance + shellThickness * 0.72),
     ));
     const heightScale = 1 - (tuftIndex % 3) * tufts.stagger;
-    const tip = add3(base, scale3(surface.normal, radiusY * tufts.height * heightScale));
+    const tip = add3(
+      add3(base, scale3(surface.normal, radiusY * tufts.height * heightScale)),
+      scale3(frame.right, radiusY * tufts.sweep * heightScale),
+    );
     const radius = minimumRadius * tufts.radius * (tuftIndex % 2 === 0 ? 1 : 0.86);
     const baseIndex = vertices.length;
     for (let ringIndex = 0; ringIndex < ringSegments; ringIndex += 1) {

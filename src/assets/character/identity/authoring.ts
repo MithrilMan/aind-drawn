@@ -55,8 +55,23 @@ export const CHARACTER_AUTHORING_SCHEMA: AssetFamilyAuthoringSchema =
       ], ['eye:left', 'eye:right'], 'Eye construction stays synchronized across expressions.'),
       choice('hairStyle', 'Hair', null, [
         generated, ['none', 'None'], ['cap', 'Cap'], ['bob', 'Bob'],
-        ['fringe', 'Fringe'], ['spikes', 'Spikes'], ['tuft', 'Tuft'], ['crown', 'Crown'],
+        ['fringe', 'Fringe'], ['spikes', 'Spikes'], ['tuft', 'Tuft'],
+        ['quiff', 'Quiff'], ['crown', 'Crown'],
       ], ['hair'], 'Hair is authored as topology, not pasted onto the front of the head.'),
+      choice('earStyle', 'Ears', null, [
+        generated, ['none', 'None'], ['round', 'Round'], ['pointed', 'Pointed'],
+      ], ['ears'], 'Ears remain anatomy even when their silhouette is exaggerated.'),
+      choice('noseStyle', 'Nose', null, [
+        generated, ['none', 'None'], ['button', 'Button'], ['drop', 'Drop'],
+      ], ['nose'], 'Nose style controls both silhouette and real solid volume.'),
+      choice('facialHairStyle', 'Facial hair', null, [
+        generated, ['none', 'None'], ['full-rounded', 'Full rounded beard'],
+      ], [
+        'facial-hair:beard', 'facial-hair:opening',
+      ], 'Facial hair is a multipart volume with a clear mouth opening.'),
+      choice('eyewearStyle', 'Eyewear', null, [
+        generated, ['none', 'None'], ['heavy-square', 'Heavy square glasses'],
+      ], ['accessory:eyewear'], 'Eyewear is the first typed accessory and wraps around the head in 3D.'),
       choice('mouthStyle', 'Mouth', null, [
         generated, ['tiny', 'Tiny'], ['smile', 'Smile'], ['frown', 'Frown'],
         ['zigzag', 'Zigzag'], ['open', 'Open'], ['flat', 'Flat'], ['cat', 'Cat'],

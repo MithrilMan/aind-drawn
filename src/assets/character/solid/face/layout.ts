@@ -14,6 +14,8 @@ import {
   characterMouthCenterY,
 } from '../../identity/head-shape.js';
 import { createCharacterHairProfile } from '../../identity/hair-profile.js';
+import { createCharacterFacialHairProfile } from '../../identity/facial-hair-profile.js';
+import { createCharacterEyewearProfile } from '../../identity/accessory-profile.js';
 import type { SolidFaceRecipe } from './recipe.js';
 import type { SolidCharacterRecipe } from '../recipe.js';
 
@@ -89,6 +91,8 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
   const leftBrow = at(-eyeSpacing, browY, 0, -identity.brows.tilt);
   const rightBrow = at(eyeSpacing, browY, 0, identity.brows.tilt);
   const hairProfile = createCharacterHairProfile(identity);
+  const facialHairProfile = createCharacterFacialHairProfile(identity);
+  const eyewearProfile = createCharacterEyewearProfile(identity);
   const hairX = hairProfile?.outline.map(([x]) => x * radii[0]) ?? [];
   const hairY = hairProfile?.outline.map(([, y]) => y * radii[1]) ?? [];
   const hairExpansion = hairProfile === null
@@ -106,15 +110,47 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
         )
         : Math.min(radii[0], radii[2]) * hairProfile.spatial.radialClearance
           + radii[1] * hairProfile.spatial.peakHeight;
+  const facialHairOutlines = facialHairProfile === null
+    ? []
+    : [facialHairProfile.beard.outline, ...facialHairProfile.components.map(({ outline }) => outline)];
+  const facialHairX = facialHairOutlines.flatMap((outline) => (
+    outline.map(([x]) => x * radii[0])
+  ));
+  const facialHairY = facialHairOutlines.flatMap((outline) => (
+    outline.map(([, y]) => y * radii[1])
+  ));
+  const facialHairDepth = facialHairProfile === null
+    ? 0
+    : radii[2] * Math.max(
+      facialHairProfile.beard.spatial.depth,
+      ...facialHairProfile.components.map(({ spatial }) => spatial.radii[2] * 1.2),
+    );
+  const earExtentX = identity.ears.style === 'none'
+    ? 0
+    : radii[0] * (identity.ears.style === 'round'
+      ? 0.96 + 0.23 * identity.ears.size
+      : 0.86);
+  const eyewearExtentX = eyewearProfile === null
+    ? 0
+    : radii[0] * Math.max(
+      1.04,
+      identity.eyes.spacing + eyewearProfile.lensHalfSize[0],
+    );
+  const eyewearMinimumZ = eyewearProfile === null
+    ? surfaceBounds.minimum[2]
+    : -radii[2] * eyewearProfile.spatial.rearReach;
+  const eyewearMaximumZ = eyewearProfile === null
+    ? surfaceBounds.maximum[2]
+    : surfaceBounds.maximum[2] + eyeRadius * 1.35;
   const localMinimum: Point3 = [
-    Math.min(surfaceBounds.minimum[0] - hairExpansion, ...hairX),
-    Math.min(surfaceBounds.minimum[1] - hairExpansion, ...hairY),
-    surfaceBounds.minimum[2] - hairExpansion,
+    Math.min(surfaceBounds.minimum[0] - hairExpansion, ...hairX, ...facialHairX, -earExtentX, -eyewearExtentX),
+    Math.min(surfaceBounds.minimum[1] - hairExpansion, ...hairY, ...facialHairY),
+    Math.min(surfaceBounds.minimum[2] - hairExpansion, eyewearMinimumZ),
   ];
   const localMaximum: Point3 = [
-    Math.max(surfaceBounds.maximum[0] + hairExpansion, ...hairX),
-    Math.max(surfaceBounds.maximum[1] + hairExpansion, ...hairY),
-    surfaceBounds.maximum[2] + hairExpansion,
+    Math.max(surfaceBounds.maximum[0] + hairExpansion, ...hairX, ...facialHairX, earExtentX, eyewearExtentX),
+    Math.max(surfaceBounds.maximum[1] + hairExpansion, ...hairY, ...facialHairY),
+    Math.max(surfaceBounds.maximum[2] + hairExpansion + facialHairDepth, eyewearMaximumZ),
   ];
   return Object.freeze({
     shape,

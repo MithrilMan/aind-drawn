@@ -13,9 +13,11 @@ export type CharacterEyeProfile = Readonly<{
   strokes: readonly Readonly<{ id: string; points: readonly Point[]; width: number }>[];
 }>;
 
-/** Representation-neutral eye radius in character world units. */
+const CHARACTER_REFERENCE_UNITS = 106;
+
+/** Representation-neutral eye radius in the same world units as the head. */
 export function characterEyeRadius(identity: CharacterIdentityRecipe): number {
-  return Math.min(21 / 96, 0.125 + identity.eyes.size * 0.0625);
+  return Math.min(21, 12 + identity.eyes.size * 6) / CHARACTER_REFERENCE_UNITS;
 }
 
 /**

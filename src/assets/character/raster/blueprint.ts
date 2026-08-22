@@ -188,7 +188,7 @@ function drawEye(
 ): void {
   const centerX = EYE_CANVAS.width / 2;
   const centerY = EYE_CANVAS.height / 2;
-  const radius = characterEyeRadius(recipe.identity) * 96;
+  const radius = characterEyeRadius(recipe.identity) * CHARACTER_IDENTITY_PIXEL_SCALE;
   const profile = createCharacterEyeProfile(recipe.identity, style);
   if (state === 'closed') {
     sketch.stroke(chaikin([

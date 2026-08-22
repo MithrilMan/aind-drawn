@@ -76,7 +76,7 @@ export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
 
   const eyeY = headCenterPixels + headHeight * 0.5 * characterEyeCenterY(identity);
   const eyeX = headWidth * 0.5 * identity.eyes.spacing;
-  const eyeRadius = characterEyeRadius(identity) * PIXELS_PER_UNIT;
+  const eyeRadius = characterEyeRadius(identity) * CHARACTER_IDENTITY_PIXEL_SCALE;
   const mouthY = headCenterPixels + headHeight * 0.5 * characterMouthCenterY(identity);
   const handY = (shoulderYPixels - armLength * 0.78) / PIXELS_PER_UNIT;
 

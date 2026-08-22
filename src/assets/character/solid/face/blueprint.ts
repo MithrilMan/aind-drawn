@@ -216,7 +216,7 @@ function addEyeParts(
     const glintRadius = radius * profile.glintRadius;
     const glintAnchor = moveOnSurface(ownerAnchor, [
       radius * profile.glintOffset[0], radius * profile.glintOffset[1],
-    ], ownerFront + radius * 0.012);
+    ], ownerFront + radius * 0.07);
     add({
       id: `eye:${sideId}:glint`, node: 'head', order: 22,
       geometry: plate(
@@ -233,9 +233,9 @@ function addEyeParts(
       id: `eye:${sideId}:pupil`, node: 'head', order: 21,
       geometry: plate(
         ellipse(radius * profile.pupilWidth, radius * profile.pupilRadius),
-        radius * 0.38, radius * 0.12,
+        radius * 0.2, radius * 0.06,
       ),
-      materialId: 'ink', placement: placement(pupilAnchor, radius * 0.1),
+      materialId: 'ink', placement: placement(pupilAnchor, radius * 0.04),
       capabilities: eyeCapabilities(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
     });
     for (const stroke of profile.strokes) {
@@ -250,7 +250,7 @@ function addEyeParts(
         capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
       });
     }
-    addGlint(pupilAnchor, radius * 0.1);
+    addGlint(pupilAnchor, radius * 0.04);
     return;
   }
 
@@ -283,18 +283,18 @@ function addEyeParts(
       radii: [
         radius * profile.fieldScale[0],
         radius * profile.fieldScale[1],
-        radius * 0.34,
+        radius * 0.22,
       ] as const,
       exponent: 2.2,
       widthSegments: 28,
       heightSegments: 20,
     }),
-    materialId: 'sclera', placement: placement(anchor, radius * 0.18),
+    materialId: 'sclera', placement: placement(anchor, radius * 0.08),
     capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
   });
   const pupilRadius = radius * profile.pupilRadius;
   const pupilAnchor = moveOnSurface(anchor, [0, radius * profile.pupilOffsetY], 0);
-  const pupilFront = radius * 0.54;
+  const pupilFront = radius * 0.32;
   add({
     id: `eye:${sideId}:pupil`, node: 'head', order: 21,
     geometry: plate(

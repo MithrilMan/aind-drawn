@@ -14,8 +14,6 @@ import {
   createBuildingIdentity,
   createCharacterRecipe,
   createRasterCharacterBlueprint,
-  createPropBlueprint,
-  createPropRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
   createCharacterIdentity,
@@ -30,7 +28,7 @@ import {
   type AssetBlueprint,
   type CanvasFactory,
 } from '../src/index.js';
-import { inkedSolidSurfaceFlow } from '../src/runtime/inked-solid-surface-flow.js';
+import { inkedSolidSurfaceFlow } from '../src/projections/inked-solid/runtime/surface-flow.js';
 
 const inertCanvasFactory: CanvasFactory = (width, height) => ({
   canvas: { width, height } as HTMLCanvasElement,
@@ -190,7 +188,7 @@ describe('sprite rig runtime', () => {
     rig.dispose();
   });
 
-  it('anchors limbs at the top edge while ground props use their bottom edge', () => {
+  it('anchors limbs at the top edge and preserves tear attachment semantics', () => {
     const identity = createCharacterIdentity(4107);
     const blueprint = createCharacterBlueprint(createCharacterRecipe(4107));
     for (const id of ['arm:left', 'arm:right', 'leg:left', 'leg:right']) {
@@ -199,8 +197,7 @@ describe('sprite rig runtime', () => {
     const torsoOrder = blueprint.layers.find((layer) => layer.id === 'torso')?.order;
     expect(blueprint.layers.find((layer) => layer.id === 'arm:left')?.order).toBeGreaterThan(torsoOrder ?? 0);
     expect(blueprint.layers.find((layer) => layer.id === 'arm:right')?.order).toBeGreaterThan(torsoOrder ?? 0);
-    const prop = createPropBlueprint(createPropRecipe(4107, { prop: 'lantern' }));
-    expect(prop.layers[0]?.pivot).toEqual([0.5, 0]);
+
     expect(blueprint.layers.find(({ id }) => id === 'tear:left:stream')?.states)
       .toEqual(['idle', 'crying']);
     expect(blueprint.layers.find(({ id }) => id === 'tear:right:drop')?.parentBone)

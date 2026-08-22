@@ -14,6 +14,17 @@ Drawing code consumes a complete recipe. It must not make new semantic random
 choices while rasterizing; otherwise boil frames can change the identity of the
 asset rather than only the character of its line.
 
+## Family-first source layout
+
+Multi-representation families own one vertical slice under
+`src/assets/<family>/`: `identity/`, `raster/`, `solid/`, and, when transient
+family-specific behavior exists, `runtime/`. Focused solid components remain
+inside their owning representation, such as `character/solid/face/`.
+
+Shared blueprint contracts live under `src/contracts/`. Cross-family
+representation policy lives under `src/projections/`. Generic Three.js
+rigs remain under `src/runtime/`; a family animator belongs beside its family.
+
 ## Choose the smallest honest model
 
 First choose the representation: use raster layers for hand-drawn planes and
@@ -39,18 +50,6 @@ leaves the surface. Every stroke names its owner part. Do not store Three.js
 curves or world coordinates in the blueprint; `InkedSolidStrokeRig` resolves
 and parents the runtime geometry.
 
-Use the static prop registry when all of these are true:
-
-- the object has one visual layer;
-- its parts never move independently;
-- it has no visual state transition;
-- its gameplay contract needs only fixed colliders and sockets.
-
-The registry lives in `src/assets/prop/definition.ts`. A prop definition owns its
-base size, draw callback, collider builder, and socket builder. Adding a crate,
-lamp, rock, or bottle should normally require one definition plus catalog and
-test updates.
-
 Create a dedicated asset family when any of these are true:
 
 - parts need distinct pivots or draw order;
@@ -59,22 +58,18 @@ Create a dedicated asset family when any of these are true:
 - consumers need meaningful anchors for its parts;
 - collision changes by state.
 
-A car is therefore a `vehicle`, not an oversized prop. Its body, wheels, and
+A car is therefore a `vehicle`, not one static silhouette. Its body, wheels, and
 doors are independent parts; it needs wheel, seat, and entry sockets; a door has
 open and closed states; motion rotates wheels. Forcing that model into a single
 draw callback would save a folder and spend the rest of the project paying for it.
 
-Plants are the static multipart reference. `src/assets/plant` keeps mound, stem,
-leaves, and bloom in separate semantic layers even though they do not animate.
-The parts share root and crown anchors through one layout, while tree collision
-comes from the same stem geometry used by the drawing.
-
-`src/assets/character-identity` is the multi-representation reference. A single
+`src/assets/character` is the multi-representation reference. A single
 `CharacterIdentityRecipe` owns species, proportions, palette, facial features,
-hair, outfit, and body semantics. `src/assets/character` adds raster-medium
-policy, while `src/assets/solid-character` adds solid finish, depth, body
-topology, articulated nodes, colliders, and sockets. `src/assets/solid-face`
-is the focused face projection reused by the complete character. The face
+hair, outfit, and body semantics under `character/identity`. `character/raster`
+adds raster-medium policy, while `character/solid` adds solid finish, depth,
+body topology, articulated nodes, colliders, and sockets.
+`character/solid/face` is the focused face projection reused by the complete
+character. The face
 layout places shared facial intent on an analytic surface and both blueprints
 emit serialisable geometry and explicit drawing applications. Three.js objects exist only
 after `SolidRig` consumes a blueprint.
@@ -94,8 +89,9 @@ rotations, but must preserve the same eye openness and brow reading. Keep the
 brow clear of the pupil; use eye openness or an authored eyelid when an
 expression needs to cover the upper eye.
 
-`src/assets/building-identity` is the non-character multi-representation
-reference. Its archetypes are cottage, townhouse, apartment, and high-rise;
+`src/assets/building` is the non-character multi-representation reference.
+Its `identity`, `raster`, and `solid` folders share archetypes such as cottage,
+townhouse, apartment, and high-rise;
 the term is deliberately not `species`. Raster and solid building recipes
 reference the same identity. Balconies, roof volume, door hinge, colliders, and
 entry sockets therefore remain structurally aligned across projections.
@@ -204,7 +200,7 @@ identity data.
   to smooth solid rendering; they are not drawing media and must not leak into
   doodle policy.
 - Add a new drawing medium once in `src/materials/medium.ts`, implement one
-  provider under `src/assets/inked-solid/projection-providers/`, and register it
+  provider under `src/projections/inked-solid/projection-providers/`, and register it
   in `medium-projection.ts`; add a new generic
   shader field in `InkedSolidPass` only when its paper-space statistics cannot reuse
   an existing one. Do not add asset-family-specific medium presets.
@@ -235,9 +231,19 @@ identity data.
   A solid surface coordinate is a projection of that semantic mark, not its
   source of truth.
 
+Building elevations use one identity-derived local-space facade construction.
+Roof, wall, window, balcony, chimney, and door profiles are not independently
+redrawn by raster and solid adapters. Raster maps the profiles to canvas space
+and applies medium wobble; solid extrudes or places the same profiles. Doodle
+strokes may add authored details such as a window mullion, but never adapter-only
+floor seams, random facade scratches, or duplicate roof and door outlines.
+
 The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
-`door` node. Both use `door:sensor`, `door:entry`, and the same portal intent.
+`door` node. Both use the identity-authored hinge side and opening angle,
+`door:sensor`, `door:entry`, and the same portal intent. An open leaf must reveal
+an authored aperture or recess; rotating a plate in front of an intact wall is
+not an opening.
 
 Family-specific animation metadata is published as namespaced capabilities.
 The generic layer and solid-part contracts do not contain a growing union of
@@ -247,11 +253,17 @@ generic rigs remain unaware of the payload.
 
 The vehicle family is the articulated machinery reference. One
 `VehicleIdentityRecipe` owns body archetype, proportions, cabin, wheelbase,
-tyres, doors, details, palette, and useful sockets. Raster wheels and solid
+tyres, door sides, hinge intent, window-frame mode, opening angle, details,
+palette, and useful sockets. Vehicle-local axes point the front along `+X` and
+up along `+Y`, with the right side along `+Z`; adapters derive every side sign
+from that right-handed convention.
+Raster wheels and solid
 torus tyres publish family-owned rolling capabilities consumed by
 `VehicleAnimator`; rotation is
 derived from cumulative signed travel, so frames cannot accumulate drift.
-Doors, bonnet, and cargo remain declarative rig interactions. Projection Studio
+The door panel, its glass, frame, handle, and drawing marks share the hinged
+node, while the chassis owns the revealed aperture. Doors, bonnet, and cargo
+remain declarative rig interactions. Projection Studio
 registers these controls through family metadata and does not branch on the
 `vehicle` family ID.
 

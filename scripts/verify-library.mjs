@@ -18,8 +18,6 @@ const requiredExports = [
   'createCharacterIdentity',
   'createCharacterRecipe',
   'createRasterCharacterBlueprint',
-  'createPropBlueprint',
-  'createPropRecipe',
   'createBuildingIdentity',
   'createRasterBuildingBlueprint',
   'createRasterBuildingRecipe',
@@ -31,8 +29,6 @@ const requiredExports = [
   'createSolidVehicleBlueprint',
   'createSolidVehicleInkStrokes',
   'VehicleAnimator',
-  'createPlatformBlueprint',
-  'createPlatformRecipe',
   'createSolidFaceBlueprint',
   'createSolidFaceRecipe',
   'createSolidCharacterBlueprint',
@@ -41,7 +37,6 @@ const requiredExports = [
   'inkedSolidMediumDefaults',
   'createSolidCharacterInkStrokes',
   'createSolidBuildingInkStrokes',
-  'propDefinition',
 ];
 
 for (const exportName of requiredExports) {
@@ -98,9 +93,5 @@ assert.ok(
   solidVehicle.parts.some(({ id }) => id === 'wheel:front:left:tyre'),
   'Compiled solid vehicle is missing its front tyre volume',
 );
-
-const crateDefinition = library.propDefinition('crate');
-assert.equal(crateDefinition.kind, 'crate');
-assert.ok(crateDefinition.baseSize.width > 0 && crateDefinition.baseSize.height > 0);
 
 console.log(`Compiled library verified: ${Object.keys(library).length} public exports`);

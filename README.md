@@ -91,7 +91,7 @@ without breaking the architectural boundaries.
 
 The skill covers:
 
-- deciding between a static prop and a dedicated multipart family;
+- deciding when an asset deserves a dedicated semantic family;
 - deterministic identity, recipes, layout, and blueprints;
 - raster, smooth-solid, and Doodle 3D projections;
 - semantic parts, surface topology, pivots, sockets, and colliders;

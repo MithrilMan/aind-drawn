@@ -2,9 +2,9 @@
 
 Read this reference when adding a real-volume representation or projecting it
 as a hand-drawn 3D view. Also read `docs/3d-stroke-rendering.md`,
-`src/assets/solid-types.ts`, `src/assets/inked-solid/blueprint.ts`,
-`src/runtime/solid-rig.ts`, `src/runtime/inked-solid-pass.ts`, and
-`src/runtime/inked-solid-stroke-rig.ts`.
+`src/contracts/solid-asset.ts`, `src/projections/inked-solid/blueprint.ts`,
+`src/runtime/solid-rig.ts`, `src/projections/inked-solid/runtime/pass.ts`, and
+`src/projections/inked-solid/runtime/stroke-rig.ts`.
 
 ## Preserve the representation boundary
 
@@ -135,7 +135,7 @@ parts but do not participate in line boil.
 ## Author a family's inked representation
 
 1. Complete and test the solid identity, layout, and blueprint.
-2. Add `src/assets/solid-<family>/ink-strokes.ts` only when semantic spatial
+2. Add `src/assets/<family>/solid/ink-strokes.ts` only when semantic spatial
    marks are needed.
 3. Locate owners by stable part ID and verify compatible geometry before
    creating a path.

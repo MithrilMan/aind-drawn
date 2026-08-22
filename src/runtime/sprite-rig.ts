@@ -5,7 +5,7 @@ import type {
   InteractionDefinition,
   LayerDefinition,
   Vector2,
-} from '../assets/types.js';
+} from '../contracts/raster-asset.js';
 import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
 import { automaticCanvasFactory } from '../core/canvas.js';
 import { combineSeed, hashString } from '../core/random.js';

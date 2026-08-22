@@ -1,13 +1,33 @@
 # Architecture
 
-## Dependency direction
+## Source ownership and dependency direction
 
 ```text
-core <- materials <- assets <- runtime <- experiments
+src/assets/
+|-- building/{identity,raster,solid}
+|-- character/{identity,raster,solid,runtime}
+`-- vehicle/{identity,raster,solid,runtime}
+
+src/contracts/                      shared raster, solid, and capability contracts
+src/projections/inked-solid/        representation blueprint, policy, and runtime
+src/runtime/                        family-agnostic renderer infrastructure
 ```
 
+The repository is organized by semantic family first. Representation and
+runtime folders are nested below the family that owns their vocabulary; shared
+contracts and cross-family projections have explicit roots instead of posing as
+asset families.
+
+The physical vertical slices do not relax dependency direction:
+
+- identity depends only on core, materials, and authoring contracts;
+- raster and solid adapters depend on their identity and shared asset contracts;
+- family runtimes depend on their family plus the generic rigs in `src/runtime`;
+- generic runtimes depend on core, materials, and asset contracts, never on a family;
+- experiments depend only on the public barrel exported by `src/index.ts`.
+
 `core`, `materials`, asset recipes, layouts, and blueprints do not import
-Three.js. Runtime adapters consume immutable asset blueprints and own GPU
+Three.js. Only runtime adapters consume immutable asset blueprints and own GPU
 resources.
 Experiments may depend only on the public barrel exported by `src/index.ts`.
 
@@ -196,9 +216,13 @@ identity, bounds, sockets, colliders, or serialized mesh topology.
 
 Buildings use the same boundary without character concepts. A shared building
 identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,
-chimney, and palette. The raster adapter emits semantic drawing layers; the
+chimney, and palette. Its identity-adjacent facade geometry owns normalized wall,
+roof, window, balcony, chimney, and door profiles. Raster and solid adapters
+consume those exact profiles and differ only in projection and medium policy.
+Door identity includes hinge side and opening angle so raster and solid
+projections cannot silently choose opposite pivots. The raster adapter emits semantic drawing layers; the
 solid adapter emits facade volume, roof geometry, windows, spatial balconies,
-an articulated door node, matching colliders, and the same entry socket.
+an articulated door node, a recessed opening, matching colliders, and the same entry socket.
 
 `createInkedSolidBlueprint` wraps any `SolidAssetBlueprint` by reference and
 adds immutable drawing policy only. It requires the same `MediumId` used by

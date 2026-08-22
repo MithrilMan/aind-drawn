@@ -5,7 +5,7 @@ import type {
   SolidInteractionDefinition,
   SolidNodeDefinition,
   SolidNodeState,
-} from '../assets/solid-types.js';
+} from '../contracts/solid-asset.js';
 import { surfaceFrame } from '../core/geometry3.js';
 import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
 import {

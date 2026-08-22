@@ -34,30 +34,28 @@ Before editing, read:
 - `docs/architecture.md`
 - `docs/asset-authoring.md`
 - the existing family closest to the requested asset
-- `src/assets/types.ts`
+- `src/contracts/raster-asset.ts`
 
-For a real-volume asset, also read `src/assets/solid-types.ts`,
-`src/core/geometry3.ts`, and the `src/assets/solid-character/` reference family.
-Read `src/assets/solid-face/` as the reusable surface-mounted feature component.
-Read `src/assets/building-identity/` and `src/assets/solid-building/` when the
+For a real-volume asset, also read `src/contracts/solid-asset.ts`,
+`src/core/geometry3.ts`, and the `src/assets/character/solid/` reference family.
+Read `src/assets/character/solid/face/` as the reusable surface-mounted feature component.
+Read `src/assets/building/identity/` and `src/assets/building/solid/` when the
 asset is architectural, modular, or needs a non-character multi-representation
 reference.
 
 For three-dimensional hand-drawn rendering, also read
-`docs/3d-stroke-rendering.md`, `src/assets/inked-solid/blueprint.ts`,
-`src/runtime/inked-solid-pass.ts`, and `src/runtime/inked-solid-stroke-rig.ts`.
+`docs/3d-stroke-rendering.md`, `src/projections/inked-solid/blueprint.ts`,
+`src/projections/inked-solid/runtime/pass.ts`, and `src/projections/inked-solid/runtime/stroke-rig.ts`.
 Ink policy wraps a completed solid blueprint;
 it is not a replacement solid family.
 
 For a character representation, also read
-`src/assets/character-identity/recipe.ts`. Character adapters must consume that
+`src/assets/character/identity/recipe.ts`. Character adapters must consume that
 shared identity instead of generating a second set of semantic choices.
 
 For a vehicle or another multipart prop-like object, also read
 `references/vehicle-family.md` in this skill.
 
-Use `src/assets/plant/` as the reference for a deterministic multipart family
-whose semantic layers share layout anchors without requiring animation.
 
 ## Classify the asset
 
@@ -66,8 +64,10 @@ appropriate for hand-drawn planes; `SolidAssetBlueprint` is appropriate for
 real volume. Do not choose based on whether the consumer happens to use
 Three.js: both representations can coexist in a 2.5D or 3D scene.
 
-Use `src/assets/prop/definition.ts` only when the asset is a single static
-silhouette with fixed geometry and no independently moving or stateful parts.
+Do not create a catch-all prop registry or a placeholder family without an
+active consumer. A supported static silhouette may begin as a focused
+raster-only family; add representation and runtime folders only when its domain
+requires them.
 
 Create `src/assets/<family>/` when the asset has multiple semantic parts,
 animation, interaction states, family-specific layout, or state-dependent
@@ -79,7 +79,7 @@ State the classification and the concrete reason before implementation.
 ## Model identity before representation
 
 When an asset family has or plausibly needs more than one representation,
-create `src/assets/<family>-identity/` before authoring adapters. Identity owns
+create `src/assets/<family>/identity/` before authoring adapters. Identity owns
 all deterministic semantic and spatial choices that must survive projection:
 archetype, proportions, part inventory, palette roles, topology, attachment,
 interaction intent, and normalized feature placement.
@@ -128,15 +128,6 @@ may collapse it to a 2D outline, but solid adapters must not reconstruct it from
 that outline. Use stable surface coordinates, sockets, or normalized host radii
 instead of adapter-local world-space guesses.
 
-## Add a static prop
-
-1. Add the literal to `PropKind` in `src/assets/prop/definition.ts`.
-2. Implement one focused draw function using `Sketch` and the selected `Medium`.
-3. Add one `PropDefinition` entry with base size, draw callback, colliders, and sockets.
-4. Keep semantic random choices in `createPropRecipe`; the draw callback only renders recipe data.
-5. Export no new internal draw helpers.
-6. Register the public kind in the active experiment catalog when a consumer needs it.
-7. Add recipe determinism and blueprint geometry tests.
 
 ## Add a dedicated family
 
@@ -148,7 +139,9 @@ Create one concept per file where the family needs it:
 - `blueprint.ts`: stable named layers, joints, pivots, states, draw callbacks, colliders, sockets, and interactions.
 - `authoring.ts`: public semantic parameter metadata, defaults, choices, and
   focused raster preview layer IDs when a generic editor must customize the family.
-- an animator under `src/runtime/` only for transient motion that is not authored recipe data.
+- a family-specific animator under `src/assets/<family>/runtime/` only for
+  transient motion that is not authored recipe data. Keep family-agnostic rigs
+  and renderer infrastructure under `src/runtime/`.
 
 Family-only metadata travels through namespaced `AssetCapability` entries.
 Define the capability ID, payload type, constructor, and reader beside the
@@ -175,6 +168,12 @@ family IDs.
 - Preserve feature topology and attachment across adapters; projection may lose
   visible dimensions, identity must not lose their meaning.
 - Share normalized intent across representations, not pixel or surface coordinates.
+- For families with a canonical elevation, let one identity-adjacent geometry
+  profile own exact local-space roof, aperture, opening, and attachment shapes;
+  adapters apply coordinate transforms and medium wobble, not new proportions.
+- Author Doodle semantic strokes only for marks owned by a real part or profile.
+  Never invent facade seams, scratches, insets, or duplicate contours in an
+  inked-solid adapter merely to make an otherwise sparse projection look drawn.
 - Treat facial decoration as shared semantic data. Eyelids, eye bags, wrinkles,
   scars, and cheek marks belong to an identity-derived eye or face profile and
   are emitted only by the styles that own them. Never add an unconditional
@@ -273,8 +272,8 @@ family IDs.
   provider lifecycle tests. Asset families declare `SolidMaterialSpec` intent;
   they never instantiate Three.js materials or own finish textures. Add new
   medium behaviour centrally in `src/materials/medium.ts`, add one provider
-  under `src/assets/inked-solid/projection-providers/`, and register it in
-  `src/assets/inked-solid/medium-projection.ts`; extend the generic
+  under `src/projections/inked-solid/projection-providers/`, and register it in
+  `src/projections/inked-solid/medium-projection.ts`; extend the generic
   `InkedSolidPass` field only when necessary, never a family adapter.
 - Treat `ToneStyle` as density intent, not permission to change a medium's mark
   vocabulary. Oil answers every tone with loaded brush daubs, charcoal with

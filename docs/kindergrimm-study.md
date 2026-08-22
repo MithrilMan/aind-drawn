@@ -100,7 +100,7 @@ Il port TypeScript irrigidisce questo modello:
 
 | Fase | Tipo pubblico | Responsabilità |
 | --- | --- | --- |
-| Identità | `CharacterIdentityRecipe`, `BuildingIdentityRecipe`, `PropRecipe` | dato semantico JSON completo e versionato |
+| Identità | `CharacterIdentityRecipe`, `BuildingIdentityRecipe`, `VehicleIdentityRecipe` | dato semantico JSON completo e versionato |
 | Rappresentazione | `CharacterRecipe`, `SolidCharacterRecipe` | medium, finitura e policy proprie della tecnica |
 | Geometria | layout e `AssetBlueprint` | layer, bone, bounds, socket e collider |
 | Raster | callback `LayerDefinition.draw` | segni Canvas 2D deterministici |
@@ -240,19 +240,18 @@ Il delta revisionato il 20 agosto 2026 aggiunge quattro idee architetturali util
 - `src/gloss` e `src/voxel` dimostrano che ricetta, layout e parti semantiche
   sopravvivono al passaggio da piani disegnati a vere geometrie 3D.
 
-Nel framework sono state adattate le idee di authoring, piante e solidi lisci.
-`src/assets/plant` è una
-famiglia TypeScript 2D autonoma: la ricetta persiste casting, palette e
-placement, il layout pubblica root, crown, bounds e socket, e il blueprint
-mantiene quattro layer semantici con collider del tronco. I personaggi ottengono
+Nel framework sono state adattate le idee di authoring e solidi lisci. Il
+prototipo `plant` è stato successivamente rimosso dal prodotto: non aveva un
+consumer attivo e conservarlo come API pubblica avrebbe confuso materiale di
+studio con una famiglia supportata. I personaggi ottengono
 palette con contrasto controllato, silhouette dei capelli realmente distinte,
 un layer outfit e mani colorate visibili. Il frame Rayman senza arti non è stato
 portato: funziona per statuine frontali, ma rimuoverebbe informazione proprio al
-rig destinato a locomozione e interazioni. `src/assets/character-identity`
+rig destinato a locomozione e interazioni. `src/assets/character/identity`
 mantiene ora specie, palette, proporzioni e tratti facciali una sola volta;
-`src/assets/character` e `src/assets/solid-character` li proiettano
+`src/assets/character/raster` e `src/assets/character/solid` li proiettano
 rispettivamente nel raster a matita e in un rig volumetrico completo. Il
-componente `src/assets/solid-face` monta occhi, bocca, naso e capelli sulla
+componente `src/assets/character/solid/face` monta occhi, bocca, naso e capelli sulla
 superficie della testa ed è riusato anche dal blueprint completo. Il runtime
 solido porta profili estrusi, materiali fisici, articolazioni corporee,
 locomozione e animazione facciale 3D.

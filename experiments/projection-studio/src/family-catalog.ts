@@ -5,11 +5,13 @@ import {
   CHARACTER_POSES,
   VEHICLE_AUTHORING_SCHEMA,
   VEHICLE_MOTIONS,
+  VEHICLE_STEERING_DIRECTIONS,
   CharacterAnimator,
   SolidCharacterAnimator,
   SpriteRig,
   SolidRig,
   VehicleAnimator,
+  vehicleSteeringInput,
   createDefaultAssetAuthoringValues,
   createBuildingIdentity,
   createCharacterIdentity,
@@ -225,7 +227,10 @@ function vehicleProjection(
     ...(spoiler === undefined ? {} : { spoiler }),
   };
   const identity = createVehicleIdentity(seed, options);
-  const raster = createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, { medium }));
+  const raster = createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, {
+    medium,
+    side: 'right',
+  }));
   const solid = createSolidVehicleBlueprint(identity, { finish });
   return Object.freeze({
     raster,
@@ -260,9 +265,11 @@ function vehicleRuntime(animator: VehicleAnimator): StudioRuntimeAdapter {
       const preset = dynamicState.motion ?? 'parked';
       const steeringChoice = dynamicState.steering ?? 'straight';
       const signedSpeed = preset === 'reverse' ? -speed : preset === 'parked' ? 0 : speed;
+      const steeringDirection = VEHICLE_STEERING_DIRECTIONS.find((value) => value === steeringChoice)
+        ?? 'straight';
       const steering = preset === 'showcase'
         ? Math.sin(elapsedSeconds * 0.8) * 0.72
-        : steeringChoice === 'left' ? -0.72 : steeringChoice === 'right' ? 0.72 : 0;
+        : vehicleSteeringInput(steeringDirection);
       animator.update(deltaSeconds, Object.freeze({
         travelDistance: elapsedSeconds * signedSpeed * 2.4,
         speed: Math.abs(signedSpeed),
@@ -320,8 +327,8 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     label: 'Building',
     description: 'Cottages, townhouses, apartments, and towers',
     defaultSeed: 4104,
-    initialYaw: -24,
-    initialPitch: -6,
+    initialYaw: 0,
+    initialPitch: 0,
     solidFrameScale: 0.72,
     defaultFinish: 'matte',
     rasterViewTitle: 'Front elevation',
@@ -346,20 +353,20 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     label: 'Vehicle',
     description: 'City cars, coupés, saloons, vans, and pickups',
     defaultSeed: 5101,
-    initialYaw: -32,
-    initialPitch: -7,
+    initialYaw: 0,
+    initialPitch: 0,
     solidFrameScale: 0.62,
     defaultFinish: 'glossy',
-    rasterViewTitle: 'Side elevation',
-    rasterAriaLabel: 'Side elevation 2D vehicle drawing',
+    rasterViewTitle: 'Right side elevation',
+    rasterAriaLabel: 'Right-side elevation 2D vehicle drawing',
     workspaceNote: 'Drive it, steer it, open its moving parts, then inspect every angle.',
     playback: true,
     livelyGaze: false,
     dynamicControls: Object.freeze([
       Object.freeze({ id: 'motion', label: 'Motion', kind: 'motion', options: choices(VEHICLE_MOTIONS) }),
-      Object.freeze({ id: 'steering', label: 'Steering', kind: 'motion', options: choices(['left', 'straight', 'right']) }),
-      Object.freeze({ id: 'doorLeft', label: 'Left door', kind: 'interaction', interactionId: 'door:left', options: binaryChoices }),
-      Object.freeze({ id: 'doorRight', label: 'Right door', kind: 'interaction', interactionId: 'door:right', options: binaryChoices }),
+      Object.freeze({ id: 'steering', label: 'Steering', kind: 'motion', options: choices(VEHICLE_STEERING_DIRECTIONS) }),
+      Object.freeze({ id: 'doorRight', label: 'Right door (2D side)', kind: 'interaction', interactionId: 'door:right', options: binaryChoices }),
+      Object.freeze({ id: 'doorLeft', label: 'Left door (far side)', kind: 'interaction', interactionId: 'door:left', options: binaryChoices }),
       Object.freeze({ id: 'hood', label: 'Bonnet', kind: 'interaction', interactionId: 'hood', options: binaryChoices }),
       Object.freeze({ id: 'cargo', label: 'Cargo', kind: 'interaction', interactionId: 'cargo', options: binaryChoices }),
     ]),

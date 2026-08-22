@@ -9,16 +9,21 @@ doors have independent topology and motion, while raster and solid outputs must
 preserve one identity. Use:
 
 ```text
-src/assets/vehicle-identity/recipe.ts
-src/assets/vehicle-identity/drawing-style.ts
-src/assets/vehicle/recipe.ts
-src/assets/vehicle/layout.ts
-src/assets/vehicle/blueprint.ts
-src/assets/solid-vehicle/recipe.ts
-src/assets/solid-vehicle/layout.ts
-src/assets/solid-vehicle/blueprint.ts
-src/assets/solid-vehicle/ink-strokes.ts
-src/runtime/vehicle-animator.ts       # only when continuous travel is required
+src/assets/vehicle/
+├── identity/
+│   ├── recipe.ts
+│   └── drawing-style.ts
+├── raster/
+│   ├── recipe.ts
+│   ├── layout.ts
+│   └── blueprint.ts
+├── solid/
+│   ├── recipe.ts
+│   ├── layout.ts
+│   ├── blueprint.ts
+│   └── ink-strokes.ts
+└── runtime/
+    └── animator.ts       # only when continuous travel is required
 ```
 
 ## Identity

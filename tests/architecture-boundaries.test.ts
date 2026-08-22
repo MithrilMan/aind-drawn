@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -14,17 +14,21 @@ function source(path: string): string {
   return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 }
 
+function sourceExists(path: string): boolean {
+  return existsSync(new URL(`../${path}`, import.meta.url));
+}
+
 describe('architectural boundaries', () => {
   it('keeps the inked-solid medium compiler free of family vocabulary', () => {
     const files = [
-      'src/assets/inked-solid/medium-projection.ts',
-      'src/assets/inked-solid/projection-provider.ts',
-      'src/assets/inked-solid/projection-providers/graphite.ts',
-      'src/assets/inked-solid/projection-providers/ink.ts',
-      'src/assets/inked-solid/projection-providers/watercolor.ts',
-      'src/assets/inked-solid/projection-providers/oil.ts',
-      'src/assets/inked-solid/projection-providers/chalk.ts',
-      'src/assets/inked-solid/projection-providers/marker.ts',
+      'src/projections/inked-solid/medium-projection.ts',
+      'src/projections/inked-solid/projection-provider.ts',
+      'src/projections/inked-solid/projection-providers/graphite.ts',
+      'src/projections/inked-solid/projection-providers/ink.ts',
+      'src/projections/inked-solid/projection-providers/watercolor.ts',
+      'src/projections/inked-solid/projection-providers/oil.ts',
+      'src/projections/inked-solid/projection-providers/chalk.ts',
+      'src/projections/inked-solid/projection-providers/marker.ts',
     ];
     const familyVocabulary = /\b(character|building|vehicle|face|hair|eye|mouth|roof|wall|door|window|wheel|tyre)\b/i;
     for (const file of files) expect(source(file), file).not.toMatch(familyVocabulary);
@@ -32,14 +36,49 @@ describe('architectural boundaries', () => {
 
   it('keeps shared blueprint and rig contracts free of family imports', () => {
     const files = [
-      'src/assets/types.ts',
-      'src/assets/solid-types.ts',
+      'src/contracts/raster-asset.ts',
+      'src/contracts/solid-asset.ts',
+      'src/contracts/asset-capabilities.ts',
       'src/runtime/sprite-rig.ts',
       'src/runtime/solid-rig.ts',
-      'src/runtime/inked-solid-pass.ts',
+      'src/projections/inked-solid/runtime/pass.ts',
     ];
     const familyImport = /from ['"][^'"]*(character|building|vehicle|solid-face)[^'"]*['"]/i;
     for (const file of files) expect(source(file), file).not.toMatch(familyImport);
+  });
+
+  it('organizes multi-representation code by semantic family', () => {
+    const expected = [
+      'src/assets/building/identity',
+      'src/assets/building/raster',
+      'src/assets/building/solid',
+      'src/assets/character/identity',
+      'src/assets/character/raster',
+      'src/assets/character/solid',
+      'src/assets/character/runtime',
+      'src/assets/vehicle/identity',
+      'src/assets/vehicle/raster',
+      'src/assets/vehicle/solid',
+      'src/assets/vehicle/runtime',
+      'src/contracts',
+      'src/projections/inked-solid',
+    ];
+    const obsolete = [
+      'src/assets/building-identity',
+      'src/assets/solid-building',
+      'src/assets/character-identity',
+      'src/assets/solid-character',
+      'src/assets/solid-face',
+      'src/assets/vehicle-identity',
+      'src/assets/solid-vehicle',
+      'src/assets/contracts',
+      'src/assets/projections',
+      'src/assets/plant',
+      'src/assets/platform',
+      'src/assets/prop',
+    ];
+    for (const path of expected) expect(sourceExists(path), path).toBe(true);
+    for (const path of obsolete) expect(sourceExists(path), path).toBe(false);
   });
 
   it('keeps Projection Studio stages dependent on catalog runtime adapters', () => {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 
-import type { SolidGeometrySpec } from '../assets/solid-types.js';
+import type { SolidGeometrySpec } from '../contracts/solid-asset.js';
 import { pointOnSuperellipsoid, type Point3 } from '../core/geometry3.js';
 
 export type SolidGeometryFactoryOptions = Readonly<{

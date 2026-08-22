@@ -22,25 +22,12 @@ everything is a species is not.
 
 ## 2. Choose the smallest honest model
 
-### Static raster prop registry
-
-Use `src/assets/prop/` only when all conditions hold:
-
-- one raster layer is sufficient;
-- geometry and sockets are fixed after recipe creation;
-- no part moves independently;
-- no visual state changes;
-- gameplay needs only fixed colliders and sockets.
-
-Add the literal to `PropKind`, one `PropDefinition`, deterministic recipe
-choices, the catalog entry, and tests. If a crate needs a lid that opens, it has
-already stopped being a static prop.
-
 ### Dedicated raster family
 
-Use `src/assets/<family>/` when the asset has multiple semantic layers, a
-family-specific layout, independent pivots, states, interactions, or animation.
-`src/assets/plant/` is the reference for static multipart raster output.
+Use `src/assets/<family>/` when the asset has a supported product consumer and
+owns semantic layers, family-specific layout, independent pivots, states,
+interactions, or animation. Do not create a catch-all prop registry or keep a
+placeholder family alive only through tests and barrel exports.
 
 Typical structure:
 
@@ -56,22 +43,25 @@ split one five-line calculation into a ceremonial folder forest.
 
 ### Multi-representation family
 
-Create `src/assets/<family>-identity/` first when semantic identity must survive
-more than one representation. Then add adapters:
+Create one family root when semantic identity must survive more than one
+representation. Keep every family-owned adapter and animator below it:
 
 ```text
-src/assets/<family>-identity/
-├── recipe.ts
-└── drawing-style.ts       # only when seeded tone hierarchy is shared
-src/assets/<family>/       # raster adapter
-├── recipe.ts
-├── layout.ts
-└── blueprint.ts
-src/assets/solid-<family>/ # volume adapter
-├── recipe.ts
-├── layout.ts
-├── blueprint.ts
-└── ink-strokes.ts         # only for semantic 3D marks
+src/assets/<family>/
+├── identity/
+│   ├── recipe.ts
+│   └── drawing-style.ts   # only when seeded tone hierarchy is shared
+├── raster/
+│   ├── recipe.ts
+│   ├── layout.ts
+│   └── blueprint.ts
+├── solid/
+│   ├── recipe.ts
+│   ├── layout.ts
+│   ├── blueprint.ts
+│   └── ink-strokes.ts     # only for semantic 3D marks
+└── runtime/               # only when the family owns transient behavior
+    └── animator.ts
 ```
 
 Characters and buildings are the maintained examples. Identity owns semantic
@@ -218,6 +208,10 @@ outline as the only source for 3D reconstruction.
 
 - Export public recipes, options, layouts when useful to consumers, blueprints,
   geometry contracts, and factories from `src/index.ts`.
+- Keep family-owned identity, representation, and runtime code under one family
+  root. Keep shared contracts under `src/contracts/`, cross-family
+  projections under `src/projections/`, and generic rigs under
+  `src/runtime/`.
 - Keep focused draw helpers and runtime implementation details internal.
 - Experiments import only `src/index.ts`.
 - Do not add compatibility aliases while the package remains unpublished and

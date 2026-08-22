@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -6,12 +7,17 @@ import {
   VEHICLE_AUTHORING_SCHEMA,
   SolidRig,
   VehicleAnimator,
+  buildSolidVehicleLayout,
   createInkedSolidBlueprint,
   createRasterVehicleBlueprint,
   createRasterVehicleRecipe,
+  createVehicleCabinSideProfile,
+  createVehicleLayout,
   createSolidVehicleBlueprint,
   createSolidVehicleInkStrokes,
   createVehicleIdentity,
+  vehicleSideSign,
+  vehicleSteeringInput,
   vehicleRollingLayerOf,
   vehicleRollingPartOf,
   validateAssetFamilyAuthoringSchema,
@@ -27,6 +33,10 @@ describe('vehicle asset family', () => {
     expect(first.palette).toEqual(withoutRack.palette);
     expect(first.details.roofRack).toBe(true);
     expect(withoutRack.details.roofRack).toBe(false);
+    expect(first.doors.hinge).toBe('front');
+    expect(first.doors.sides).toEqual(['left', 'right']);
+    expect(vehicleSideSign('left')).toBe(-1);
+    expect(vehicleSideSign('right')).toBe(1);
   });
 
   it('casts every body archetype into a distinct useful profile', () => {
@@ -58,10 +68,29 @@ describe('vehicle asset family', () => {
     expect(raster.sockets['entry:left']?.x).toBeCloseTo(
       (solid.sockets['entry:left']?.[0] ?? 0) + identity.dimensions.length * 0.5,
     );
+    expect(identity.doors.frontStartRatio).toBeGreaterThan(identity.cabin.startRatio);
+    expect(identity.doors.frontEndRatio).toBeLessThan(identity.cabin.endRatio);
+    expect(identity.doors.frontEndRatio - identity.doors.frontStartRatio).toBeLessThanOrEqual(0.3);
+    const roof = solid.parts.find(({ id }) => id === 'roof');
+    expect(roof?.geometry.type).toBe('extruded-profile');
+    if (roof?.geometry.type === 'extruded-profile') {
+      expect(roof.placement.position[2]).toBeCloseTo(roof.geometry.depth * 0.5);
+    }
+    expect(solid.parts.find(({ id }) => id === 'door:left:opening')).toMatchObject({
+      node: 'chassis', materialId: 'interior',
+    });
+    expect(solid.parts.find(({ id }) => id === 'hood:opening')).toMatchObject({
+      node: 'chassis', materialId: 'interior',
+    });
+    expect(solid.parts.find(({ id }) => id === 'cargo:opening')).toMatchObject({
+      node: 'chassis', materialId: 'interior',
+    });
+    expect(solid.parts.find(({ id }) => id === 'door:left:window')?.node).toBe('door:left');
+    expect(solid.parts.find(({ id }) => id === 'door:left:window-frame')?.node).toBe('door:left');
 
     const tyre = solid.parts.find(({ id }) => id === 'wheel:front:left:tyre');
     expect(tyre === undefined ? undefined : vehicleRollingPartOf(tyre))
-      .toMatchObject({ radius: identity.wheels.radius, steering: true, side: 1 });
+      .toMatchObject({ radius: identity.wheels.radius, steering: true, side: -1 });
     expect(tyre?.geometry.type).toBe('mesh');
     if (tyre?.geometry.type !== 'mesh') return;
     const depth = Math.max(...tyre.geometry.vertices.map(([, , z]) => z))
@@ -70,6 +99,7 @@ describe('vehicle asset family', () => {
 
     const strokes = createSolidVehicleInkStrokes(solid);
     expect(strokes.some(({ id }) => id.startsWith('window:division'))).toBe(true);
+    expect(strokes.some(({ id }) => id.endsWith(':rim-marker'))).toBe(true);
     for (const medium of MEDIUM_IDS) {
       const inked = createInkedSolidBlueprint(solid, { medium, strokes });
       expect(inked.medium).toBe(medium);
@@ -88,8 +118,97 @@ describe('vehicle asset family', () => {
     rig.setInteractionState('door:left', 'open');
     rig.setInteractionState('hood', 'open');
     expect(Math.abs(door?.rotation.y ?? 0)).toBeGreaterThan(1);
+    expect(door?.rotation.y).toBeCloseTo(solid.interactions[0]
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0);
     expect(hood?.rotation.z).toBeGreaterThan(0.8);
     rig.dispose();
+  });
+
+  it('moves the complete door assembly outward on both named sides', () => {
+    const framed = createSolidVehicleBlueprint(createVehicleIdentity(5106, { archetype: 'sedan' }));
+    const frameless = createSolidVehicleBlueprint(createVehicleIdentity(5106, { archetype: 'coupe' }));
+    const leftRotation = framed.interactions.find(({ id }) => id === 'door:left')
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1];
+    const rightRotation = framed.interactions.find(({ id }) => id === 'door:right')
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1];
+    expect(leftRotation).toBeCloseTo(framed.interactions[0]
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0);
+    expect(leftRotation).toBeLessThan(0);
+    expect(rightRotation).toBeGreaterThan(0);
+    expect(framed.parts.some(({ id }) => id === 'door:left:window-frame')).toBe(true);
+    expect(frameless.parts.some(({ id }) => id === 'door:left:window-frame')).toBe(false);
+    for (const side of ['left', 'right'] as const) {
+      expect(framed.parts.find(({ id }) => id === `door:${side}:window`)?.node).toBe(`door:${side}`);
+      expect(framed.parts.find(({ id }) => id === `door:${side}:handle`)?.node).toBe(`door:${side}`);
+    }
+  });
+
+  it('projects the right-handed side convention without swapping semantic parts', () => {
+    const identity = createVehicleIdentity(5107, { archetype: 'coupe' });
+    const right = createVehicleLayout(identity, 'right');
+    const left = createVehicleLayout(identity, 'left');
+    const solidLayout = buildSolidVehicleLayout(identity);
+    expect(right.frontWheel.x).toBeCloseTo(identity.dimensions.length - left.frontWheel.x);
+    expect(right.rearWheel.x).toBeCloseTo(identity.dimensions.length - left.rearWheel.x);
+    expect(solidLayout.nodes.find(({ id }) => id === 'door:left')?.position[2]).toBeLessThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'door:right')?.position[2]).toBeGreaterThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:front:left')?.position[2]).toBeLessThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:front:right')?.position[2]).toBeGreaterThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:rear:left')?.position[2]).toBeLessThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:rear:right')?.position[2]).toBeGreaterThan(0);
+    expect(solidLayout.sockets['entry:left']?.[2]).toBeLessThan(0);
+    expect(solidLayout.sockets['entry:right']?.[2]).toBeGreaterThan(0);
+    const solid = createSolidVehicleBlueprint(identity);
+    expect(solid.colliders.find(({ id }) => id === 'door:left:sensor')?.center[2]).toBeLessThan(0);
+    expect(solid.colliders.find(({ id }) => id === 'door:right:sensor')?.center[2]).toBeGreaterThan(0);
+  });
+
+  it('keeps the shared cabin and roof profiles monotonic across body archetypes', () => {
+    for (const archetype of ['city', 'coupe', 'sedan', 'van', 'pickup'] as const) {
+      for (let seed = 1; seed <= 48; seed += 1) {
+        const identity = createVehicleIdentity(seed, { archetype });
+        const profile = createVehicleCabinSideProfile(identity);
+        const rasterLayout = createVehicleLayout(identity, 'right');
+        const doorLength = (identity.doors.frontEndRatio - identity.doors.frontStartRatio)
+          * identity.dimensions.length;
+        expect(doorLength).toBeLessThan(1.55);
+        for (let index = 1; index < profile.outline.length; index += 1) {
+          expect(profile.outline[index]?.[0]).toBeGreaterThan(profile.outline[index - 1]?.[0] ?? 0);
+        }
+        expect(rasterLayout.cabinOutline).toEqual(profile.outline.map(([x, y]) => (
+          [x + identity.dimensions.length * 0.5, y]
+        )));
+      }
+      const identity = createVehicleIdentity(4107, { archetype });
+      const roof = createSolidVehicleBlueprint(identity).parts.find(({ id }) => id === 'roof');
+      expect(roof?.geometry.type).toBe('extruded-profile');
+      if (roof?.geometry.type !== 'extruded-profile') continue;
+      const outer = roof.geometry.outline.slice(0, 4);
+      for (let index = 1; index < outer.length; index += 1) {
+        expect(outer[index]?.[0]).toBeGreaterThan(outer[index - 1]?.[0] ?? 0);
+      }
+    }
+  });
+
+  it('keeps closed bonnet and cargo lids tapered inside the body width', () => {
+    const identity = createVehicleIdentity(4107, { archetype: 'coupe' });
+    const solid = createSolidVehicleBlueprint(identity);
+    for (const id of ['hood', 'cargo']) {
+      const lid = solid.parts.find((part) => part.id === id);
+      expect(lid?.geometry.type).toBe('mesh');
+      if (lid?.geometry.type !== 'mesh') continue;
+      const width = Math.max(...lid.geometry.vertices.map(([, , z]) => z))
+        - Math.min(...lid.geometry.vertices.map(([, , z]) => z));
+      expect(width).toBeLessThan(identity.dimensions.width * 0.7);
+      expect(Math.max(...lid.geometry.vertices.map(([, y]) => y))).toBeCloseTo(0);
+      expect(Math.min(...lid.geometry.vertices.map(([, y]) => y))).toBeLessThan(0);
+    }
+    const hoodRotation = solid.interactions.find(({ id }) => id === 'hood')
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[2] ?? 0;
+    const cargoRotation = solid.interactions.find(({ id }) => id === 'cargo')
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[2] ?? 0;
+    expect(hoodRotation).toBeGreaterThan(0);
+    expect(cargoRotation).toBeLessThan(0);
   });
 
   it('derives wheel rotation from signed travel without frame drift', () => {
@@ -103,6 +222,22 @@ describe('vehicle asset family', () => {
     expect(wheel?.quaternion.equals(first ?? wheel.quaternion)).toBe(true);
     animator.update(0, { travelDistance: -2, speed: 1, steering: 0.4 });
     expect(wheel?.quaternion.equals(first ?? wheel.quaternion)).toBe(false);
+    rig.dispose();
+  });
+
+  it('maps named steering directions to the right-handed vehicle axes', () => {
+    const solid = createSolidVehicleBlueprint(createVehicleIdentity(5112, { archetype: 'sedan' }));
+    const rig = new SolidRig(solid);
+    const animator = new VehicleAnimator(rig);
+    const wheel = rig.getNode('wheel:front:right');
+    animator.update(0, { travelDistance: 0, steering: vehicleSteeringInput('left', 1) });
+    const leftForward = new THREE.Vector3(1, 0, 0)
+      .applyQuaternion(wheel?.quaternion ?? new THREE.Quaternion());
+    expect(leftForward.z).toBeLessThan(0);
+    animator.update(0, { travelDistance: 0, steering: vehicleSteeringInput('right', 1) });
+    const rightForward = new THREE.Vector3(1, 0, 0)
+      .applyQuaternion(wheel?.quaternion ?? new THREE.Quaternion());
+    expect(rightForward.z).toBeGreaterThan(0);
     rig.dispose();
   });
 

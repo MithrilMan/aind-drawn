@@ -6,12 +6,12 @@ import {
   Random,
   SeedTree,
   buildCharacterLayout,
-  buildPlantLayout,
   buildSolidCharacterLayout,
   buildSolidFaceLayout,
   characterEyeCenterY,
   characterHeadShapeField,
   characterMouthCenterY,
+  createBuildingFacadeGeometry,
   createBuildingIdentity,
   createCharacterEyeProfile,
   createCharacterExpressionProfile,
@@ -23,12 +23,6 @@ import {
   createCharacterRecipe,
   createInkedSolidBlueprint,
   inkedSolidMediumDefaults,
-  createPlantBlueprint,
-  createPlantRecipe,
-  createPlatformBlueprint,
-  createPlatformRecipe,
-  createPropBlueprint,
-  createPropRecipe,
   createRasterBuildingBlueprint,
   createRasterBuildingRecipe,
   createRasterCharacterBlueprint,
@@ -82,14 +76,6 @@ describe('deterministic generation', () => {
     expect(JSON.parse(JSON.stringify(first))).toEqual(second);
   });
 
-  it('keeps plant identity independent from the selected drawing medium', () => {
-    const graphite = createPlantRecipe(1771, { species: 'tree', medium: 'graphite' });
-    const watercolor = createPlantRecipe(1771, { species: 'tree', medium: 'watercolor' });
-    expect({ ...graphite, medium: 'watercolor' }).toEqual(watercolor);
-    expect(JSON.parse(JSON.stringify(graphite))).toEqual(
-      createPlantRecipe(1771, { species: 'tree', medium: 'graphite' }),
-    );
-  });
 
   it('persists solid faces as renderer-neutral deterministic data', () => {
     const first = createSolidFaceRecipe(707, { species: 'human', finish: 'ceramic' });
@@ -266,23 +252,6 @@ describe('asset contracts', () => {
     expect(cat.layers.find(({ id }) => id === 'outfit')).toBeUndefined();
   });
 
-  it('derives multipart plant layers, anchors, bounds, and tree collision from one layout', () => {
-    const recipe = createPlantRecipe(90210, { species: 'tree' });
-    const layout = buildPlantLayout(recipe);
-    const blueprint = createPlantBlueprint(recipe);
-    expect(blueprint.layers.map(({ id }) => id)).toEqual(['mound', 'stem', 'leaves', 'bloom']);
-    expect(blueprint.sockets.root).toEqual(layout.stem.base);
-    expect(blueprint.sockets.crown).toEqual(layout.stem.crown);
-    expect(blueprint.colliders).toEqual([
-      expect.objectContaining({ id: 'stem', kind: 'solid', height: recipe.stem.height }),
-    ]);
-    expect(layout.bounds.y).toBe(0);
-    expect(layout.sockets.top?.y).toBeLessThanOrEqual(layout.bounds.height);
-
-    const grass = createPlantBlueprint(createPlantRecipe(90210, { species: 'grass' }));
-    expect(grass.colliders).toHaveLength(0);
-    expect(grass.sockets.root).toBeDefined();
-  });
 
   it('places solid face features on the same analytic surface used by geometry', () => {
     const recipe = createSolidFaceRecipe(911, { shape: 'block' });
@@ -454,17 +423,6 @@ describe('asset contracts', () => {
     expect(angry.eyes.openness).toBeLessThan(sad.eyes.openness);
   });
 
-  it('provides gameplay geometry for props and platforms without reading pixels', () => {
-    const crate = createPropBlueprint(createPropRecipe(5, { prop: 'crate' }));
-    const platform = createPlatformBlueprint(createPlatformRecipe(6, {
-      width: 4,
-      height: 0.75,
-    }));
-    expect(crate.colliders).toHaveLength(1);
-    expect(platform.colliders[0]).toMatchObject({ width: 4, height: 0.75 });
-    expect(platform.sockets.top?.y).toBe(0.75);
-    expect(() => createPlatformRecipe(6, { width: 0 })).toThrow(/width/i);
-  });
 
   it('always exposes a stateful building door as gameplay metadata', () => {
     const identity = createBuildingIdentity(612, { balcony: true, chimney: true });
@@ -510,6 +468,7 @@ describe('asset contracts', () => {
       archetype: 'apartment', width: 8.4, height: 11.2,
       roof: 'flat', balcony: true, chimney: false,
     });
+    const facade = createBuildingFacadeGeometry(identity);
     const rasterRecipe = createRasterBuildingRecipe(identity, { medium: 'watercolor' });
     const solidRecipe = createSolidBuildingRecipe(identity, { finish: 'ceramic' });
     const raster = createRasterBuildingBlueprint(rasterRecipe);
@@ -520,11 +479,41 @@ describe('asset contracts', () => {
     expect(raster.seed).toBe(identity.seed);
     expect(solid.seed).toBe(identity.seed);
     expect(solid.parts.map(({ id }) => id)).toEqual(expect.arrayContaining([
-      'building:shell', 'building:roof', 'door', 'balcony:0:floor',
+      'building:shell', 'building:roof', 'door:opening', 'door', 'balcony:0:floor',
     ]));
+    expect(solid.parts.find(({ id }) => id === 'building:shell')?.geometry.type).toBe('mesh');
+    expect(solid.parts.find(({ id }) => id === 'door:opening')?.materialId).toBe('interior');
+    const roof = solid.parts.find(({ id }) => id === 'building:roof');
+    if (roof?.geometry.type !== 'mesh') throw new TypeError('Expected a mesh roof');
+    expect(roof.geometry.vertices
+      .slice(0, facade.roofProfile.length)
+      .map(([x, y]) => [x, y]))
+      .toEqual(facade.roofProfile);
+    for (const facadeWindow of facade.windows) {
+      const window = solid.parts.find(({ id }) => id === facadeWindow.id);
+      if (window?.geometry.type !== 'extruded-profile') {
+        throw new TypeError(`Expected an extruded window for ${facadeWindow.id}`);
+      }
+      expect(window.geometry.outline).toEqual(facadeWindow.profile);
+      expect(window.placement.position[0]).toBeCloseTo(facadeWindow.center[0]);
+      expect(window.placement.position[1]).toBeCloseTo(facadeWindow.center[1]);
+      expect(window.materialId).toBe(facadeWindow.lit ? 'glass:lit' : 'glass:dark');
+    }
+    const door = solid.parts.find(({ id }) => id === 'door');
+    if (door?.geometry.type !== 'extruded-profile') {
+      throw new TypeError('Expected an extruded building door');
+    }
+    expect(door.geometry.outline).toEqual(facade.door.profile);
+    expect(facade.wallHeight + facade.roofRise).toBeCloseTo(identity.height);
+    expect(raster.sockets['door:entry']?.x).toBeCloseTo(facade.door.centerX);
+    expect(solid.sockets['door:entry']?.[0]).toBeCloseTo(facade.door.centerX);
     expect(solid.interactions[0]).toMatchObject({
       id: 'door', sensorColliderId: 'door:sensor', activationSocketId: 'door:entry',
     });
+    const openRotation = solid.interactions[0]
+      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0;
+    expect(Math.abs(openRotation)).toBeCloseTo(identity.door.openingAngle);
+    expect(Math.sign(openRotation)).toBe(identity.door.hinge === 'left' ? -1 : 1);
     expect(JSON.parse(JSON.stringify(identity))).toEqual(identity);
     expect(JSON.parse(JSON.stringify(solid))).toEqual(solid);
   });
@@ -560,7 +549,12 @@ describe('asset contracts', () => {
     expect(characterInk.strokes.every(({ partId }) => (
       characterSolid.parts.some(({ id }) => id === partId)
     ))).toBe(true);
-    expect(buildingInk.strokes.some(({ id }) => id.startsWith('facade:floor-seam'))).toBe(true);
+    expect(buildingInk.strokes.every(({ id, partId }) => (
+      id.endsWith(':mullion') && partId.startsWith('window:')
+    ))).toBe(true);
+    expect(buildingInk.strokes.some(({ id }) => (
+      /floor-seam|pencil-mark|roof:front-seam|door:inset-line/u.test(id)
+    ))).toBe(false);
     expect(JSON.parse(JSON.stringify(characterInk))).toEqual(characterInk);
     expect(Object.isFrozen(characterInk)).toBe(true);
     expect(Object.isFrozen(characterInk.contour.color)).toBe(true);
@@ -768,6 +762,21 @@ describe('asset contracts', () => {
     expect(identities[0]?.floors).toBeLessThanOrEqual(2);
     expect(identities[3]?.floors).toBeGreaterThanOrEqual(10);
     expect(identities.every(({ door }) => door.column >= 0)).toBe(true);
+    for (const identity of identities) {
+      const facade = createBuildingFacadeGeometry(identity);
+      const solid = createSolidBuildingBlueprint(identity);
+      const roof = solid.parts.find(({ id }) => id === 'building:roof');
+      if (roof?.geometry.type !== 'mesh') throw new TypeError('Expected a mesh roof');
+      expect(facade.windows).toHaveLength(
+        identity.floors * identity.columns - 1,
+      );
+      expect(roof.geometry.vertices
+        .slice(0, facade.roofProfile.length)
+        .map(([x, y]) => [x, y]))
+        .toEqual(facade.roofProfile);
+      expect(facade.wallProfile[2]?.[1]).toBeCloseTo(facade.wallHeight);
+      expect(facade.wallHeight + facade.roofRise).toBeCloseTo(identity.height);
+    }
   });
 
   it('rejects invalid authored building dimensions at the identity boundary', () => {

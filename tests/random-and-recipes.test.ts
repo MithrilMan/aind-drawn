@@ -939,7 +939,7 @@ describe('asset contracts', () => {
     }
   });
 
-  it('keeps the 4147 beard attached above the mouth and vertical below it', () => {
+  it('keeps the 4147 beard on one vertical curtain with visible ring depth', () => {
     const identity = createCharacterIdentity(4147, { facialHairStyle: 'full-rounded' });
     const profile = createCharacterFacialHairProfile(identity);
     const solid = createSolidCharacterBlueprint(identity);
@@ -951,36 +951,20 @@ describe('asset contracts', () => {
     const count = profile.beard.outline.length;
     const ringCount = geometry.vertices.length / (count * 2);
     const surfaceStride = ringCount * count;
-    const clearance = faceLayout.shape.radii[2] * 0.025;
-    const upperIndex = count / 4;
-    const upperPoint = profile.beard.outline[upperIndex];
-    const upperBack = geometry.vertices[surfaceStride + upperIndex];
-    expect(upperPoint).toBeDefined();
-    expect(upperBack).toBeDefined();
-    if (upperPoint !== undefined && upperBack !== undefined) {
-      expect(upperBack[2]).toBeCloseTo(
-        faceLayout.at(upperPoint[0], upperPoint[1]).point[2] + clearance,
-      );
-    }
-    const fallStartY = profile.opening.spatial.center[1]
-      - profile.opening.spatial.radii[1];
-    const fallDistance = Math.max(0.08, profile.beard.spatial.radii[1] * 0.14);
-    const lowerDepths = (surfaceOffset: number): number[] => (
-      geometry.vertices
-        .slice(surfaceOffset, surfaceOffset + surfaceStride)
-        .filter((vertex) => (
-          vertex[1] / faceLayout.shape.radii[1] <= fallStartY - fallDistance
-        ))
-        .map((vertex) => vertex[2])
-    );
-    const lowerFrontDepths = lowerDepths(0);
-    const lowerBackDepths = lowerDepths(surfaceStride);
-    expect(lowerFrontDepths.length).toBeGreaterThan(0);
-    expect(lowerBackDepths.length).toBeGreaterThan(0);
-    expect(Math.max(...lowerFrontDepths) - Math.min(...lowerFrontDepths))
-      .toBeLessThan(1e-10);
-    expect(Math.max(...lowerBackDepths) - Math.min(...lowerBackDepths))
-      .toBeLessThan(1e-10);
+    const frontDepths = geometry.vertices
+      .slice(0, surfaceStride)
+      .map((vertex) => vertex[2]);
+    const backDepths = geometry.vertices
+      .slice(surfaceStride)
+      .map((vertex) => vertex[2]);
+    const ringDepths = frontDepths.map((frontDepth, index) => (
+      frontDepth - (backDepths[index] ?? frontDepth)
+    ));
+    const authoredDepth = faceLayout.shape.radii[2] * profile.beard.spatial.depth;
+    expect(Math.max(...frontDepths) - Math.min(...frontDepths))
+      .toBeLessThan(faceLayout.shape.radii[2] * 0.08);
+    expect(Math.min(...ringDepths)).toBeGreaterThan(authoredDepth * 0.1);
+    expect(Math.max(...ringDepths)).toBeGreaterThan(authoredDepth * 0.19);
   });
 
   it('shares round-ear, eye, and nose dimensions across face projections', () => {

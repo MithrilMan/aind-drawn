@@ -5,6 +5,7 @@ import {
   characterHeadRadius2d,
   characterMouthCenterY,
 } from '../identity/head-shape.js';
+import { characterEyeRadius } from '../identity/eye-profile.js';
 import type { Vector2 } from '../../../contracts/raster-asset.js';
 import type { CharacterRecipe } from './recipe.js';
 
@@ -40,7 +41,7 @@ export type CharacterLayout = Readonly<{
 }>;
 
 const PIXELS_PER_UNIT = 96;
-const HEAD_SCALE = 106;
+export const CHARACTER_IDENTITY_PIXEL_SCALE = 106;
 
 function createHeadOutline(recipe: CharacterRecipe, width: number, height: number): MutablePoint[] {
   const identity = recipe.identity;
@@ -60,12 +61,12 @@ function createHeadOutline(recipe: CharacterRecipe, width: number, height: numbe
 
 export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
   const identity = recipe.identity;
-  const headWidth = HEAD_SCALE * identity.head.width;
-  const headHeight = HEAD_SCALE * identity.head.height;
-  const torsoWidth = HEAD_SCALE * identity.body.width;
-  const torsoHeight = HEAD_SCALE * identity.body.height;
-  const armLength = HEAD_SCALE * identity.body.armLength;
-  const legLength = HEAD_SCALE * identity.body.legLength;
+  const headWidth = CHARACTER_IDENTITY_PIXEL_SCALE * identity.head.width;
+  const headHeight = CHARACTER_IDENTITY_PIXEL_SCALE * identity.head.height;
+  const torsoWidth = CHARACTER_IDENTITY_PIXEL_SCALE * identity.body.width;
+  const torsoHeight = CHARACTER_IDENTITY_PIXEL_SCALE * identity.body.height;
+  const armLength = CHARACTER_IDENTITY_PIXEL_SCALE * identity.body.armLength;
+  const legLength = CHARACTER_IDENTITY_PIXEL_SCALE * identity.body.legLength;
   const headCenterPixels = legLength + torsoHeight + headHeight * 0.27;
   const torsoCenterPixels = legLength + torsoHeight * 0.5;
   const shoulderYPixels = legLength + torsoHeight * 0.76;
@@ -75,7 +76,7 @@ export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
 
   const eyeY = headCenterPixels + headHeight * 0.5 * characterEyeCenterY(identity);
   const eyeX = headWidth * 0.5 * identity.eyes.spacing;
-  const eyeRadius = headWidth * 0.095 * identity.eyes.size;
+  const eyeRadius = characterEyeRadius(identity) * PIXELS_PER_UNIT;
   const mouthY = headCenterPixels + headHeight * 0.5 * characterMouthCenterY(identity);
   const handY = (shoulderYPixels - armLength * 0.78) / PIXELS_PER_UNIT;
 
@@ -84,7 +85,8 @@ export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
     / PIXELS_PER_UNIT;
   const bodyMaximumX = -minimumX;
   const tailMaximumX = identity.tail.present
-    ? (torsoWidth * 0.4 + HEAD_SCALE * identity.tail.length) / PIXELS_PER_UNIT
+    ? (torsoWidth * 0.4 + CHARACTER_IDENTITY_PIXEL_SCALE * identity.tail.length)
+      / PIXELS_PER_UNIT
     : bodyMaximumX;
   const maximumX = Math.max(bodyMaximumX, tailMaximumX);
   const crownFactor = identity.hair.style === 'quiff' || identity.hair.style === 'spikes'

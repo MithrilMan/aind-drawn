@@ -8,6 +8,7 @@ import type { Point } from '../../../../core/geometry.js';
 import type { SolidMaterialSpec } from '../../../../materials/finish.js';
 import { createCharacterDrawingStyle } from '../../identity/drawing-style.js';
 import { createCharacterEyewearProfile } from '../../identity/accessory-profile.js';
+import { createCharacterRoundEarProfile } from '../../identity/ear-profile.js';
 import { createCharacterFacialHairProfile } from '../../identity/facial-hair-profile.js';
 import type {
   CharacterEyeStyle,
@@ -18,6 +19,7 @@ import { createCharacterEyeProfile } from '../../identity/eye-profile.js';
 import { createCharacterTearProfile } from '../../identity/tear-profile.js';
 import { CHARACTER_EXPRESSIONS } from '../../identity/expression-profile.js';
 import { createCharacterMouthProfile } from '../../identity/mouth-profile.js';
+import { createCharacterNoseProfile } from '../../identity/nose-profile.js';
 import {
   createSolidCharacterRecipe,
   type SolidCharacterRecipe,
@@ -209,15 +211,17 @@ function addEyeParts(
   const style = eyeStyleFor(recipe, index);
   const radius = layout.eyeRadius;
   const profile = createCharacterEyeProfile(identity, style);
-  const addGlint = (ownerAnchor: SurfaceAnchor, proud: number): void => {
+  const addGlint = (ownerAnchor: SurfaceAnchor, ownerFront: number): void => {
     if (!identity.eyes.glint) return;
     const glintRadius = radius * profile.glintRadius;
     const glintAnchor = moveOnSurface(ownerAnchor, [
       radius * profile.glintOffset[0], radius * profile.glintOffset[1],
-    ], proud);
+    ], ownerFront + radius * 0.012);
     add({
       id: `eye:${sideId}:glint`, node: 'head', order: 22,
-      geometry: plate(ellipse(glintRadius, glintRadius), glintRadius * 0.42, glintRadius * 0.12),
+      geometry: plate(
+        ellipse(glintRadius, glintRadius), glintRadius * 0.24, glintRadius * 0.08,
+      ),
       materialId: 'sclera', placement: placement(glintAnchor),
       capabilities: eyeCapabilities(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
     });
@@ -246,7 +250,7 @@ function addEyeParts(
         capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
       });
     }
-    addGlint(pupilAnchor, radius * 0.3);
+    addGlint(pupilAnchor, radius * 0.1);
     return;
   }
 
@@ -257,7 +261,7 @@ function addEyeParts(
       materialId: 'ink', placement: placement(anchor),
       capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
     });
-    addGlint(anchor, radius * 0.24);
+    addGlint(anchor, 0);
     return;
   }
 
@@ -268,7 +272,7 @@ function addEyeParts(
       materialId: 'ink', placement: placement(anchor),
       capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
     });
-    addGlint(anchor, radius * 0.3);
+    addGlint(anchor, 0);
     return;
   }
 
@@ -279,17 +283,18 @@ function addEyeParts(
       radii: [
         radius * profile.fieldScale[0],
         radius * profile.fieldScale[1],
-        radius * 0.62,
+        radius * 0.34,
       ] as const,
       exponent: 2.2,
       widthSegments: 28,
       heightSegments: 20,
     }),
-    materialId: 'sclera', placement: placement(anchor, radius * 0.34),
+    materialId: 'sclera', placement: placement(anchor, radius * 0.18),
     capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
   });
   const pupilRadius = radius * profile.pupilRadius;
   const pupilAnchor = moveOnSurface(anchor, [0, radius * profile.pupilOffsetY], 0);
+  const pupilFront = radius * 0.54;
   add({
     id: `eye:${sideId}:pupil`, node: 'head', order: 21,
     geometry: plate(
@@ -297,10 +302,10 @@ function addEyeParts(
       pupilRadius * 0.5,
       pupilRadius * 0.18,
     ),
-    materialId: 'ink', placement: placement(pupilAnchor, radius * 1.02),
+    materialId: 'ink', placement: placement(pupilAnchor, pupilFront),
     capabilities: eyeCapabilities(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
   });
-  addGlint(pupilAnchor, radius * 1.13);
+  addGlint(pupilAnchor, pupilFront);
 }
 
 
@@ -494,15 +499,21 @@ export function createSolidFaceBlueprint(
       });
     }
   } else if (identity.ears.style === 'round') {
-    const [radiusX, radiusY, radiusZ] = layout.shape.radii;
+    const radiusZ = layout.shape.radii[2];
+    const earProfile = createCharacterRoundEarProfile(identity);
+    if (earProfile === null) throw new Error('Round ear identity requires round ear anatomy');
     for (const side of [-1, 1] as const) {
       const sideId = side < 0 ? 'left' : 'right';
       const earRadii = [
-        radiusX * 0.23 * identity.ears.size,
-        radiusY * 0.28 * identity.ears.size,
+        earProfile.radii[0],
+        earProfile.radii[1],
         radiusZ * 0.34,
       ] as const;
-      const earPosition: Point3 = [side * radiusX * 0.96, radiusY * 0.02, -radiusZ * 0.08];
+      const earPosition: Point3 = [
+        side * earProfile.center[0],
+        earProfile.center[1],
+        -radiusZ * 0.08,
+      ];
       add({
         id: `ear:${sideId}`, node: 'head', order: -2,
         geometry: Object.freeze({
@@ -579,13 +590,18 @@ export function createSolidFaceBlueprint(
 
   if (identity.nose.present || identity.species === 'cat') {
     const minimumRadius = Math.min(layout.shape.radii[0], layout.shape.radii[1]);
-    const noseRadius = minimumRadius * (identity.species === 'cat' ? 0.085 : identity.nose.size);
-    const noseLength = minimumRadius * (identity.species === 'cat'
-      ? 0.075
-      : identity.nose.length);
+    const profile = createCharacterNoseProfile(identity);
+    if (identity.species !== 'cat' && profile === null) {
+      throw new Error('Visible human nose requires shared nose anatomy');
+    }
+    const noseRadii = identity.species === 'cat'
+      ? [minimumRadius * 0.085, minimumRadius * 0.075] as const
+      : profile?.radii;
+    if (noseRadii === undefined) throw new Error('Nose anatomy is unavailable');
+    const [noseRadius, noseLength] = noseRadii;
     const nosePosition = moveOnSurface(layout.noseAnchor, [
       0,
-      identity.nose.style === 'drop' ? -noseLength * 0.18 : 0,
+      profile?.verticalOffset ?? 0,
     ], noseRadius * 0.52).point;
     add({
       id: 'nose', node: 'head', order: 26,

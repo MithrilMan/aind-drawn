@@ -9,6 +9,7 @@ import {
   buildCharacterLayout,
   buildSolidCharacterLayout,
   buildSolidFaceLayout,
+  characterEyeRadius,
   characterEyeCenterY,
   characterHeadRadius2d,
   characterHeadShapeField,
@@ -22,6 +23,8 @@ import {
   createCharacterHairProfile,
   createCharacterMouthProfile,
   createCharacterOutfitProfile,
+  createCharacterNoseProfile,
+  createCharacterRoundEarProfile,
   createCharacterIdentity,
   createCharacterBlueprint,
   createCharacterRecipe,
@@ -896,7 +899,7 @@ describe('asset contracts', () => {
   });
 
   it('keeps long beards wider than tall and their mouth aperture inside the head', () => {
-    for (const seed of [4126, 4138, 4129, 4147]) {
+    for (const seed of [4126, 4129, 4138, 4147]) {
       const identity = createCharacterIdentity(seed, { facialHairStyle: 'full-rounded' });
       const profile = createCharacterFacialHairProfile(identity);
       expect(profile).not.toBeNull();
@@ -915,6 +918,71 @@ describe('asset contracts', () => {
       const headNode = solid.nodes.find(({ id }) => id === 'head');
       expect(headNode?.position[2]).toBeGreaterThan(0);
     }
+  });
+
+  it('hangs long beards ahead of the torso instead of inflating them into it', () => {
+    for (const seed of [4125, 4129]) {
+      const identity = createCharacterIdentity(seed, { facialHairStyle: 'full-rounded' });
+      const profile = createCharacterFacialHairProfile(identity);
+      const solid = createSolidCharacterBlueprint(identity);
+      const layout = buildSolidCharacterLayout(createSolidCharacterRecipe(identity));
+      const beard = solid.parts.find(({ id }) => id === 'facial-hair:beard');
+      const headNode = solid.nodes.find(({ id }) => id === 'head');
+      expect(profile).not.toBeNull();
+      if (profile === null || beard?.geometry.type !== 'mesh' || headNode === undefined) continue;
+      const bottomIndex = profile.beard.outline.reduce((lowest, point, index, points) => (
+        point[1] < (points[lowest]?.[1] ?? Number.POSITIVE_INFINITY) ? index : lowest
+      ), 0);
+      const bottom = beard.geometry.vertices[bottomIndex];
+      expect((bottom?.[2] ?? 0) + headNode.position[2] - layout.torso.depth)
+        .toBeGreaterThan(0.18);
+    }
+  });
+
+  it('shares round-ear, eye, and nose dimensions across face projections', () => {
+    const identity = createCharacterIdentity(4149, {
+      earStyle: 'round',
+      noseStyle: 'drop',
+    });
+    const solid = createSolidCharacterBlueprint(identity);
+    const faceLayout = buildSolidFaceLayout(createSolidCharacterRecipe(identity));
+    const earProfile = createCharacterRoundEarProfile(identity);
+    const noseProfile = createCharacterNoseProfile(identity);
+    const ear = solid.parts.find(({ id }) => id === 'ear:left');
+    const nose = solid.parts.find(({ id }) => id === 'nose');
+    expect(faceLayout.eyeRadius).toBeCloseTo(characterEyeRadius(identity));
+    expect(earProfile).not.toBeNull();
+    expect(noseProfile).not.toBeNull();
+    if (ear?.geometry.type === 'superellipsoid' && earProfile !== null) {
+      expect(ear.geometry.radii.slice(0, 2)).toEqual(earProfile.radii);
+    }
+    if (nose?.geometry.type === 'superellipsoid' && noseProfile !== null) {
+      expect(nose.geometry.radii.slice(0, 2)).toEqual(noseProfile.radii);
+    }
+  });
+
+  it('keeps 4152 eye relief compact and embeds the glint in the pupil surface', () => {
+    const identity = createCharacterIdentity(4152);
+    const solid = createSolidCharacterBlueprint(identity);
+    const faceLayout = buildSolidFaceLayout(createSolidCharacterRecipe(identity));
+    const sclera = solid.parts.find(({ id }) => id === 'eye:left:white');
+    const pupil = solid.parts.find(({ id }) => id === 'eye:left:pupil');
+    const glint = solid.parts.find(({ id }) => id === 'eye:left:glint');
+    expect(sclera?.geometry.type).toBe('superellipsoid');
+    expect(glint).toBeDefined();
+    if (sclera?.geometry.type === 'superellipsoid') {
+      expect(sclera.geometry.radii[2] / sclera.geometry.radii[0]).toBeLessThan(0.4);
+    }
+    const normal = pupil?.placement.surface?.normal;
+    if (pupil === undefined || glint === undefined || normal === undefined) return;
+    const delta = glint.placement.position.map((value, index) => (
+      value - (pupil.placement.position[index] ?? 0)
+    ));
+    const relief = delta.reduce((sum, value, index) => (
+      sum + value * (normal[index] ?? 0)
+    ), 0);
+    expect(relief).toBeGreaterThan(0);
+    expect(relief).toBeLessThan(faceLayout.eyeRadius * 0.03);
   });
 
   it('exposes face accessories through family-driven authoring controls', () => {

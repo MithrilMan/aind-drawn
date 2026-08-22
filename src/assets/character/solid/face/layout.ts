@@ -14,8 +14,10 @@ import {
   characterMouthCenterY,
 } from '../../identity/head-shape.js';
 import { createCharacterHairProfile } from '../../identity/hair-profile.js';
+import { characterEyeRadius } from '../../identity/eye-profile.js';
 import { createCharacterFacialHairProfile } from '../../identity/facial-hair-profile.js';
 import { createCharacterEyewearProfile } from '../../identity/accessory-profile.js';
+import { createCharacterRoundEarProfile } from '../../identity/ear-profile.js';
 import type { SolidFaceRecipe } from './recipe.js';
 import type { SolidCharacterRecipe } from '../recipe.js';
 
@@ -79,7 +81,7 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
     ]);
     return moveOnSurface(Object.freeze({ point: surface.point, normal: surface.normal, roll }), [0, 0], proud);
   };
-  const eyeRadius = Math.min(radii[0], radii[1]) * 0.19 * identity.eyes.size;
+  const eyeRadius = characterEyeRadius(identity);
   const eyeSpacing = identity.eyes.spacing;
   const eyeHeight = characterEyeCenterY(identity);
   const mouthHeight = characterMouthCenterY(identity);
@@ -93,6 +95,7 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
   const hairProfile = createCharacterHairProfile(identity);
   const facialHairProfile = createCharacterFacialHairProfile(identity);
   const eyewearProfile = createCharacterEyewearProfile(identity);
+  const roundEarProfile = createCharacterRoundEarProfile(identity);
   const hairX = hairProfile?.outline.map(([x]) => x * radii[0]) ?? [];
   const hairY = hairProfile?.outline.map(([, y]) => y * radii[1]) ?? [];
   const hairExpansion = hairProfile === null
@@ -127,9 +130,9 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
     );
   const earExtentX = identity.ears.style === 'none'
     ? 0
-    : radii[0] * (identity.ears.style === 'round'
-      ? 0.96 + 0.23 * identity.ears.size
-      : 0.86);
+    : roundEarProfile === null
+      ? radii[0] * 0.86
+      : roundEarProfile.center[0] + roundEarProfile.radii[0];
   const eyewearExtentX = eyewearProfile === null
     ? 0
     : radii[0] * Math.max(

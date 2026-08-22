@@ -5,21 +5,23 @@ import { mediumById, type Medium } from '../../../materials/medium.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../../../contracts/raster-asset.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
 import { createCharacterEyewearProfile } from '../identity/accessory-profile.js';
+import { createCharacterRoundEarProfile } from '../identity/ear-profile.js';
 import {
   createCharacterFacialHairProfile,
   type CharacterFacialHairComponent,
   type CharacterFacialHairProfile,
 } from '../identity/facial-hair-profile.js';
 import { createCharacterHairProfile } from '../identity/hair-profile.js';
-import { createCharacterEyeProfile } from '../identity/eye-profile.js';
+import { characterEyeRadius, createCharacterEyeProfile } from '../identity/eye-profile.js';
 import { createCharacterMouthProfile } from '../identity/mouth-profile.js';
+import { createCharacterNoseProfile } from '../identity/nose-profile.js';
 import {
   createCharacterTearProfile,
   type CharacterTearComponent,
 } from '../identity/tear-profile.js';
 import { createCharacterOutfitProfile } from '../identity/outfit-profile.js';
 import { characterFlowCapability } from './capabilities.js';
-import { buildCharacterLayout } from './layout.js';
+import { buildCharacterLayout, CHARACTER_IDENTITY_PIXEL_SCALE } from './layout.js';
 import {
   createRasterCharacterRecipe,
   type CharacterRecipe,
@@ -78,13 +80,14 @@ function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
   if (recipe.identity.ears.style === 'none') return;
   const centerX = HEAD_CANVAS.width / 2;
   const centerY = HEAD_CANVAS.height / 2;
+  const roundProfile = createCharacterRoundEarProfile(recipe.identity);
   for (const side of [-1, 1]) {
-    const points = recipe.identity.ears.style === 'round'
+    const points = roundProfile !== null
       ? sketch.blobPoints(
-        centerX + side * 58,
-        centerY + 2,
-        22 * recipe.identity.ears.size,
-        27 * recipe.identity.ears.size,
+        centerX + side * roundProfile.center[0] * CHARACTER_IDENTITY_PIXEL_SCALE,
+        centerY - roundProfile.center[1] * CHARACTER_IDENTITY_PIXEL_SCALE,
+        roundProfile.radii[0] * CHARACTER_IDENTITY_PIXEL_SCALE,
+        roundProfile.radii[1] * CHARACTER_IDENTITY_PIXEL_SCALE,
         0,
         0.24,
       )
@@ -105,7 +108,7 @@ function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       color: recipe.identity.palette.skin,
     });
     medium.edge(sketch, closePath(points), 3.6 * recipe.style.linePressure, { ghost: true });
-    if (recipe.identity.ears.style === 'round') {
+    if (roundProfile !== null) {
       sketch.setInk(recipe.identity.palette.skinAccent);
       sketch.stroke(chaikin([
         [centerX + side * 51, centerY - 11],
@@ -185,7 +188,7 @@ function drawEye(
 ): void {
   const centerX = EYE_CANVAS.width / 2;
   const centerY = EYE_CANVAS.height / 2;
-  const radius = Math.min(21, 12 + recipe.identity.eyes.size * 6);
+  const radius = characterEyeRadius(recipe.identity) * 96;
   const profile = createCharacterEyeProfile(recipe.identity, style);
   if (state === 'closed') {
     sketch.stroke(chaikin([
@@ -305,10 +308,10 @@ function drawBrow(sketch: Sketch, recipe: CharacterRecipe, side: -1 | 1): void {
 function drawNose(sketch: Sketch, recipe: CharacterRecipe): void {
   const centerX = NOSE_CANVAS.width / 2;
   const centerY = NOSE_CANVAS.height / 2;
-  const radiusX = 3 + recipe.identity.nose.size * 48;
-  const radiusY = recipe.identity.nose.style === 'drop'
-    ? 5 + recipe.identity.nose.length * 48
-    : 3 + recipe.identity.nose.length * 36;
+  const profile = createCharacterNoseProfile(recipe.identity);
+  if (profile === null) return;
+  const radiusX = profile.radii[0] * 96;
+  const radiusY = profile.radii[1] * 96;
   sketch.setInk(recipe.identity.species === 'robot'
     ? recipe.identity.palette.accent
     : recipe.identity.nose.style === 'drop'

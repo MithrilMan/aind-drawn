@@ -1,6 +1,12 @@
 import type { MeshGeometrySpec } from '../../../../contracts/solid-asset.js';
+import { clamp } from '../../../../core/geometry.js';
 import type { Point3, SurfaceAnchor } from '../../../../core/geometry3.js';
 import type { CharacterFacialHairProfile } from '../../identity/facial-hair-profile.js';
+
+function smoothUnit(value: number): number {
+  const amount = clamp(value, 0, 1);
+  return amount * amount * (3 - 2 * amount);
+}
 
 /** Builds a gravity-hanging beard curtain whose inner wall remains a real mouth aperture. */
 export function createFacialHairRingGeometry(
@@ -19,12 +25,26 @@ export function createFacialHairRingGeometry(
   const depth = radiusZ * profile.beard.spatial.depth;
   const radialSegments = 12;
   const ringCount = radialSegments + 1;
-  // A single vertical tangent keeps the hanging mass attached without turning its side view into a horn.
+  const fallStartY = profile.opening.spatial.center[1] - profile.opening.spatial.radii[1];
+  const fallDistance = Math.max(0.08, profile.beard.spatial.radii[1] * 0.14);
   const attachmentY = profile.opening.spatial.center[1] * 0.72;
   const curtainZ = at(0, attachmentY).point[2];
+  const curtainThickness = depth * 0.065;
   const vertices: Point3[] = [];
-  const project = (x: number, y: number, proud: number): Point3 => {
-    return Object.freeze([x * radiusX, y * radiusY, curtainZ + proud] as const);
+  const project = (
+    x: number,
+    y: number,
+    surfaceSide: 'front' | 'back',
+    volume: number,
+  ): Point3 => {
+    const surfaceZ = at(x, y).point[2];
+    const fallAmount = smoothUnit((fallStartY - y) / fallDistance);
+    const baseZ = surfaceZ + (curtainZ - surfaceZ) * fallAmount;
+    const clearance = radiusZ * 0.025;
+    const frontVolume = surfaceSide === 'front'
+      ? volume + (curtainThickness - volume) * fallAmount
+      : 0;
+    return Object.freeze([x * radiusX, y * radiusY, baseZ + clearance + frontVolume] as const);
   };
   for (const surfaceSide of ['front', 'back'] as const) {
     for (let radialIndex = 0; radialIndex < ringCount; radialIndex += 1) {
@@ -35,12 +55,8 @@ export function createFacialHairRingGeometry(
         const innerPoint = inner[index] as Point3 | readonly [number, number];
         const x = outerPoint[0] + (innerPoint[0] - outerPoint[0]) * amount;
         const y = outerPoint[1] + (innerPoint[1] - outerPoint[1]) * amount;
-        const clearance = radiusZ * 0.025;
         const volume = depth * (0.04 + bulge * 0.08);
-        const proud = surfaceSide === 'front'
-          ? clearance + volume
-          : clearance;
-        vertices.push(project(x, y, proud));
+        vertices.push(project(x, y, surfaceSide, volume));
       }
     }
   }

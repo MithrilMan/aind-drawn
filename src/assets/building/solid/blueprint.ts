@@ -63,13 +63,25 @@ function prismFromProfile(profile: readonly Point[], depth: number): MeshGeometr
     ...profile.map(([x, y]): Point3 => [x, y, -halfDepth]),
   ];
   const count = profile.length;
+  const signedArea = profile.reduce((area, [x, y], index) => {
+    const next = profile[(index + 1) % count];
+    return next === undefined ? area : area + x * next[1] - next[0] * y;
+  }, 0);
+  if (Math.abs(signedArea) < 1e-9) {
+    throw new RangeError('Prism profile must enclose a non-zero area');
+  }
+  const counterClockwise = signedArea > 0;
+  const profileOrder = Array.from({ length: count }, (_, index) => index);
+  const reverseOrder = profileOrder.toReversed();
   const faces: number[][] = [
-    Array.from({ length: count }, (_, index) => count - 1 - index),
-    Array.from({ length: count }, (_, index) => count + index),
+    counterClockwise ? profileOrder : reverseOrder,
+    (counterClockwise ? reverseOrder : profileOrder).map((index) => count + index),
   ];
   for (let index = 0; index < count; index += 1) {
     const next = (index + 1) % count;
-    faces.push([index, next, count + next, count + index]);
+    faces.push(counterClockwise
+      ? [count + index, count + next, next, index]
+      : [index, next, count + next, count + index]);
   }
   return Object.freeze({
     type: 'mesh',

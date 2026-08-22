@@ -43,8 +43,11 @@ import {
   createSolidBuildingRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
+  cross3,
+  dot3,
   pointOnSuperellipsoid,
   solidFaceMotionOf,
+  type Point3,
 } from '../src/index.js';
 
 describe('deterministic generation', () => {
@@ -785,6 +788,43 @@ describe('asset contracts', () => {
         .toEqual(facade.roofProfile);
       expect(facade.wallProfile[2]?.[1]).toBeCloseTo(facade.wallHeight);
       expect(facade.wallHeight + facade.roofRise).toBeCloseTo(identity.height);
+    }
+  });
+
+  it('winds every roof prism face outward', () => {
+    const subtract = (left: Point3, right: Point3): Point3 => Object.freeze([
+      left[0] - right[0],
+      left[1] - right[1],
+      left[2] - right[2],
+    ] as const);
+    for (const roofStyle of ['flat', 'gable', 'crooked', 'shed', 'mansard'] as const) {
+      const solid = createSolidBuildingBlueprint(createBuildingIdentity(4138, {
+        roof: roofStyle,
+      }));
+      const roof = solid.parts.find(({ id }) => id === 'building:roof');
+      if (roof?.geometry.type !== 'mesh') throw new TypeError('Expected a mesh roof');
+      const geometry = roof.geometry;
+      const vertexCount = geometry.vertices.length;
+      const meshCenter: Point3 = [
+        geometry.vertices.reduce((sum, vertex) => sum + vertex[0], 0) / vertexCount,
+        geometry.vertices.reduce((sum, vertex) => sum + vertex[1], 0) / vertexCount,
+        geometry.vertices.reduce((sum, vertex) => sum + vertex[2], 0) / vertexCount,
+      ];
+      for (const face of geometry.faces) {
+        const points = face.map((index) => geometry.vertices[index]);
+        const [first, second, third] = points;
+        expect(first).toBeDefined();
+        expect(second).toBeDefined();
+        expect(third).toBeDefined();
+        if (first === undefined || second === undefined || third === undefined) continue;
+        const normal = cross3(subtract(second, first), subtract(third, first));
+        const faceCenter: Point3 = [
+          points.reduce((sum, point) => sum + (point?.[0] ?? 0), 0) / points.length,
+          points.reduce((sum, point) => sum + (point?.[1] ?? 0), 0) / points.length,
+          points.reduce((sum, point) => sum + (point?.[2] ?? 0), 0) / points.length,
+        ];
+        expect(dot3(normal, subtract(faceCenter, meshCenter))).toBeGreaterThan(0);
+      }
     }
   });
 

@@ -34,11 +34,13 @@ export function createFacialHairRingGeometry(
         const x = outerPoint[0] + (innerPoint[0] - outerPoint[0]) * amount;
         const y = outerPoint[1] + (innerPoint[1] - outerPoint[1]) * amount;
         const angleSine = Math.sin(index / count * Math.PI * 2);
+        const lowerAmount = Math.max(0, -angleSine);
         const verticalWeight = angleSine > 0
-          ? 0.08 + 0.22 * (1 - angleSine)
-          : 0.3 + Math.abs(angleSine) * 0.86;
+          ? 0.06 + 0.18 * (1 - angleSine)
+          : 0.18 + 0.37 * lowerAmount + 0.42 * Math.sin(Math.PI * lowerAmount);
+        const lowerSupport = 0.2 * lowerAmount ** 1.4;
         const proud = surfaceSide === 'front'
-          ? radiusZ * 0.035 + depth * bulge * verticalWeight
+          ? radiusZ * 0.035 + depth * (bulge * verticalWeight + lowerSupport)
           : -radiusZ * 0.018;
         vertices.push(project(x, y, proud));
       }

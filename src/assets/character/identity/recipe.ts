@@ -422,7 +422,7 @@ export function createCharacterIdentity(
     facialHair: Object.freeze({
       style: facialHairStyle,
       width: facialHairRandom.float(0.9, 1.08),
-      length: facialHairRandom.float(0.9, 1.14),
+      length: facialHairRandom.float(0.92, 1.04),
       bulk: facialHairRandom.float(0.88, 1.12),
     }),
     accessories: Object.freeze(eyewearStyle === 'none' ? [] : [Object.freeze({

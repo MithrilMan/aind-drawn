@@ -1,5 +1,5 @@
-import type { Point } from '../../../core/geometry.js';
-import { characterMouthCenterY } from './head-shape.js';
+import { clamp, type Point } from '../../../core/geometry.js';
+import { characterHeadRadius2d, characterMouthCenterY } from './head-shape.js';
 import type { CharacterIdentityRecipe } from './recipe.js';
 
 export type CharacterFacialHairComponent = Readonly<{
@@ -62,20 +62,38 @@ export function createCharacterFacialHairProfile(
   const width = identity.facialHair.width;
   const length = identity.facialHair.length;
   const bulk = identity.facialHair.bulk;
-  const beardCenter = Object.freeze([0, mouthY - 0.45 * length] as const);
-  const beardRadii = Object.freeze([0.84 * width, 0.75 * length] as const);
+  const elongationRisk = clamp((length - 0.95) / 0.07, 0, 1);
+  const beardExponent = 3.1 - 0.9 * elongationRisk;
+  const beardCenter = Object.freeze([
+    0,
+    mouthY - (0.45 - 0.07 * elongationRisk) * length,
+  ] as const);
+  const beardRadii = Object.freeze([
+    (0.84 - 0.04 * elongationRisk) * width,
+    (0.75 - 0.15 * elongationRisk) * length,
+  ] as const);
   const openingCenter = Object.freeze([0, mouthY] as const);
-  const openingRadii = Object.freeze([0.42, 0.2] as const);
+  const lowerFaceY = -characterHeadRadius2d(identity.head, -Math.PI / 2);
+  const baseOpeningHalfHeight = identity.mouth.teeth === 'none' ? 0.18 : 0.21;
+  const openingHalfHeight = clamp(
+    mouthY - lowerFaceY - 0.035,
+    0.03,
+    baseOpeningHalfHeight,
+  );
+  const openingRadii = Object.freeze([
+    clamp(identity.mouth.width * 1.15, 0.34, 0.46),
+    openingHalfHeight,
+  ] as const);
   return Object.freeze({
     style: identity.facialHair.style,
     beard: Object.freeze({
-      outline: superellipse(beardCenter, beardRadii, 3.1, 32),
+      outline: superellipse(beardCenter, beardRadii, beardExponent, 32),
       spatial: Object.freeze({
         kind: 'volume-ring',
         center: beardCenter,
         radii: beardRadii,
-        depth: 0.72 * bulk,
-        exponent: 3.1,
+        depth: (0.72 - 0.1 * elongationRisk) * bulk,
+        exponent: beardExponent,
       }),
     }),
     components: Object.freeze([]),

@@ -45,7 +45,8 @@ export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCh
   const shoulderX = torsoWidth * 0.46;
   const hipX = torsoWidth * identity.body.stance;
   const headCenterY = legLength + torsoHeight + identity.head.height * 0.27;
-  const headCenter = point(0, headCenterY);
+  const headForward = torsoDepth * 0.32;
+  const headCenter = point(0, headCenterY, headForward);
   const torsoCenter = point(0, legLength + torsoHeight * 0.5);
   const handY = legLength + torsoHeight * 0.76 - armLength;
   const maximumHairY = identity.hair.style === 'none'
@@ -62,7 +63,12 @@ export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCh
   const minimumX = -bodyHalfWidth * 1.08;
   const maximumX = Math.max(bodyHalfWidth * 1.08, tailReach);
   const maximumY = Math.max(maximumHairY, headCenterY + headRadiusY * 1.08);
-  const maximumZ = Math.max(headRadiusZ, torsoDepth, armRadius, legRadius) * 1.12;
+  const maximumZ = Math.max(
+    headForward + headRadiusZ,
+    torsoDepth,
+    armRadius,
+    legRadius,
+  ) * 1.12;
 
   const nodes: SolidNodeDefinition[] = [
     Object.freeze({ id: 'root', position: point(0, 0) }),
@@ -79,7 +85,7 @@ export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCh
     }),
     Object.freeze({
       id: 'head', parentNode: 'torso',
-      position: point(0, torsoHeight + identity.head.height * 0.27),
+      position: point(0, torsoHeight + identity.head.height * 0.27, headForward),
     }),
   ];
   if (identity.tail.present) {
@@ -114,8 +120,8 @@ export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCh
     sockets: Object.freeze({
       feet: point(0, 0),
       head: headCenter,
-      crown: point(0, headCenterY + headRadiusY, 0),
-      face: point(0, headCenterY, headRadiusZ),
+      crown: point(0, headCenterY + headRadiusY, headForward),
+      face: point(0, headCenterY, headForward + headRadiusZ),
       'hand:left': point(-shoulderX, handY, 0),
       'hand:right': point(shoulderX, handY, 0),
       tail: point(torsoWidth * 0.38, legLength + torsoHeight * 0.28, -torsoDepth * 0.22),

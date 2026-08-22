@@ -10,6 +10,7 @@ import {
   buildSolidCharacterLayout,
   buildSolidFaceLayout,
   characterEyeCenterY,
+  characterHeadRadius2d,
   characterHeadShapeField,
   characterMouthCenterY,
   createBuildingFacadeGeometry,
@@ -892,6 +893,28 @@ describe('asset contracts', () => {
     )).toEqual([]);
     expect(createCharacterFacialHairProfile(identity)?.beard.spatial.kind).toBe('volume-ring');
     expect(createCharacterFacialHairProfile(identity)?.opening.spatial.kind).toBe('aperture');
+  });
+
+  it('keeps long beards wider than tall and their mouth aperture inside the head', () => {
+    for (const seed of [4126, 4138, 4129, 4147]) {
+      const identity = createCharacterIdentity(seed, { facialHairStyle: 'full-rounded' });
+      const profile = createCharacterFacialHairProfile(identity);
+      expect(profile).not.toBeNull();
+      if (profile === null) continue;
+      const xs = profile.beard.outline.map(([x]) => x);
+      const ys = profile.beard.outline.map(([, y]) => y);
+      const aspect = (Math.max(...ys) - Math.min(...ys))
+        / (Math.max(...xs) - Math.min(...xs));
+      const lowerFaceY = -characterHeadRadius2d(identity.head, -Math.PI / 2);
+      const openingBottom = profile.opening.spatial.center[1]
+        - profile.opening.spatial.radii[1];
+      expect(aspect).toBeLessThan(0.9);
+      expect(openingBottom).toBeGreaterThan(lowerFaceY);
+
+      const solid = createSolidCharacterBlueprint(identity);
+      const headNode = solid.nodes.find(({ id }) => id === 'head');
+      expect(headNode?.position[2]).toBeGreaterThan(0);
+    }
   });
 
   it('exposes face accessories through family-driven authoring controls', () => {

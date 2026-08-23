@@ -1,5 +1,9 @@
 import type { AssetBlueprint } from './raster-asset.js';
 import type { SolidAssetBlueprint } from './solid-asset.js';
+import {
+  SEMANTIC_SPATIAL_KINDS,
+  type AssetSemanticManifest,
+} from './asset-semantics.js';
 import { MEDIUM_IDS } from '../materials/medium.js';
 import { SOLID_DRAWING_APPLICATIONS, SOLID_FINISH_IDS } from '../materials/finish.js';
 import { AssetValidationCollector, type ValidationPath } from '../validation/value-validator.js';
@@ -11,6 +15,13 @@ const EPSILON = 1e-9;
 type IndexedRecord = Readonly<{
   value: Record<string, unknown>;
   path: ValidationPath;
+}>;
+
+type ManifestValidationIndex = Readonly<{
+  partIds: ReadonlySet<string>;
+  socketIds: ReadonlySet<string>;
+  colliderIds: ReadonlySet<string>;
+  interactionStates: ReadonlyMap<string, ReadonlySet<string>>;
 }>;
 
 function validateHeader(
@@ -127,6 +138,135 @@ function validateHierarchy(
   }
 }
 
+function validateSemanticManifest(
+  value: unknown,
+  path: ValidationPath,
+  collector: AssetValidationCollector,
+  expectedFamily?: string,
+): ManifestValidationIndex {
+  const manifest = collector.object(value, path, [
+    'family', 'parts', 'socketIds', 'colliderIds', 'interactions',
+  ]);
+  collector.string(manifest.family, [...path, 'family']);
+  if (typeof manifest.family === 'string' && expectedFamily !== undefined
+    && manifest.family !== expectedFamily) {
+    collector.issue(
+      [...path, 'family'],
+      'manifest.family',
+      `Manifest family ${manifest.family} does not match blueprint family ${expectedFamily}`,
+    );
+  }
+
+  const parts = collector.array(manifest.parts, [...path, 'parts']);
+  if (parts.length === 0) {
+    collector.issue([...path, 'parts'], 'array.non_empty', 'A semantic manifest requires parts');
+  }
+  const indexedParts = indexById(parts, [...path, 'parts'], 'semantic part', collector);
+  const parents = new Map<string, string | undefined>();
+  const partPaths = new Map<string, ValidationPath>();
+  for (const [id, entry] of indexedParts) {
+    const part = collector.object(entry.value, entry.path, ['id', 'parentId', 'spatial']);
+    collector.oneOf(part.spatial, [...entry.path, 'spatial'], SEMANTIC_SPATIAL_KINDS);
+    if ('parentId' in part) collector.string(part.parentId, [...entry.path, 'parentId']);
+    parents.set(id, typeof part.parentId === 'string' ? part.parentId : undefined);
+    partPaths.set(id, entry.path);
+  }
+  validateHierarchy(parents, partPaths, 'Semantic part', 'parentId', collector);
+
+  const socketValues = collector.array(manifest.socketIds, [...path, 'socketIds']);
+  collector.uniqueStrings(socketValues, [...path, 'socketIds']);
+  const socketIds = new Set(socketValues.filter((id): id is string => typeof id === 'string'));
+  const colliderValues = collector.array(manifest.colliderIds, [...path, 'colliderIds']);
+  collector.uniqueStrings(colliderValues, [...path, 'colliderIds']);
+  const colliderIds = new Set(colliderValues.filter((id): id is string => typeof id === 'string'));
+
+  const interactions = collector.array(manifest.interactions, [...path, 'interactions']);
+  const indexedInteractions = indexById(
+    interactions,
+    [...path, 'interactions'],
+    'interaction',
+    collector,
+  );
+  const interactionStates = new Map<string, ReadonlySet<string>>();
+  for (const [id, entry] of indexedInteractions) {
+    const interaction = collector.object(entry.value, entry.path, [
+      'id', 'kind', 'initialState', 'states', 'sensorId', 'activationSocketId',
+    ]);
+    collector.oneOf(interaction.kind, [...entry.path, 'kind'], ['toggle', 'portal'] as const);
+    const states = collector.array(interaction.states, [...entry.path, 'states']);
+    if (states.length === 0) {
+      collector.issue([...entry.path, 'states'], 'array.non_empty', 'An interaction requires states');
+    }
+    collector.uniqueStrings(states, [...entry.path, 'states']);
+    const stateIds = new Set(states.filter((state): state is string => typeof state === 'string'));
+    interactionStates.set(id, stateIds);
+    collector.string(interaction.initialState, [...entry.path, 'initialState']);
+    if (typeof interaction.initialState === 'string' && !stateIds.has(interaction.initialState)) {
+      collector.issue(
+        [...entry.path, 'initialState'],
+        'reference.missing',
+        'Initial state is not declared by the interaction',
+      );
+    }
+    collector.string(interaction.sensorId, [...entry.path, 'sensorId']);
+    if (typeof interaction.sensorId === 'string' && !colliderIds.has(interaction.sensorId)) {
+      collector.issue(
+        [...entry.path, 'sensorId'],
+        'reference.missing',
+        `Interaction sensor ${interaction.sensorId} is absent from the manifest collider inventory`,
+      );
+    }
+    collector.string(interaction.activationSocketId, [...entry.path, 'activationSocketId']);
+    if (
+      typeof interaction.activationSocketId === 'string'
+      && !socketIds.has(interaction.activationSocketId)
+    ) {
+      collector.issue(
+        [...entry.path, 'activationSocketId'],
+        'reference.missing',
+        `Interaction socket ${interaction.activationSocketId} is absent from the manifest socket inventory`,
+      );
+    }
+  }
+
+  return Object.freeze({
+    partIds: new Set(indexedParts.keys()),
+    socketIds,
+    colliderIds,
+    interactionStates,
+  });
+}
+
+function validateExactInventory(
+  actual: ReadonlySet<string>,
+  expected: ReadonlySet<string>,
+  path: ValidationPath,
+  label: string,
+  collector: AssetValidationCollector,
+): void {
+  for (const id of expected) {
+    if (!actual.has(id)) {
+      collector.issue(path, 'manifest.inventory_missing', `Missing ${label} ${id} declared by the manifest`);
+    }
+  }
+  for (const id of actual) {
+    if (!expected.has(id)) {
+      collector.issue(path, 'manifest.inventory_extra', `${label} ${id} is absent from the manifest`);
+    }
+  }
+}
+
+export function validateAssetSemanticManifest<TFamily extends string>(
+  manifest: AssetSemanticManifest<TFamily>,
+): AssetSemanticManifest<TFamily>;
+export function validateAssetSemanticManifest(manifest: unknown): AssetSemanticManifest;
+export function validateAssetSemanticManifest(manifest: unknown): AssetSemanticManifest {
+  const collector = new AssetValidationCollector();
+  validateSemanticManifest(manifest, [], collector);
+  collector.finish();
+  return manifest as AssetSemanticManifest;
+}
+
 function validateRasterBounds(value: unknown, collector: AssetValidationCollector): void {
   const bounds = collector.object(value, ['bounds'], ['x', 'y', 'width', 'height']);
   collector.number(bounds.x, ['bounds', 'x']);
@@ -172,6 +312,7 @@ function validateRasterBones(
 function validateRasterLayers(
   value: unknown,
   bones: ReadonlySet<string>,
+  semanticParts: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): ReadonlyMap<string, ReadonlySet<string>> {
   const layers = collector.array(value, ['layers']);
@@ -184,8 +325,17 @@ function validateRasterLayers(
   layers.forEach((entry, index) => {
     const path = ['layers', index] as const;
     const layer = collector.object(entry, path, [
-      'id', 'bone', 'order', 'depth', 'canvas', 'world', 'pivot', 'states', 'capabilities', 'draw',
+      'id', 'semanticPartId', 'bone', 'order', 'depth', 'canvas', 'world', 'pivot', 'states',
+      'capabilities', 'draw',
     ]);
+    collector.string(layer.semanticPartId, [...path, 'semanticPartId']);
+    if (typeof layer.semanticPartId === 'string' && !semanticParts.has(layer.semanticPartId)) {
+      collector.issue(
+        [...path, 'semanticPartId'],
+        'reference.missing',
+        `Unknown semantic part ${layer.semanticPartId}`,
+      );
+    }
     collector.string(layer.bone, [...path, 'bone']);
     if (typeof layer.bone === 'string' && !bones.has(layer.bone)) {
       collector.issue([...path, 'bone'], 'reference.missing', `Unknown bone ${layer.bone}`);
@@ -305,47 +455,45 @@ function validateRasterSockets(
   return new Set(indexed.keys());
 }
 
-function validateRasterInteractions(
+function validateRasterInteractionBindings(
   value: unknown,
   layers: ReadonlyMap<string, ReadonlySet<string>>,
-  colliderKinds: ReadonlyMap<string, string>,
-  sockets: ReadonlySet<string>,
+  interactions: ReadonlyMap<string, ReadonlySet<string>>,
   collector: AssetValidationCollector,
 ): void {
-  const interactions = collector.array(value, ['interactions']);
-  indexById(interactions, ['interactions'], 'interaction', collector);
-  interactions.forEach((entry, index) => {
-    const path = ['interactions', index] as const;
-    const interaction = collector.object(entry, path);
-    collector.oneOf(interaction.kind, [...path, 'kind'], ['toggle', 'portal'] as const);
-    collector.string(interaction.sensorColliderId, [...path, 'sensorColliderId']);
-    collector.string(interaction.activationSocketId, [...path, 'activationSocketId']);
-    const states = collector.array(interaction.states, [...path, 'states']);
-    if (states.length === 0) {
-      collector.issue([...path, 'states'], 'array.non_empty', 'An interaction requires at least one state');
+  const bindings = collector.array(value, ['interactionBindings']);
+  const seenInteractions = new Set<string>();
+  bindings.forEach((entry, index) => {
+    const path = ['interactionBindings', index] as const;
+    const projection = collector.object(entry, path, ['interactionId', 'layers']);
+    collector.string(projection.interactionId, [...path, 'interactionId']);
+    const stateIds = typeof projection.interactionId === 'string'
+      ? interactions.get(projection.interactionId)
+      : undefined;
+    if (typeof projection.interactionId === 'string') {
+      if (seenInteractions.has(projection.interactionId)) {
+        collector.issue(
+          [...path, 'interactionId'],
+          'id.duplicate',
+          `Interaction ${projection.interactionId} is bound more than once`,
+        );
+      }
+      seenInteractions.add(projection.interactionId);
+      if (stateIds === undefined) {
+        collector.issue(
+          [...path, 'interactionId'],
+          'reference.missing',
+          `Unknown interaction ${projection.interactionId}`,
+        );
+      }
     }
-    collector.uniqueStrings(states, [...path, 'states']);
-    const stateIds = new Set(states.filter((state): state is string => typeof state === 'string'));
-    collector.string(interaction.initialState, [...path, 'initialState']);
-    if (typeof interaction.initialState === 'string' && !stateIds.has(interaction.initialState)) {
-      collector.issue([...path, 'initialState'], 'reference.missing', 'Initial state is not declared by the interaction');
+    const layerBindings = collector.array(projection.layers, [...path, 'layers']);
+    if (layerBindings.length === 0) {
+      collector.issue([...path, 'layers'], 'array.non_empty', 'A raster interaction requires layer bindings');
     }
-    if (
-      typeof interaction.sensorColliderId === 'string'
-      && colliderKinds.get(interaction.sensorColliderId) !== 'sensor'
-    ) {
-      collector.issue([...path, 'sensorColliderId'], 'reference.sensor', 'Expected a sensor collider reference');
-    }
-    if (
-      typeof interaction.activationSocketId === 'string'
-      && !sockets.has(interaction.activationSocketId)
-    ) {
-      collector.issue([...path, 'activationSocketId'], 'reference.missing', 'Activation socket does not exist');
-    }
-    const bindings = collector.array(interaction.layerBindings, [...path, 'layerBindings']);
     const boundLayers = new Set<string>();
-    bindings.forEach((entryBinding, bindingIndex) => {
-      const bindingPath = [...path, 'layerBindings', bindingIndex];
+    layerBindings.forEach((entryBinding, bindingIndex) => {
+      const bindingPath = [...path, 'layers', bindingIndex];
       const binding = collector.object(entryBinding, bindingPath);
       collector.string(binding.layerId, [...bindingPath, 'layerId']);
       if (typeof binding.layerId === 'string') {
@@ -362,7 +510,7 @@ function validateRasterInteractions(
         binding.stateByInteractionState,
         [...bindingPath, 'stateByInteractionState'],
       );
-      for (const state of stateIds) {
+      for (const state of stateIds ?? []) {
         const layerState = stateMap[state];
         collector.string(layerState, [...bindingPath, 'stateByInteractionState', state]);
         if (typeof layerState === 'string' && layerStates !== undefined && !layerStates.has(layerState)) {
@@ -374,7 +522,7 @@ function validateRasterInteractions(
         }
       }
       for (const state of Object.keys(stateMap)) {
-        if (!stateIds.has(state)) {
+        if (stateIds !== undefined && !stateIds.has(state)) {
           collector.issue(
             [...bindingPath, 'stateByInteractionState', state],
             'object.unknown_key',
@@ -384,6 +532,15 @@ function validateRasterInteractions(
       }
     });
   });
+  for (const id of interactions.keys()) {
+    if (!seenInteractions.has(id)) {
+      collector.issue(
+        ['interactionBindings'],
+        'manifest.binding_missing',
+        `Missing raster binding for interaction ${id}`,
+      );
+    }
+  }
 }
 
 export function validateRasterAssetBlueprint<TFamily extends string>(
@@ -392,15 +549,46 @@ export function validateRasterAssetBlueprint<TFamily extends string>(
 export function validateRasterAssetBlueprint(blueprint: unknown): AssetBlueprint;
 export function validateRasterAssetBlueprint(blueprint: unknown): AssetBlueprint {
   const collector = new AssetValidationCollector();
-  const root = collector.object(blueprint, []);
+  const root = collector.object(blueprint, [], [
+    'blueprintVersion', 'family', 'representation', 'assetId', 'seed', 'medium',
+    'manifest', 'bounds', 'bones', 'layers', 'colliders', 'sockets', 'interactionBindings',
+  ]);
   validateHeader(root, 'raster', collector);
+  const manifest = validateSemanticManifest(
+    root.manifest,
+    ['manifest'],
+    collector,
+    typeof root.family === 'string' ? root.family : undefined,
+  );
   collector.oneOf(root.medium, ['medium'], MEDIUM_IDS);
   validateRasterBounds(root.bounds, collector);
   const bones = validateRasterBones(root.bones, collector);
-  const layers = validateRasterLayers(root.layers, bones, collector);
+  const layers = validateRasterLayers(root.layers, bones, manifest.partIds, collector);
   const colliderKinds = validateRasterColliders(root.colliders, bones, collector);
   const sockets = validateRasterSockets(root.sockets, ['sockets'], bones, collector);
-  validateRasterInteractions(root.interactions, layers, colliderKinds, sockets, collector);
+  validateExactInventory(new Set(colliderKinds.keys()), manifest.colliderIds, ['colliders'], 'collider', collector);
+  validateExactInventory(sockets, manifest.socketIds, ['sockets'], 'socket', collector);
+  const manifestRecord = root.manifest as Record<string, unknown> | undefined;
+  const manifestInteractions = Array.isArray(manifestRecord?.interactions)
+    ? manifestRecord.interactions
+    : [];
+  for (const interaction of manifestInteractions) {
+    if (typeof interaction !== 'object' || interaction === null) continue;
+    const spec = interaction as Record<string, unknown>;
+    if (typeof spec.sensorId === 'string' && colliderKinds.get(spec.sensorId) !== 'sensor') {
+      collector.issue(
+        ['manifest', 'interactions'],
+        'reference.sensor',
+        `Interaction ${String(spec.id)} requires sensor collider ${spec.sensorId}`,
+      );
+    }
+  }
+  validateRasterInteractionBindings(
+    root.interactionBindings,
+    layers,
+    manifest.interactionStates,
+    collector,
+  );
   collector.finish();
   return blueprint as AssetBlueprint;
 }
@@ -644,6 +832,7 @@ function validateSolidParts(
   value: unknown,
   nodes: ReadonlySet<string>,
   materials: ReadonlySet<string>,
+  semanticParts: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): void {
   const parts = collector.array(value, ['parts']);
@@ -654,6 +843,14 @@ function validateSolidParts(
   parts.forEach((entry, index) => {
     const path = ['parts', index] as const;
     const part = collector.object(entry, path);
+    collector.string(part.semanticPartId, [...path, 'semanticPartId']);
+    if (typeof part.semanticPartId === 'string' && !semanticParts.has(part.semanticPartId)) {
+      collector.issue(
+        [...path, 'semanticPartId'],
+        'reference.missing',
+        `Unknown semantic part ${part.semanticPartId}`,
+      );
+    }
     collector.string(part.node, [...path, 'node']);
     if (typeof part.node === 'string' && !nodes.has(part.node)) {
       collector.issue([...path, 'node'], 'reference.missing', `Unknown node ${part.node}`);
@@ -748,47 +945,45 @@ function validateNodeState(
   if ('scale' in state) positiveTuple(state.scale, [...path, 'scale'], 3, collector);
 }
 
-function validateSolidInteractions(
+function validateSolidInteractionBindings(
   value: unknown,
   nodes: ReadonlySet<string>,
-  colliderKinds: ReadonlyMap<string, string>,
-  sockets: ReadonlySet<string>,
+  interactions: ReadonlyMap<string, ReadonlySet<string>>,
   collector: AssetValidationCollector,
 ): void {
-  const interactions = collector.array(value, ['interactions']);
-  indexById(interactions, ['interactions'], 'interaction', collector);
-  interactions.forEach((entry, index) => {
-    const path = ['interactions', index] as const;
-    const interaction = collector.object(entry, path);
-    collector.oneOf(interaction.kind, [...path, 'kind'], ['toggle', 'portal'] as const);
-    collector.string(interaction.sensorColliderId, [...path, 'sensorColliderId']);
-    collector.string(interaction.activationSocketId, [...path, 'activationSocketId']);
-    const states = collector.array(interaction.states, [...path, 'states']);
-    if (states.length === 0) {
-      collector.issue([...path, 'states'], 'array.non_empty', 'An interaction requires at least one state');
+  const bindings = collector.array(value, ['interactionBindings']);
+  const seenInteractions = new Set<string>();
+  bindings.forEach((entry, index) => {
+    const path = ['interactionBindings', index] as const;
+    const projection = collector.object(entry, path, ['interactionId', 'nodes']);
+    collector.string(projection.interactionId, [...path, 'interactionId']);
+    const stateIds = typeof projection.interactionId === 'string'
+      ? interactions.get(projection.interactionId)
+      : undefined;
+    if (typeof projection.interactionId === 'string') {
+      if (seenInteractions.has(projection.interactionId)) {
+        collector.issue(
+          [...path, 'interactionId'],
+          'id.duplicate',
+          `Interaction ${projection.interactionId} is bound more than once`,
+        );
+      }
+      seenInteractions.add(projection.interactionId);
+      if (stateIds === undefined) {
+        collector.issue(
+          [...path, 'interactionId'],
+          'reference.missing',
+          `Unknown interaction ${projection.interactionId}`,
+        );
+      }
     }
-    collector.uniqueStrings(states, [...path, 'states']);
-    const stateIds = new Set(states.filter((state): state is string => typeof state === 'string'));
-    collector.string(interaction.initialState, [...path, 'initialState']);
-    if (typeof interaction.initialState === 'string' && !stateIds.has(interaction.initialState)) {
-      collector.issue([...path, 'initialState'], 'reference.missing', 'Initial state is not declared by the interaction');
+    const nodeBindings = collector.array(projection.nodes, [...path, 'nodes']);
+    if (nodeBindings.length === 0) {
+      collector.issue([...path, 'nodes'], 'array.non_empty', 'A solid interaction requires node bindings');
     }
-    if (
-      typeof interaction.sensorColliderId === 'string'
-      && colliderKinds.get(interaction.sensorColliderId) !== 'sensor'
-    ) {
-      collector.issue([...path, 'sensorColliderId'], 'reference.sensor', 'Expected a sensor collider reference');
-    }
-    if (
-      typeof interaction.activationSocketId === 'string'
-      && !sockets.has(interaction.activationSocketId)
-    ) {
-      collector.issue([...path, 'activationSocketId'], 'reference.missing', 'Activation socket does not exist');
-    }
-    const bindings = collector.array(interaction.nodeBindings, [...path, 'nodeBindings']);
     const boundNodes = new Set<string>();
-    bindings.forEach((bindingEntry, bindingIndex) => {
-      const bindingPath = [...path, 'nodeBindings', bindingIndex];
+    nodeBindings.forEach((bindingEntry, bindingIndex) => {
+      const bindingPath = [...path, 'nodes', bindingIndex];
       const binding = collector.object(bindingEntry, bindingPath);
       collector.string(binding.nodeId, [...bindingPath, 'nodeId']);
       if (typeof binding.nodeId === 'string') {
@@ -804,7 +999,7 @@ function validateSolidInteractions(
         binding.stateByInteractionState,
         [...bindingPath, 'stateByInteractionState'],
       );
-      for (const state of stateIds) {
+      for (const state of stateIds ?? []) {
         if (!(state in stateMap)) {
           collector.issue(
             [...bindingPath, 'stateByInteractionState', state],
@@ -820,7 +1015,7 @@ function validateSolidInteractions(
         );
       }
       for (const state of Object.keys(stateMap)) {
-        if (!stateIds.has(state)) {
+        if (stateIds !== undefined && !stateIds.has(state)) {
           collector.issue(
             [...bindingPath, 'stateByInteractionState', state],
             'object.unknown_key',
@@ -830,6 +1025,15 @@ function validateSolidInteractions(
       }
     });
   });
+  for (const id of interactions.keys()) {
+    if (!seenInteractions.has(id)) {
+      collector.issue(
+        ['interactionBindings'],
+        'manifest.binding_missing',
+        `Missing solid binding for interaction ${id}`,
+      );
+    }
+  }
 }
 
 export function validateSolidAssetBlueprint<TFamily extends string>(
@@ -838,15 +1042,160 @@ export function validateSolidAssetBlueprint<TFamily extends string>(
 export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBlueprint;
 export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBlueprint {
   const collector = new AssetValidationCollector();
-  const root = collector.object(blueprint, []);
+  const root = collector.object(blueprint, [], [
+    'blueprintVersion', 'family', 'representation', 'assetId', 'seed', 'manifest',
+    'bounds', 'nodes', 'parts', 'materials', 'colliders', 'sockets', 'interactionBindings',
+  ]);
   validateHeader(root, 'solid', collector);
+  const manifest = validateSemanticManifest(
+    root.manifest,
+    ['manifest'],
+    collector,
+    typeof root.family === 'string' ? root.family : undefined,
+  );
   validateSolidBounds(root.bounds, collector);
   const materials = validateSolidMaterials(root.materials, collector);
   const nodes = validateSolidNodes(root.nodes, collector);
-  validateSolidParts(root.parts, nodes, materials, collector);
+  validateSolidParts(root.parts, nodes, materials, manifest.partIds, collector);
   const colliderKinds = validateSolidColliders(root.colliders, nodes, collector);
   const sockets = validateSolidSockets(root.sockets, nodes, collector);
-  validateSolidInteractions(root.interactions, nodes, colliderKinds, sockets, collector);
+  validateExactInventory(new Set(colliderKinds.keys()), manifest.colliderIds, ['colliders'], 'collider', collector);
+  validateExactInventory(sockets, manifest.socketIds, ['sockets'], 'socket', collector);
+  const manifestRecord = root.manifest as Record<string, unknown> | undefined;
+  const manifestInteractions = Array.isArray(manifestRecord?.interactions)
+    ? manifestRecord.interactions
+    : [];
+  for (const interaction of manifestInteractions) {
+    if (typeof interaction !== 'object' || interaction === null) continue;
+    const spec = interaction as Record<string, unknown>;
+    if (typeof spec.sensorId === 'string' && colliderKinds.get(spec.sensorId) !== 'sensor') {
+      collector.issue(
+        ['manifest', 'interactions'],
+        'reference.sensor',
+        `Interaction ${String(spec.id)} requires sensor collider ${spec.sensorId}`,
+      );
+    }
+  }
+  validateSolidInteractionBindings(
+    root.interactionBindings,
+    nodes,
+    manifest.interactionStates,
+    collector,
+  );
   collector.finish();
   return blueprint as SolidAssetBlueprint;
+}
+
+function compareSemanticIds(
+  rasterIds: readonly string[],
+  solidIds: readonly string[],
+  path: ValidationPath,
+  label: string,
+  collector: AssetValidationCollector,
+): void {
+  const raster = new Set(rasterIds);
+  const solid = new Set(solidIds);
+  for (const id of raster) {
+    if (!solid.has(id)) {
+      collector.issue(path, 'parity.missing', `Solid manifest is missing ${label} ${id}`);
+    }
+  }
+  for (const id of solid) {
+    if (!raster.has(id)) {
+      collector.issue(path, 'parity.missing', `Raster manifest is missing ${label} ${id}`);
+    }
+  }
+}
+
+/**
+ * Verifies that two projections of one authored asset expose one semantic
+ * contract. Geometry is intentionally ignored; semantic ownership and runtime
+ * integration points are not.
+ */
+export function validateAssetBlueprintParity(
+  raster: AssetBlueprint,
+  solid: SolidAssetBlueprint,
+): void {
+  validateRasterAssetBlueprint(raster);
+  validateSolidAssetBlueprint(solid);
+  const collector = new AssetValidationCollector();
+  if (raster.family !== solid.family) {
+    collector.issue(['family'], 'parity.family', 'Raster and solid families differ');
+  }
+  if (raster.assetId !== solid.assetId) {
+    collector.issue(['assetId'], 'parity.asset', 'Raster and solid asset IDs differ');
+  }
+  if (raster.manifest.family !== solid.manifest.family) {
+    collector.issue(['manifest', 'family'], 'parity.family', 'Semantic manifest families differ');
+  }
+
+  compareSemanticIds(
+    raster.manifest.socketIds,
+    solid.manifest.socketIds,
+    ['manifest', 'socketIds'],
+    'socket',
+    collector,
+  );
+  compareSemanticIds(
+    raster.manifest.colliderIds,
+    solid.manifest.colliderIds,
+    ['manifest', 'colliderIds'],
+    'collider',
+    collector,
+  );
+
+  const rasterParts = new Map(raster.manifest.parts.map((part) => [part.id, part]));
+  const solidParts = new Map(solid.manifest.parts.map((part) => [part.id, part]));
+  compareSemanticIds(
+    [...rasterParts.keys()],
+    [...solidParts.keys()],
+    ['manifest', 'parts'],
+    'semantic part',
+    collector,
+  );
+  for (const [id, rasterPart] of rasterParts) {
+    const solidPart = solidParts.get(id);
+    if (solidPart !== undefined && (
+      rasterPart.parentId !== solidPart.parentId
+      || rasterPart.spatial !== solidPart.spatial
+    )) {
+      collector.issue(
+        ['manifest', 'parts'],
+        'parity.definition',
+        `Semantic part ${id} differs between projections`,
+      );
+    }
+  }
+
+  const rasterInteractions = new Map(
+    raster.manifest.interactions.map((interaction) => [interaction.id, interaction]),
+  );
+  const solidInteractions = new Map(
+    solid.manifest.interactions.map((interaction) => [interaction.id, interaction]),
+  );
+  compareSemanticIds(
+    [...rasterInteractions.keys()],
+    [...solidInteractions.keys()],
+    ['manifest', 'interactions'],
+    'interaction',
+    collector,
+  );
+  for (const [id, rasterInteraction] of rasterInteractions) {
+    const solidInteraction = solidInteractions.get(id);
+    if (solidInteraction !== undefined && (
+      rasterInteraction.kind !== solidInteraction.kind
+      || rasterInteraction.initialState !== solidInteraction.initialState
+      || rasterInteraction.sensorId !== solidInteraction.sensorId
+      || rasterInteraction.activationSocketId !== solidInteraction.activationSocketId
+      || rasterInteraction.states.length !== solidInteraction.states.length
+      || rasterInteraction.states.some((state, index) => solidInteraction.states[index] !== state)
+    )) {
+      collector.issue(
+        ['manifest', 'interactions'],
+        'parity.definition',
+        `Interaction ${id} differs between projections`,
+      );
+    }
+  }
+  collector.finish();
 }

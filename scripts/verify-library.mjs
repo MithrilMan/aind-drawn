@@ -30,6 +30,8 @@ const requiredExports = [
   'createRasterBuildingRecipe',
   'createSolidBuildingBlueprint',
   'createSolidBuildingRecipe',
+  'validateAssetBlueprintParity',
+  'validateAssetSemanticManifest',
   'createVehicleIdentity',
   'createRasterVehicleBlueprint',
   'createRasterVehicleRecipe',
@@ -139,7 +141,7 @@ assert.equal(
   'Compiled raster validators must preserve valid blueprints by reference',
 );
 assert.ok(building.layers.some(({ id }) => id === 'door'), 'Compiled building is missing its door layer');
-assert.equal(building.interactions[0]?.id, 'door', 'Compiled building is missing its door interaction');
+assert.equal(building.manifest.interactions[0]?.id, 'door', 'Compiled building is missing its door interaction');
 assert.ok(
   building.sockets.some(({ id, bone }) => id === 'door:entry' && bone === 'root'),
   'Compiled building is missing its attached entry socket',
@@ -151,7 +153,9 @@ assert.equal(
   'Compiled solid validators must preserve valid blueprints by reference',
 );
 assert.equal(building.assetId, solidBuilding.assetId, 'Building projections must share an asset ID');
-assert.equal(solidBuilding.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
+assert.equal(solidBuilding.manifest.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
+assert.equal(building.manifest, solidBuilding.manifest, 'Building projections must share one manifest');
+library.validateAssetBlueprintParity(building, solidBuilding);
 assert.ok(solidBuilding.parts.some(({ id }) => id === 'building:roof'), 'Compiled solid building is missing its roof volume');
 assert.ok(
   solidBuilding.nodes.every((node) => node.restPose?.rotation?.length === 4 && !('position' in node)),
@@ -187,10 +191,12 @@ const vehicle = library.createRasterVehicleBlueprint(
 const solidVehicle = library.createSolidVehicleBlueprint(vehicleIdentity);
 assert.equal(vehicle.assetId, solidVehicle.assetId, 'Vehicle projections must share an asset ID');
 assert.deepEqual(
-  vehicle.interactions.map(({ id }) => id),
-  solidVehicle.interactions.map(({ id }) => id),
+  vehicle.manifest.interactions.map(({ id }) => id),
+  solidVehicle.manifest.interactions.map(({ id }) => id),
   'Vehicle projections must retain the same interactions',
 );
+assert.equal(vehicle.manifest, solidVehicle.manifest, 'Vehicle projections must share one manifest');
+library.validateAssetBlueprintParity(vehicle, solidVehicle);
 assert.ok(
   solidVehicle.parts.some(({ id }) => id === 'wheel:front:left:tyre'),
   'Compiled solid vehicle is missing its front tyre volume',

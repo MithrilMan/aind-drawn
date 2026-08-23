@@ -19,6 +19,8 @@ import {
   createSolidFaceRecipe,
   createSolidVehicleBlueprint,
   createVehicleIdentity,
+  validateAssetBlueprintParity,
+  validateAssetSemanticManifest,
   validateRasterAssetBlueprint,
   validateSolidAssetBlueprint,
   type AssetBlueprint,
@@ -65,14 +67,18 @@ function invalidRasterBlueprint(): unknown {
       },
       ...source.layers.slice(1),
     ],
-    interactions: [{
-      id: 'broken',
-      kind: 'portal',
-      sensorColliderId: 'missing-sensor',
-      activationSocketId: 'missing-socket',
-      initialState: 'closed',
-      states: ['closed', 'open'],
-      layerBindings: [{
+    manifest: {
+      ...source.manifest,
+      socketIds: [...source.manifest.socketIds, 'missing-socket'],
+      colliderIds: [...source.manifest.colliderIds, 'missing-sensor'],
+      interactions: [...source.manifest.interactions, {
+        id: 'broken', kind: 'portal', sensorId: 'missing-sensor',
+        activationSocketId: 'missing-socket', initialState: 'closed', states: ['closed', 'open'],
+      }],
+    },
+    interactionBindings: [...source.interactionBindings, {
+      interactionId: 'broken',
+      layers: [{
         layerId: 'missing-layer',
         stateByInteractionState: { closed: 'closed' },
       }],
@@ -112,14 +118,18 @@ function invalidSolidBlueprint(): unknown {
         { id: 'test:duplicate', data: {} },
       ],
     }, ...source.parts.slice(1)],
-    interactions: [{
-      id: 'broken',
-      kind: 'portal',
-      sensorColliderId: 'missing-sensor',
-      activationSocketId: 'missing-socket',
-      initialState: 'closed',
-      states: ['closed', 'open'],
-      nodeBindings: [{
+    manifest: {
+      ...source.manifest,
+      socketIds: [...source.manifest.socketIds, 'missing-socket'],
+      colliderIds: [...source.manifest.colliderIds, 'missing-sensor'],
+      interactions: [...source.manifest.interactions, {
+        id: 'broken', kind: 'portal', sensorId: 'missing-sensor',
+        activationSocketId: 'missing-socket', initialState: 'closed', states: ['closed', 'open'],
+      }],
+    },
+    interactionBindings: [...source.interactionBindings, {
+      interactionId: 'broken',
+      nodes: [{
         nodeId: 'missing-node',
         stateByInteractionState: { closed: {}, extra: {} },
       }],
@@ -131,6 +141,7 @@ function failingSpriteBlueprint(): AssetBlueprint<'test'> {
   const size = Object.freeze({ width: 8, height: 8 });
   const layer = (id: string, draw: () => void) => Object.freeze({
     id,
+    semanticPartId: 'art',
     bone: 'root',
     order: id === 'first' ? 0 : 1,
     depth: 0,
@@ -147,6 +158,11 @@ function failingSpriteBlueprint(): AssetBlueprint<'test'> {
     assetId: 'test:failing-sprite',
     seed: 1,
     medium: 'graphite',
+    manifest: Object.freeze({
+      family: 'test',
+      parts: Object.freeze([Object.freeze({ id: 'art', spatial: 'surface' as const })]),
+      socketIds: Object.freeze([]), colliderIds: Object.freeze([]), interactions: Object.freeze([]),
+    }),
     bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
     bones: Object.freeze([Object.freeze({
       id: 'root',
@@ -160,11 +176,103 @@ function failingSpriteBlueprint(): AssetBlueprint<'test'> {
     ]),
     colliders: Object.freeze([]),
     sockets: Object.freeze([]),
-    interactions: Object.freeze([]),
+    interactionBindings: Object.freeze([]),
   });
 }
 
 describe('blueprint validation', () => {
+  it('shares one semantic manifest across raster and solid adapters', () => {
+    const projections = [
+      (() => {
+        const identity = createCharacterIdentity(3101);
+        return [
+          createRasterCharacterBlueprint(identity),
+          createSolidCharacterBlueprint(identity),
+        ] as const;
+      })(),
+      (() => {
+        const identity = createBuildingIdentity(3102);
+        return [
+          createRasterBuildingBlueprint(createRasterBuildingRecipe(identity)),
+          createSolidBuildingBlueprint(identity),
+        ] as const;
+      })(),
+      (() => {
+        const identity = createVehicleIdentity(3103);
+        return [
+          createRasterVehicleBlueprint(createRasterVehicleRecipe(identity)),
+          createSolidVehicleBlueprint(identity),
+        ] as const;
+      })(),
+    ];
+
+    for (const [raster, solid] of projections) {
+      expect(raster.manifest).toBe(solid.manifest);
+      expect(validateAssetSemanticManifest(raster.manifest)).toBe(raster.manifest);
+      expect(() => { validateAssetBlueprintParity(raster, solid); }).not.toThrow();
+      expect('interactions' in raster).toBe(false);
+      expect('interactions' in solid).toBe(false);
+      const semanticParts = new Set(raster.manifest.parts.map(({ id }) => id));
+      expect(raster.layers.every(({ semanticPartId }) => semanticParts.has(semanticPartId))).toBe(true);
+      expect(solid.parts.every(({ semanticPartId }) => semanticParts.has(semanticPartId))).toBe(true);
+    }
+  });
+
+  it('reports semantic part, socket, collider, and binding parity drift generically', () => {
+    const identity = createBuildingIdentity(3110, { chimney: false });
+    const raster = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity));
+    const solid = createSolidBuildingBlueprint(identity);
+    const withoutChimney = {
+      ...raster,
+      manifest: {
+        ...raster.manifest,
+        parts: raster.manifest.parts.filter(({ id }) => id !== 'chimney'),
+      },
+      layers: raster.layers.filter(({ semanticPartId }) => semanticPartId !== 'chimney'),
+    } as AssetBlueprint<'building'>;
+    expect(validationError(() => { validateAssetBlueprintParity(withoutChimney, solid); }).issues)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'parity.missing' })]));
+
+    const withoutRoofSocket = {
+      ...raster,
+      manifest: {
+        ...raster.manifest,
+        socketIds: raster.manifest.socketIds.filter((id) => id !== 'roof'),
+      },
+      sockets: raster.sockets.filter(({ id }) => id !== 'roof'),
+    } as AssetBlueprint<'building'>;
+    expect(validationError(() => { validateAssetBlueprintParity(withoutRoofSocket, solid); }).issues)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'parity.missing' })]));
+
+    const withoutDoorLeaf = {
+      ...raster,
+      manifest: {
+        ...raster.manifest,
+        colliderIds: raster.manifest.colliderIds.filter((id) => id !== 'door:leaf'),
+      },
+      colliders: raster.colliders.filter(({ id }) => id !== 'door:leaf'),
+    } as AssetBlueprint<'building'>;
+    expect(validationError(() => { validateAssetBlueprintParity(withoutDoorLeaf, solid); }).issues)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'parity.missing' })]));
+
+    const withoutBinding = {
+      ...raster,
+      interactionBindings: [],
+    } as AssetBlueprint<'building'>;
+    expect(validationError(() => { validateAssetBlueprintParity(withoutBinding, solid); }).issues)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ code: 'manifest.binding_missing' })]));
+  });
+
+  it('rejects removed blueprint-level interaction definitions', () => {
+    const identity = createBuildingIdentity(3111);
+    const raster = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity));
+    const legacyShape = { ...raster, interactions: raster.manifest.interactions };
+    const error = validationError(() => validateRasterAssetBlueprint(legacyShape));
+    expect(error.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: ['interactions'], code: 'object.unknown_key' }),
+    ]));
+  });
+
   it('accepts representative and property-generated output from every current factory', () => {
     const random = new Random('blueprint-validator-properties');
     const seeds = [0, 1, 4107, 5101, ...Array.from(
@@ -206,8 +314,7 @@ describe('blueprint validation', () => {
       'object.unknown_key',
     ]));
     expect(error.issues).toEqual(expect.arrayContaining([
-      expect.objectContaining({ path: ['interactions', 0, 'activationSocketId'] }),
-      expect.objectContaining({ path: ['interactions', 0, 'layerBindings', 0, 'layerId'] }),
+      expect.objectContaining({ path: ['interactionBindings', 1, 'layers', 0, 'layerId'] }),
     ]));
   });
 

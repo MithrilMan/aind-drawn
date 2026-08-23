@@ -4,11 +4,12 @@ import type {
   AffineTransform2,
   AssetBlueprint,
   ColliderShape2,
-  InteractionDefinition,
   LayerDefinition,
   Pose2,
   RasterBoneDefinition,
+  RasterInteractionBinding,
 } from '../contracts/raster-asset.js';
+import type { InteractionSpec } from '../contracts/asset-semantics.js';
 import { validateRasterAssetBlueprint } from '../contracts/blueprint-validation.js';
 import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
 import { automaticCanvasFactory } from '../core/canvas.js';
@@ -91,7 +92,10 @@ export class SpriteRig {
     try {
       this.buildBones(this.blueprint.bones);
       this.buildLayers(this.blueprint.layers);
-      this.initializeInteractions(this.blueprint.interactions);
+      this.initializeInteractions(
+        this.blueprint.manifest.interactions,
+        this.blueprint.interactionBindings,
+      );
     } catch (error) {
       this.dispose();
       throw error;
@@ -197,13 +201,14 @@ export class SpriteRig {
 
   public setInteractionState(interactionId: string, state: string): void {
     const interaction = this.requireInteraction(interactionId);
+    const projection = this.requireInteractionBinding(interactionId);
     if (!interaction.states.includes(state)) {
       throw new RangeError(`Interaction ${interactionId} does not define state ${state}`);
     }
     if (this.interactionStates.get(interactionId) === state) {
       return;
     }
-    for (const binding of interaction.layerBindings) {
+    for (const binding of projection.layers) {
       const layerState = binding.stateByInteractionState[state];
       if (layerState === undefined) {
         throw new Error(`Interaction ${interactionId} has no ${state} binding for ${binding.layerId}`);
@@ -268,7 +273,10 @@ export class SpriteRig {
     this.root.clear();
   }
 
-  private initializeInteractions(definitions: readonly InteractionDefinition[]): void {
+  private initializeInteractions(
+    definitions: readonly InteractionSpec[],
+    bindings: readonly RasterInteractionBinding[],
+  ): void {
     const ids = new Set<string>();
     for (const definition of definitions) {
       if (ids.has(definition.id)) {
@@ -279,15 +287,19 @@ export class SpriteRig {
         throw new Error(`Interaction ${definition.id} has invalid initial state ${definition.initialState}`);
       }
       const sensor = this.blueprint.colliders.find(
-        (collider) => collider.id === definition.sensorColliderId,
+        (collider) => collider.id === definition.sensorId,
       );
       if (sensor?.kind !== 'sensor') {
-        throw new Error(`Interaction ${definition.id} requires sensor ${definition.sensorColliderId}`);
+        throw new Error(`Interaction ${definition.id} requires sensor ${definition.sensorId}`);
       }
       if (!this.blueprint.sockets.some(({ id }) => id === definition.activationSocketId)) {
         throw new Error(`Interaction ${definition.id} requires socket ${definition.activationSocketId}`);
       }
-      for (const binding of definition.layerBindings) {
+      const projection = bindings.find((candidate) => candidate.interactionId === definition.id);
+      if (projection === undefined) {
+        throw new Error(`Interaction ${definition.id} requires a raster binding`);
+      }
+      for (const binding of projection.layers) {
         const layer = this.requireLayer(binding.layerId);
         for (const state of definition.states) {
           const layerState = binding.stateByInteractionState[state];
@@ -299,7 +311,7 @@ export class SpriteRig {
         }
       }
       this.interactionStates.set(definition.id, definition.initialState);
-      for (const binding of definition.layerBindings) {
+      for (const binding of projection.layers) {
         const layerState = binding.stateByInteractionState[definition.initialState];
         if (layerState !== undefined) {
           this.setLayerState(binding.layerId, layerState);
@@ -458,12 +470,22 @@ export class SpriteRig {
     return layer;
   }
 
-  private requireInteraction(id: string): InteractionDefinition {
-    const interaction = this.blueprint.interactions.find((candidate) => candidate.id === id);
+  private requireInteraction(id: string): InteractionSpec {
+    const interaction = this.blueprint.manifest.interactions.find((candidate) => candidate.id === id);
     if (interaction === undefined) {
       throw new Error(`Unknown interaction: ${id}`);
     }
     return interaction;
+  }
+
+  private requireInteractionBinding(id: string): RasterInteractionBinding {
+    const binding = this.blueprint.interactionBindings.find(
+      (candidate) => candidate.interactionId === id,
+    );
+    if (binding === undefined) {
+      throw new Error(`Unknown raster interaction binding: ${id}`);
+    }
+    return binding;
   }
 
   private renderOrder(localOrder: number): number {

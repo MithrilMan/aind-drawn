@@ -3,6 +3,7 @@ import type { Bounds3, Point3, RadialDeformation, SurfaceAnchor } from '../core/
 import type { SolidMaterialSpec } from '../materials/finish.js';
 import type { AssetCapabilities } from './asset-capabilities.js';
 import type { AssetBlueprintHeader } from './asset-envelope.js';
+import type { AssetSemanticManifest } from './asset-semantics.js';
 
 export type SuperellipsoidGeometrySpec = Readonly<{
   type: 'superellipsoid';
@@ -62,6 +63,7 @@ export type SolidPlacement = Readonly<{
 
 export type SolidPartDefinition = Readonly<{
   id: string;
+  semanticPartId: string;
   node: string;
   order: number;
   geometry: SolidGeometrySpec;
@@ -129,14 +131,9 @@ export type SolidInteractionNodeBinding = Readonly<{
   stateByInteractionState: Readonly<Record<string, SolidNodeState>>;
 }>;
 
-export type SolidInteractionDefinition = Readonly<{
-  id: string;
-  kind: 'toggle' | 'portal';
-  sensorColliderId: string;
-  activationSocketId: string;
-  initialState: string;
-  states: readonly string[];
-  nodeBindings: readonly SolidInteractionNodeBinding[];
+export type SolidInteractionBinding = Readonly<{
+  interactionId: string;
+  nodes: readonly SolidInteractionNodeBinding[];
 }>;
 
 export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprintHeader<
@@ -144,10 +141,11 @@ export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprin
   'solid'
 > & Readonly<{
   bounds: Bounds3;
+  manifest: AssetSemanticManifest<TFamily>;
   nodes: readonly SolidNodeDefinition[];
   parts: readonly SolidPartDefinition[];
   materials: readonly SolidMaterialSpec[];
   colliders: readonly SolidColliderDefinition[];
   sockets: readonly SolidSocketDefinition[];
-  interactions: readonly SolidInteractionDefinition[];
+  interactionBindings: readonly SolidInteractionBinding[];
 }>;

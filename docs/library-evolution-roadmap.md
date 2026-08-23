@@ -15,12 +15,11 @@ and inked-solid output are adapters rather than independent generators; and Thre
 outside identity, layout, and blueprint authoring. The next step should preserve those choices,
 not replace them with a more fashionable framework.
 
-The main limitation is now at the public and runtime boundaries. The library can describe and
-render a rich asset, but several of its promises are not yet first-class capabilities for a
-consumer:
+The main limitation is now at the runtime and composition boundaries. The library can describe,
+validate, and compare a rich asset across projections, but several of its promises are not yet
+first-class capabilities for a consumer:
 
-- sockets and colliders are static coordinates rather than attachments to articulated parts;
-- shared semantic interactions are duplicated in raster and solid blueprints;
+- runtime identity is still conflated with deterministic authored content identity;
 - animation intent is still coupled to renderer-specific rigs;
 - the inked-solid pass is organised around one blueprint policy rather than a registered set of
   scene instances;
@@ -31,9 +30,8 @@ consumer:
 
 The recommended direction is therefore:
 
-1. harden and normalise public data contracts;
-2. make semantic attachments and runtime spatial queries real;
-3. separate pure motion sampling from renderer application;
+1. build runtime instances and composition on the now-normalised public contracts;
+2. separate pure motion sampling from renderer application;
 4. evolve inked-solid rendering from a single-blueprint pass into a multi-instance scene service;
 5. add small reusable geometry primitives where duplication already proves the need;
 6. ship persistence, export, composition, and inspection as first-class library capabilities;
@@ -151,6 +149,42 @@ focused Customize previews, and the vehicle door open state in both projections.
 The next recommended slice is Initiative 3, the shared semantic manifest. Spatial ownership is
 now real enough to share interaction intent without merely centralising duplicate coordinates.
 
+### 2026-08-23 - Initiative 3 completed
+
+Cross-representation semantics now have one owner. Raster and solid blueprints no longer carry
+parallel interaction definitions that merely happen to agree.
+
+Completed work:
+
+- added the public, family-agnostic `AssetSemanticManifest`, `SemanticPartSpec`,
+  `InteractionSpec`, and spatial vocabulary contracts;
+- added identity-adjacent immutable manifests for character, focused character face, building,
+  and vehicle assets;
+- made complete raster and solid projections from one identity reference the exact same manifest
+  object;
+- added required `semanticPartId` ownership to every raster layer and solid part while allowing
+  representation granularity to differ;
+- replaced `InteractionDefinition` and `SolidInteractionDefinition` with raster layer bindings
+  and solid node bindings that reference shared interaction IDs;
+- aligned complete cross-representation socket and collider inventories, including character
+  crown/face/head metadata, building roof/handle/leaf metadata, and vehicle handle/passenger/leaf
+  metadata;
+- extended pure blueprint validation to enforce manifest structure, hierarchy, ownership,
+  inventories, sensor references, and complete bindings;
+- added `validateAssetSemanticManifest` and `validateAssetBlueprintParity`, with regressions that
+  detect missing semantic parts, sockets, colliders, and bindings without family switches;
+- migrated rigs, Projection Studio focused previews, compiled-artifact verification, tests, and
+  documentation with no compatibility aliases for the removed interaction contracts.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 104 tests, compiled artifact,
+exact public API snapshot, and the Projection Studio production build pass. Desktop browser QA
+confirmed representative character, building, and vehicle raster and Doodle 3D projections plus
+vehicle interaction controls.
+
+The next recommended slice is Initiative 5, runtime instances and composition. The content
+contract is now coherent enough that instance identity can be introduced without leaking family
+or renderer state back into blueprints.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -197,8 +231,8 @@ collapsed into a single style identifier.
 
 The current tests cover deterministic generation, namespace isolation, cross-representation
 parity, topology, interactions, material ownership, runtime idempotence, and resource disposal.
-The baseline is healthy: the current library suite passes all 101 tests, and the compiled artifact
-verification enforces an exact snapshot of 145 public exports.
+The baseline is healthy: the current library suite passes all 104 tests, and the compiled artifact
+verification enforces an exact snapshot of 155 public exports.
 
 The recommended work adds new kinds of verification; it does not replace these tests with visual
 snapshots alone.
@@ -256,7 +290,7 @@ render targets.
 | P0 | Unified recipe and blueprint envelopes | Completed | Coherent public data model | None |
 | P0 | Codecs and pure validators | Completed | Safe persistence and fail-fast runtimes | Unified envelopes |
 | P0 | Attached sockets and colliders | Completed | Real equipment, portals, and physics integration | Contract cleanup |
-| P1 | Shared semantic manifest | Planned | Guaranteed cross-representation state parity | Unified envelopes |
+| P1 | Shared semantic manifest | Completed | Guaranteed cross-representation state parity | Unified envelopes |
 | P1 | Runtime instance identity | Planned | Multiple independent instances of one asset | Contract cleanup |
 | P1 | Pure motion samplers | Planned | Seekable, exportable, deterministic motion | Runtime instance model |
 | P1 | Multi-instance inked-solid rendering | Planned | Doodle rendering for complete scenes | Runtime instance identity |
@@ -475,7 +509,7 @@ fail after a controlled number of allocations.
   seeds.
 - [x] Constructor fault tests prove partial resources are released.
 
-## Initiative 3: a shared semantic manifest
+## Initiative 3: a shared semantic manifest - completed 2026-08-23
 
 ### Problem
 
@@ -547,10 +581,10 @@ publish `semanticPartId`; parity compares ownership and intent, not accidental r
 
 ### Acceptance criteria
 
-- Raster and solid blueprints from one identity reference the same semantic interaction specs.
-- Representation adapters contain bindings, not duplicate interaction definitions.
-- A generic parity validator detects missing parts, sockets, colliders, or bindings.
-- No generic contract imports family vocabulary.
+- [x] Raster and solid blueprints from one identity reference the same semantic interaction specs.
+- [x] Representation adapters contain bindings, not duplicate interaction definitions.
+- [x] A generic parity validator detects missing parts, sockets, colliders, or bindings.
+- [x] No generic contract imports family vocabulary.
 
 ## Initiative 4: articulated sockets, colliders, and runtime spatial queries - completed 2026-08-23
 
@@ -985,7 +1019,7 @@ flow, or character vocabulary.
 
 The root barrel currently exports contracts, low-level geometry, family internals, layouts,
 capability constructors, runtimes, material providers, and high-level factories together. The
-compiled artifact currently exposes 145 names.
+compiled artifact currently exposes 155 names.
 
 A large root API makes accidental commitments cheap and future cleanup expensive. It also makes it
 hard to communicate the intended path for ordinary consumers versus family authors.

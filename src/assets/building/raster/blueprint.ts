@@ -7,6 +7,10 @@ import {
 } from '../identity/geometry.js';
 import type { AssetBlueprint, LayerDefinition, Size2 } from '../../../contracts/raster-asset.js';
 import type { RasterBuildingRecipe } from './recipe.js';
+import {
+  BUILDING_SEMANTIC_MANIFEST,
+  buildingSemanticPartId,
+} from '../identity/semantics.js';
 
 const PIXELS_PER_UNIT = 72;
 const MARGIN = 10;
@@ -243,6 +247,7 @@ function createLayer(
 ): LayerDefinition {
   return Object.freeze({
     id,
+    semanticPartId: buildingSemanticPartId(id),
     order,
     depth: 0,
     canvas,
@@ -292,6 +297,7 @@ export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): Ass
     assetId: `building:${identity.seed}`,
     seed: identity.seed,
     medium: recipe.style.medium,
+    manifest: BUILDING_SEMANTIC_MANIFEST,
     bounds: Object.freeze({
       x: -identity.width / 2, y: 0, width: identity.width, height: identity.height,
     }),
@@ -331,6 +337,15 @@ export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): Ass
         }),
         size: Object.freeze({ width: sensorWidth, height: 1.45 }),
       }),
+      Object.freeze({
+        id: 'door:leaf', kind: 'solid', shape: 'rectangle',
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: doorX, y: facade.door.height * 0.5 }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: facade.door.width, height: facade.door.height }),
+      }),
     ]),
     sockets: Object.freeze([
       Object.freeze({
@@ -351,15 +366,26 @@ export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): Ass
           position: Object.freeze({ x: doorX, y: 0 }), rotation: 0,
         }),
       }),
+      Object.freeze({
+        id: 'door:handle', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: doorX + (identity.door.hinge === 'left' ? 1 : -1) * facade.door.width * 0.28,
+            y: facade.door.height * 0.43,
+          }),
+          rotation: 0,
+        }),
+      }),
+      Object.freeze({
+        id: 'roof', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: facade.wallHeight }), rotation: 0,
+        }),
+      }),
     ]),
-    interactions: Object.freeze([Object.freeze({
-      id: 'door',
-      kind: 'portal',
-      sensorColliderId: 'door:sensor',
-      activationSocketId: 'door:entry',
-      initialState: 'closed',
-      states: Object.freeze(['closed', 'open']),
-      layerBindings: Object.freeze([Object.freeze({
+    interactionBindings: Object.freeze([Object.freeze({
+      interactionId: 'door',
+      layers: Object.freeze([Object.freeze({
         layerId: 'door',
         stateByInteractionState: Object.freeze({ closed: 'closed', open: 'open' }),
       })]),

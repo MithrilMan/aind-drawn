@@ -41,6 +41,7 @@ function testBlueprint(): AssetBlueprint {
   const size = Object.freeze({ width: 8, height: 8 });
   const layer = (id: string, order: number) => Object.freeze({
     id,
+    semanticPartId: 'art',
     bone: id,
     order,
     depth: 0,
@@ -57,6 +58,13 @@ function testBlueprint(): AssetBlueprint {
     assetId: 'test',
     seed: 1,
     medium: 'graphite',
+    manifest: Object.freeze({
+      family: 'test',
+      parts: Object.freeze([Object.freeze({ id: 'art', spatial: 'surface' as const })]),
+      socketIds: Object.freeze([]),
+      colliderIds: Object.freeze([]),
+      interactions: Object.freeze([]),
+    }),
     bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
     bones: Object.freeze(['back', 'front'].map((id) => Object.freeze({
       id,
@@ -68,7 +76,7 @@ function testBlueprint(): AssetBlueprint {
     layers: Object.freeze([layer('back', -5), layer('front', 4)]),
     colliders: Object.freeze([]),
     sockets: Object.freeze([]),
-    interactions: Object.freeze([]),
+    interactionBindings: Object.freeze([]),
   });
 }
 
@@ -102,6 +110,17 @@ describe('sprite rig runtime', () => {
       assetId: 'interactive-door',
       seed: 4,
       medium: 'graphite',
+      manifest: Object.freeze({
+        family: 'test',
+        parts: Object.freeze([Object.freeze({ id: 'door', spatial: 'articulated' as const })]),
+        socketIds: Object.freeze(['entry']),
+        colliderIds: Object.freeze(['door:sensor']),
+        interactions: Object.freeze([Object.freeze({
+          id: 'door', kind: 'portal' as const,
+          sensorId: 'door:sensor', activationSocketId: 'entry',
+          initialState: 'closed', states: Object.freeze(['closed', 'open']),
+        })]),
+      }),
       bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
       bones: Object.freeze([Object.freeze({
         id: 'root',
@@ -111,6 +130,7 @@ describe('sprite rig runtime', () => {
       })]),
       layers: Object.freeze([Object.freeze({
         id: 'door',
+        semanticPartId: 'door',
         bone: 'root',
         order: 0,
         depth: 0,
@@ -134,14 +154,9 @@ describe('sprite rig runtime', () => {
           position: Object.freeze({ x: 0, y: 0 }), rotation: 0,
         }),
       })]),
-      interactions: Object.freeze([Object.freeze({
-        id: 'door',
-        kind: 'portal',
-        sensorColliderId: 'door:sensor',
-        activationSocketId: 'entry',
-        initialState: 'closed',
-        states: Object.freeze(['closed', 'open']),
-        layerBindings: Object.freeze([Object.freeze({
+      interactionBindings: Object.freeze([Object.freeze({
+        interactionId: 'door',
+        layers: Object.freeze([Object.freeze({
           layerId: 'door',
           stateByInteractionState: Object.freeze({ closed: 'closed', open: 'open' }),
         })]),
@@ -165,6 +180,11 @@ describe('sprite rig runtime', () => {
       assetId: 'moving-character',
       seed: 27,
       medium: 'graphite',
+      manifest: Object.freeze({
+        family: 'character',
+        parts: Object.freeze([Object.freeze({ id: 'limbs', spatial: 'articulated' as const })]),
+        socketIds: Object.freeze([]), colliderIds: Object.freeze([]), interactions: Object.freeze([]),
+      }),
       bounds: Object.freeze({ x: -0.5, y: 0, width: 1, height: 2 }),
       bones: Object.freeze(['arm:left', 'arm:right', 'leg:left', 'leg:right']
         .map((id, index) => Object.freeze({
@@ -179,6 +199,7 @@ describe('sprite rig runtime', () => {
         }))),
       layers: Object.freeze(['arm:left', 'arm:right', 'leg:left', 'leg:right'].map((id, index) => Object.freeze({
         id,
+        semanticPartId: 'limbs',
         bone: id,
         order: index,
         depth: 0,
@@ -190,7 +211,7 @@ describe('sprite rig runtime', () => {
       }))),
       colliders: Object.freeze([]),
       sockets: Object.freeze([]),
-      interactions: Object.freeze([]),
+      interactionBindings: Object.freeze([]),
     });
     const rig = new SpriteRig(limbBlueprint, { boilFrames: 1, canvasFactory: inertCanvasFactory });
     const character = new THREE.Group();
@@ -269,6 +290,12 @@ describe('sprite rig runtime', () => {
       assetId: 'character:4210',
       seed: 4210,
       medium: 'graphite',
+      manifest: Object.freeze({
+        family: 'character',
+        parts: Object.freeze([Object.freeze({ id: 'limbs', spatial: 'articulated' as const })]),
+        socketIds: Object.freeze(['hand:left']),
+        colliderIds: Object.freeze([]), interactions: Object.freeze([]),
+      }),
       bounds: Object.freeze({ x: -1, y: 0, width: 2, height: 2 }),
       bones: Object.freeze([Object.freeze({
         id: 'arm:left',
@@ -277,7 +304,7 @@ describe('sprite rig runtime', () => {
         }),
       })]),
       layers: Object.freeze([Object.freeze({
-        id: 'arm:left', bone: 'arm:left', order: 0, depth: 0,
+        id: 'arm:left', semanticPartId: 'limbs', bone: 'arm:left', order: 0, depth: 0,
         canvas: size, world: Object.freeze({ width: 0.2, height: 0.8 }),
         pivot: [0.5, 1] as const, states: Object.freeze(['idle']),
         draw: (): void => undefined,
@@ -289,7 +316,7 @@ describe('sprite rig runtime', () => {
           position: Object.freeze({ x: 0, y: -0.8 }), rotation: 0,
         }),
       })]),
-      interactions: Object.freeze([]),
+      interactionBindings: Object.freeze([]),
     });
     const rig = new SpriteRig(blueprint, { boilFrames: 1, canvasFactory: inertCanvasFactory });
     const initial = rig.getSocketWorldPose('hand:left');

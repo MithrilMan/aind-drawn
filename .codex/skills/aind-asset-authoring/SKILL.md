@@ -136,7 +136,8 @@ Create one concept per file where the family needs it:
 - `recipe.ts`: immutable serializable identity and namespaced random streams,
   or representation-only policy when a shared family identity already exists.
 - `layout.ts`: one derivation for part dimensions, bounds, sockets, and collider geometry.
-- `blueprint.ts`: stable named layers, joints, pivots, states, draw callbacks, colliders, sockets, and interactions.
+- `blueprint.ts`: stable named layers, semantic part ownership, joints, pivots,
+  states, draw callbacks, colliders, sockets, and representation bindings.
 - `authoring.ts`: public semantic parameter metadata, defaults, choices, and
   focused raster preview layer IDs when a generic editor must customize the family.
 - a family-specific animator under `src/assets/<family>/runtime/` only for
@@ -183,7 +184,8 @@ family IDs.
 - Keep independently stateful parts in independent layers.
 - Place pivots at physical joints.
 - Keep local layer order within the asset; use runtime draw ranks globally.
-- Expose gameplay through colliders, sockets, and `InteractionDefinition`, never texture inspection.
+- Expose gameplay through the shared `AssetSemanticManifest`, attached colliders
+  and sockets, and representation-specific interaction bindings; never inspect textures.
 - Validate every interaction state, sensor, socket, layer, and layer-state binding.
 - Dispose runtime GPU resources through `SpriteRig.dispose()`.
 - Keep smooth-solid geometry and material specifications serialisable and free

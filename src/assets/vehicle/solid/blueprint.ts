@@ -1,6 +1,10 @@
 import type { Point3 } from '../../../core/geometry3.js';
 import type { SolidMaterialSpec } from '../../../materials/finish.js';
 import { createVehicleDrawingStyle } from '../identity/drawing-style.js';
+import {
+  VEHICLE_SEMANTIC_MANIFEST,
+  vehicleSemanticPartId,
+} from '../identity/semantics.js';
 import { createVehicleCabinSideProfile } from '../identity/geometry.js';
 import {
   vehicleSideSign,
@@ -231,7 +235,9 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   const identity = recipe.identity;
   const layout = buildSolidVehicleLayout(identity);
   const parts: SolidPartDefinition[] = [];
-  const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
+  const add = (part: Omit<SolidPartDefinition, 'semanticPartId'>): void => {
+    parts.push(Object.freeze({ ...part, semanticPartId: vehicleSemanticPartId(part.id) }));
+  };
   const bodyHeight = Math.max(identity.wheels.radius * 0.95, layout.beltHeight - layout.bodyBottom);
 
   add({
@@ -443,13 +449,8 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     id: 'door:left' | 'door:right',
     side: VehicleSide,
   ) => Object.freeze({
-    id,
-    kind: 'portal' as const,
-    sensorColliderId: `${id}:sensor`,
-    activationSocketId: `entry:${side}`,
-    initialState: 'closed',
-    states: Object.freeze(['closed', 'open']),
-    nodeBindings: Object.freeze([Object.freeze({
+    interactionId: id,
+    nodes: Object.freeze([Object.freeze({
       nodeId: id,
       stateByInteractionState: Object.freeze({
         closed: Object.freeze({ rotation: [0, 0, 0] as const }),
@@ -466,6 +467,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     representation: 'solid',
     assetId: `vehicle:${identity.seed}`,
     seed: identity.seed,
+    manifest: VEHICLE_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
@@ -526,13 +528,12 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
       }),
     ]),
     sockets: layout.sockets,
-    interactions: Object.freeze([
+    interactionBindings: Object.freeze([
       interaction('door:left', 'left'),
       interaction('door:right', 'right'),
       Object.freeze({
-        id: 'hood', kind: 'toggle', sensorColliderId: 'hood:sensor', activationSocketId: 'driver',
-        initialState: 'closed', states: Object.freeze(['closed', 'open']),
-        nodeBindings: Object.freeze([Object.freeze({
+        interactionId: 'hood',
+        nodes: Object.freeze([Object.freeze({
           nodeId: 'hood', stateByInteractionState: Object.freeze({
             closed: Object.freeze({ rotation: [0, 0, 0] as const }),
             open: Object.freeze({ rotation: [0, 0, Math.PI * 0.34] as const }),
@@ -540,9 +541,8 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
         })]),
       }),
       Object.freeze({
-        id: 'cargo', kind: 'toggle', sensorColliderId: 'cargo:sensor', activationSocketId: 'cargo',
-        initialState: 'closed', states: Object.freeze(['closed', 'open']),
-        nodeBindings: Object.freeze([Object.freeze({
+        interactionId: 'cargo',
+        nodes: Object.freeze([Object.freeze({
           nodeId: 'cargo', stateByInteractionState: Object.freeze({
             closed: Object.freeze({ rotation: [0, 0, 0] as const }),
             open: Object.freeze({ rotation: [0, 0, -Math.PI * 0.34] as const }),

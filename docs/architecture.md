@@ -124,6 +124,18 @@ The library does not equate an asset with a sprite. Recipe and layout express
 identity, dimensions, semantic parts, sockets, and collision. A representation
 blueprint then describes how those decisions become renderable data:
 
+Each multi-representation family owns one immutable `AssetSemanticManifest`
+beside its identity. The manifest contains only generic spatial vocabulary,
+stable semantic part IDs, socket and collider inventories, and shared
+`InteractionSpec` values. Raster and solid blueprints from one complete asset
+reference the same manifest object. Their layers and meshes publish
+`semanticPartId`; their interaction bindings contain only renderer-specific
+layer states or node transforms.
+
+`validateAssetBlueprintParity` compares those contracts generically. It detects
+missing semantic parts, sockets, colliders, interaction specs, and bindings
+without switching on character, building, vehicle, or any future family ID.
+
 | Representation | Blueprint payload | Runtime adapter |
 | --- | --- | --- |
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
@@ -199,10 +211,10 @@ An asset generator returns an immutable blueprint containing:
 
 - explicit `RasterBoneDefinition` entries with parent IDs and serialisable local rest poses;
 - named layers in stable draw order;
-- layer bounds, pivots, bone references, states, and draw functions;
+- layer bounds, pivots, bone references, semantic ownership, states, and draw functions;
 - semantic sockets with stable IDs, owner bones, and local position plus orientation;
 - gameplay colliders with owner bones and local poses, derived from the same layout as the drawing;
-- declarative interactions that bind sensors and sockets to visual layer states.
+- a shared semantic manifest plus raster-only interaction bindings.
 
 Layer pivots use world-space orientation: `[0, 0]` is the bottom-left and
 `[1, 1]` is the top-right of the plane. Canvas drawing still uses its native
@@ -234,7 +246,7 @@ the drawing core remains compatible with `OffscreenCanvas` and test doubles.
 
 `SolidAssetBlueprint` is JSON-compatible data. It publishes a node hierarchy,
 named parts, geometry specifications, physical material intent, 3D bounds,
-colliders, sockets, and node-transform interactions. Supported geometry
+colliders, sockets, semantic ownership, and node-transform interaction bindings. Supported geometry
 primitives are boxes, superellipsoids, extruded 2D profiles, and indexed or flat
 triangle meshes.
 

@@ -2,6 +2,10 @@ import type { Point } from '../../../core/geometry.js';
 import type { Point3 } from '../../../core/geometry3.js';
 import type { SolidMaterialSpec } from '../../../materials/finish.js';
 import { createBuildingDrawingStyle } from '../identity/drawing-style.js';
+import {
+  BUILDING_SEMANTIC_MANIFEST,
+  buildingSemanticPartId,
+} from '../identity/semantics.js';
 import type { BuildingIdentityRecipe } from '../identity/recipe.js';
 import type {
   BoxGeometrySpec,
@@ -183,7 +187,9 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
   const layout = buildSolidBuildingLayout(recipe);
   const identity = recipe.identity;
   const parts: SolidPartDefinition[] = [];
-  const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
+  const add = (part: Omit<SolidPartDefinition, 'semanticPartId'>): void => {
+    parts.push(Object.freeze({ ...part, semanticPartId: buildingSemanticPartId(part.id) }));
+  };
   add({
     id: 'building:shell', node: 'root', order: 0,
     geometry: shellWithDoorway(layout),
@@ -294,6 +300,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     representation: 'solid',
     assetId: `building:${identity.seed}`,
     seed: identity.seed,
+    manifest: BUILDING_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
@@ -325,14 +332,9 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
       }),
     ]),
     sockets: layout.sockets,
-    interactions: Object.freeze([Object.freeze({
-      id: 'door',
-      kind: 'portal',
-      sensorColliderId: 'door:sensor',
-      activationSocketId: 'door:entry',
-      initialState: 'closed',
-      states: Object.freeze(['closed', 'open']),
-      nodeBindings: Object.freeze([Object.freeze({
+    interactionBindings: Object.freeze([Object.freeze({
+      interactionId: 'door',
+      nodes: Object.freeze([Object.freeze({
         nodeId: 'door',
         stateByInteractionState: Object.freeze({
           closed: Object.freeze({ rotation: [0, 0, 0] as const }),

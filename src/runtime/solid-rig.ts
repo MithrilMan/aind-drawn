@@ -5,10 +5,11 @@ import type {
   ColliderShape3,
   Pose3,
   SolidAssetBlueprint,
-  SolidInteractionDefinition,
+  SolidInteractionBinding,
   SolidNodeDefinition,
   SolidNodeState,
 } from '../contracts/solid-asset.js';
+import type { InteractionSpec } from '../contracts/asset-semantics.js';
 import { validateSolidAssetBlueprint } from '../contracts/blueprint-validation.js';
 import { surfaceFrame } from '../core/geometry3.js';
 import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
@@ -87,7 +88,10 @@ export class SolidRig {
         parent.add(mesh);
         this.parts.set(part.id, mesh);
       }
-      this.initializeInteractions(this.blueprint.interactions);
+      this.initializeInteractions(
+        this.blueprint.manifest.interactions,
+        this.blueprint.interactionBindings,
+      );
     } catch (error) {
       this.dispose();
       throw error;
@@ -155,11 +159,12 @@ export class SolidRig {
 
   public setInteractionState(id: string, state: string): void {
     const interaction = this.requireInteraction(id);
+    const projection = this.requireInteractionBinding(id);
     if (!interaction.states.includes(state)) {
       throw new RangeError(`Solid interaction ${id} does not define state ${state}`);
     }
     if (this.interactionStates.get(id) === state) return;
-    for (const binding of interaction.nodeBindings) {
+    for (const binding of projection.nodes) {
       const nodeState = binding.stateByInteractionState[state];
       if (nodeState === undefined) {
         throw new Error(`Solid interaction ${id} has no ${state} transform for ${binding.nodeId}`);
@@ -221,7 +226,10 @@ export class SolidRig {
     return node;
   }
 
-  private initializeInteractions(definitions: readonly SolidInteractionDefinition[]): void {
+  private initializeInteractions(
+    definitions: readonly InteractionSpec[],
+    bindings: readonly SolidInteractionBinding[],
+  ): void {
     const ids = new Set<string>();
     for (const definition of definitions) {
       if (ids.has(definition.id)) throw new Error(`Duplicate solid interaction id: ${definition.id}`);
@@ -230,17 +238,21 @@ export class SolidRig {
         throw new Error(`Solid interaction ${definition.id} has an invalid initial state`);
       }
       const sensor = this.blueprint.colliders.find(
-        (collider) => collider.id === definition.sensorColliderId,
+        (collider) => collider.id === definition.sensorId,
       );
       if (sensor?.kind !== 'sensor') {
-        throw new Error(`Solid interaction ${definition.id} requires sensor ${definition.sensorColliderId}`);
+        throw new Error(`Solid interaction ${definition.id} requires sensor ${definition.sensorId}`);
       }
       if (!this.blueprint.sockets.some(({ id }) => id === definition.activationSocketId)) {
         throw new Error(
           `Solid interaction ${definition.id} requires socket ${definition.activationSocketId}`,
         );
       }
-      for (const binding of definition.nodeBindings) {
+      const projection = bindings.find((candidate) => candidate.interactionId === definition.id);
+      if (projection === undefined) {
+        throw new Error(`Solid interaction ${definition.id} requires a solid binding`);
+      }
+      for (const binding of projection.nodes) {
         this.requireNode(binding.nodeId);
         for (const state of definition.states) {
           if (binding.stateByInteractionState[state] === undefined) {
@@ -251,7 +263,7 @@ export class SolidRig {
         }
       }
       this.interactionStates.set(definition.id, definition.initialState);
-      for (const binding of definition.nodeBindings) {
+      for (const binding of projection.nodes) {
         const state = binding.stateByInteractionState[definition.initialState];
         if (state !== undefined) this.applyNodeState(binding.nodeId, state);
       }
@@ -276,10 +288,18 @@ export class SolidRig {
     }
   }
 
-  private requireInteraction(id: string): SolidInteractionDefinition {
-    const interaction = this.blueprint.interactions.find((candidate) => candidate.id === id);
+  private requireInteraction(id: string): InteractionSpec {
+    const interaction = this.blueprint.manifest.interactions.find((candidate) => candidate.id === id);
     if (interaction === undefined) throw new Error(`Unknown solid interaction: ${id}`);
     return interaction;
+  }
+
+  private requireInteractionBinding(id: string): SolidInteractionBinding {
+    const binding = this.blueprint.interactionBindings.find(
+      (candidate) => candidate.interactionId === id,
+    );
+    if (binding === undefined) throw new Error(`Unknown solid interaction binding: ${id}`);
+    return binding;
   }
 }
 

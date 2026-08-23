@@ -1,14 +1,16 @@
 # Procedural asset authoring
 
-The library separates a generated asset into five contracts when one semantic
+The library separates a generated asset into six contracts when one semantic
 identity has more than one representation:
 
 1. An **identity recipe** owns representation-independent semantic choices.
 2. A **representation recipe** references that identity and adds only medium,
    finish, mesh density, or other representation-specific policy.
-3. A **layout** derives world geometry, bounds, anchors, and part dimensions.
-4. A **blueprint** binds named visual parts to geometry, colliders, sockets, states, and interactions.
-5. A **runtime** adapts those parts to a renderer and applies transient state.
+3. A **semantic manifest** names representation-neutral parts, sockets, colliders,
+   and interaction intent.
+4. A **layout** derives world geometry, bounds, anchors, and part dimensions.
+5. A **blueprint** binds concrete visual parts and interaction bindings to that manifest.
+6. A **runtime** adapts those parts to a renderer and applies transient state.
 
 Drawing code consumes a complete recipe. It must not make new semantic random
 choices while rasterizing; otherwise boil frames can change the identity of the
@@ -57,6 +59,13 @@ Factory output must pass `validateRasterAssetBlueprint` or
 family codecs own domain invariants. Rigs validate again at their public runtime
 boundary before allocation, so consumers cannot bypass safety by skipping
 factory-level tests.
+
+Families with raster and solid output publish one immutable
+`AssetSemanticManifest` from `identity/semantics.ts`. Both complete projections
+reference that exact object. Run `validateAssetBlueprintParity` in authoring
+tests: it checks semantic part definitions, complete socket and collider
+inventories, interaction specs, and projection bindings without importing any
+family vocabulary.
 
 ## Choose the smallest honest model
 
@@ -167,6 +176,8 @@ identity data.
 ## Blueprint rules
 
 - Give layers stable semantic IDs such as `body`, `wheel:front`, and `door:left`.
+- Give every raster layer and solid part a `semanticPartId` declared by the
+  family manifest. Concrete granularity may differ across projections.
 - Publish raster bones explicitly. Each bone owns its parent and local `Pose2`;
   layers reference bones and never repeat hierarchy or anchor coordinates.
 - Give every solid node a local `Pose3` rest transform with a unit quaternion.
@@ -178,9 +189,11 @@ identity data.
   should not carry them. A collider for the leaf itself belongs to the hinge.
 - Keep independently stateful parts in separate layers.
 - Use a sensor collider and activation socket for each interaction.
-- Bind interaction states to layer states through `InteractionDefinition`.
-- Bind solid interaction states to semantic nodes through
-  `SolidInteractionDefinition`; state changes transform the node at its real
+- Declare interaction ID, kind, states, sensor, and activation socket once as an
+  `InteractionSpec` in the shared manifest.
+- Bind raster state through `RasterInteractionBinding.layers` and solid state
+  through `SolidInteractionBinding.nodes`; adapters must not restate semantic
+  interaction definitions. Solid state changes transform the node at its real
   pivot and never replace renderer objects.
 - Never infer physics or interaction regions from texture alpha.
 - Use `getSocketWorldPose` and `getColliderWorldShape` for runtime integration;
@@ -292,7 +305,7 @@ floor seams, random facade scratches, or duplicate roof and door outlines.
 The building door is the cross-representation interaction reference. Raster
 binds `closed` and `open` layer states; solid binds those states to the hinged
 `door` node. Both use the identity-authored hinge side and opening angle,
-`door:sensor`, `door:entry`, and the same portal intent. An open leaf must reveal
+`door:sensor`, `door:entry`, and the same shared `InteractionSpec`. An open leaf must reveal
 an authored aperture or recess; rotating a plate in front of an intact wall is
 not an opening.
 
@@ -322,20 +335,22 @@ registers these controls through family metadata and does not branch on the
 
 1. Use the canonical identity, recipe, and blueprint envelopes and verify that
    all complete projections share the same `family`, `assetId`, and `seed`.
-2. Add and export a strict identity decoder, then run every representative
+2. Add an identity-adjacent semantic manifest, map every concrete part through
+   `semanticPartId`, and verify complete projections with `validateAssetBlueprintParity`.
+3. Add and export a strict identity decoder, then run every representative
    factory output through the matching public blueprint validator.
-3. Export the new public types and factories from `src/index.ts`.
-4. If generic editors customize the family, publish and validate an
+4. Export the new public types and factories from `src/index.ts`.
+5. If generic editors customize the family, publish and validate an
    `AssetFamilyAuthoringSchema` beside identity. The schema owns safe parameter
    metadata, defaults, choices, and semantic preview layers; the family adapter
    still maps values to typed recipe options explicitly.
-5. Register the asset in the consumer catalog rather than importing internals.
-6. Extend the serializable experiment document only for authored parameters.
-7. Add deterministic recipe tests, authoring-schema validation, and blueprint contract tests.
-8. Test state validation and animation in the runtime when applicable.
-9. Test every public medium through both raster and inked-solid projections;
+6. Register the asset in the consumer catalog rather than importing internals.
+7. Extend the serializable experiment document only for authored parameters.
+8. Add deterministic recipe tests, authoring-schema validation, and blueprint contract tests.
+9. Test state validation and animation in the runtime when applicable.
+10. Test every public medium through both raster and inked-solid projections;
    both outputs must retain the same `MediumId` and distinct deterministic policy.
-10. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
+11. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
    `InkedSolidPass.dispose()`, and `InkedSolidStrokeRig.dispose()` when that
    representation is active. Dispose strokes before their owner solid rig.
 11. Run `pnpm verify`.

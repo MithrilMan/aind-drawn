@@ -115,10 +115,19 @@ function filteredBlueprint(
   const bones: readonly RasterBoneDefinition[] = Object.freeze(
     blueprint.bones.filter(({ id }) => includedBones.has(id)),
   );
-  const interactions = Object.freeze(blueprint.interactions.filter(({ layerBindings }) => (
-    layerBindings.every(({ layerId }) => selectedIds.has(layerId))
+  const interactionBindings = Object.freeze(blueprint.interactionBindings.filter(({ layers: bindings }) => (
+    bindings.every(({ layerId }) => selectedIds.has(layerId))
   )));
-  return Object.freeze({ ...blueprint, bones, layers, interactions });
+  const includedInteractions = new Set(
+    interactionBindings.map(({ interactionId }) => interactionId),
+  );
+  const manifest = Object.freeze({
+    ...blueprint.manifest,
+    interactions: Object.freeze(blueprint.manifest.interactions.filter(
+      ({ id }) => includedInteractions.has(id),
+    )),
+  });
+  return Object.freeze({ ...blueprint, manifest, bones, layers, interactionBindings });
 }
 
 /** Renders focused selector previews through the same public raster pipeline as the live asset. */

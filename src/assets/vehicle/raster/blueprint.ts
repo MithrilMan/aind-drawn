@@ -16,6 +16,10 @@ import {
 } from './layout.js';
 import type { RasterVehicleRecipe } from './recipe.js';
 import { vehicleRollingLayerCapability } from './capabilities.js';
+import {
+  VEHICLE_SEMANTIC_MANIFEST,
+  vehicleSemanticPartId,
+} from '../identity/semantics.js';
 
 function canvasPoint(layout: VehicleLayout, point: Point): Point {
   const projectedX = layout.side === 'left' ? layout.bounds.width - point[0] : point[0];
@@ -248,6 +252,7 @@ function fullLayer(
 ): AuthoredRasterLayer {
   return authoredLayer(Object.freeze({
     id,
+    semanticPartId: vehicleSemanticPartId(id),
     bone: id,
     order,
     depth: 0,
@@ -267,6 +272,7 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
   const wheelLayer = (id: string, center: Vector2, order: number): AuthoredRasterLayer =>
     authoredLayer(Object.freeze({
       id,
+      semanticPartId: vehicleSemanticPartId(id),
       bone: id,
       order,
       depth: 0,
@@ -332,6 +338,9 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
   const doorSensorX = length * recipe.identity.doors.frontStartRatio;
   const doorSensorWidth = length
     * (recipe.identity.doors.frontEndRatio - recipe.identity.doors.frontStartRatio);
+  const doorBottom = Math.min(...layout.doorOpeningOutline.map(([, y]) => y));
+  const doorTop = Math.max(...layout.doorOpeningOutline.map(([, y]) => y));
+  const doorHeight = doorTop - doorBottom;
   const hoodSensorX = length * (1 - recipe.identity.body.bonnetRatio);
   const hoodSensorWidth = length * recipe.identity.body.bonnetRatio;
   const cargoSensorX = length * 0.02;
@@ -343,6 +352,7 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
     assetId: `vehicle:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
     medium: recipe.style.medium,
+    manifest: VEHICLE_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     bones,
     layers,
@@ -386,6 +396,18 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
         }),
         size: Object.freeze({ width: doorSensorWidth, height: sensorHeight }),
       }),
+      ...(['left', 'right'] as const).map((side) => Object.freeze({
+        id: `door:${side}:leaf`, kind: 'solid' as const, shape: 'rectangle' as const,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedIntervalX(doorSensorX, doorSensorWidth) + doorSensorWidth * 0.5,
+            y: doorBottom + doorHeight * 0.5,
+          }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: doorSensorWidth, height: doorHeight }),
+      })),
       Object.freeze({
         id: 'hood:sensor', kind: 'sensor', shape: 'rectangle',
         bone: 'root',
@@ -412,6 +434,16 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
       }),
     ]),
     sockets: Object.freeze([
+      ...(['left', 'right'] as const).map((side) => Object.freeze({
+        id: `door:${side}:handle`, bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedX(layout.doorHinge.x - doorSensorWidth * 0.18),
+            y: doorBottom + doorHeight * 0.58,
+          }),
+          rotation: 0,
+        }),
+      })),
       Object.freeze({
         id: 'entry:left', bone: 'root',
         localPose: Object.freeze({
@@ -446,6 +478,17 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
         }),
       }),
       Object.freeze({
+        id: 'passenger', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedX(length
+              * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
+            y: layout.beltHeight,
+          }),
+          rotation: 0,
+        }),
+      }),
+      Object.freeze({
         id: 'cargo', bone: 'root',
         localPose: Object.freeze({
           position: Object.freeze({
@@ -463,32 +506,28 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
         }),
       }),
     ]),
-    interactions: Object.freeze([
+    interactionBindings: Object.freeze([
       Object.freeze({
-        id: 'door:left', kind: 'portal', sensorColliderId: 'door:left:sensor',
-        activationSocketId: 'entry:left', initialState: 'closed', states: ['closed', 'open'] as const,
-        layerBindings: Object.freeze([Object.freeze({
+        interactionId: 'door:left',
+        layers: Object.freeze([Object.freeze({
           layerId: 'door:left', stateByInteractionState: Object.freeze({ closed: 'closed', open: 'open' }),
         })]),
       }),
       Object.freeze({
-        id: 'door:right', kind: 'portal', sensorColliderId: 'door:right:sensor',
-        activationSocketId: 'entry:right', initialState: 'closed', states: ['closed', 'open'] as const,
-        layerBindings: Object.freeze([Object.freeze({
+        interactionId: 'door:right',
+        layers: Object.freeze([Object.freeze({
           layerId: 'door:right', stateByInteractionState: Object.freeze({ closed: 'closed', open: 'open' }),
         })]),
       }),
       Object.freeze({
-        id: 'hood', kind: 'toggle', sensorColliderId: 'hood:sensor', activationSocketId: 'driver',
-        initialState: 'closed', states: ['closed', 'open'] as const,
-        layerBindings: Object.freeze([Object.freeze({
+        interactionId: 'hood',
+        layers: Object.freeze([Object.freeze({
           layerId: 'hood', stateByInteractionState: Object.freeze({ closed: 'closed', open: 'open' }),
         })]),
       }),
       Object.freeze({
-        id: 'cargo', kind: 'toggle', sensorColliderId: 'cargo:sensor', activationSocketId: 'cargo',
-        initialState: 'closed', states: ['closed', 'open'] as const,
-        layerBindings: Object.freeze([Object.freeze({
+        interactionId: 'cargo',
+        layers: Object.freeze([Object.freeze({
           layerId: 'cargo', stateByInteractionState: Object.freeze({ closed: 'closed', open: 'open' }),
         })]),
       }),

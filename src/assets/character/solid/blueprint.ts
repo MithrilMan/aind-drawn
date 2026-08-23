@@ -4,6 +4,10 @@ import type { SolidMaterialSpec } from '../../../materials/finish.js';
 import { createCharacterDrawingStyle } from '../identity/drawing-style.js';
 import { createCharacterOutfitProfile } from '../identity/outfit-profile.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
+import {
+  CHARACTER_SEMANTIC_MANIFEST,
+  characterSemanticPartId,
+} from '../identity/semantics.js';
 import { createSolidFaceBlueprint } from './face/blueprint.js';
 import type {
   ExtrudedProfileGeometrySpec,
@@ -16,6 +20,8 @@ import {
   type SolidCharacterRecipe,
   type SolidCharacterRecipeOptions,
 } from './recipe.js';
+
+type SolidCharacterPartAuthoring = Omit<SolidPartDefinition, 'semanticPartId'>;
 
 function solidPlacement(position: Point3, rotation?: Point3) {
   return Object.freeze({
@@ -53,7 +59,7 @@ function plate(
 }
 
 function addOutfitParts(
-  add: (part: SolidPartDefinition) => void,
+  add: (part: SolidCharacterPartAuthoring) => void,
   recipe: SolidCharacterRecipe,
   torsoDepth: number,
 ): void {
@@ -77,7 +83,7 @@ function addOutfitParts(
 }
 
 function addTailParts(
-  add: (part: SolidPartDefinition) => void,
+  add: (part: SolidCharacterPartAuthoring) => void,
   recipe: SolidCharacterRecipe,
 ): void {
   if (!recipe.identity.tail.present) return;
@@ -115,7 +121,9 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
   const identity = recipe.identity;
   const face = createSolidFaceBlueprint(recipe);
   const parts: SolidPartDefinition[] = [];
-  const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
+  const add = (part: SolidCharacterPartAuthoring): void => {
+    parts.push(Object.freeze({ ...part, semanticPartId: characterSemanticPartId(part.id) }));
+  };
   const bodyMaterial = identity.species === 'cat' ? 'skin' : 'cloth';
   const limbMaterial = identity.species === 'cat' ? 'skin' : 'cloth';
   const torsoRadii: Point3 = [
@@ -208,6 +216,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
     representation: 'solid',
     assetId: `character:${identity.seed}`,
     seed: identity.seed,
+    manifest: CHARACTER_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
@@ -233,7 +242,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
       }),
     ]),
     sockets: layout.sockets,
-    interactions: Object.freeze([]),
+    interactionBindings: Object.freeze([]),
   });
 }
 

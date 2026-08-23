@@ -27,6 +27,10 @@ import {
   type CharacterTearComponent,
 } from '../identity/tear-profile.js';
 import { createCharacterOutfitProfile } from '../identity/outfit-profile.js';
+import {
+  CHARACTER_SEMANTIC_MANIFEST,
+  characterSemanticPartId,
+} from '../identity/semantics.js';
 import { characterFlowCapability } from './capabilities.js';
 import { buildCharacterLayout, CHARACTER_IDENTITY_PIXEL_SCALE } from './layout.js';
 import {
@@ -56,7 +60,7 @@ function localize(points: readonly Point[], canvas: Size2): MutablePoint[] {
   return points.map(([x, y]) => [x + canvas.width / 2, y + canvas.height / 2]);
 }
 
-type RasterLayerAuthoring = Omit<LayerDefinition, 'world'> & Readonly<{
+type RasterLayerAuthoring = Omit<LayerDefinition, 'world' | 'semanticPartId'> & Readonly<{
   pixelsPerUnit: number;
   position: Vector2;
   parentBone?: string;
@@ -76,6 +80,7 @@ function layer(definition: RasterLayerAuthoring): AuthoredRasterLayer {
   return Object.freeze({
     layer: Object.freeze({
       ...rest,
+      semanticPartId: characterSemanticPartId(rest.id),
       world: toWorld(rest.canvas, pixelsPerUnit),
     }),
     bone: Object.freeze({
@@ -1008,6 +1013,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
     assetId: `character:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
     medium: recipe.style.medium,
+    manifest: CHARACTER_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     bones: projection.bones,
     layers: projection.layers,
@@ -1020,6 +1026,14 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         localPose: pose(Object.freeze({ x: 0, y: bodyHeight * 0.5 })),
         size: Object.freeze({ width: bodyWidth, height: bodyHeight }),
       }),
+      Object.freeze({
+        id: 'head', kind: 'solid', shape: 'rectangle', bone: 'head',
+        localPose: pose(Object.freeze({ x: 0, y: 0 })),
+        size: Object.freeze({
+          width: layout.head.widthPixels / pixelsPerUnit,
+          height: layout.head.heightPixels / pixelsPerUnit,
+        }),
+      }),
     ]),
     sockets: Object.freeze([
       Object.freeze({
@@ -1028,6 +1042,16 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       }),
       Object.freeze({
         id: 'head', bone: 'head',
+        localPose: pose(Object.freeze({ x: 0, y: 0 })),
+      }),
+      Object.freeze({
+        id: 'crown', bone: 'head',
+        localPose: pose(Object.freeze({
+          x: 0, y: layout.head.heightPixels * 0.5 / pixelsPerUnit,
+        })),
+      }),
+      Object.freeze({
+        id: 'face', bone: 'head',
         localPose: pose(Object.freeze({ x: 0, y: 0 })),
       }),
       Object.freeze({
@@ -1054,7 +1078,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
           })),
       }),
     ]),
-    interactions: Object.freeze([]),
+    interactionBindings: Object.freeze([]),
   });
 }
 

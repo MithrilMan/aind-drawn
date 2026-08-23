@@ -21,6 +21,10 @@ import { CHARACTER_EXPRESSIONS } from '../../identity/expression-profile.js';
 import { createCharacterMouthProfile } from '../../identity/mouth-profile.js';
 import { createCharacterNoseProfile } from '../../identity/nose-profile.js';
 import {
+  CHARACTER_FACE_SEMANTIC_MANIFEST,
+  characterSemanticPartId,
+} from '../../identity/semantics.js';
+import {
   createSolidCharacterRecipe,
   type SolidCharacterRecipeOptions,
 } from '../recipe.js';
@@ -40,6 +44,8 @@ import {
 import { solidFaceMotionCapability } from './capabilities.js';
 import { createEyewearRimGeometry } from './accessory-geometry.js';
 import { createFacialHairRingGeometry } from './facial-hair-geometry.js';
+
+type SolidFacePartAuthoring = Omit<SolidPartDefinition, 'semanticPartId'>;
 
 function ellipse(width: number, height: number, count = 24): readonly Point[] {
   return Object.freeze(Array.from({ length: count }, (_, index): Point => {
@@ -198,7 +204,7 @@ function eyeStyleFor(recipe: SolidFaceSourceRecipe, index: number): CharacterEye
 }
 
 function addEyeParts(
-  add: (part: SolidPartDefinition) => void,
+  add: (part: SolidFacePartAuthoring) => void,
   recipe: SolidFaceSourceRecipe,
   layout: SolidFaceLayout,
   anchor: SurfaceAnchor,
@@ -309,7 +315,7 @@ function addEyeParts(
 
 
 function addHairParts(
-  add: (part: SolidPartDefinition) => void,
+  add: (part: SolidFacePartAuthoring) => void,
   recipe: SolidFaceSourceRecipe,
   layout: SolidFaceLayout,
 ): void {
@@ -355,7 +361,7 @@ function addHairParts(
 }
 
 function addFacialHairParts(
-  add: (part: SolidPartDefinition) => void,
+  add: (part: SolidFacePartAuthoring) => void,
   recipe: SolidFaceSourceRecipe,
   layout: SolidFaceLayout,
 ): void {
@@ -409,7 +415,7 @@ function addFacialHairParts(
 }
 
 function addEyewearParts(
-  add: (part: SolidPartDefinition) => void,
+  add: (part: SolidFacePartAuthoring) => void,
   recipe: SolidFaceSourceRecipe,
   layout: SolidFaceLayout,
 ): void {
@@ -478,7 +484,9 @@ export function createSolidFaceBlueprint(
   const layout = buildSolidFaceLayout(recipe);
   const identity = recipe.identity;
   const parts: SolidPartDefinition[] = [];
-  const add = (part: SolidPartDefinition): void => { parts.push(Object.freeze(part)); };
+  const add = (part: SolidFacePartAuthoring): void => {
+    parts.push(Object.freeze({ ...part, semanticPartId: characterSemanticPartId(part.id) }));
+  };
   if (identity.ears.style === 'pointed') {
     const radiusX = layout.shape.radii[0];
     const radiusY = layout.shape.radii[1];
@@ -723,6 +731,7 @@ export function createSolidFaceBlueprint(
     representation: 'solid',
     assetId: `character-face:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
+    manifest: CHARACTER_FACE_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: Object.freeze([
       Object.freeze({
@@ -755,7 +764,7 @@ export function createSolidFaceBlueprint(
       }),
     ]),
     sockets: layout.sockets,
-    interactions: Object.freeze([]),
+    interactionBindings: Object.freeze([]),
   });
 }
 

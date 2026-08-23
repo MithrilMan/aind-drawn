@@ -17,14 +17,14 @@ For every interaction, define:
 - one complete binding for every state.
 
 A visible door without a sensor and entry socket is decoration. A sensor whose
-state is hard-coded in an experiment is a demo hack. Keep the complete contract
-on the asset blueprint.
+state is hard-coded in an experiment is a demo hack. Keep semantic intent in the
+identity-adjacent `AssetSemanticManifest`; blueprints add only projection bindings.
 
 ## Raster states
 
 Each stateful `LayerDefinition` lists every supported state. Its draw callback
-receives `state` and renders that exact variant. `InteractionDefinition`
-connects domain state to layer state:
+receives `state` and renders that exact variant. The shared `InteractionSpec`
+defines domain state; `RasterInteractionBinding` maps it to layer state:
 
 ```text
 interaction: door
@@ -50,10 +50,10 @@ Validate that:
 Place the node origin at the physical joint. A door node belongs at its hinge,
 a wheel node at its axle, and a lid node along its opening edge.
 
-`SolidInteractionDefinition` binds each interaction state to a serialisable
-`SolidNodeState` containing optional translation, rotation, and scale. The
-state transform is relative to the node's authored rest transform. Apply state
-through `SolidRig.setInteractionState`; never replace meshes or mutate geometry.
+`SolidInteractionBinding` maps each shared interaction state to a serialisable
+`SolidNodeState` containing optional translation, rotation, and scale. The state
+transform is relative to the node's authored rest transform. Apply state through
+`SolidRig.setInteractionState`; never replace meshes or mutate geometry.
 
 Validate the same sensor/socket invariants as raster plus:
 
@@ -62,9 +62,10 @@ Validate the same sensor/socket invariants as raster plus:
 - the initial state is present;
 - applying one state and returning to another does not accumulate transforms.
 
-Raster and solid adapters of one identity use the same interaction ID, state
-names, sensor intent, and socket intent. Coordinates differ by representation;
-semantics do not.
+Raster and solid adapters of one identity reference the exact same manifest and
+interaction specs. Coordinates and bindings differ by representation; IDs,
+states, sensor intent, socket intent, and semantic part ownership do not. Verify
+complete projection pairs with `validateAssetBlueprintParity`.
 
 ## Transient animation
 

@@ -3,6 +3,7 @@ import type { Sketch } from '../core/sketch.js';
 import type { MediumId } from '../materials/medium.js';
 import type { AssetCapabilities } from './asset-capabilities.js';
 import type { AssetBlueprintHeader } from './asset-envelope.js';
+import type { AssetSemanticManifest } from './asset-semantics.js';
 
 export type Vector2 = Readonly<{ x: number; y: number }>;
 export type Size2 = Readonly<{ width: number; height: number }>;
@@ -80,8 +81,8 @@ export type LayerDrawContext = Readonly<{
 
 export type LayerDefinition = Readonly<{
   id: string;
+  semanticPartId: string;
   bone: string;
-  parentBone?: string;
   order: number;
   depth: number;
   canvas: Size2;
@@ -102,14 +103,9 @@ export type InteractionLayerBinding = Readonly<{
  * Sensors describe where interaction is possible, sockets describe where an
  * actor should stand or be transferred, and bindings keep rendering generic.
  */
-export type InteractionDefinition = Readonly<{
-  id: string;
-  kind: 'toggle' | 'portal';
-  sensorColliderId: string;
-  activationSocketId: string;
-  initialState: string;
-  states: readonly string[];
-  layerBindings: readonly InteractionLayerBinding[];
+export type RasterInteractionBinding = Readonly<{
+  interactionId: string;
+  layers: readonly InteractionLayerBinding[];
 }>;
 
 export type AssetBlueprint<TFamily extends string = string> = AssetBlueprintHeader<
@@ -117,10 +113,11 @@ export type AssetBlueprint<TFamily extends string = string> = AssetBlueprintHead
   'raster'
 > & Readonly<{
   medium: MediumId;
+  manifest: AssetSemanticManifest<TFamily>;
   bounds: Bounds;
   bones: readonly RasterBoneDefinition[];
   layers: readonly LayerDefinition[];
   colliders: readonly RasterColliderDefinition[];
   sockets: readonly RasterSocketDefinition[];
-  interactions: readonly InteractionDefinition[];
+  interactionBindings: readonly RasterInteractionBinding[];
 }>;

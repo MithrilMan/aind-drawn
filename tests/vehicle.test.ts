@@ -63,8 +63,9 @@ describe('vehicle asset family', () => {
     expect(rasterFrontBone?.restPose.position.y).toBeCloseTo(solidFront?.restPose.position[1] ?? 0);
     expect(rasterFront === undefined ? undefined : vehicleRollingLayerOf(rasterFront))
       .toMatchObject({ radius: identity.wheels.radius, steering: true });
-    expect(raster.interactions.map(({ id }) => id)).toEqual(
-      solid.interactions.map(({ id }) => id),
+    expect(raster.manifest).toBe(solid.manifest);
+    expect(raster.manifest.interactions.map(({ id }) => id)).toEqual(
+      solid.manifest.interactions.map(({ id }) => id),
     );
     expect(raster.sockets.find(({ id }) => id === 'entry:left')?.localPose.position.x).toBeCloseTo(
       (solid.sockets.find(({ id }) => id === 'entry:left')?.localPose.position[0] ?? 0)
@@ -120,8 +121,8 @@ describe('vehicle asset family', () => {
     rig.setInteractionState('door:left', 'open');
     rig.setInteractionState('hood', 'open');
     expect(Math.abs(door?.rotation.y ?? 0)).toBeGreaterThan(1);
-    expect(door?.rotation.y).toBeCloseTo(solid.interactions[0]
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0);
+    expect(door?.rotation.y).toBeCloseTo(solid.interactionBindings[0]
+      ?.nodes[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0);
     expect(hood?.rotation.z).toBeGreaterThan(0.8);
     rig.dispose();
   });
@@ -129,12 +130,14 @@ describe('vehicle asset family', () => {
   it('moves the complete door assembly outward on both named sides', () => {
     const framed = createSolidVehicleBlueprint(createVehicleIdentity(5106, { archetype: 'sedan' }));
     const frameless = createSolidVehicleBlueprint(createVehicleIdentity(5106, { archetype: 'coupe' }));
-    const leftRotation = framed.interactions.find(({ id }) => id === 'door:left')
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1];
-    const rightRotation = framed.interactions.find(({ id }) => id === 'door:right')
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1];
-    expect(leftRotation).toBeCloseTo(framed.interactions[0]
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0);
+    const leftRotation = framed.interactionBindings.find(
+      ({ interactionId }) => interactionId === 'door:left',
+    )?.nodes[0]?.stateByInteractionState.open?.rotation?.[1];
+    const rightRotation = framed.interactionBindings.find(
+      ({ interactionId }) => interactionId === 'door:right',
+    )?.nodes[0]?.stateByInteractionState.open?.rotation?.[1];
+    expect(leftRotation).toBeCloseTo(framed.interactionBindings[0]
+      ?.nodes[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0);
     expect(leftRotation).toBeLessThan(0);
     expect(rightRotation).toBeGreaterThan(0);
     expect(framed.parts.some(({ id }) => id === 'door:left:window-frame')).toBe(true);
@@ -207,10 +210,10 @@ describe('vehicle asset family', () => {
       expect(Math.max(...lid.geometry.vertices.map(([, y]) => y))).toBeCloseTo(0);
       expect(Math.min(...lid.geometry.vertices.map(([, y]) => y))).toBeLessThan(0);
     }
-    const hoodRotation = solid.interactions.find(({ id }) => id === 'hood')
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[2] ?? 0;
-    const cargoRotation = solid.interactions.find(({ id }) => id === 'cargo')
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[2] ?? 0;
+    const hoodRotation = solid.interactionBindings.find(({ interactionId }) => interactionId === 'hood')
+      ?.nodes[0]?.stateByInteractionState.open?.rotation?.[2] ?? 0;
+    const cargoRotation = solid.interactionBindings.find(({ interactionId }) => interactionId === 'cargo')
+      ?.nodes[0]?.stateByInteractionState.open?.rotation?.[2] ?? 0;
     expect(hoodRotation).toBeGreaterThan(0);
     expect(cargoRotation).toBeLessThan(0);
   });

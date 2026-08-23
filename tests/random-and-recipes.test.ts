@@ -532,7 +532,7 @@ describe('asset contracts', () => {
       expect.objectContaining({ id: 'door:sensor', kind: 'sensor' }),
     ]));
     expect(building.sockets.find(({ id }) => id === 'door:entry')).toBeDefined();
-    expect(building.interactions[0]).toMatchObject({
+    expect(building.manifest.interactions[0]).toMatchObject({
       id: 'door',
       kind: 'portal',
       initialState: 'closed',
@@ -608,11 +608,11 @@ describe('asset contracts', () => {
       .toBeCloseTo(facade.door.centerX);
     expect(solid.sockets.find(({ id }) => id === 'door:entry')?.localPose.position[0])
       .toBeCloseTo(facade.door.centerX);
-    expect(solid.interactions[0]).toMatchObject({
-      id: 'door', sensorColliderId: 'door:sensor', activationSocketId: 'door:entry',
+    expect(solid.manifest.interactions[0]).toMatchObject({
+      id: 'door', sensorId: 'door:sensor', activationSocketId: 'door:entry',
     });
-    const openRotation = solid.interactions[0]
-      ?.nodeBindings[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0;
+    const openRotation = solid.interactionBindings[0]
+      ?.nodes[0]?.stateByInteractionState.open?.rotation?.[1] ?? 0;
     expect(Math.abs(openRotation)).toBeCloseTo(identity.door.openingAngle);
     expect(Math.sign(openRotation)).toBe(identity.door.hinge === 'left' ? -1 : 1);
     expect(JSON.parse(JSON.stringify(identity))).toEqual(identity);

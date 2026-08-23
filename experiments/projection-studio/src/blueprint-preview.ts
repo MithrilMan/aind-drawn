@@ -4,7 +4,7 @@ import {
   SpriteRig,
   type AssetBlueprint,
   type Bounds,
-  type LayerDefinition,
+  type RasterBoneDefinition,
   type Vector2,
 } from '../../../src/index.js';
 
@@ -17,7 +17,6 @@ export type BlueprintPreviewOptions = Readonly<{
 type BoneDefinition = Readonly<{
   position: Vector2;
   parentBone: string | null;
-  layer: LayerDefinition;
 }>;
 
 const PREVIEW_WIDTH = 220;
@@ -26,12 +25,10 @@ const FRAME_PADDING = 1.18;
 
 function boneDefinitions(blueprint: AssetBlueprint): ReadonlyMap<string, BoneDefinition> {
   const definitions = new Map<string, BoneDefinition>();
-  for (const layer of blueprint.layers) {
-    if (definitions.has(layer.bone)) continue;
-    definitions.set(layer.bone, Object.freeze({
-      position: layer.position,
-      parentBone: layer.parentBone ?? null,
-      layer,
+  for (const bone of blueprint.bones) {
+    definitions.set(bone.id, Object.freeze({
+      position: bone.restPose.position,
+      parentBone: bone.parentBone ?? null,
     }));
   }
   return definitions;
@@ -93,17 +90,6 @@ function selectedBounds(blueprint: AssetBlueprint, layerIds: readonly string[]):
   });
 }
 
-function anchorLayer(layer: LayerDefinition): LayerDefinition {
-  return Object.freeze({
-    ...layer,
-    id: `preview-anchor:${layer.bone}`,
-    canvas: Object.freeze({ width: 1, height: 1 }),
-    world: Object.freeze({ width: 0.001, height: 0.001 }),
-    states: Object.freeze(['idle']),
-    draw: (): void => undefined,
-  });
-}
-
 function filteredBlueprint(
   blueprint: AssetBlueprint,
   layerIds: readonly string[] | undefined,
@@ -113,7 +99,6 @@ function filteredBlueprint(
   const selectedLayers = blueprint.layers.filter(({ id }) => selectedIds.has(id));
   const definitions = boneDefinitions(blueprint);
   const includedBones = new Set(selectedLayers.map(({ bone }) => bone));
-  const anchors = new Map<string, LayerDefinition>();
 
   const includeAncestors = (bone: string): void => {
     const definition = definitions.get(bone);
@@ -122,16 +107,18 @@ function filteredBlueprint(
     const parent = definitions.get(parentBone);
     if (parent === undefined) throw new Error(`Missing preview parent bone: ${parentBone}`);
     includedBones.add(parentBone);
-    anchors.set(parentBone, anchorLayer(parent.layer));
     includeAncestors(parentBone);
   };
   for (const layer of selectedLayers) includeAncestors(layer.bone);
 
-  const layers = Object.freeze([...anchors.values(), ...selectedLayers]);
+  const layers = Object.freeze(selectedLayers);
+  const bones: readonly RasterBoneDefinition[] = Object.freeze(
+    blueprint.bones.filter(({ id }) => includedBones.has(id)),
+  );
   const interactions = Object.freeze(blueprint.interactions.filter(({ layerBindings }) => (
     layerBindings.every(({ layerId }) => selectedIds.has(layerId))
   )));
-  return Object.freeze({ ...blueprint, layers, interactions });
+  return Object.freeze({ ...blueprint, bones, layers, interactions });
 }
 
 /** Renders focused selector previews through the same public raster pipeline as the live asset. */

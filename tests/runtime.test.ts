@@ -23,6 +23,8 @@ import {
   createSolidCharacterInkStrokes,
   createSolidCharacterBlueprint,
   createSolidBuildingBlueprint,
+  createSolidVehicleBlueprint,
+  createVehicleIdentity,
   characterFlowOf,
   solidFaceMotionOf,
   type AssetBlueprint,
@@ -44,7 +46,6 @@ function testBlueprint(): AssetBlueprint {
     depth: 0,
     canvas: size,
     world: Object.freeze({ width: 1, height: 1 }),
-    position: Object.freeze({ x: 0, y: 0 }),
     pivot: [0.5, 0.5] as const,
     states: ['idle'] as const,
     draw: (): void => undefined,
@@ -57,9 +58,16 @@ function testBlueprint(): AssetBlueprint {
     seed: 1,
     medium: 'graphite',
     bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
+    bones: Object.freeze(['back', 'front'].map((id) => Object.freeze({
+      id,
+      restPose: Object.freeze({
+        position: Object.freeze({ x: 0, y: 0 }),
+        rotation: 0,
+      }),
+    }))),
     layers: Object.freeze([layer('back', -5), layer('front', 4)]),
     colliders: Object.freeze([]),
-    sockets: Object.freeze({}),
+    sockets: Object.freeze([]),
     interactions: Object.freeze([]),
   });
 }
@@ -95,6 +103,12 @@ describe('sprite rig runtime', () => {
       seed: 4,
       medium: 'graphite',
       bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
+      bones: Object.freeze([Object.freeze({
+        id: 'root',
+        restPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: 0 }), rotation: 0,
+        }),
+      })]),
       layers: Object.freeze([Object.freeze({
         id: 'door',
         bone: 'root',
@@ -102,16 +116,24 @@ describe('sprite rig runtime', () => {
         depth: 0,
         canvas: size,
         world: Object.freeze({ width: 1, height: 1 }),
-        position: Object.freeze({ x: 0, y: 0 }),
         pivot: [0.5, 0] as const,
         states: Object.freeze(['closed', 'open']),
         draw: (): void => undefined,
       })]),
       colliders: Object.freeze([Object.freeze({
         id: 'door:sensor', kind: 'sensor', shape: 'rectangle',
-        x: 0, y: 0, width: 1, height: 1,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0.5, y: 0.5 }), rotation: 0,
+        }),
+        size: Object.freeze({ width: 1, height: 1 }),
       })]),
-      sockets: Object.freeze({ entry: Object.freeze({ x: 0, y: 0 }) }),
+      sockets: Object.freeze([Object.freeze({
+        id: 'entry', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: 0 }), rotation: 0,
+        }),
+      })]),
       interactions: Object.freeze([Object.freeze({
         id: 'door',
         kind: 'portal',
@@ -144,6 +166,17 @@ describe('sprite rig runtime', () => {
       seed: 27,
       medium: 'graphite',
       bounds: Object.freeze({ x: -0.5, y: 0, width: 1, height: 2 }),
+      bones: Object.freeze(['arm:left', 'arm:right', 'leg:left', 'leg:right']
+        .map((id, index) => Object.freeze({
+          id,
+          restPose: Object.freeze({
+            position: Object.freeze({
+              x: index % 2 === 0 ? -0.2 : 0.2,
+              y: index < 2 ? 1.2 : 0.5,
+            }),
+            rotation: 0,
+          }),
+        }))),
       layers: Object.freeze(['arm:left', 'arm:right', 'leg:left', 'leg:right'].map((id, index) => Object.freeze({
         id,
         bone: id,
@@ -151,13 +184,12 @@ describe('sprite rig runtime', () => {
         depth: 0,
         canvas: size,
         world: Object.freeze({ width: 0.2, height: 0.8 }),
-        position: Object.freeze({ x: index % 2 === 0 ? -0.2 : 0.2, y: index < 2 ? 1.2 : 0.5 }),
         pivot: [0.5, 1] as const,
         states: ['idle'] as const,
         draw: (): void => undefined,
       }))),
       colliders: Object.freeze([]),
-      sockets: Object.freeze({}),
+      sockets: Object.freeze([]),
       interactions: Object.freeze([]),
     });
     const rig = new SpriteRig(limbBlueprint, { boilFrames: 1, canvasFactory: inertCanvasFactory });
@@ -206,14 +238,16 @@ describe('sprite rig runtime', () => {
 
     expect(blueprint.layers.find(({ id }) => id === 'tear:left:stream')?.states)
       .toEqual(['idle', 'crying']);
-    expect(blueprint.layers.find(({ id }) => id === 'tear:right:drop')?.parentBone)
-      .toBe('head');
+    const rasterDrop = blueprint.layers.find(({ id }) => id === 'tear:right:drop');
+    expect(blueprint.bones.find(({ id }) => id === rasterDrop?.bone)?.parentBone).toBe('head');
     const tearProfile = createCharacterTearProfile(identity);
     const rasterEye = blueprint.layers.find(({ id }) => id === 'eye:left');
     const rasterTear = blueprint.layers.find(({ id }) => id === 'tear:left:stream');
     expect(tearProfile.attachmentClearanceInEyeRadii).toBeGreaterThan(0);
     expect(tearProfile.components.map(({ id }) => id)).toEqual(['stream', 'drop', 'bead']);
-    expect(rasterTear?.position.y).toBeLessThan(rasterEye?.position.y ?? 0);
+    const rasterEyeY = blueprint.bones.find(({ id }) => id === rasterEye?.bone)?.restPose.position.y;
+    const rasterTearY = blueprint.bones.find(({ id }) => id === rasterTear?.bone)?.restPose.position.y;
+    expect(rasterTearY).toBeLessThan(rasterEyeY ?? 0);
     expect(blueprint.layers.filter((layer) => characterFlowOf(layer) !== undefined)).toHaveLength(6);
 
     const solid = createSolidCharacterBlueprint(identity);
@@ -225,9 +259,118 @@ describe('sprite rig runtime', () => {
     expect(solid.parts.filter((part) => solidFaceMotionOf(part)?.kind === 'flow-effect'))
       .toHaveLength(6);
   });
+
+  it('resolves animated raster sockets through bone, root, and mirrored transforms', () => {
+    const size = Object.freeze({ width: 8, height: 8 });
+    const blueprint: AssetBlueprint = Object.freeze({
+      blueprintVersion: 1,
+      family: 'character',
+      representation: 'raster',
+      assetId: 'character:4210',
+      seed: 4210,
+      medium: 'graphite',
+      bounds: Object.freeze({ x: -1, y: 0, width: 2, height: 2 }),
+      bones: Object.freeze([Object.freeze({
+        id: 'arm:left',
+        restPose: Object.freeze({
+          position: Object.freeze({ x: -0.3, y: 1.4 }), rotation: 0,
+        }),
+      })]),
+      layers: Object.freeze([Object.freeze({
+        id: 'arm:left', bone: 'arm:left', order: 0, depth: 0,
+        canvas: size, world: Object.freeze({ width: 0.2, height: 0.8 }),
+        pivot: [0.5, 1] as const, states: Object.freeze(['idle']),
+        draw: (): void => undefined,
+      })]),
+      colliders: Object.freeze([]),
+      sockets: Object.freeze([Object.freeze({
+        id: 'hand:left', bone: 'arm:left',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: -0.8 }), rotation: 0,
+        }),
+      })]),
+      interactions: Object.freeze([]),
+    });
+    const rig = new SpriteRig(blueprint, { boilFrames: 1, canvasFactory: inertCanvasFactory });
+    const initial = rig.getSocketWorldPose('hand:left');
+    const animator = new CharacterAnimator(rig, { autoBlink: false, autoGaze: false });
+    for (let frame = 0; frame < 6; frame += 1) {
+      animator.update(0.05, { pose: 'walk', speed: 1 });
+    }
+    const animated = rig.getSocketWorldPose('hand:left');
+    expect(initial).not.toBeNull();
+    expect(animated).not.toBeNull();
+    expect(Math.hypot(
+      (animated?.position.x ?? 0) - (initial?.position.x ?? 0),
+      (animated?.position.y ?? 0) - (initial?.position.y ?? 0),
+    )).toBeGreaterThan(0.05);
+
+    rig.root.position.set(3, 2, 0);
+    rig.root.scale.x = -1;
+    const mirrored = rig.getSocketWorldPose('hand:left');
+    expect(mirrored?.position.x).toBeCloseTo(3 - (animated?.position.x ?? 0));
+    expect(mirrored?.position.y).toBeCloseTo(2 + (animated?.position.y ?? 0));
+    expect(JSON.parse(JSON.stringify(mirrored))).toEqual(mirrored);
+    expect(rig.getSocketWorldPose('missing')).toBeNull();
+    rig.dispose();
+  });
 });
 
 describe('solid rig runtime', () => {
+  it('resolves animated hand sockets as renderer-neutral world poses', () => {
+    const rig = new SolidRig(createSolidCharacterBlueprint(createCharacterIdentity(4211)));
+    const initial = rig.getSocketWorldPose('hand:right');
+    const animator = new SolidCharacterAnimator(rig, { autoBlink: false, autoGaze: false });
+    for (let frame = 0; frame < 6; frame += 1) {
+      animator.update(0.05, { pose: 'walk', speed: 1 });
+    }
+    const animated = rig.getSocketWorldPose('hand:right');
+    expect(initial).not.toBeNull();
+    expect(animated).not.toBeNull();
+    expect(Math.hypot(
+      (animated?.position[0] ?? 0) - (initial?.position[0] ?? 0),
+      (animated?.position[1] ?? 0) - (initial?.position[1] ?? 0),
+      (animated?.position[2] ?? 0) - (initial?.position[2] ?? 0),
+    )).toBeGreaterThan(0.05);
+
+    rig.root.position.set(4, -2, 1);
+    const translated = rig.getSocketWorldPose('hand:right');
+    expect(translated?.position[0]).toBeCloseTo((animated?.position[0] ?? 0) + 4);
+    expect(translated?.position[1]).toBeCloseTo((animated?.position[1] ?? 0) - 2);
+    expect(translated?.position[2]).toBeCloseTo((animated?.position[2] ?? 0) + 1);
+    rig.root.scale.x = -1;
+    const mirrored = rig.getSocketWorldPose('hand:right');
+    expect(mirrored?.position[0]).toBeCloseTo(4 - (animated?.position[0] ?? 0));
+    expect(mirrored?.position[1]).toBeCloseTo((animated?.position[1] ?? 0) - 2);
+    expect(mirrored?.position[2]).toBeCloseTo((animated?.position[2] ?? 0) + 1);
+    expect(JSON.parse(JSON.stringify(translated))).toEqual(translated);
+    rig.dispose();
+  });
+
+  it('carries vehicle door sockets and colliders with the hinge idempotently', () => {
+    const rig = new SolidRig(createSolidVehicleBlueprint(createVehicleIdentity(4212, {
+      archetype: 'sedan',
+    })));
+    const closedSocket = rig.getSocketWorldPose('door:left:handle');
+    const closedCollider = rig.getColliderWorldShape('door:left:leaf');
+    rig.setInteractionState('door:left', 'open');
+    const openSocket = rig.getSocketWorldPose('door:left:handle');
+    const openCollider = rig.getColliderWorldShape('door:left:leaf');
+    expect(closedSocket).not.toBeNull();
+    expect(closedCollider).not.toBeNull();
+    expect(openSocket).not.toEqual(closedSocket);
+    expect(openCollider?.worldTransform).not.toEqual(closedCollider?.worldTransform);
+    expect(openCollider?.definition).toMatchObject({ node: 'door:left', shape: 'box' });
+
+    rig.setInteractionState('door:left', 'open');
+    expect(rig.getSocketWorldPose('door:left:handle')).toEqual(openSocket);
+    expect(rig.getColliderWorldShape('door:left:leaf')?.worldTransform)
+      .toEqual(openCollider?.worldTransform);
+    expect(JSON.parse(JSON.stringify(openCollider))).toEqual(openCollider);
+    expect(rig.getColliderWorldShape('missing')).toBeNull();
+    rig.dispose();
+  });
+
   it('resolves the complete physical finish catalog through one owned provider', () => {
     expect(SOLID_FINISH_CATALOG.map(({ id }) => id)).toEqual(expect.arrayContaining([
       'glossy', 'rubber', 'ceramic', 'pearl', 'flocked', 'wood', 'wool',

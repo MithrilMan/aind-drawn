@@ -167,7 +167,15 @@ identity data.
 ## Blueprint rules
 
 - Give layers stable semantic IDs such as `body`, `wheel:front`, and `door:left`.
+- Publish raster bones explicitly. Each bone owns its parent and local `Pose2`;
+  layers reference bones and never repeat hierarchy or anchor coordinates.
+- Give every solid node a local `Pose3` rest transform with a unit quaternion.
 - Derive visual placement, bounds, colliders, and sockets from the same layout.
+- Attach every socket and collider to its physical bone or node with a local
+  pose. Static data uses the semantic root; hands, door leaves, wheels, and
+  effects use their articulated owner.
+- Keep activation sensors on the stable approach region when the moving leaf
+  should not carry them. A collider for the leaf itself belongs to the hinge.
 - Keep independently stateful parts in separate layers.
 - Use a sensor collider and activation socket for each interaction.
 - Bind interaction states to layer states through `InteractionDefinition`.
@@ -175,6 +183,8 @@ identity data.
   `SolidInteractionDefinition`; state changes transform the node at its real
   pivot and never replace renderer objects.
 - Never infer physics or interaction regions from texture alpha.
+- Use `getSocketWorldPose` and `getColliderWorldShape` for runtime integration;
+  do not reconstruct hierarchy transforms or require Three.js access.
 - Choose pivots at the physical joint: wheel center, door hinge, limb shoulder.
 - Keep local layer order small; `SpriteRig.drawRank` assigns the global block.
 - For solids, use stable node and part IDs and mount features through a shared

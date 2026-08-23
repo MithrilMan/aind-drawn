@@ -19,6 +19,7 @@ import { createCharacterFacialHairProfile } from '../../identity/facial-hair-pro
 import { createCharacterEyewearProfile } from '../../identity/accessory-profile.js';
 import { createCharacterRoundEarProfile } from '../../identity/ear-profile.js';
 import type { SolidFaceRecipe } from './recipe.js';
+import type { Pose3, SolidSocketDefinition } from '../../../../contracts/solid-asset.js';
 
 export type SolidFaceSourceRecipe = SolidFaceRecipe;
 
@@ -32,9 +33,13 @@ export type SolidFaceLayout = Readonly<{
   mouthAnchor: SurfaceAnchor;
   noseAnchor: SurfaceAnchor;
   browAnchors: readonly [left: SurfaceAnchor, right: SurfaceAnchor];
-  sockets: Readonly<Record<string, Point3>>;
+  sockets: readonly SolidSocketDefinition[];
   at: (x: number, y: number, proud?: number, roll?: number) => SurfaceAnchor;
 }>;
+
+function pose(position: Point3): Pose3 {
+  return Object.freeze({ position, rotation: Object.freeze([0, 0, 0, 1] as const) });
+}
 
 export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLayout {
   const identity = recipe.identity;
@@ -167,12 +172,18 @@ export function buildSolidFaceLayout(recipe: SolidFaceSourceRecipe): SolidFaceLa
     mouthAnchor,
     noseAnchor,
     browAnchors: [leftBrow, rightBrow] as const,
-    sockets: Object.freeze({
-      floor: [0, 0, 0] as const,
-      center,
-      crown: [0, center[1] + surfaceBounds.maximum[1], 0] as const,
-      face: [0, center[1], surfaceBounds.maximum[2]] as const,
-    }),
+    sockets: Object.freeze([
+      Object.freeze({ id: 'floor', node: 'head', localPose: pose([0, -center[1], 0] as const) }),
+      Object.freeze({ id: 'center', node: 'head', localPose: pose([0, 0, 0] as const) }),
+      Object.freeze({
+        id: 'crown', node: 'head',
+        localPose: pose([0, surfaceBounds.maximum[1], 0] as const),
+      }),
+      Object.freeze({
+        id: 'face', node: 'head',
+        localPose: pose([0, 0, surfaceBounds.maximum[2]] as const),
+      }),
+    ]),
     at,
   });
 }

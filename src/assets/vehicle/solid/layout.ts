@@ -1,6 +1,10 @@
 import type { Point } from '../../../core/geometry.js';
 import type { Bounds3, Point3 } from '../../../core/geometry3.js';
-import type { SolidNodeDefinition } from '../../../contracts/solid-asset.js';
+import type {
+  Pose3,
+  SolidNodeDefinition,
+  SolidSocketDefinition,
+} from '../../../contracts/solid-asset.js';
 import { createVehicleCabinSideProfile } from '../identity/geometry.js';
 import { vehicleSideSign, type VehicleIdentityRecipe } from '../identity/recipe.js';
 
@@ -24,8 +28,12 @@ export type SolidVehicleLayout = Readonly<{
   cargoHingeX: number;
   bounds: Bounds3;
   nodes: readonly SolidNodeDefinition[];
-  sockets: Readonly<Record<string, Point3>>;
+  sockets: readonly SolidSocketDefinition[];
 }>;
+
+function pose(position: Point3): Pose3 {
+  return Object.freeze({ position, rotation: Object.freeze([0, 0, 0, 1] as const) });
+}
 
 export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidVehicleLayout {
   const { length, width, height } = identity.dimensions;
@@ -71,31 +79,31 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
   const doorZ = width * 0.5 + 0.065;
   const wheelZ = width * 0.5 + identity.wheels.width * 0.32;
   const nodes: readonly SolidNodeDefinition[] = Object.freeze([
-    Object.freeze({ id: 'root', position: [0, 0, 0] as const }),
-    Object.freeze({ id: 'chassis', parentNode: 'root', position: [0, 0, 0] as const }),
+    Object.freeze({ id: 'root', restPose: pose([0, 0, 0] as const) }),
+    Object.freeze({ id: 'chassis', parentNode: 'root', restPose: pose([0, 0, 0] as const) }),
     Object.freeze({
       id: 'wheel:rear:left', parentNode: 'root',
-      position: [rearAxleX, radius, vehicleSideSign('left') * wheelZ] as const,
+      restPose: pose([rearAxleX, radius, vehicleSideSign('left') * wheelZ] as const),
     }),
     Object.freeze({
       id: 'wheel:rear:right', parentNode: 'root',
-      position: [rearAxleX, radius, vehicleSideSign('right') * wheelZ] as const,
+      restPose: pose([rearAxleX, radius, vehicleSideSign('right') * wheelZ] as const),
     }),
     Object.freeze({
       id: 'wheel:front:left', parentNode: 'root',
-      position: [frontAxleX, radius, vehicleSideSign('left') * wheelZ] as const,
+      restPose: pose([frontAxleX, radius, vehicleSideSign('left') * wheelZ] as const),
     }),
     Object.freeze({
       id: 'wheel:front:right', parentNode: 'root',
-      position: [frontAxleX, radius, vehicleSideSign('right') * wheelZ] as const,
+      restPose: pose([frontAxleX, radius, vehicleSideSign('right') * wheelZ] as const),
     }),
     ...identity.doors.sides.map((side) => Object.freeze({
       id: `door:${side}`,
       parentNode: 'chassis',
-      position: [doorHingeX, bodyBottom, vehicleSideSign(side) * doorZ] as const,
+      restPose: pose([doorHingeX, bodyBottom, vehicleSideSign(side) * doorZ] as const),
     })),
-    Object.freeze({ id: 'hood', parentNode: 'chassis', position: [hoodHingeX, beltHeight, 0] as const }),
-    Object.freeze({ id: 'cargo', parentNode: 'chassis', position: [cargoHingeX, beltHeight, 0] as const }),
+    Object.freeze({ id: 'hood', parentNode: 'chassis', restPose: pose([hoodHingeX, beltHeight, 0] as const) }),
+    Object.freeze({ id: 'cargo', parentNode: 'chassis', restPose: pose([cargoHingeX, beltHeight, 0] as const) }),
   ]);
   const openDoorDepth = width * 0.5 + doorLength * 0.96;
   const maximumY = Math.max(height + radius * 0.25, beltHeight + Math.max(hoodLength, cargoLength) * 0.9);
@@ -122,29 +130,41 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
       maximum: [length * 0.53, maximumY, openDoorDepth] as const,
     }),
     nodes,
-    sockets: Object.freeze({
-      'entry:left': [
+    sockets: Object.freeze([
+      ...identity.doors.sides.map((side) => Object.freeze({
+        id: `door:${side}:handle`,
+        node: `door:${side}`,
+        localPose: pose([
+          -doorLength * 0.18,
+          doorHeight * 0.58,
+          vehicleSideSign(side) * 0.045,
+        ] as const),
+      })),
+      Object.freeze({ id: 'entry:left', node: 'root', localPose: pose([
         doorHingeX - doorLength * 0.5,
         0,
         vehicleSideSign('left') * (width * 0.5 + 0.72),
-      ] as const,
-      'entry:right': [
+      ] as const) }),
+      Object.freeze({ id: 'entry:right', node: 'root', localPose: pose([
         doorHingeX - doorLength * 0.5,
         0,
         vehicleSideSign('right') * (width * 0.5 + 0.72),
-      ] as const,
-      driver: [
+      ] as const) }),
+      Object.freeze({ id: 'driver', node: 'chassis', localPose: pose([
         doorHingeX - doorLength * 0.45,
         beltHeight * 0.88,
         vehicleSideSign('left') * width * 0.22,
-      ] as const,
-      passenger: [
+      ] as const) }),
+      Object.freeze({ id: 'passenger', node: 'chassis', localPose: pose([
         doorHingeX - doorLength * 0.45,
         beltHeight * 0.88,
         vehicleSideSign('right') * width * 0.22,
-      ] as const,
-      cargo: [cargoHingeX - cargoLength * 0.45, beltHeight * 0.72, 0] as const,
-      tow: [-length * 0.53, bodyBottom, 0] as const,
-    }),
+      ] as const) }),
+      Object.freeze({
+        id: 'cargo', node: 'chassis',
+        localPose: pose([cargoHingeX - cargoLength * 0.45, beltHeight * 0.72, 0] as const),
+      }),
+      Object.freeze({ id: 'tow', node: 'root', localPose: pose([-length * 0.53, bodyBottom, 0] as const) }),
+    ]),
   });
 }

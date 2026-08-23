@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 
 import type {
+  AffineTransform2,
   AssetBlueprint,
+  ColliderShape2,
   InteractionDefinition,
   LayerDefinition,
-  Vector2,
+  Pose2,
+  RasterBoneDefinition,
 } from '../contracts/raster-asset.js';
 import { validateRasterAssetBlueprint } from '../contracts/blueprint-validation.js';
 import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
@@ -29,7 +32,7 @@ export type BonePose = Readonly<{
 
 type BoneRecord = Readonly<{
   group: THREE.Group;
-  base: Vector2;
+  base: Pose2;
   parentBone: string | null;
 }>;
 
@@ -60,11 +63,6 @@ function createTexture(canvas: DrawingCanvas, anisotropy: number): THREE.CanvasT
   return texture;
 }
 
-function samePosition(left: Vector2, right: Vector2): boolean {
-  const epsilon = 1e-7;
-  return Math.abs(left.x - right.x) < epsilon && Math.abs(left.y - right.y) < epsilon;
-}
-
 /**
  * Bakes procedural canvas layers lazily and exposes a small, renderer-agnostic
  * bone API. The blueprint remains the source of truth; the rig only owns GPU
@@ -91,7 +89,7 @@ export class SpriteRig {
     this.drawRank = Math.trunc(options.drawRank ?? 0);
     this.root.name = this.blueprint.assetId;
     try {
-      this.buildBones(this.blueprint.layers);
+      this.buildBones(this.blueprint.bones);
       this.buildLayers(this.blueprint.layers);
       this.initializeInteractions(this.blueprint.interactions);
     } catch (error) {
@@ -116,6 +114,49 @@ export class SpriteRig {
     return this.bones.get(id)?.group ?? null;
   }
 
+  public getSocketWorldPose(id: string): Pose2 | null {
+    const socket = this.blueprint.sockets.find((candidate) => candidate.id === id);
+    if (socket === undefined) return null;
+    const bone = this.requireBone(socket.bone);
+    bone.updateWorldMatrix(true, false);
+    const position = new THREE.Vector3(
+      socket.localPose.position.x,
+      socket.localPose.position.y,
+      0,
+    ).applyMatrix4(bone.matrixWorld);
+    const direction = new THREE.Vector3(
+      Math.cos(socket.localPose.rotation),
+      Math.sin(socket.localPose.rotation),
+      0,
+    ).transformDirection(bone.matrixWorld);
+    return Object.freeze({
+      position: Object.freeze({ x: position.x, y: position.y }),
+      rotation: Math.atan2(direction.y, direction.x),
+    });
+  }
+
+  public getColliderWorldShape(id: string): ColliderShape2 | null {
+    const definition = this.blueprint.colliders.find((candidate) => candidate.id === id);
+    if (definition === undefined) return null;
+    const bone = this.requireBone(definition.bone);
+    bone.updateWorldMatrix(true, false);
+    const local = new THREE.Matrix4().compose(
+      new THREE.Vector3(definition.localPose.position.x, definition.localPose.position.y, 0),
+      new THREE.Quaternion().setFromAxisAngle(
+        new THREE.Vector3(0, 0, 1),
+        definition.localPose.rotation,
+      ),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const elements = new THREE.Matrix4().multiplyMatrices(bone.matrixWorld, local).elements;
+    const worldTransform: AffineTransform2 = Object.freeze([
+      elements[0], elements[1], 0,
+      elements[4], elements[5], 0,
+      elements[12], elements[13], 1,
+    ]);
+    return Object.freeze({ definition, worldTransform });
+  }
+
   public setBonePose(id: string, pose: BonePose): void {
     const bone = this.requireBone(id);
     const record = this.bones.get(id);
@@ -123,11 +164,11 @@ export class SpriteRig {
       throw new Error(`Unknown bone: ${id}`);
     }
     bone.position.set(
-      record.base.x + (pose.x ?? 0),
-      record.base.y + (pose.y ?? 0),
+      record.base.position.x + (pose.x ?? 0),
+      record.base.position.y + (pose.y ?? 0),
       bone.position.z,
     );
-    bone.rotation.z = pose.rotation ?? 0;
+    bone.rotation.z = record.base.rotation + (pose.rotation ?? 0);
     bone.scale.set(pose.scaleX ?? 1, pose.scaleY ?? 1, 1);
   }
 
@@ -243,7 +284,7 @@ export class SpriteRig {
       if (sensor?.kind !== 'sensor') {
         throw new Error(`Interaction ${definition.id} requires sensor ${definition.sensorColliderId}`);
       }
-      if (this.blueprint.sockets[definition.activationSocketId] === undefined) {
+      if (!this.blueprint.sockets.some(({ id }) => id === definition.activationSocketId)) {
         throw new Error(`Interaction ${definition.id} requires socket ${definition.activationSocketId}`);
       }
       for (const binding of definition.layerBindings) {
@@ -267,18 +308,11 @@ export class SpriteRig {
     }
   }
 
-  private buildBones(definitions: readonly LayerDefinition[]): void {
-    const pending = new Map<string, LayerDefinition>();
+  private buildBones(definitions: readonly RasterBoneDefinition[]): void {
+    const pending = new Map<string, RasterBoneDefinition>();
     for (const definition of definitions) {
-      const existing = pending.get(definition.bone);
-      if (existing !== undefined) {
-        const sameParent = existing.parentBone === definition.parentBone;
-        if (!samePosition(existing.position, definition.position) || !sameParent) {
-          throw new Error(`Bone ${definition.bone} has conflicting layer anchors`);
-        }
-        continue;
-      }
-      pending.set(definition.bone, definition);
+      if (pending.has(definition.id)) throw new Error(`Duplicate bone id: ${definition.id}`);
+      pending.set(definition.id, definition);
     }
 
     const attach = (id: string, ancestry: ReadonlySet<string>): BoneRecord => {
@@ -296,7 +330,12 @@ export class SpriteRig {
       const parentId = definition.parentBone ?? null;
       const group = new THREE.Group();
       group.name = `bone:${id}`;
-      group.position.set(definition.position.x, definition.position.y, 0);
+      group.position.set(
+        definition.restPose.position.x,
+        definition.restPose.position.y,
+        0,
+      );
+      group.rotation.z = definition.restPose.rotation;
       const nextAncestry = new Set(ancestry);
       nextAncestry.add(id);
       if (parentId === null) {
@@ -306,7 +345,7 @@ export class SpriteRig {
       }
       const record: BoneRecord = Object.freeze({
         group,
-        base: Object.freeze({ ...definition.position }),
+        base: definition.restPose,
         parentBone: parentId,
       });
       this.bones.set(id, record);

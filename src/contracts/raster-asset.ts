@@ -8,26 +8,69 @@ export type Vector2 = Readonly<{ x: number; y: number }>;
 export type Size2 = Readonly<{ width: number; height: number }>;
 export type Pivot = readonly [x: number, y: number];
 
-export type RectangleCollider = Readonly<{
-  id: string;
-  kind: 'solid' | 'sensor';
-  shape: 'rectangle';
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+export type Pose2 = Readonly<{
+  position: Vector2;
+  rotation: number;
 }>;
 
-export type PolygonCollider = Readonly<{
+export type RasterBoneDefinition = Readonly<{
+  id: string;
+  parentBone?: string;
+  restPose: Pose2;
+}>;
+
+type RasterColliderHeader = Readonly<{
   id: string;
   kind: 'solid' | 'sensor';
+  bone: string;
+  localPose: Pose2;
+}>;
+
+export type RectangleCollider = RasterColliderHeader & Readonly<{
+  shape: 'rectangle';
+  size: Size2;
+}>;
+
+export type CircleCollider = RasterColliderHeader & Readonly<{
+  shape: 'circle';
+  radius: number;
+}>;
+
+export type CapsuleCollider = RasterColliderHeader & Readonly<{
+  shape: 'capsule';
+  radius: number;
+  length: number;
+  axis: 'x' | 'y';
+}>;
+
+export type PolygonCollider = RasterColliderHeader & Readonly<{
   shape: 'polygon';
   points: readonly Point[];
 }>;
 
-export type Collider = RectangleCollider | PolygonCollider;
+export type RasterColliderDefinition =
+  | RectangleCollider
+  | CircleCollider
+  | CapsuleCollider
+  | PolygonCollider;
 
-export type SocketMap = Readonly<Record<string, Vector2>>;
+export type RasterSocketDefinition = Readonly<{
+  id: string;
+  bone: string;
+  localPose: Pose2;
+}>;
+
+/** Column-major affine matrix matching Three.js Matrix3 element order. */
+export type AffineTransform2 = readonly [
+  m11: number, m12: number, m13: number,
+  m21: number, m22: number, m23: number,
+  m31: number, m32: number, m33: number,
+];
+
+export type ColliderShape2 = Readonly<{
+  definition: RasterColliderDefinition;
+  worldTransform: AffineTransform2;
+}>;
 
 export type LayerDrawContext = Readonly<{
   sketch: Sketch;
@@ -43,7 +86,6 @@ export type LayerDefinition = Readonly<{
   depth: number;
   canvas: Size2;
   world: Size2;
-  position: Vector2;
   pivot: Pivot;
   states: readonly string[];
   capabilities?: AssetCapabilities;
@@ -76,8 +118,9 @@ export type AssetBlueprint<TFamily extends string = string> = AssetBlueprintHead
 > & Readonly<{
   medium: MediumId;
   bounds: Bounds;
+  bones: readonly RasterBoneDefinition[];
   layers: readonly LayerDefinition[];
-  colliders: readonly Collider[];
-  sockets: SocketMap;
+  colliders: readonly RasterColliderDefinition[];
+  sockets: readonly RasterSocketDefinition[];
   interactions: readonly InteractionDefinition[];
 }>;

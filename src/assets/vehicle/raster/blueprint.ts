@@ -1,7 +1,12 @@
 import { closePath, type Point } from '../../../core/geometry.js';
 import type { Sketch } from '../../../core/sketch.js';
 import { mediumById, type Medium } from '../../../materials/medium.js';
-import type { AssetBlueprint, LayerDefinition } from '../../../contracts/raster-asset.js';
+import type {
+  AssetBlueprint,
+  LayerDefinition,
+  RasterBoneDefinition,
+  Vector2,
+} from '../../../contracts/raster-asset.js';
 import {
   createVehicleLayout,
   vehicleViewX,
@@ -218,25 +223,40 @@ function drawSpoiler(sketch: Sketch, recipe: RasterVehicleRecipe, layout: Vehicl
   sketch.stroke([[base[0] - 5, base[1] - 13], [base[0] + 29, base[1] - 10]], 5, { ghost: true });
 }
 
+type AuthoredRasterLayer = Readonly<{
+  bone: RasterBoneDefinition;
+  layer: LayerDefinition;
+}>;
+
+function authoredLayer(layerDefinition: LayerDefinition, position: Vector2): AuthoredRasterLayer {
+  return Object.freeze({
+    bone: Object.freeze({
+      id: layerDefinition.bone,
+      parentBone: 'root',
+      restPose: Object.freeze({ position, rotation: 0 }),
+    }),
+    layer: layerDefinition,
+  });
+}
+
 function fullLayer(
   id: string,
   order: number,
   layout: VehicleLayout,
   states: readonly string[],
   draw: LayerDefinition['draw'],
-): LayerDefinition {
-  return Object.freeze({
+): AuthoredRasterLayer {
+  return authoredLayer(Object.freeze({
     id,
     bone: id,
     order,
     depth: 0,
     canvas: layout.canvas,
     world: Object.freeze({ width: layout.bounds.width, height: layout.bounds.height }),
-    position: Object.freeze({ x: layout.bounds.x, y: layout.bounds.y }),
     pivot: [0, 0] as const,
     states,
     draw,
-  });
+  }), Object.freeze({ x: layout.bounds.x, y: layout.bounds.y }));
 }
 
 export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): AssetBlueprint<'vehicle'> {
@@ -244,15 +264,14 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
   const medium = mediumById(recipe.style.medium);
   const wheelCanvasSize = Math.ceil(recipe.identity.wheels.radius * 2.55 * VEHICLE_PIXELS_PER_UNIT);
   const wheelWorldSize = recipe.identity.wheels.radius * 2.55;
-  const wheelLayer = (id: string, center: Readonly<{ x: number; y: number }>, order: number): LayerDefinition =>
-    Object.freeze({
+  const wheelLayer = (id: string, center: Vector2, order: number): AuthoredRasterLayer =>
+    authoredLayer(Object.freeze({
       id,
       bone: id,
       order,
       depth: 0,
       canvas: Object.freeze({ width: wheelCanvasSize, height: wheelCanvasSize }),
       world: Object.freeze({ width: wheelWorldSize, height: wheelWorldSize }),
-      position: center,
       pivot: [0.5, 0.5] as const,
       states: ['idle'] as const,
       capabilities: Object.freeze([vehicleRollingLayerCapability({
@@ -262,9 +281,9 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
       draw: ({ sketch }): void => {
         drawWheel(sketch, recipe, medium);
       },
-    });
+    }), center);
 
-  const layers: readonly LayerDefinition[] = Object.freeze([
+  const authoredLayers: readonly AuthoredRasterLayer[] = Object.freeze([
     fullLayer('body', 10, layout, ['idle'], ({ sketch }) => {
       drawBody(sketch, recipe, layout, medium);
     }),
@@ -292,6 +311,17 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
       drawSpoiler(sketch, recipe, layout);
     }),
   ]);
+  const bones: readonly RasterBoneDefinition[] = Object.freeze([
+    Object.freeze({
+      id: 'root',
+      restPose: Object.freeze({
+        position: Object.freeze({ x: 0, y: 0 }),
+        rotation: 0,
+      }),
+    }),
+    ...authoredLayers.map(({ bone }) => bone),
+  ]);
+  const layers = Object.freeze(authoredLayers.map(({ layer }) => layer));
 
   const length = recipe.identity.dimensions.length;
   const sensorHeight = Math.max(1, recipe.identity.dimensions.height * 0.7);
@@ -314,58 +344,125 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
     seed: recipe.identity.seed,
     medium: recipe.style.medium,
     bounds: layout.bounds,
+    bones,
     layers,
     colliders: Object.freeze([
       Object.freeze({
         id: 'vehicle:body', kind: 'solid', shape: 'rectangle',
-        x: length * 0.04, y: layout.bodyBottom,
-        width: length * 0.92, height: recipe.identity.dimensions.height - layout.bodyBottom,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: length * 0.5,
+            y: (layout.bodyBottom + recipe.identity.dimensions.height) * 0.5,
+          }),
+          rotation: 0,
+        }),
+        size: Object.freeze({
+          width: length * 0.92,
+          height: recipe.identity.dimensions.height - layout.bodyBottom,
+        }),
       }),
       Object.freeze({
         id: 'door:left:sensor', kind: 'sensor', shape: 'rectangle',
-        x: projectedIntervalX(doorSensorX, doorSensorWidth), y: layout.bodyBottom,
-        width: doorSensorWidth,
-        height: sensorHeight,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedIntervalX(doorSensorX, doorSensorWidth) + doorSensorWidth * 0.5,
+            y: layout.bodyBottom + sensorHeight * 0.5,
+          }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: doorSensorWidth, height: sensorHeight }),
       }),
       Object.freeze({
         id: 'door:right:sensor', kind: 'sensor', shape: 'rectangle',
-        x: projectedIntervalX(doorSensorX, doorSensorWidth), y: layout.bodyBottom,
-        width: doorSensorWidth,
-        height: sensorHeight,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedIntervalX(doorSensorX, doorSensorWidth) + doorSensorWidth * 0.5,
+            y: layout.bodyBottom + sensorHeight * 0.5,
+          }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: doorSensorWidth, height: sensorHeight }),
       }),
       Object.freeze({
         id: 'hood:sensor', kind: 'sensor', shape: 'rectangle',
-        x: projectedIntervalX(hoodSensorX, hoodSensorWidth), y: layout.bodyBottom,
-        width: hoodSensorWidth, height: sensorHeight,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedIntervalX(hoodSensorX, hoodSensorWidth) + hoodSensorWidth * 0.5,
+            y: layout.bodyBottom + sensorHeight * 0.5,
+          }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: hoodSensorWidth, height: sensorHeight }),
       }),
       Object.freeze({
         id: 'cargo:sensor', kind: 'sensor', shape: 'rectangle',
-        x: projectedIntervalX(cargoSensorX, cargoSensorWidth), y: layout.bodyBottom,
-        width: cargoSensorWidth, height: sensorHeight,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedIntervalX(cargoSensorX, cargoSensorWidth) + cargoSensorWidth * 0.5,
+            y: layout.bodyBottom + sensorHeight * 0.5,
+          }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: cargoSensorWidth, height: sensorHeight }),
       }),
     ]),
-    sockets: Object.freeze({
-      'entry:left': Object.freeze({
-        x: projectedX(length
-          * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
-        y: 0,
+    sockets: Object.freeze([
+      Object.freeze({
+        id: 'entry:left', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedX(length
+              * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
+            y: 0,
+          }),
+          rotation: 0,
+        }),
       }),
-      'entry:right': Object.freeze({
-        x: projectedX(length
-          * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
-        y: 0,
+      Object.freeze({
+        id: 'entry:right', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedX(length
+              * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
+            y: 0,
+          }),
+          rotation: 0,
+        }),
       }),
-      driver: Object.freeze({
-        x: projectedX(length
-          * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
-        y: layout.beltHeight,
+      Object.freeze({
+        id: 'driver', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedX(length
+              * (recipe.identity.doors.frontStartRatio + recipe.identity.doors.frontEndRatio) / 2),
+            y: layout.beltHeight,
+          }),
+          rotation: 0,
+        }),
       }),
-      cargo: Object.freeze({
-        x: projectedX(length * recipe.identity.body.cargoRatio * 0.5),
-        y: layout.beltHeight,
+      Object.freeze({
+        id: 'cargo', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({
+            x: projectedX(length * recipe.identity.body.cargoRatio * 0.5),
+            y: layout.beltHeight,
+          }),
+          rotation: 0,
+        }),
       }),
-      tow: Object.freeze({ x: projectedX(0), y: layout.bodyBottom }),
-    }),
+      Object.freeze({
+        id: 'tow', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: projectedX(0), y: layout.bodyBottom }),
+          rotation: 0,
+        }),
+      }),
+    ]),
     interactions: Object.freeze([
       Object.freeze({
         id: 'door:left', kind: 'portal', sensorColliderId: 'door:left:sensor',

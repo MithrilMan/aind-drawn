@@ -301,8 +301,13 @@ describe('asset contracts', () => {
     const blueprint = createCharacterBlueprint(recipe);
     const body = blueprint.colliders[0];
     expect(body?.shape).toBe('rectangle');
-    expect(blueprint.sockets.feet).toEqual({ x: 0, y: 0 });
-    expect(blueprint.sockets.head).toEqual(layout.sockets.head);
+    expect(blueprint.sockets.find(({ id }) => id === 'feet')?.localPose.position)
+      .toEqual({ x: 0, y: 0 });
+    expect(blueprint.sockets.find(({ id }) => id === 'head')).toMatchObject({
+      bone: 'head', localPose: { position: { x: 0, y: 0 } },
+    });
+    expect(blueprint.bones.find(({ id }) => id === 'head')?.restPose.position)
+      .toEqual(layout.sockets.head);
     expect(blueprint.bounds.height).toBeGreaterThan(1.5);
   });
 
@@ -310,8 +315,8 @@ describe('asset contracts', () => {
     const blueprint = createCharacterBlueprint(createCharacterRecipe(144));
     const eye = blueprint.layers.find((layer) => layer.id === 'eye:left');
     const mouth = blueprint.layers.find((layer) => layer.id === 'mouth');
-    expect(eye?.parentBone).toBe('head');
-    expect(mouth?.parentBone).toBe('head');
+    expect(blueprint.bones.find(({ id }) => id === eye?.bone)?.parentBone).toBe('head');
+    expect(blueprint.bones.find(({ id }) => id === mouth?.bone)?.parentBone).toBe('head');
   });
 
   it('models cats as a distinct layered silhouette rather than a human with ears', () => {
@@ -319,9 +324,9 @@ describe('asset contracts', () => {
     const human = createCharacterBlueprint(createCharacterRecipe(144, { species: 'human' }));
     expect(cat.layers.map(({ id }) => id)).toEqual(expect.arrayContaining(['tail', 'muzzle']));
     expect(human.layers.map(({ id }) => id)).not.toEqual(expect.arrayContaining(['tail', 'muzzle']));
-    expect(cat.sockets.tail).toBeDefined();
+    expect(cat.sockets.find(({ id }) => id === 'tail')).toBeDefined();
     const tail = cat.layers.find(({ id }) => id === 'tail');
-    expect(tail?.parentBone).toBe('torso');
+    expect(cat.bones.find(({ id }) => id === tail?.bone)?.parentBone).toBe('torso');
     expect(tail?.pivot[1]).toBeCloseTo(1 - 116 / 150);
   });
 
@@ -335,7 +340,8 @@ describe('asset contracts', () => {
       recipe.identity.palette.skin[2] - recipe.identity.palette.cloth[2],
     );
     expect(distance).toBeGreaterThan(35);
-    expect(human.layers.find(({ id }) => id === 'outfit')?.parentBone).toBe('torso');
+    const outfit = human.layers.find(({ id }) => id === 'outfit');
+    expect(human.bones.find(({ id }) => id === outfit?.bone)?.parentBone).toBe('torso');
     expect(cat.layers.find(({ id }) => id === 'outfit')).toBeUndefined();
   });
 
@@ -358,8 +364,9 @@ describe('asset contracts', () => {
       expect(Math.hypot(...anchor.normal)).toBeCloseTo(1);
     }
     const blueprint = createSolidFaceBlueprint(recipe);
-    expect(blueprint.colliders[0]).toMatchObject({ shape: 'box', center: layout.center });
-    expect(blueprint.sockets.face).toBeDefined();
+    expect(blueprint.colliders[0]).toMatchObject({ shape: 'box', node: 'head' });
+    expect(blueprint.nodes[0]?.restPose.position).toEqual(layout.center);
+    expect(blueprint.sockets.find(({ id }) => id === 'face')).toBeDefined();
   });
 
   it('builds a complete solid character from semantic nodes and one body layout', () => {
@@ -524,7 +531,7 @@ describe('asset contracts', () => {
     expect(building.colliders).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: 'door:sensor', kind: 'sensor' }),
     ]));
-    expect(building.sockets['door:entry']).toBeDefined();
+    expect(building.sockets.find(({ id }) => id === 'door:entry')).toBeDefined();
     expect(building.interactions[0]).toMatchObject({
       id: 'door',
       kind: 'portal',
@@ -597,8 +604,10 @@ describe('asset contracts', () => {
     }
     expect(door.geometry.outline).toEqual(facade.door.profile);
     expect(facade.wallHeight + facade.roofRise).toBeCloseTo(identity.height);
-    expect(raster.sockets['door:entry']?.x).toBeCloseTo(facade.door.centerX);
-    expect(solid.sockets['door:entry']?.[0]).toBeCloseTo(facade.door.centerX);
+    expect(raster.sockets.find(({ id }) => id === 'door:entry')?.localPose.position.x)
+      .toBeCloseTo(facade.door.centerX);
+    expect(solid.sockets.find(({ id }) => id === 'door:entry')?.localPose.position[0])
+      .toBeCloseTo(facade.door.centerX);
     expect(solid.interactions[0]).toMatchObject({
       id: 'door', sensorColliderId: 'door:sensor', activationSocketId: 'door:entry',
     });
@@ -1038,7 +1047,7 @@ describe('asset contracts', () => {
 
       const solid = createSolidCharacterBlueprint(identity);
       const headNode = solid.nodes.find(({ id }) => id === 'head');
-      expect(headNode?.position[2]).toBeGreaterThan(0);
+      expect(headNode?.restPose.position[2]).toBeGreaterThan(0);
     }
   });
 
@@ -1053,7 +1062,7 @@ describe('asset contracts', () => {
       expect(profile).not.toBeNull();
       if (profile === null || beard?.geometry.type !== 'mesh' || headNode === undefined) continue;
       const rearDepth = Math.min(...beard.geometry.vertices.map((vertex) => vertex[2]));
-      expect(rearDepth + headNode.position[2] - layout.torso.depth)
+      expect(rearDepth + headNode.restPose.position[2] - layout.torso.depth)
         .toBeGreaterThan(0.055);
     }
   });

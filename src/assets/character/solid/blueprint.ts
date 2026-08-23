@@ -24,6 +24,10 @@ function solidPlacement(position: Point3, rotation?: Point3) {
   });
 }
 
+function spatialPose(position: Point3) {
+  return Object.freeze({ position, rotation: Object.freeze([0, 0, 0, 1] as const) });
+}
+
 function ellipsoid(
   radii: Point3,
   exponent = 2.5,
@@ -211,16 +215,16 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
     colliders: Object.freeze([
       Object.freeze({
         id: 'body', kind: 'solid', shape: 'box',
-        center: [0, bodyTop * 0.5, 0] as const,
+        node: 'root', localPose: spatialPose([0, bodyTop * 0.5, 0] as const),
         size: [layout.torso.width, bodyTop, layout.torso.depth * 2] as const,
       }),
       Object.freeze({
         id: 'head', kind: 'solid', shape: 'box',
-        center: [
-          layout.headCenter[0] + (headMinimum[0] + headMaximum[0]) * 0.5,
-          layout.headCenter[1] + (headMinimum[1] + headMaximum[1]) * 0.5,
-          layout.headCenter[2] + (headMinimum[2] + headMaximum[2]) * 0.5,
-        ] as const,
+        node: 'head', localPose: spatialPose([
+          (headMinimum[0] + headMaximum[0]) * 0.5,
+          (headMinimum[1] + headMaximum[1]) * 0.5,
+          (headMinimum[2] + headMaximum[2]) * 0.5,
+        ] as const),
         size: [
           headMaximum[0] - headMinimum[0],
           headMaximum[1] - headMinimum[1],

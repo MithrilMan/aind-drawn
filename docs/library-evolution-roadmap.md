@@ -110,6 +110,47 @@ Verification completed with `pnpm verify`: TypeScript, ESLint, all 98 tests, the
 artifact, and its 145 public exports pass. Compiled-artifact checks exercise identity encode/decode,
 future-version rejection, and both blueprint validators.
 
+### 2026-08-23 - Phase 0 closed and Initiative 4 completed
+
+The remaining Phase 0 API guardrail and the P0 spatial attachment initiative are implemented.
+This is another greenfield replacement: coordinate maps, layer-owned bone anchors, position-only
+solid nodes, and absolute collider centres were removed rather than retained behind aliases.
+
+Completed work:
+
+- added an exact snapshot of all 145 runtime exports to compiled-artifact verification, so a barrel
+  change now requires an intentional API review rather than merely changing an export count;
+- added public `Pose2`, `Pose3`, quaternion, explicit raster-bone, attached socket, attached
+  collider, and renderer-neutral world-transform contracts;
+- made raster bones own hierarchy and rest poses; layers now reference a bone without repeating
+  its parent or anchor;
+- made solid nodes own complete local rest poses with unit quaternions instead of position-only
+  transforms;
+- replaced raster and solid socket maps with immutable definitions that name an owner and local
+  pose;
+- attached every collider to a raster bone or solid node and added the focused circle, capsule,
+  and sphere vocabulary without introducing a physics-engine schema;
+- added `SpriteRig.getSocketWorldPose`, `SpriteRig.getColliderWorldShape`,
+  `SolidRig.getSocketWorldPose`, and `SolidRig.getColliderWorldShape`;
+- made world queries account for hierarchy, animation, interaction transforms, root transforms,
+  and mirrored facing while returning only frozen serialisable values;
+- attached character hand sockets to arm joints and added solid building and vehicle door-handle
+  sockets plus door-leaf colliders owned by their hinge nodes; activation sensors remain on the
+  stable approach region;
+- migrated character, building, vehicle, focused-face, Projection Studio preview, validators,
+  compiled-artifact checks, and all call sites to the new contracts with no compatibility path;
+- added regressions for animated hand sockets in both representations, root translation and
+  mirroring, door socket/collider articulation, idempotent state application, obsolete spatial
+  fields, unit quaternions, and serialisable query results.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 101 tests, the compiled library
+artifact, its exact 145-export snapshot, and the Projection Studio production build pass.
+Desktop browser QA covered character, building, and vehicle raster plus Doodle 3D output,
+focused Customize previews, and the vehicle door open state in both projections.
+
+The next recommended slice is Initiative 3, the shared semantic manifest. Spatial ownership is
+now real enough to share interaction intent without merely centralising duplicate coordinates.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -156,8 +197,8 @@ collapsed into a single style identifier.
 
 The current tests cover deterministic generation, namespace isolation, cross-representation
 parity, topology, interactions, material ownership, runtime idempotence, and resource disposal.
-The baseline is healthy: the current library suite passes all 98 tests, and the compiled artifact
-verification reports 145 public exports.
+The baseline is healthy: the current library suite passes all 101 tests, and the compiled artifact
+verification enforces an exact snapshot of 145 public exports.
 
 The recommended work adds new kinds of verification; it does not replace these tests with visual
 snapshots alone.
@@ -214,7 +255,7 @@ render targets.
 | --- | --- | --- | --- | --- |
 | P0 | Unified recipe and blueprint envelopes | Completed | Coherent public data model | None |
 | P0 | Codecs and pure validators | Completed | Safe persistence and fail-fast runtimes | Unified envelopes |
-| P0 | Attached sockets and colliders | Planned | Real equipment, portals, and physics integration | Contract cleanup |
+| P0 | Attached sockets and colliders | Completed | Real equipment, portals, and physics integration | Contract cleanup |
 | P1 | Shared semantic manifest | Planned | Guaranteed cross-representation state parity | Unified envelopes |
 | P1 | Runtime instance identity | Planned | Multiple independent instances of one asset | Contract cleanup |
 | P1 | Pure motion samplers | Planned | Seekable, exportable, deterministic motion | Runtime instance model |
@@ -511,7 +552,7 @@ publish `semanticPartId`; parity compares ownership and intent, not accidental r
 - A generic parity validator detects missing parts, sockets, colliders, or bindings.
 - No generic contract imports family vocabulary.
 
-## Initiative 4: articulated sockets, colliders, and runtime spatial queries
+## Initiative 4: articulated sockets, colliders, and runtime spatial queries - completed 2026-08-23
 
 ### Problem
 
@@ -1370,9 +1411,7 @@ Completed in Initiatives 1 and 2:
 - pure raster and solid validators;
 - family identity codecs;
 
-Remaining in Phase 0:
-
-- public API snapshot.
+The final Phase 0 item, the exact public API snapshot, is complete.
 
 Exit criteria:
 
@@ -1383,12 +1422,15 @@ Exit criteria:
 
 ### Phase 1: spatial semantics
 
-Deliver:
+Completed:
 
-- shared semantic manifest;
 - attached socket definitions with orientation;
 - attached colliders;
-- world-space spatial queries in both rigs;
+- world-space spatial queries in both rigs.
+
+Remaining:
+
+- shared semantic manifest;
 - shared interaction state machine with representation bindings;
 - explicit runtime instance IDs.
 

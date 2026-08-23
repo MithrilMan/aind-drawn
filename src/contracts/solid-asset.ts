@@ -40,10 +40,17 @@ export type SolidGeometrySpec =
   | BoxGeometrySpec
   | MeshGeometrySpec;
 
+export type Quaternion = readonly [x: number, y: number, z: number, w: number];
+
+export type Pose3 = Readonly<{
+  position: Point3;
+  rotation: Quaternion;
+}>;
+
 export type SolidNodeDefinition = Readonly<{
   id: string;
   parentNode?: string;
-  position: Point3;
+  restPose: Pose3;
 }>;
 
 export type SolidPlacement = Readonly<{
@@ -66,16 +73,50 @@ export type SolidPartDefinition = Readonly<{
   receiveShadow: boolean;
 }>;
 
-export type BoxCollider3 = Readonly<{
+type SolidColliderHeader = Readonly<{
   id: string;
   kind: 'solid' | 'sensor';
+  node: string;
+  localPose: Pose3;
+}>;
+
+export type BoxCollider3 = SolidColliderHeader & Readonly<{
   shape: 'box';
-  center: Point3;
   size: Point3;
 }>;
 
-export type Collider3 = BoxCollider3;
-export type SocketMap3 = Readonly<Record<string, Point3>>;
+export type SphereCollider3 = SolidColliderHeader & Readonly<{
+  shape: 'sphere';
+  radius: number;
+}>;
+
+export type CapsuleCollider3 = SolidColliderHeader & Readonly<{
+  shape: 'capsule';
+  radius: number;
+  length: number;
+  axis: 'x' | 'y' | 'z';
+}>;
+
+export type SolidColliderDefinition = BoxCollider3 | SphereCollider3 | CapsuleCollider3;
+
+export type SolidSocketDefinition = Readonly<{
+  id: string;
+  node: string;
+  localPose: Pose3;
+}>;
+
+/** Column-major affine matrix matching Three.js Matrix4 element order. */
+export type AffineTransform3 = readonly [
+  number, number, number, number,
+  number, number, number, number,
+  number, number, number, number,
+  number, number, number, number,
+];
+
+export type ColliderShape3 = Readonly<{
+  definition: SolidColliderDefinition;
+  worldTransform: AffineTransform3;
+}>;
 
 export type SolidNodeState = Readonly<{
   translation?: Point3;
@@ -106,7 +147,7 @@ export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprin
   nodes: readonly SolidNodeDefinition[];
   parts: readonly SolidPartDefinition[];
   materials: readonly SolidMaterialSpec[];
-  colliders: readonly Collider3[];
-  sockets: SocketMap3;
+  colliders: readonly SolidColliderDefinition[];
+  sockets: readonly SolidSocketDefinition[];
   interactions: readonly SolidInteractionDefinition[];
 }>;

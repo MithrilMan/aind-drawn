@@ -1,13 +1,20 @@
 import assert from 'node:assert/strict';
-import { access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
 
 const entryUrl = new URL('../dist/library/index.js', import.meta.url);
 const declarationUrl = new URL('../dist/library/index.d.ts', import.meta.url);
+const publicApiSnapshotUrl = new URL('./public-api.snapshot.json', import.meta.url);
 
 await access(entryUrl);
 await access(declarationUrl);
 
 const library = await import(entryUrl.href);
+const publicApiSnapshot = JSON.parse(await readFile(publicApiSnapshotUrl, 'utf8'));
+assert.deepEqual(
+  Object.keys(library).sort(),
+  publicApiSnapshot,
+  'Public API exports changed; review the package surface and update scripts/public-api.snapshot.json intentionally',
+);
 const requiredExports = [
   'SpriteRig',
   'SolidRig',
@@ -133,7 +140,10 @@ assert.equal(
 );
 assert.ok(building.layers.some(({ id }) => id === 'door'), 'Compiled building is missing its door layer');
 assert.equal(building.interactions[0]?.id, 'door', 'Compiled building is missing its door interaction');
-assert.ok(building.sockets['door:entry'], 'Compiled building is missing its entry socket');
+assert.ok(
+  building.sockets.some(({ id, bone }) => id === 'door:entry' && bone === 'root'),
+  'Compiled building is missing its attached entry socket',
+);
 const solidBuilding = library.createSolidBuildingBlueprint(buildingIdentity);
 assert.equal(
   library.validateSolidAssetBlueprint(solidBuilding),
@@ -143,6 +153,21 @@ assert.equal(
 assert.equal(building.assetId, solidBuilding.assetId, 'Building projections must share an asset ID');
 assert.equal(solidBuilding.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
 assert.ok(solidBuilding.parts.some(({ id }) => id === 'building:roof'), 'Compiled solid building is missing its roof volume');
+assert.ok(
+  solidBuilding.nodes.every((node) => node.restPose?.rotation?.length === 4 && !('position' in node)),
+  'Compiled solid nodes must expose complete rest poses without obsolete position fields',
+);
+const solidBuildingRig = new library.SolidRig(solidBuilding);
+const closedDoorHandle = solidBuildingRig.getSocketWorldPose('door:handle');
+solidBuildingRig.setInteractionState('door', 'open');
+const openDoorHandle = solidBuildingRig.getSocketWorldPose('door:handle');
+assert.notDeepEqual(openDoorHandle, closedDoorHandle, 'Compiled attached sockets must follow interaction nodes');
+assert.deepEqual(
+  JSON.parse(JSON.stringify(openDoorHandle)),
+  openDoorHandle,
+  'Compiled world-pose queries must return serialisable values',
+);
+solidBuildingRig.dispose();
 const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding, {
   medium: 'graphite',
   strokes: library.createSolidBuildingInkStrokes(solidBuilding),

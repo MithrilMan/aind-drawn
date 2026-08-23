@@ -725,18 +725,28 @@ export function createSolidFaceBlueprint(
     seed: recipe.identity.seed,
     bounds: layout.bounds,
     nodes: Object.freeze([
-      Object.freeze({ id: 'head', position: layout.center }),
+      Object.freeze({
+        id: 'head',
+        restPose: Object.freeze({
+          position: layout.center,
+          rotation: Object.freeze([0, 0, 0, 1] as const),
+        }),
+      }),
     ]),
     parts: Object.freeze(parts),
     materials: materialSpecs(recipe),
     colliders: Object.freeze([
       Object.freeze({
         id: 'head', kind: 'solid', shape: 'box',
-        center: [
-          layout.center[0] + (headMinimum[0] + headMaximum[0]) * 0.5,
-          layout.center[1] + (headMinimum[1] + headMaximum[1]) * 0.5,
-          layout.center[2] + (headMinimum[2] + headMaximum[2]) * 0.5,
-        ] as const,
+        node: 'head',
+        localPose: Object.freeze({
+          position: [
+            (headMinimum[0] + headMaximum[0]) * 0.5,
+            (headMinimum[1] + headMaximum[1]) * 0.5,
+            (headMinimum[2] + headMaximum[2]) * 0.5,
+          ] as const,
+          rotation: [0, 0, 0, 1] as const,
+        }),
         size: [
           headMaximum[0] - headMinimum[0],
           headMaximum[1] - headMinimum[1],

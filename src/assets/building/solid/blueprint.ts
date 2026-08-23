@@ -21,6 +21,10 @@ function placement(position: Point3) {
   return Object.freeze({ position });
 }
 
+function spatialPose(position: Point3) {
+  return Object.freeze({ position, rotation: Object.freeze([0, 0, 0, 1] as const) });
+}
+
 function box(size: Point3, segments?: readonly [number, number, number]): BoxGeometrySpec {
   return Object.freeze({
     type: 'box',
@@ -297,13 +301,27 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     colliders: Object.freeze([
       Object.freeze({
         id: 'body', kind: 'solid', shape: 'box',
-        center: [0, layout.height * 0.5, 0] as const,
+        node: 'root', localPose: spatialPose([0, layout.height * 0.5, 0] as const),
         size: [layout.width, layout.height, layout.depth] as const,
       }),
       Object.freeze({
         id: 'door:sensor', kind: 'sensor', shape: 'box',
-        center: [layout.door.centerX, layout.door.height * 0.5, layout.depth * 0.5 + 0.65] as const,
+        node: 'root',
+        localPose: spatialPose([
+          layout.door.centerX,
+          layout.door.height * 0.5,
+          layout.depth * 0.5 + 0.65,
+        ] as const),
         size: [Math.max(1.2, layout.door.width * 1.6), layout.door.height, 1.3] as const,
+      }),
+      Object.freeze({
+        id: 'door:leaf', kind: 'solid', shape: 'box', node: 'door',
+        localPose: spatialPose([
+          (identity.door.hinge === 'left' ? 1 : -1) * layout.door.width * 0.5,
+          layout.door.height * 0.5,
+          0,
+        ] as const),
+        size: [layout.door.width, layout.door.height, 0.08] as const,
       }),
     ]),
     sockets: layout.sockets,

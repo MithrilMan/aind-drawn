@@ -243,12 +243,11 @@ function createLayer(
 ): LayerDefinition {
   return Object.freeze({
     id,
-    bone: 'root',
     order,
     depth: 0,
     canvas,
     world,
-    position: Object.freeze({ x: 0, y: -MARGIN / PIXELS_PER_UNIT }),
+    bone: 'artwork',
     pivot: [0.5, 0] as const,
     states,
     draw,
@@ -296,22 +295,63 @@ export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): Ass
     bounds: Object.freeze({
       x: -identity.width / 2, y: 0, width: identity.width, height: identity.height,
     }),
+    bones: Object.freeze([
+      Object.freeze({
+        id: 'root',
+        restPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: 0 }),
+          rotation: 0,
+        }),
+      }),
+      Object.freeze({
+        id: 'artwork', parentBone: 'root',
+        restPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: -MARGIN / PIXELS_PER_UNIT }),
+          rotation: 0,
+        }),
+      }),
+    ]),
     layers: Object.freeze([chimney, shell, roof, balconies, door]),
     colliders: Object.freeze([
       Object.freeze({
         id: 'body', kind: 'solid', shape: 'rectangle',
-        x: -identity.width / 2, y: 0, width: identity.width, height: identity.height,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: identity.height * 0.5 }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: identity.width, height: identity.height }),
       }),
       Object.freeze({
         id: 'door:sensor', kind: 'sensor', shape: 'rectangle',
-        x: doorX - sensorWidth / 2, y: 0, width: sensorWidth, height: 1.45,
+        bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: doorX, y: 1.45 * 0.5 }),
+          rotation: 0,
+        }),
+        size: Object.freeze({ width: sensorWidth, height: 1.45 }),
       }),
     ]),
-    sockets: Object.freeze({
-      base: Object.freeze({ x: 0, y: 0 }),
-      top: Object.freeze({ x: 0, y: identity.height }),
-      'door:entry': Object.freeze({ x: doorX, y: 0 }),
-    }),
+    sockets: Object.freeze([
+      Object.freeze({
+        id: 'base', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: 0 }), rotation: 0,
+        }),
+      }),
+      Object.freeze({
+        id: 'top', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: 0, y: identity.height }), rotation: 0,
+        }),
+      }),
+      Object.freeze({
+        id: 'door:entry', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: doorX, y: 0 }), rotation: 0,
+        }),
+      }),
+    ]),
     interactions: Object.freeze([Object.freeze({
       id: 'door',
       kind: 'portal',

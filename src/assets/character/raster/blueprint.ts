@@ -2,7 +2,14 @@ import { chaikin, closePath, type MutablePoint, type Point } from '../../../core
 import { combineSeed } from '../../../core/random.js';
 import { PAPER, PAPER_RGB, type Sketch } from '../../../core/sketch.js';
 import { mediumById, type Medium } from '../../../materials/medium.js';
-import type { AssetBlueprint, LayerDefinition, Size2 } from '../../../contracts/raster-asset.js';
+import type {
+  AssetBlueprint,
+  LayerDefinition,
+  Pose2,
+  RasterBoneDefinition,
+  Size2,
+  Vector2,
+} from '../../../contracts/raster-asset.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
 import { createCharacterEyewearProfile } from '../identity/accessory-profile.js';
 import { createCharacterRoundEarProfile } from '../identity/ear-profile.js';
@@ -49,13 +56,63 @@ function localize(points: readonly Point[], canvas: Size2): MutablePoint[] {
   return points.map(([x, y]) => [x + canvas.width / 2, y + canvas.height / 2]);
 }
 
-function layer(
-  definition: Omit<LayerDefinition, 'world'> & Readonly<{ pixelsPerUnit: number }>,
-): LayerDefinition {
-  const { pixelsPerUnit, ...rest } = definition;
+type RasterLayerAuthoring = Omit<LayerDefinition, 'world'> & Readonly<{
+  pixelsPerUnit: number;
+  position: Vector2;
+  parentBone?: string;
+}>;
+
+type AuthoredRasterLayer = Readonly<{
+  layer: LayerDefinition;
+  bone: RasterBoneDefinition;
+}>;
+
+function pose(position: Vector2, rotation = 0): Pose2 {
+  return Object.freeze({ position, rotation });
+}
+
+function layer(definition: RasterLayerAuthoring): AuthoredRasterLayer {
+  const { pixelsPerUnit, position, parentBone, ...rest } = definition;
   return Object.freeze({
-    ...rest,
-    world: toWorld(rest.canvas, pixelsPerUnit),
+    layer: Object.freeze({
+      ...rest,
+      world: toWorld(rest.canvas, pixelsPerUnit),
+    }),
+    bone: Object.freeze({
+      id: rest.bone,
+      ...(parentBone === undefined ? {} : { parentBone }),
+      restPose: pose(position),
+    }),
+  });
+}
+
+function finalizeLayers(authored: readonly AuthoredRasterLayer[]): Readonly<{
+  bones: readonly RasterBoneDefinition[];
+  layers: readonly LayerDefinition[];
+}> {
+  const bones = new Map<string, RasterBoneDefinition>();
+  bones.set('root', Object.freeze({ id: 'root', restPose: pose(Object.freeze({ x: 0, y: 0 })) }));
+  for (const entry of authored) {
+    const candidate = entry.bone.parentBone === undefined
+      ? Object.freeze({ ...entry.bone, parentBone: 'root' })
+      : entry.bone;
+    const existing = bones.get(candidate.id);
+    if (existing === undefined) {
+      bones.set(candidate.id, candidate);
+      continue;
+    }
+    if (
+      existing.parentBone !== candidate.parentBone
+      || existing.restPose.position.x !== candidate.restPose.position.x
+      || existing.restPose.position.y !== candidate.restPose.position.y
+      || existing.restPose.rotation !== candidate.restPose.rotation
+    ) {
+      throw new Error(`Character bone ${candidate.id} has conflicting authoring poses`);
+    }
+  }
+  return Object.freeze({
+    bones: Object.freeze([...bones.values()]),
+    layers: Object.freeze(authored.map((entry) => entry.layer)),
   });
 }
 
@@ -680,7 +737,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   const tearAnchorOffsetPixels = layout.eyes.radiusPixels
     * (1 + tearProfile.attachmentClearanceInEyeRadii);
 
-  const layers: LayerDefinition[] = [
+  const authoredLayers: AuthoredRasterLayer[] = [
     ...(recipe.identity.tail.present ? [layer({
       id: 'tail', bone: 'tail', parentBone: 'torso', order: -6, depth: 0,
       canvas: tailCanvas, pixelsPerUnit,
@@ -940,6 +997,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
     }),
   ];
 
+  const projection = finalizeLayers(authoredLayers);
+  const bodyWidth = layout.torso.widthPixels * 0.64 / pixelsPerUnit;
+  const bodyHeight = layout.bounds.height * 0.78;
+
   return Object.freeze({
     blueprintVersion: 1,
     family: 'character',
@@ -948,19 +1009,51 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
     seed: recipe.identity.seed,
     medium: recipe.style.medium,
     bounds: layout.bounds,
-    layers: Object.freeze(layers),
+    bones: projection.bones,
+    layers: projection.layers,
     colliders: Object.freeze([
       Object.freeze({
         id: 'body',
         kind: 'solid',
         shape: 'rectangle',
-        x: -layout.torso.widthPixels * 0.32 / pixelsPerUnit,
-        y: 0,
-        width: layout.torso.widthPixels * 0.64 / pixelsPerUnit,
-        height: layout.bounds.height * 0.78,
+        bone: 'root',
+        localPose: pose(Object.freeze({ x: 0, y: bodyHeight * 0.5 })),
+        size: Object.freeze({ width: bodyWidth, height: bodyHeight }),
       }),
     ]),
-    sockets: layout.sockets,
+    sockets: Object.freeze([
+      Object.freeze({
+        id: 'feet', bone: 'root',
+        localPose: pose(Object.freeze({ x: 0, y: 0 })),
+      }),
+      Object.freeze({
+        id: 'head', bone: 'head',
+        localPose: pose(Object.freeze({ x: 0, y: 0 })),
+      }),
+      Object.freeze({
+        id: 'hand:left', bone: 'arm:left',
+        localPose: pose(Object.freeze({
+          x: -layout.limbs.armLengthPixels * 0.24 / pixelsPerUnit,
+          y: -layout.limbs.armLengthPixels * 0.78 / pixelsPerUnit,
+        })),
+      }),
+      Object.freeze({
+        id: 'hand:right', bone: 'arm:right',
+        localPose: pose(Object.freeze({
+          x: layout.limbs.armLengthPixels * 0.24 / pixelsPerUnit,
+          y: -layout.limbs.armLengthPixels * 0.78 / pixelsPerUnit,
+        })),
+      }),
+      Object.freeze({
+        id: 'tail', bone: recipe.identity.tail.present ? 'tail' : 'torso',
+        localPose: pose(recipe.identity.tail.present
+          ? Object.freeze({ x: 0, y: 0 })
+          : Object.freeze({
+            x: tailSocket.x - layout.torso.center.x,
+            y: tailSocket.y - layout.torso.center.y,
+          })),
+      }),
+    ]),
     interactions: Object.freeze([]),
   });
 }

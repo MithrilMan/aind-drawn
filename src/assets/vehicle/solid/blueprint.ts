@@ -26,6 +26,10 @@ function placement(position: Point3, rotation?: Point3) {
   return Object.freeze({ position, ...(rotation === undefined ? {} : { rotation }) });
 }
 
+function spatialPose(position: Point3) {
+  return Object.freeze({ position, rotation: Object.freeze([0, 0, 0, 1] as const) });
+}
+
 function roundedVolume(radii: Point3, exponent: number): SuperellipsoidGeometrySpec {
   return Object.freeze({
     type: 'superellipsoid', radii, exponent, widthSegments: 48, heightSegments: 28,
@@ -469,35 +473,55 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     colliders: Object.freeze([
       Object.freeze({
         id: 'vehicle:body', kind: 'solid', shape: 'box',
-        center: [0, layout.height * 0.5, 0] as const,
+        node: 'chassis', localPose: spatialPose([0, layout.height * 0.5, 0] as const),
         size: [layout.length, layout.height, layout.width] as const,
       }),
+      ...identity.doors.sides.map((side) => Object.freeze({
+        id: `door:${side}:leaf`, kind: 'solid' as const, shape: 'box' as const,
+        node: `door:${side}`,
+        localPose: spatialPose([
+          -layout.doorLength * 0.5,
+          layout.doorHeight * 0.5,
+          0,
+        ] as const),
+        size: [layout.doorLength, layout.doorHeight, 0.1] as const,
+      })),
       Object.freeze({
         id: 'door:left:sensor', kind: 'sensor', shape: 'box',
-        center: [
+        node: 'root', localPose: spatialPose([
           layout.doorHingeX - layout.doorLength * 0.5,
           layout.bodyBottom + layout.doorHeight * 0.5,
           vehicleSideSign('left') * (layout.width * 0.5 + 0.6),
-        ] as const,
+        ] as const),
         size: doorSensorSize,
       }),
       Object.freeze({
         id: 'door:right:sensor', kind: 'sensor', shape: 'box',
-        center: [
+        node: 'root', localPose: spatialPose([
           layout.doorHingeX - layout.doorLength * 0.5,
           layout.bodyBottom + layout.doorHeight * 0.5,
           vehicleSideSign('right') * (layout.width * 0.5 + 0.6),
-        ] as const,
+        ] as const),
         size: doorSensorSize,
       }),
       Object.freeze({
         id: 'hood:sensor', kind: 'sensor', shape: 'box',
-        center: [layout.hoodHingeX + layout.hoodLength * 0.5, layout.beltHeight, 0] as const,
+        node: 'root',
+        localPose: spatialPose([
+          layout.hoodHingeX + layout.hoodLength * 0.5,
+          layout.beltHeight,
+          0,
+        ] as const),
         size: [layout.hoodLength, 0.8, layout.width] as const,
       }),
       Object.freeze({
         id: 'cargo:sensor', kind: 'sensor', shape: 'box',
-        center: [layout.cargoHingeX - layout.cargoLength * 0.5, layout.beltHeight, 0] as const,
+        node: 'root',
+        localPose: spatialPose([
+          layout.cargoHingeX - layout.cargoLength * 0.5,
+          layout.beltHeight,
+          0,
+        ] as const),
         size: [layout.cargoLength, 0.8, layout.width] as const,
       }),
     ]),

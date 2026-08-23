@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 
 import type {
+  AffineTransform3,
+  ColliderShape3,
+  Pose3,
   SolidAssetBlueprint,
   SolidInteractionDefinition,
   SolidNodeDefinition,
@@ -111,6 +114,41 @@ export class SolidRig {
     return this.parts.get(id) ?? null;
   }
 
+  public getSocketWorldPose(id: string): Pose3 | null {
+    const socket = this.blueprint.sockets.find((candidate) => candidate.id === id);
+    if (socket === undefined) return null;
+    const node = this.requireNode(socket.node);
+    node.updateWorldMatrix(true, false);
+    const local = new THREE.Matrix4().compose(
+      new THREE.Vector3(...socket.localPose.position),
+      new THREE.Quaternion(...socket.localPose.rotation),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const world = new THREE.Matrix4().multiplyMatrices(node.matrixWorld, local);
+    const position = new THREE.Vector3();
+    const rotation = new THREE.Quaternion();
+    world.decompose(position, rotation, new THREE.Vector3());
+    return Object.freeze({
+      position: Object.freeze([position.x, position.y, position.z] as const),
+      rotation: Object.freeze([rotation.x, rotation.y, rotation.z, rotation.w] as const),
+    });
+  }
+
+  public getColliderWorldShape(id: string): ColliderShape3 | null {
+    const definition = this.blueprint.colliders.find((candidate) => candidate.id === id);
+    if (definition === undefined) return null;
+    const node = this.requireNode(definition.node);
+    node.updateWorldMatrix(true, false);
+    const local = new THREE.Matrix4().compose(
+      new THREE.Vector3(...definition.localPose.position),
+      new THREE.Quaternion(...definition.localPose.rotation),
+      new THREE.Vector3(1, 1, 1),
+    );
+    const elements = new THREE.Matrix4().multiplyMatrices(node.matrixWorld, local).elements;
+    const worldTransform: AffineTransform3 = Object.freeze([...elements]);
+    return Object.freeze({ definition, worldTransform });
+  }
+
   public getInteractionState(id: string): string | null {
     return this.interactionStates.get(id) ?? null;
   }
@@ -120,6 +158,7 @@ export class SolidRig {
     if (!interaction.states.includes(state)) {
       throw new RangeError(`Solid interaction ${id} does not define state ${state}`);
     }
+    if (this.interactionStates.get(id) === state) return;
     for (const binding of interaction.nodeBindings) {
       const nodeState = binding.stateByInteractionState[state];
       if (nodeState === undefined) {
@@ -155,7 +194,8 @@ export class SolidRig {
       if (ancestry.has(id)) throw new Error(`Solid node hierarchy contains a cycle at ${id}`);
       const node = new THREE.Group();
       node.name = `node:${id}`;
-      node.position.set(...definition.position);
+      node.position.set(...definition.restPose.position);
+      node.quaternion.set(...definition.restPose.rotation);
       if (definition.parentNode === undefined) {
         this.root.add(node);
       } else {
@@ -195,7 +235,7 @@ export class SolidRig {
       if (sensor?.kind !== 'sensor') {
         throw new Error(`Solid interaction ${definition.id} requires sensor ${definition.sensorColliderId}`);
       }
-      if (this.blueprint.sockets[definition.activationSocketId] === undefined) {
+      if (!this.blueprint.sockets.some(({ id }) => id === definition.activationSocketId)) {
         throw new Error(
           `Solid interaction ${definition.id} requires socket ${definition.activationSocketId}`,
         );

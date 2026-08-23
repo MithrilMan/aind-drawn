@@ -55,18 +55,20 @@ describe('vehicle asset family', () => {
     const raster = createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, { medium: 'ink' }));
     const solid = createSolidVehicleBlueprint(identity, { finish: 'metal' });
     const rasterFront = raster.layers.find(({ id }) => id === 'wheel:front');
+    const rasterFrontBone = raster.bones.find(({ id }) => id === rasterFront?.bone);
     const solidFront = solid.nodes.find(({ id }) => id === 'wheel:front:left');
-    expect(rasterFront?.position.x).toBeCloseTo(
-      (solidFront?.position[0] ?? 0) + identity.dimensions.length * 0.5,
+    expect(rasterFrontBone?.restPose.position.x).toBeCloseTo(
+      (solidFront?.restPose.position[0] ?? 0) + identity.dimensions.length * 0.5,
     );
-    expect(rasterFront?.position.y).toBeCloseTo(solidFront?.position[1] ?? 0);
+    expect(rasterFrontBone?.restPose.position.y).toBeCloseTo(solidFront?.restPose.position[1] ?? 0);
     expect(rasterFront === undefined ? undefined : vehicleRollingLayerOf(rasterFront))
       .toMatchObject({ radius: identity.wheels.radius, steering: true });
     expect(raster.interactions.map(({ id }) => id)).toEqual(
       solid.interactions.map(({ id }) => id),
     );
-    expect(raster.sockets['entry:left']?.x).toBeCloseTo(
-      (solid.sockets['entry:left']?.[0] ?? 0) + identity.dimensions.length * 0.5,
+    expect(raster.sockets.find(({ id }) => id === 'entry:left')?.localPose.position.x).toBeCloseTo(
+      (solid.sockets.find(({ id }) => id === 'entry:left')?.localPose.position[0] ?? 0)
+        + identity.dimensions.length * 0.5,
     );
     expect(identity.doors.frontStartRatio).toBeGreaterThan(identity.cabin.startRatio);
     expect(identity.doors.frontEndRatio).toBeLessThan(identity.cabin.endRatio);
@@ -150,17 +152,19 @@ describe('vehicle asset family', () => {
     const solidLayout = buildSolidVehicleLayout(identity);
     expect(right.frontWheel.x).toBeCloseTo(identity.dimensions.length - left.frontWheel.x);
     expect(right.rearWheel.x).toBeCloseTo(identity.dimensions.length - left.rearWheel.x);
-    expect(solidLayout.nodes.find(({ id }) => id === 'door:left')?.position[2]).toBeLessThan(0);
-    expect(solidLayout.nodes.find(({ id }) => id === 'door:right')?.position[2]).toBeGreaterThan(0);
-    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:front:left')?.position[2]).toBeLessThan(0);
-    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:front:right')?.position[2]).toBeGreaterThan(0);
-    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:rear:left')?.position[2]).toBeLessThan(0);
-    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:rear:right')?.position[2]).toBeGreaterThan(0);
-    expect(solidLayout.sockets['entry:left']?.[2]).toBeLessThan(0);
-    expect(solidLayout.sockets['entry:right']?.[2]).toBeGreaterThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'door:left')?.restPose.position[2]).toBeLessThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'door:right')?.restPose.position[2]).toBeGreaterThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:front:left')?.restPose.position[2]).toBeLessThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:front:right')?.restPose.position[2]).toBeGreaterThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:rear:left')?.restPose.position[2]).toBeLessThan(0);
+    expect(solidLayout.nodes.find(({ id }) => id === 'wheel:rear:right')?.restPose.position[2]).toBeGreaterThan(0);
+    expect(solidLayout.sockets.find(({ id }) => id === 'entry:left')?.localPose.position[2]).toBeLessThan(0);
+    expect(solidLayout.sockets.find(({ id }) => id === 'entry:right')?.localPose.position[2]).toBeGreaterThan(0);
     const solid = createSolidVehicleBlueprint(identity);
-    expect(solid.colliders.find(({ id }) => id === 'door:left:sensor')?.center[2]).toBeLessThan(0);
-    expect(solid.colliders.find(({ id }) => id === 'door:right:sensor')?.center[2]).toBeGreaterThan(0);
+    expect(solid.colliders.find(({ id }) => id === 'door:left:sensor')?.localPose.position[2])
+      .toBeLessThan(0);
+    expect(solid.colliders.find(({ id }) => id === 'door:right:sensor')?.localPose.position[2])
+      .toBeGreaterThan(0);
   });
 
   it('keeps the shared cabin and roof profiles monotonic across body archetypes', () => {

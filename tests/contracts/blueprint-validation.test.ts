@@ -45,15 +45,18 @@ function invalidRasterBlueprint(): unknown {
   const identity = createBuildingIdentity(4104);
   const source = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity));
   const first = source.layers[0];
+  const firstBone = source.bones[0];
   const duplicateId = source.layers[1]?.id ?? first?.id ?? 'duplicate';
-  if (first === undefined) throw new Error('Expected a building layer');
+  if (first === undefined || firstBone === undefined) throw new Error('Expected a building layer and bone');
   return {
     ...source,
+    bones: [{ ...firstBone, parentBone: 'missing-parent' }, ...source.bones.slice(1)],
+    colliders: [{ ...source.colliders[0], x: 0 }, ...source.colliders.slice(1)],
     layers: [
       {
         ...first,
         id: duplicateId,
-        parentBone: 'missing-parent',
+        bone: 'missing-bone',
         canvas: { ...first.canvas, width: 0 },
         capabilities: [
           { id: 'test:duplicate', data: {} },
@@ -88,7 +91,12 @@ function invalidSolidBlueprint(): unknown {
   return {
     ...source,
     bounds: { minimum: [0, 0, 0], maximum: [0, -1, 0] },
-    nodes: [{ ...firstNode, parentNode: firstNode.id }, ...source.nodes.slice(1)],
+    nodes: [{
+      ...firstNode,
+      parentNode: firstNode.id,
+      restPose: { ...firstNode.restPose, rotation: [0, 0, 0, 0] },
+    }, ...source.nodes.slice(1)],
+    colliders: [{ ...source.colliders[0], center: [0, 0, 0] }, ...source.colliders.slice(1)],
     materials: [...source.materials, firstMaterial],
     parts: [{
       ...firstPart,
@@ -128,7 +136,6 @@ function failingSpriteBlueprint(): AssetBlueprint<'test'> {
     depth: 0,
     canvas: size,
     world: Object.freeze({ width: 1, height: 1 }),
-    position: Object.freeze({ x: 0, y: 0 }),
     pivot: [0.5, 0.5] as const,
     states: ['idle'] as const,
     draw,
@@ -141,12 +148,18 @@ function failingSpriteBlueprint(): AssetBlueprint<'test'> {
     seed: 1,
     medium: 'graphite',
     bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
+    bones: Object.freeze([Object.freeze({
+      id: 'root',
+      restPose: Object.freeze({
+        position: Object.freeze({ x: 0, y: 0 }), rotation: 0,
+      }),
+    })]),
     layers: Object.freeze([
       layer('first', () => undefined),
       layer('second', () => { throw new Error('controlled draw failure'); }),
     ]),
     colliders: Object.freeze([]),
-    sockets: Object.freeze({}),
+    sockets: Object.freeze([]),
     interactions: Object.freeze([]),
   });
 }
@@ -190,6 +203,7 @@ describe('blueprint validation', () => {
       'value.exclusive_minimum',
       'reference.missing',
       'reference.sensor',
+      'object.unknown_key',
     ]));
     expect(error.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ path: ['interactions', 0, 'activationSocketId'] }),
@@ -206,6 +220,8 @@ describe('blueprint validation', () => {
       'geometry.degenerate',
       'reference.missing',
       'reference.sensor',
+      'quaternion.unit',
+      'object.unknown_key',
     ]));
   });
 

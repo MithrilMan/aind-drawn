@@ -197,10 +197,11 @@ through the eye.
 
 An asset generator returns an immutable blueprint containing:
 
+- explicit `RasterBoneDefinition` entries with parent IDs and serialisable local rest poses;
 - named layers in stable draw order;
-- layer bounds, pivots, bones, states, and draw functions;
-- semantic sockets such as hand, door, and item anchors;
-- gameplay colliders derived from the same layout as the drawing.
+- layer bounds, pivots, bone references, states, and draw functions;
+- semantic sockets with stable IDs, owner bones, and local position plus orientation;
+- gameplay colliders with owner bones and local poses, derived from the same layout as the drawing;
 - declarative interactions that bind sensors and sockets to visual layer states.
 
 Layer pivots use world-space orientation: `[0, 0]` is the bottom-left and
@@ -209,6 +210,12 @@ top-left origin; `CanvasTexture` performs the texture-space conversion.
 
 Physics never reads texture alpha. A visible feature and its gameplay meaning
 share parameters; neither is reverse-engineered from the other.
+
+`SpriteRig.getSocketWorldPose` and `SpriteRig.getColliderWorldShape` resolve
+attachments after the complete bone and root transform, including mirrored
+facing. They return frozen renderer-neutral data. Collider queries preserve the
+authored shape and expose its exact world affine matrix rather than approximating
+a rotated or mirrored shape as an axis-aligned box.
 
 See [`asset-authoring.md`](asset-authoring.md) for the static-prop versus asset-family
 decision and the integration checklist.
@@ -230,6 +237,13 @@ named parts, geometry specifications, physical material intent, 3D bounds,
 colliders, sockets, and node-transform interactions. Supported geometry
 primitives are boxes, superellipsoids, extruded 2D profiles, and indexed or flat
 triangle meshes.
+
+Every solid node owns a complete `Pose3` rest transform with a quaternion, not
+an implicit identity orientation plus a position. `SolidSocketDefinition` and
+solid collider definitions name their owner node and store a local `Pose3`.
+Boxes, spheres, and capsules form the deliberately small collision vocabulary.
+Moving a node therefore carries every owned attachment without rebuilding the
+blueprint or exposing Three.js objects.
 
 `pointOnSuperellipsoid` is shared by layout and mesh generation. It evaluates
 the same serialisable radial field used by the raster head outline. Base
@@ -256,6 +270,12 @@ families declare material intent only; they neither construct Three.js
 materials nor duplicate procedural texture generators. Runtime geometry detail
 is likewise a `SolidRig` option, scaling authored tessellation without changing
 identity, bounds, sockets, colliders, or serialized mesh topology.
+
+`SolidRig.getSocketWorldPose` returns a serialisable position and quaternion;
+`SolidRig.getColliderWorldShape` returns the immutable authored collider plus
+its exact column-major world transform. Both include interaction, animation,
+root translation, rotation, scale, and mirrored facing. Missing IDs return
+`null`, so ordinary consumers do not need to inspect the renderer scene graph.
 
 Buildings use the same boundary without character concepts. A shared building
 identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,

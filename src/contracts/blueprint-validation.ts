@@ -135,8 +135,43 @@ function validateRasterBounds(value: unknown, collector: AssetValidationCollecto
   collector.number(bounds.height, ['bounds', 'height'], { exclusiveMinimum: 0 });
 }
 
+function validatePose2(
+  value: unknown,
+  path: ValidationPath,
+  collector: AssetValidationCollector,
+): void {
+  const pose = collector.object(value, path, ['position', 'rotation']);
+  const position = collector.object(pose.position, [...path, 'position'], ['x', 'y']);
+  collector.number(position.x, [...path, 'position', 'x']);
+  collector.number(position.y, [...path, 'position', 'y']);
+  collector.number(pose.rotation, [...path, 'rotation']);
+}
+
+function validateRasterBones(
+  value: unknown,
+  collector: AssetValidationCollector,
+): ReadonlySet<string> {
+  const bones = collector.array(value, ['bones']);
+  if (bones.length === 0) {
+    collector.issue(['bones'], 'array.non_empty', 'A raster blueprint requires at least one bone');
+  }
+  const indexed = indexById(bones, ['bones'], 'bone', collector);
+  const parents = new Map<string, string | undefined>();
+  const paths = new Map<string, ValidationPath>();
+  for (const [id, entry] of indexed) {
+    const bone = collector.object(entry.value, entry.path, ['id', 'parentBone', 'restPose']);
+    if ('parentBone' in bone) collector.string(bone.parentBone, [...entry.path, 'parentBone']);
+    validatePose2(bone.restPose, [...entry.path, 'restPose'], collector);
+    parents.set(id, typeof bone.parentBone === 'string' ? bone.parentBone : undefined);
+    paths.set(id, entry.path);
+  }
+  validateHierarchy(parents, paths, 'Bone', 'parentBone', collector);
+  return new Set(indexed.keys());
+}
+
 function validateRasterLayers(
   value: unknown,
+  bones: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): ReadonlyMap<string, ReadonlySet<string>> {
   const layers = collector.array(value, ['layers']);
@@ -145,17 +180,16 @@ function validateRasterLayers(
   }
   const indexed = indexById(layers, ['layers'], 'layer', collector);
   const statesByLayer = new Map<string, ReadonlySet<string>>();
-  const bones = new Map<string, Readonly<{
-    parent: string | undefined;
-    position: readonly unknown[];
-    path: ValidationPath;
-  }>>();
 
   layers.forEach((entry, index) => {
     const path = ['layers', index] as const;
-    const layer = collector.object(entry, path);
+    const layer = collector.object(entry, path, [
+      'id', 'bone', 'order', 'depth', 'canvas', 'world', 'pivot', 'states', 'capabilities', 'draw',
+    ]);
     collector.string(layer.bone, [...path, 'bone']);
-    if ('parentBone' in layer) collector.string(layer.parentBone, [...path, 'parentBone']);
+    if (typeof layer.bone === 'string' && !bones.has(layer.bone)) {
+      collector.issue([...path, 'bone'], 'reference.missing', `Unknown bone ${layer.bone}`);
+    }
     collector.number(layer.order, [...path, 'order']);
     collector.number(layer.depth, [...path, 'depth']);
     const canvas = collector.object(layer.canvas, [...path, 'canvas'], ['width', 'height']);
@@ -164,9 +198,6 @@ function validateRasterLayers(
     const world = collector.object(layer.world, [...path, 'world'], ['width', 'height']);
     collector.number(world.width, [...path, 'world', 'width'], { exclusiveMinimum: 0 });
     collector.number(world.height, [...path, 'world', 'height'], { exclusiveMinimum: 0 });
-    const position = collector.object(layer.position, [...path, 'position'], ['x', 'y']);
-    collector.number(position.x, [...path, 'position', 'x']);
-    collector.number(position.y, [...path, 'position', 'y']);
     finiteTuple(layer.pivot, [...path, 'pivot'], 2, collector);
     const states = collector.array(layer.states, [...path, 'states']);
     if (states.length === 0) {
@@ -181,35 +212,14 @@ function validateRasterLayers(
     if (typeof layer.id === 'string') {
       statesByLayer.set(layer.id, new Set(states.filter((state): state is string => typeof state === 'string')));
     }
-    if (typeof layer.bone === 'string' && layer.bone.trim().length > 0) {
-      const parent = typeof layer.parentBone === 'string' ? layer.parentBone : undefined;
-      const currentPosition = [position.x, position.y] as const;
-      const existing = bones.get(layer.bone);
-      if (existing === undefined) {
-        bones.set(layer.bone, Object.freeze({ parent, position: currentPosition, path }));
-      } else if (
-        existing.parent !== parent
-        || existing.position[0] !== currentPosition[0]
-        || existing.position[1] !== currentPosition[1]
-      ) {
-        collector.issue([...path, 'bone'], 'bone.conflict', `Bone ${layer.bone} has conflicting anchors`);
-      }
-    }
   });
-
-  const boneParents = new Map<string, string | undefined>();
-  const bonePaths = new Map<string, ValidationPath>();
-  for (const [id, bone] of bones) {
-    boneParents.set(id, bone.parent);
-    bonePaths.set(id, bone.path);
-  }
-  validateHierarchy(boneParents, bonePaths, 'Bone', 'parentBone', collector);
   void indexed;
   return statesByLayer;
 }
 
 function validateRasterColliders(
   value: unknown,
+  bones: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): ReadonlyMap<string, string> {
   const colliders = collector.array(value, ['colliders']);
@@ -219,18 +229,38 @@ function validateRasterColliders(
     const path = ['colliders', index] as const;
     const collider = collector.object(entry, path);
     collector.oneOf(collider.kind, [...path, 'kind'], ['solid', 'sensor'] as const);
-    collector.oneOf(collider.shape, [...path, 'shape'], ['rectangle', 'polygon'] as const);
+    collector.oneOf(collider.shape, [...path, 'shape'], ['rectangle', 'circle', 'capsule', 'polygon'] as const);
+    collector.string(collider.bone, [...path, 'bone']);
+    if (typeof collider.bone === 'string' && !bones.has(collider.bone)) {
+      collector.issue([...path, 'bone'], 'reference.missing', `Unknown bone ${collider.bone}`);
+    }
+    validatePose2(collider.localPose, [...path, 'localPose'], collector);
     if (typeof collider.id === 'string' && typeof collider.kind === 'string') {
       kinds.set(collider.id, collider.kind);
     }
     if (collider.shape === 'rectangle') {
-      collector.number(collider.x, [...path, 'x']);
-      collector.number(collider.y, [...path, 'y']);
-      collector.number(collider.width, [...path, 'width'], { exclusiveMinimum: 0 });
-      collector.number(collider.height, [...path, 'height'], { exclusiveMinimum: 0 });
+      collector.object(entry, path, ['id', 'kind', 'shape', 'bone', 'localPose', 'size']);
+      const size = collector.object(collider.size, [...path, 'size'], ['width', 'height']);
+      collector.number(size.width, [...path, 'size', 'width'], { exclusiveMinimum: 0 });
+      collector.number(size.height, [...path, 'size', 'height'], { exclusiveMinimum: 0 });
+      return;
+    }
+    if (collider.shape === 'circle') {
+      collector.object(entry, path, ['id', 'kind', 'shape', 'bone', 'localPose', 'radius']);
+      collector.number(collider.radius, [...path, 'radius'], { exclusiveMinimum: 0 });
+      return;
+    }
+    if (collider.shape === 'capsule') {
+      collector.object(entry, path, [
+        'id', 'kind', 'shape', 'bone', 'localPose', 'radius', 'length', 'axis',
+      ]);
+      collector.number(collider.radius, [...path, 'radius'], { exclusiveMinimum: 0 });
+      collector.number(collider.length, [...path, 'length'], { minimum: 0 });
+      collector.oneOf(collider.axis, [...path, 'axis'], ['x', 'y'] as const);
       return;
     }
     if (collider.shape === 'polygon') {
+      collector.object(entry, path, ['id', 'kind', 'shape', 'bone', 'localPose', 'points']);
       const points = collector.array(collider.points, [...path, 'points']);
       if (points.length < 3) {
         collector.issue([...path, 'points'], 'geometry.minimum_points', 'A polygon requires at least three points');
@@ -256,26 +286,23 @@ function validateRasterColliders(
   return kinds;
 }
 
-function validateSockets(
+function validateRasterSockets(
   value: unknown,
   path: ValidationPath,
-  dimensions: 2 | 3,
+  bones: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): ReadonlySet<string> {
-  const sockets = collector.object(value, path);
-  const ids = new Set<string>();
-  for (const [id, point] of Object.entries(sockets)) {
-    collector.string(id, [...path, id]);
-    if (dimensions === 2) {
-      const vector = collector.object(point, [...path, id], ['x', 'y']);
-      collector.number(vector.x, [...path, id, 'x']);
-      collector.number(vector.y, [...path, id, 'y']);
-    } else {
-      finiteTuple(point, [...path, id], dimensions, collector);
+  const sockets = collector.array(value, path);
+  const indexed = indexById(sockets, path, 'socket', collector);
+  for (const entry of indexed.values()) {
+    const socket = collector.object(entry.value, entry.path, ['id', 'bone', 'localPose']);
+    collector.string(socket.bone, [...entry.path, 'bone']);
+    if (typeof socket.bone === 'string' && !bones.has(socket.bone)) {
+      collector.issue([...entry.path, 'bone'], 'reference.missing', `Unknown bone ${socket.bone}`);
     }
-    ids.add(id);
+    validatePose2(socket.localPose, [...entry.path, 'localPose'], collector);
   }
-  return ids;
+  return new Set(indexed.keys());
 }
 
 function validateRasterInteractions(
@@ -369,9 +396,10 @@ export function validateRasterAssetBlueprint(blueprint: unknown): AssetBlueprint
   validateHeader(root, 'raster', collector);
   collector.oneOf(root.medium, ['medium'], MEDIUM_IDS);
   validateRasterBounds(root.bounds, collector);
-  const layers = validateRasterLayers(root.layers, collector);
-  const colliderKinds = validateRasterColliders(root.colliders, collector);
-  const sockets = validateSockets(root.sockets, ['sockets'], 2, collector);
+  const bones = validateRasterBones(root.bones, collector);
+  const layers = validateRasterLayers(root.layers, bones, collector);
+  const colliderKinds = validateRasterColliders(root.colliders, bones, collector);
+  const sockets = validateRasterSockets(root.sockets, ['sockets'], bones, collector);
   validateRasterInteractions(root.interactions, layers, colliderKinds, sockets, collector);
   collector.finish();
   return blueprint as AssetBlueprint;
@@ -569,14 +597,30 @@ function validateSolidNodes(
   const parents = new Map<string, string | undefined>();
   const paths = new Map<string, ValidationPath>();
   for (const [id, entry] of indexed) {
-    const node = entry.value;
-    finiteTuple(node.position, [...entry.path, 'position'], 3, collector);
+    const node = collector.object(entry.value, entry.path, ['id', 'parentNode', 'restPose']);
+    validatePose3(node.restPose, [...entry.path, 'restPose'], collector);
     if ('parentNode' in node) collector.string(node.parentNode, [...entry.path, 'parentNode']);
     parents.set(id, typeof node.parentNode === 'string' ? node.parentNode : undefined);
     paths.set(id, entry.path);
   }
   validateHierarchy(parents, paths, 'Node', 'parentNode', collector);
   return new Set(indexed.keys());
+}
+
+function validatePose3(
+  value: unknown,
+  path: ValidationPath,
+  collector: AssetValidationCollector,
+): void {
+  const pose = collector.object(value, path, ['position', 'rotation']);
+  finiteTuple(pose.position, [...path, 'position'], 3, collector);
+  const rotation = finiteTuple(pose.rotation, [...path, 'rotation'], 4, collector);
+  if (rotation.every((coordinate) => typeof coordinate === 'number')) {
+    const length = Math.hypot(...rotation as number[]);
+    if (Math.abs(length - 1) > 1e-5) {
+      collector.issue([...path, 'rotation'], 'quaternion.unit', 'Quaternion must have unit length');
+    }
+  }
 }
 
 function validateSurfaceAnchor(
@@ -637,6 +681,7 @@ function validateSolidParts(
 
 function validateSolidColliders(
   value: unknown,
+  nodes: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): ReadonlyMap<string, string> {
   const colliders = collector.array(value, ['colliders']);
@@ -645,12 +690,51 @@ function validateSolidColliders(
   for (const [id, entry] of indexed) {
     const collider = entry.value;
     collector.oneOf(collider.kind, [...entry.path, 'kind'], ['solid', 'sensor'] as const);
-    collector.literal(collider.shape, [...entry.path, 'shape'], 'box');
-    finiteTuple(collider.center, [...entry.path, 'center'], 3, collector);
-    positiveTuple(collider.size, [...entry.path, 'size'], 3, collector);
+    collector.oneOf(collider.shape, [...entry.path, 'shape'], ['box', 'sphere', 'capsule'] as const);
+    collector.string(collider.node, [...entry.path, 'node']);
+    if (typeof collider.node === 'string' && !nodes.has(collider.node)) {
+      collector.issue([...entry.path, 'node'], 'reference.missing', `Unknown node ${collider.node}`);
+    }
+    validatePose3(collider.localPose, [...entry.path, 'localPose'], collector);
+    if (collider.shape === 'box') {
+      collector.object(entry.value, entry.path, [
+        'id', 'kind', 'shape', 'node', 'localPose', 'size',
+      ]);
+      positiveTuple(collider.size, [...entry.path, 'size'], 3, collector);
+    } else if (collider.shape === 'sphere') {
+      collector.object(entry.value, entry.path, [
+        'id', 'kind', 'shape', 'node', 'localPose', 'radius',
+      ]);
+      collector.number(collider.radius, [...entry.path, 'radius'], { exclusiveMinimum: 0 });
+    } else if (collider.shape === 'capsule') {
+      collector.object(entry.value, entry.path, [
+        'id', 'kind', 'shape', 'node', 'localPose', 'radius', 'length', 'axis',
+      ]);
+      collector.number(collider.radius, [...entry.path, 'radius'], { exclusiveMinimum: 0 });
+      collector.number(collider.length, [...entry.path, 'length'], { minimum: 0 });
+      collector.oneOf(collider.axis, [...entry.path, 'axis'], ['x', 'y', 'z'] as const);
+    }
     if (typeof collider.kind === 'string') kinds.set(id, collider.kind);
   }
   return kinds;
+}
+
+function validateSolidSockets(
+  value: unknown,
+  nodes: ReadonlySet<string>,
+  collector: AssetValidationCollector,
+): ReadonlySet<string> {
+  const sockets = collector.array(value, ['sockets']);
+  const indexed = indexById(sockets, ['sockets'], 'socket', collector);
+  for (const entry of indexed.values()) {
+    const socket = collector.object(entry.value, entry.path, ['id', 'node', 'localPose']);
+    collector.string(socket.node, [...entry.path, 'node']);
+    if (typeof socket.node === 'string' && !nodes.has(socket.node)) {
+      collector.issue([...entry.path, 'node'], 'reference.missing', `Unknown node ${socket.node}`);
+    }
+    validatePose3(socket.localPose, [...entry.path, 'localPose'], collector);
+  }
+  return new Set(indexed.keys());
 }
 
 function validateNodeState(
@@ -760,8 +844,8 @@ export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBluep
   const materials = validateSolidMaterials(root.materials, collector);
   const nodes = validateSolidNodes(root.nodes, collector);
   validateSolidParts(root.parts, nodes, materials, collector);
-  const colliderKinds = validateSolidColliders(root.colliders, collector);
-  const sockets = validateSockets(root.sockets, ['sockets'], 3, collector);
+  const colliderKinds = validateSolidColliders(root.colliders, nodes, collector);
+  const sockets = validateSolidSockets(root.sockets, nodes, collector);
   validateSolidInteractions(root.interactions, nodes, colliderKinds, sockets, collector);
   collector.finish();
   return blueprint as SolidAssetBlueprint;

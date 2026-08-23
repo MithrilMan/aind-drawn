@@ -1,8 +1,8 @@
 import type { Bounds, Point } from '../core/geometry.js';
-import type { Seed } from '../core/random.js';
 import type { Sketch } from '../core/sketch.js';
 import type { MediumId } from '../materials/medium.js';
 import type { AssetCapabilities } from './asset-capabilities.js';
+import type { AssetBlueprintHeader } from './asset-envelope.js';
 
 export type Vector2 = Readonly<{ x: number; y: number }>;
 export type Size2 = Readonly<{ width: number; height: number }>;
@@ -70,20 +70,14 @@ export type InteractionDefinition = Readonly<{
   layerBindings: readonly InteractionLayerBinding[];
 }>;
 
-export type AssetBlueprint = Readonly<{
-  id: string;
-  kind: string;
-  seed: Seed;
+export type AssetBlueprint<TFamily extends string = string> = AssetBlueprintHeader<
+  TFamily,
+  'raster'
+> & Readonly<{
   medium: MediumId;
   bounds: Bounds;
   layers: readonly LayerDefinition[];
   colliders: readonly Collider[];
   sockets: SocketMap;
   interactions: readonly InteractionDefinition[];
-}>;
-
-export type RecipeHeader = Readonly<{
-  version: 1;
-  seed: number;
-  medium: MediumId;
 }>;

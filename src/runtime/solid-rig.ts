@@ -41,8 +41,8 @@ export class SolidRig {
   public constructor(blueprint: SolidAssetBlueprint, options: SolidRigOptions = {}) {
     this.blueprint = blueprint;
     this.materialProvider = new SolidMaterialProvider(options);
-    this.root.name = blueprint.id;
-    this.root.userData.solidAssetId = blueprint.id;
+    this.root.name = blueprint.assetId;
+    this.root.userData.assetId = blueprint.assetId;
     for (const spec of blueprint.materials) {
       if (this.materials.has(spec.id)) throw new Error(`Duplicate solid material id: ${spec.id}`);
       this.materials.set(spec.id, this.materialProvider.create(spec));
@@ -63,7 +63,7 @@ export class SolidRig {
       mesh.castShadow = part.castShadow;
       mesh.receiveShadow = part.receiveShadow;
       mesh.userData.partId = part.id;
-      mesh.userData.solidAssetId = blueprint.id;
+      mesh.userData.assetId = blueprint.assetId;
       mesh.userData.materialId = part.materialId;
       mesh.position.set(...part.placement.position);
       if (part.placement.surface !== undefined) {

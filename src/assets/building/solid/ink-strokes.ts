@@ -23,7 +23,7 @@ function localStroke(
 export function createSolidBuildingInkStrokes(
   solid: SolidAssetBlueprint,
 ): readonly InkedSolidStrokeDefinition[] {
-  if (solid.kind !== 'solid-building') {
+  if (solid.family !== 'building') {
     throw new RangeError('Building ink strokes require a solid building blueprint');
   }
   const strokes: InkedSolidStrokeDefinition[] = [];

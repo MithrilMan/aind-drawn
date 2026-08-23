@@ -1,19 +1,22 @@
 import type { MediumId } from '../../../materials/medium.js';
+import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import {
   createVehicleDrawingStyle,
   type VehicleDrawingStyle,
 } from '../identity/drawing-style.js';
 import type { VehicleIdentityRecipe, VehicleSide } from '../identity/recipe.js';
 
-export type RasterVehicleRecipe = Readonly<{
-  version: 1;
-  kind: 'raster-vehicle';
-  seed: number;
+export type RasterVehicleStyle = VehicleDrawingStyle & Readonly<{
   medium: MediumId;
   side: VehicleSide;
-  identity: VehicleIdentityRecipe;
-  style: VehicleDrawingStyle;
 }>;
+
+export type RasterVehicleRecipe = AssetRecipeEnvelope<
+  'vehicle',
+  'raster',
+  VehicleIdentityRecipe,
+  RasterVehicleStyle
+>;
 
 export type RasterVehicleOptions = Readonly<{
   medium?: MediumId;
@@ -26,12 +29,14 @@ export function createRasterVehicleRecipe(
   options: RasterVehicleOptions = {},
 ): RasterVehicleRecipe {
   return Object.freeze({
-    version: 1,
-    kind: 'raster-vehicle',
-    seed: identity.seed,
-    medium: options.medium ?? 'graphite',
-    side: options.side ?? 'right',
+    schemaVersion: 1,
+    family: 'vehicle',
+    representation: 'raster',
     identity,
-    style: createVehicleDrawingStyle(identity),
+    style: Object.freeze({
+      ...createVehicleDrawingStyle(identity),
+      medium: options.medium ?? 'graphite',
+      side: options.side ?? 'right',
+    }),
   });
 }

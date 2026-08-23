@@ -1,5 +1,6 @@
 import { SeedTree, type Random, type Seed, normalizeSeed } from '../../../core/random.js';
 import { ACCENT_COLORS, SKIN_COLORS, type RgbColor } from '../../../core/sketch.js';
+import type { AssetIdentityEnvelope } from '../../../contracts/asset-envelope.js';
 
 export type CharacterIdentitySpecies = 'human' | 'cat' | 'nightmare' | 'creature' | 'robot';
 export type CharacterHeadShape = 'round' | 'square' | 'pear' | 'drop' | 'lump' | 'tall' | 'wide';
@@ -52,10 +53,7 @@ export type CharacterEyewearAccessoryRecipe = Readonly<{
 /** A representation-neutral, typed extension point for wearable character parts. */
 export type CharacterAccessoryRecipe = CharacterEyewearAccessoryRecipe;
 
-export type CharacterIdentityRecipe = Readonly<{
-  version: 1;
-  kind: 'character-identity';
-  seed: number;
+export type CharacterIdentityRecipe = AssetIdentityEnvelope<'character'> & Readonly<{
   species: CharacterIdentitySpecies;
   palette: Readonly<{
     skin: RgbColor;
@@ -364,8 +362,8 @@ export function createCharacterIdentity(
     && mouthTongueRandom.chance(species === 'creature' || species === 'cat' ? 0.48 : 0.2);
 
   return Object.freeze({
-    version: 1,
-    kind: 'character-identity',
+    schemaVersion: 1,
+    family: 'character',
     seed: normalizedSeed,
     species,
     palette: Object.freeze({
@@ -457,5 +455,5 @@ export function createCharacterIdentity(
 }
 
 export function characterIdentityFingerprint(identity: CharacterIdentityRecipe): string {
-  return `${identity.version}:${identity.seed}:${identity.species}:${identity.head.shape}`;
+  return `${identity.schemaVersion}:${identity.seed}:${identity.species}:${identity.head.shape}`;
 }

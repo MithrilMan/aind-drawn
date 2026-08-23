@@ -5,6 +5,7 @@
 
 [Open Projection Studio](https://mithrilman.github.io/aind-drawn/) ·
 [Read the architecture](docs/architecture.md) ·
+[Review the library roadmap](docs/library-evolution-roadmap.md) ·
 [Author a new asset family](docs/asset-authoring.md)
 
 > **AIND Drawn** is a play on *hand-drawn*: the name keeps the sound and intent
@@ -114,6 +115,8 @@ rules needed to keep a new family modular as the library evolves.
   runtimes built on Three.js.
 - `experiments` — applications that consume only the public library API.
 - `docs` — architecture, rendering, reference study, and asset-authoring notes.
+- [`docs/library-evolution-roadmap.md`](docs/library-evolution-roadmap.md) — active contract,
+  runtime, composition, export, and feature evolution for the library.
 - `.codex/skills` — repository-local agent guidance for extending the system.
 
 ## Getting started

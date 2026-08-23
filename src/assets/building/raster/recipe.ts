@@ -1,4 +1,5 @@
 import type { MediumId, ToneStyle } from '../../../materials/medium.js';
+import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import { createBuildingDrawingStyle } from '../identity/drawing-style.js';
 import type { BuildingIdentityRecipe } from '../identity/recipe.js';
 
@@ -7,13 +8,12 @@ export type RasterBuildingStyle = Readonly<{
   tone: ToneStyle;
 }>;
 
-export type RasterBuildingRecipe = Readonly<{
-  version: 1;
-  kind: 'raster-building';
-  representation: 'raster';
-  identity: BuildingIdentityRecipe;
-  style: RasterBuildingStyle;
-}>;
+export type RasterBuildingRecipe = AssetRecipeEnvelope<
+  'building',
+  'raster',
+  BuildingIdentityRecipe,
+  RasterBuildingStyle
+>;
 
 export type RasterBuildingRecipeOptions = Readonly<{
   medium?: MediumId;
@@ -25,8 +25,8 @@ export function createRasterBuildingRecipe(
 ): RasterBuildingRecipe {
   const drawing = createBuildingDrawingStyle(identity);
   return Object.freeze({
-    version: 1,
-    kind: 'raster-building',
+    schemaVersion: 1,
+    family: 'building',
     representation: 'raster',
     identity,
     style: Object.freeze({

@@ -106,7 +106,7 @@ function addTailParts(
   }
 }
 
-function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetBlueprint {
+function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetBlueprint<'character'> {
   const layout = buildSolidCharacterLayout(recipe);
   const identity = recipe.identity;
   const face = createSolidFaceBlueprint(recipe);
@@ -199,9 +199,10 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
   const headMaximum = layout.face.surfaceBounds.maximum;
 
   return Object.freeze({
+    blueprintVersion: 1,
+    family: 'character',
     representation: 'solid',
-    id: `solid-character:${identity.seed}`,
-    kind: 'solid-character',
+    assetId: `character:${identity.seed}`,
     seed: identity.seed,
     bounds: layout.bounds,
     nodes: layout.nodes,
@@ -234,17 +235,17 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
 
 export function createSolidCharacterBlueprint(
   recipe: SolidCharacterRecipe,
-): SolidAssetBlueprint;
+): SolidAssetBlueprint<'character'>;
 export function createSolidCharacterBlueprint(
   identity: CharacterIdentityRecipe,
   options?: SolidCharacterRecipeOptions,
-): SolidAssetBlueprint;
+): SolidAssetBlueprint<'character'>;
 export function createSolidCharacterBlueprint(
   source: SolidCharacterRecipe | CharacterIdentityRecipe,
   options: SolidCharacterRecipeOptions = {},
-): SolidAssetBlueprint {
-  const recipe = source.kind === 'character-identity'
-    ? createSolidCharacterRecipe(source, options)
-    : source;
+): SolidAssetBlueprint<'character'> {
+  const recipe = 'representation' in source
+    ? source
+    : createSolidCharacterRecipe(source, options);
   return buildSolidCharacterBlueprint(recipe);
 }

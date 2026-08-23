@@ -175,7 +175,7 @@ function materialSpecs(recipe: SolidBuildingRecipe): readonly SolidMaterialSpec[
   ]);
 }
 
-function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlueprint {
+function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlueprint<'building'> {
   const layout = buildSolidBuildingLayout(recipe);
   const identity = recipe.identity;
   const parts: SolidPartDefinition[] = [];
@@ -285,9 +285,10 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
   }
 
   return Object.freeze({
+    blueprintVersion: 1,
+    family: 'building',
     representation: 'solid',
-    id: `solid-building:${identity.seed}`,
-    kind: 'solid-building',
+    assetId: `building:${identity.seed}`,
     seed: identity.seed,
     bounds: layout.bounds,
     nodes: layout.nodes,
@@ -332,17 +333,17 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
 
 export function createSolidBuildingBlueprint(
   recipe: SolidBuildingRecipe,
-): SolidAssetBlueprint;
+): SolidAssetBlueprint<'building'>;
 export function createSolidBuildingBlueprint(
   identity: BuildingIdentityRecipe,
   options?: SolidBuildingRecipeOptions,
-): SolidAssetBlueprint;
+): SolidAssetBlueprint<'building'>;
 export function createSolidBuildingBlueprint(
   source: SolidBuildingRecipe | BuildingIdentityRecipe,
   options: SolidBuildingRecipeOptions = {},
-): SolidAssetBlueprint {
-  const recipe = source.kind === 'building-identity'
-    ? createSolidBuildingRecipe(source, options)
-    : source;
+): SolidAssetBlueprint<'building'> {
+  const recipe = 'representation' in source
+    ? source
+    : createSolidBuildingRecipe(source, options);
   return buildSolidBuildingBlueprint(recipe);
 }

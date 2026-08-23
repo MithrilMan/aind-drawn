@@ -43,6 +43,11 @@ import {
   createSolidBuildingRecipe,
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
+  createVehicleIdentity,
+  createRasterVehicleBlueprint,
+  createRasterVehicleRecipe,
+  createSolidVehicleBlueprint,
+  createSolidVehicleRecipe,
   cross3,
   dot3,
   pointOnSuperellipsoid,
@@ -122,6 +127,78 @@ describe('deterministic generation', () => {
     expect(JSON.parse(JSON.stringify(identity))).toEqual(
       createCharacterIdentity(4107, { species: 'cat', shape: 'pear' }),
     );
+  });
+
+  it('uses one explicit envelope across identities, recipes, and blueprints', () => {
+    const characterIdentity = createCharacterIdentity(101);
+    const buildingIdentity = createBuildingIdentity(202);
+    const vehicleIdentity = createVehicleIdentity(303);
+    const identities = [characterIdentity, buildingIdentity, vehicleIdentity];
+
+    expect(identities.map(({ schemaVersion, family }) => ({ schemaVersion, family }))).toEqual([
+      { schemaVersion: 1, family: 'character' },
+      { schemaVersion: 1, family: 'building' },
+      { schemaVersion: 1, family: 'vehicle' },
+    ]);
+    for (const identity of identities) {
+      expect(identity).not.toHaveProperty('version');
+      expect(identity).not.toHaveProperty('kind');
+    }
+
+    const recipes = [
+      createRasterCharacterRecipe(characterIdentity),
+      createSolidCharacterRecipe(characterIdentity),
+      createRasterBuildingRecipe(buildingIdentity),
+      createSolidBuildingRecipe(buildingIdentity),
+      createRasterVehicleRecipe(vehicleIdentity),
+      createSolidVehicleRecipe(vehicleIdentity),
+    ];
+    expect(recipes.map(({ schemaVersion, family, representation }) => ({
+      schemaVersion, family, representation,
+    }))).toEqual([
+      { schemaVersion: 1, family: 'character', representation: 'raster' },
+      { schemaVersion: 1, family: 'character', representation: 'solid' },
+      { schemaVersion: 1, family: 'building', representation: 'raster' },
+      { schemaVersion: 1, family: 'building', representation: 'solid' },
+      { schemaVersion: 1, family: 'vehicle', representation: 'raster' },
+      { schemaVersion: 1, family: 'vehicle', representation: 'solid' },
+    ]);
+    for (const recipe of recipes) {
+      expect(recipe).not.toHaveProperty('version');
+      expect(recipe).not.toHaveProperty('kind');
+    }
+
+    const vehicleRasterRecipe = createRasterVehicleRecipe(vehicleIdentity, {
+      medium: 'watercolor', side: 'left',
+    });
+    expect(vehicleRasterRecipe.style).toMatchObject({ medium: 'watercolor', side: 'left' });
+    expect(vehicleRasterRecipe).not.toHaveProperty('seed');
+    expect(vehicleRasterRecipe).not.toHaveProperty('medium');
+    expect(vehicleRasterRecipe).not.toHaveProperty('side');
+
+    const rasterCharacter = createRasterCharacterBlueprint(characterIdentity);
+    const solidCharacter = createSolidCharacterBlueprint(characterIdentity);
+    const inkedCharacter = createInkedSolidBlueprint(solidCharacter, { medium: 'graphite' });
+    const rasterBuilding = createRasterBuildingBlueprint(createRasterBuildingRecipe(buildingIdentity));
+    const solidBuilding = createSolidBuildingBlueprint(buildingIdentity);
+    const rasterVehicle = createRasterVehicleBlueprint(createRasterVehicleRecipe(vehicleIdentity));
+    const solidVehicle = createSolidVehicleBlueprint(vehicleIdentity);
+    const blueprintGroups = [
+      [rasterCharacter, solidCharacter, inkedCharacter],
+      [rasterBuilding, solidBuilding],
+      [rasterVehicle, solidVehicle],
+    ];
+
+    for (const group of blueprintGroups) {
+      expect(new Set(group.map(({ assetId }) => assetId)).size).toBe(1);
+      expect(new Set(group.map(({ family }) => family)).size).toBe(1);
+      expect(new Set(group.map(({ seed }) => seed)).size).toBe(1);
+      for (const blueprint of group) {
+        expect(blueprint.blueprintVersion).toBe(1);
+        expect(blueprint).not.toHaveProperty('id');
+        expect(blueprint).not.toHaveProperty('kind');
+      }
+    }
   });
 
   it('keeps seed convenience factories semantically aligned', () => {
@@ -293,7 +370,12 @@ describe('asset contracts', () => {
     const layout = buildSolidCharacterLayout(recipe);
     const blueprint = createSolidCharacterBlueprint(recipe);
 
-    expect(blueprint.kind).toBe('solid-character');
+    expect(blueprint).toMatchObject({
+      blueprintVersion: 1,
+      family: 'character',
+      representation: 'solid',
+      assetId: `character:${identity.seed}`,
+    });
     expect(blueprint.nodes.map(({ id }) => id)).toEqual(expect.arrayContaining([
       'root', 'torso', 'head', 'arm:left', 'arm:right',
       'leg:left', 'leg:right', 'tail',

@@ -22,7 +22,6 @@ import { createCharacterMouthProfile } from '../../identity/mouth-profile.js';
 import { createCharacterNoseProfile } from '../../identity/nose-profile.js';
 import {
   createSolidCharacterRecipe,
-  type SolidCharacterRecipe,
   type SolidCharacterRecipeOptions,
 } from '../recipe.js';
 import {
@@ -474,8 +473,8 @@ function addEyewearParts(
 }
 
 export function createSolidFaceBlueprint(
-  recipe: SolidFaceRecipe | SolidCharacterRecipe,
-): SolidAssetBlueprint {
+  recipe: SolidFaceRecipe,
+): SolidAssetBlueprint<'character'> {
   const layout = buildSolidFaceLayout(recipe);
   const identity = recipe.identity;
   const parts: SolidPartDefinition[] = [];
@@ -719,9 +718,10 @@ export function createSolidFaceBlueprint(
   const headMinimum = layout.surfaceBounds.minimum;
   const headMaximum = layout.surfaceBounds.maximum;
   return Object.freeze({
+    blueprintVersion: 1,
+    family: 'character',
     representation: 'solid',
-    id: `solid-face:${recipe.identity.seed}`,
-    kind: 'solid-face',
+    assetId: `character-face:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
     bounds: layout.bounds,
     nodes: Object.freeze([
@@ -752,6 +752,6 @@ export function createSolidFaceBlueprint(
 export function createSolidCharacterFaceBlueprint(
   identity: CharacterIdentityRecipe,
   options: SolidCharacterRecipeOptions = {},
-): SolidAssetBlueprint {
+): SolidAssetBlueprint<'character'> {
   return createSolidFaceBlueprint(createSolidCharacterRecipe(identity, options));
 }

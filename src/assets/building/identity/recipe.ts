@@ -1,5 +1,6 @@
 import { SeedTree, normalizeSeed, type Seed } from '../../../core/random.js';
 import { ACCENT_COLORS, type RgbColor } from '../../../core/sketch.js';
+import type { AssetIdentityEnvelope } from '../../../contracts/asset-envelope.js';
 
 export const BUILDING_ARCHETYPES = [
   'cottage',
@@ -19,10 +20,7 @@ export type BalconyFeature = Readonly<{
   columnSpan: number;
 }>;
 
-export type BuildingIdentityRecipe = Readonly<{
-  version: 1;
-  kind: 'building-identity';
-  seed: number;
+export type BuildingIdentityRecipe = AssetIdentityEnvelope<'building'> & Readonly<{
   archetype: BuildingArchetype;
   width: number;
   height: number;
@@ -218,8 +216,8 @@ export function createBuildingIdentity(
   const structuralIdentity = { width, height, floors, columns };
 
   return Object.freeze({
-    version: 1,
-    kind: 'building-identity',
+    schemaVersion: 1,
+    family: 'building',
     seed: normalizedSeed,
     archetype,
     width,

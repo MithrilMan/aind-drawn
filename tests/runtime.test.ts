@@ -50,8 +50,10 @@ function testBlueprint(): AssetBlueprint {
     draw: (): void => undefined,
   });
   return Object.freeze({
-    id: 'test',
-    kind: 'test',
+    blueprintVersion: 1,
+    family: 'test',
+    representation: 'raster',
+    assetId: 'test',
     seed: 1,
     medium: 'graphite',
     bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
@@ -86,8 +88,10 @@ describe('sprite rig runtime', () => {
   it('applies declarative interaction states to bound layers', () => {
     const size = Object.freeze({ width: 8, height: 8 });
     const blueprint: AssetBlueprint = Object.freeze({
-      id: 'interactive-door',
-      kind: 'test',
+      blueprintVersion: 1,
+      family: 'test',
+      representation: 'raster',
+      assetId: 'interactive-door',
       seed: 4,
       medium: 'graphite',
       bounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
@@ -133,8 +137,10 @@ describe('sprite rig runtime', () => {
   it('keeps limbs attached to the character root and animates their bones', () => {
     const size = Object.freeze({ width: 8, height: 8 });
     const limbBlueprint: AssetBlueprint = Object.freeze({
-      id: 'moving-character',
-      kind: 'character',
+      blueprintVersion: 1,
+      family: 'character',
+      representation: 'raster',
+      assetId: 'moving-character',
       seed: 27,
       medium: 'graphite',
       bounds: Object.freeze({ x: -0.5, y: 0, width: 1, height: 2 }),
@@ -445,11 +451,11 @@ describe('solid rig runtime', () => {
     }));
     const rig = new SolidRig(blueprint);
     expect(rig.nodeIds).toEqual(['head']);
-    expect(rig.root.userData.solidAssetId).toBe(blueprint.id);
+    expect(rig.root.userData.assetId).toBe(blueprint.assetId);
     expect(rig.partIds).toHaveLength(blueprint.parts.length);
     expect(rig.partIds).toEqual(expect.arrayContaining(blueprint.parts.map(({ id }) => id)));
     const pupil = rig.getPart('eye:left:pupil');
-    expect(pupil?.userData.solidAssetId).toBe(blueprint.id);
+    expect(pupil?.userData.assetId).toBe(blueprint.assetId);
     const geometry = pupil?.geometry;
     const before = pupil?.position.clone();
     const animator = new SolidFaceAnimator(rig, { autoBlink: false, autoGaze: false });

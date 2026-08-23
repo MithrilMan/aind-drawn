@@ -1,4 +1,5 @@
 export * from './contracts/asset-capabilities.js';
+export * from './contracts/asset-envelope.js';
 export * from './contracts/raster-asset.js';
 export * from './contracts/solid-asset.js';
 export * from './authoring/family-schema.js';

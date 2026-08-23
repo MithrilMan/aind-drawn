@@ -1,4 +1,5 @@
 import type { Seed } from '../../../core/random.js';
+import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import type { MediumId, ToneStyle } from '../../../materials/medium.js';
 import { createCharacterDrawingStyle } from '../identity/drawing-style.js';
 import {
@@ -27,13 +28,12 @@ export type RasterCharacterStyle = Readonly<{
   bodyTone: ToneStyle;
 }>;
 
-export type CharacterRecipe = Readonly<{
-  version: 1;
-  kind: 'character';
-  representation: 'raster';
-  identity: CharacterIdentityRecipe;
-  style: RasterCharacterStyle;
-}>;
+export type CharacterRecipe = AssetRecipeEnvelope<
+  'character',
+  'raster',
+  CharacterIdentityRecipe,
+  RasterCharacterStyle
+>;
 
 export type RasterCharacterRecipeOptions = Readonly<{
   medium?: MediumId;
@@ -50,8 +50,8 @@ export function createRasterCharacterRecipe(
 ): CharacterRecipe {
   const drawing = createCharacterDrawingStyle(identity);
   return Object.freeze({
-    version: 1,
-    kind: 'character',
+    schemaVersion: 1,
+    family: 'character',
     representation: 'raster',
     identity,
     style: Object.freeze({

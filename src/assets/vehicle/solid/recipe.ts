@@ -1,16 +1,18 @@
 import type { SolidFinishId } from '../../../materials/finish.js';
+import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import type { VehicleIdentityRecipe } from '../identity/recipe.js';
 
-export type SolidVehicleRecipe = Readonly<{
-  version: 1;
-  kind: 'solid-vehicle';
-  seed: number;
-  identity: VehicleIdentityRecipe;
-  style: Readonly<{
-    finish: SolidFinishId;
-    glassFinish: SolidFinishId;
-  }>;
+export type SolidVehicleStyle = Readonly<{
+  finish: SolidFinishId;
+  glassFinish: SolidFinishId;
 }>;
+
+export type SolidVehicleRecipe = AssetRecipeEnvelope<
+  'vehicle',
+  'solid',
+  VehicleIdentityRecipe,
+  SolidVehicleStyle
+>;
 
 export type SolidVehicleRecipeOptions = Readonly<{
   finish?: SolidFinishId;
@@ -22,9 +24,9 @@ export function createSolidVehicleRecipe(
   options: SolidVehicleRecipeOptions = {},
 ): SolidVehicleRecipe {
   return Object.freeze({
-    version: 1,
-    kind: 'solid-vehicle',
-    seed: identity.seed,
+    schemaVersion: 1,
+    family: 'vehicle',
+    representation: 'solid',
     identity,
     style: Object.freeze({
       finish: options.finish ?? 'glossy',

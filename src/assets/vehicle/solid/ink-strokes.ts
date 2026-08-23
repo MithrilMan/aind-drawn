@@ -24,7 +24,7 @@ function localStroke(
 export function createSolidVehicleInkStrokes(
   solid: SolidAssetBlueprint,
 ): readonly InkedSolidStrokeDefinition[] {
-  if (solid.kind !== 'solid-vehicle') {
+  if (solid.family !== 'vehicle') {
     throw new RangeError('Vehicle ink strokes require a solid vehicle blueprint');
   }
   const body = solid.parts.find(({ id }) => id === 'body');

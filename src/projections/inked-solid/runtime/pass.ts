@@ -987,7 +987,7 @@ export class InkedSolidPass {
       if (!(object instanceof THREE.Mesh)) return;
       const mesh = object as THREE.Mesh & MaterialOwner;
       const material = mesh.material;
-      const belongsToCarrier = mesh.userData.solidAssetId === this.blueprint.solid.id;
+      const belongsToCarrier = mesh.userData.assetId === this.blueprint.solid.assetId;
       const partId = belongsToCarrier && typeof mesh.userData.partId === 'string'
         ? mesh.userData.partId
         : '';
@@ -1037,7 +1037,7 @@ export class InkedSolidPass {
       if (!(object instanceof THREE.Mesh)) return;
       const mesh = object as THREE.Mesh & MaterialOwner;
       const material = mesh.material;
-      const belongsToCarrier = mesh.userData.solidAssetId === this.blueprint.solid.id;
+      const belongsToCarrier = mesh.userData.assetId === this.blueprint.solid.assetId;
       const materialId = belongsToCarrier && typeof mesh.userData.materialId === 'string'
         ? mesh.userData.materialId
         : '';
@@ -1053,7 +1053,7 @@ export class InkedSolidPass {
       if (!(object instanceof THREE.Mesh)) return;
       const mesh = object as THREE.Mesh & MaterialOwner;
       const material = mesh.material;
-      const belongsToCarrier = mesh.userData.solidAssetId === this.blueprint.solid.id;
+      const belongsToCarrier = mesh.userData.assetId === this.blueprint.solid.assetId;
       const partId = belongsToCarrier && typeof mesh.userData.partId === 'string'
         ? mesh.userData.partId
         : '';

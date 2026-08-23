@@ -223,7 +223,7 @@ function materialSpecs(recipe: SolidVehicleRecipe): readonly SolidMaterialSpec[]
   ]);
 }
 
-function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
+function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicle'> {
   const identity = recipe.identity;
   const layout = buildSolidVehicleLayout(identity);
   const parts: SolidPartDefinition[] = [];
@@ -457,9 +457,10 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
   });
 
   return Object.freeze({
+    blueprintVersion: 1,
+    family: 'vehicle',
     representation: 'solid',
-    id: `solid-vehicle:${identity.seed}`,
-    kind: 'solid-vehicle',
+    assetId: `vehicle:${identity.seed}`,
     seed: identity.seed,
     bounds: layout.bounds,
     nodes: layout.nodes,
@@ -528,16 +529,16 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint {
   });
 }
 
-export function createSolidVehicleBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint;
+export function createSolidVehicleBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicle'>;
 export function createSolidVehicleBlueprint(
   identity: VehicleIdentityRecipe,
   options?: SolidVehicleRecipeOptions,
-): SolidAssetBlueprint;
+): SolidAssetBlueprint<'vehicle'>;
 export function createSolidVehicleBlueprint(
   source: SolidVehicleRecipe | VehicleIdentityRecipe,
   options: SolidVehicleRecipeOptions = {},
-): SolidAssetBlueprint {
-  return buildBlueprint(source.kind === 'vehicle-identity'
-    ? createSolidVehicleRecipe(source, options)
-    : source);
+): SolidAssetBlueprint<'vehicle'> {
+  return buildBlueprint('representation' in source
+    ? source
+    : createSolidVehicleRecipe(source, options));
 }

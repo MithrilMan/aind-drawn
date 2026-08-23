@@ -255,7 +255,7 @@ function createLayer(
   });
 }
 
-export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): AssetBlueprint {
+export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): AssetBlueprint<'building'> {
   const dimensions = recipe.identity;
   const canvas: Size2 = Object.freeze({
     width: Math.ceil(dimensions.width * PIXELS_PER_UNIT) + MARGIN * 2,
@@ -287,8 +287,10 @@ export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): Ass
   const sensorWidth = Math.min(1.35, facade.bayWidth * 0.95);
 
   return Object.freeze({
-    id: `building:${identity.seed}`,
-    kind: 'building',
+    blueprintVersion: 1,
+    family: 'building',
+    representation: 'raster',
+    assetId: `building:${identity.seed}`,
     seed: identity.seed,
     medium: recipe.style.medium,
     bounds: Object.freeze({

@@ -239,9 +239,9 @@ function fullLayer(
   });
 }
 
-export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): AssetBlueprint {
-  const layout = createVehicleLayout(recipe.identity, recipe.side);
-  const medium = mediumById(recipe.medium);
+export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): AssetBlueprint<'vehicle'> {
+  const layout = createVehicleLayout(recipe.identity, recipe.style.side);
+  const medium = mediumById(recipe.style.medium);
   const wheelCanvasSize = Math.ceil(recipe.identity.wheels.radius * 2.55 * VEHICLE_PIXELS_PER_UNIT);
   const wheelWorldSize = recipe.identity.wheels.radius * 2.55;
   const wheelLayer = (id: string, center: Readonly<{ x: number; y: number }>, order: number): LayerDefinition =>
@@ -271,10 +271,10 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
     wheelLayer('wheel:rear', layout.rearWheel, 20),
     wheelLayer('wheel:front', layout.frontWheel, 21),
     fullLayer('door:left', 30, layout, ['closed', 'open'], ({ sketch, state }) => {
-      if (recipe.side === 'left') drawDoor(sketch, recipe, layout, medium, state);
+      if (recipe.style.side === 'left') drawDoor(sketch, recipe, layout, medium, state);
     }),
     fullLayer('door:right', 30, layout, ['closed', 'open'], ({ sketch, state }) => {
-      if (recipe.side === 'right') drawDoor(sketch, recipe, layout, medium, state);
+      if (recipe.style.side === 'right') drawDoor(sketch, recipe, layout, medium, state);
     }),
     fullLayer('hood', 31, layout, ['closed', 'open'], ({ sketch, state }) => {
       drawHingedPanel(sketch, recipe, layout, medium, layout.hoodOutline, state, 1);
@@ -295,9 +295,9 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
 
   const length = recipe.identity.dimensions.length;
   const sensorHeight = Math.max(1, recipe.identity.dimensions.height * 0.7);
-  const projectedX = (x: number): number => vehicleViewX(recipe.identity, recipe.side, x);
+  const projectedX = (x: number): number => vehicleViewX(recipe.identity, recipe.style.side, x);
   const projectedIntervalX = (x: number, width: number): number => (
-    recipe.side === 'left' ? projectedX(x + width) : projectedX(x)
+    recipe.style.side === 'left' ? projectedX(x + width) : projectedX(x)
   );
   const doorSensorX = length * recipe.identity.doors.frontStartRatio;
   const doorSensorWidth = length
@@ -307,10 +307,12 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
   const cargoSensorX = length * 0.02;
   const cargoSensorWidth = length * Math.max(recipe.identity.body.cargoRatio, 0.15);
   return Object.freeze({
-    id: `vehicle:${recipe.seed}`,
-    kind: 'vehicle',
-    seed: recipe.seed,
-    medium: recipe.medium,
+    blueprintVersion: 1,
+    family: 'vehicle',
+    representation: 'raster',
+    assetId: `vehicle:${recipe.identity.seed}`,
+    seed: recipe.identity.seed,
+    medium: recipe.style.medium,
     bounds: layout.bounds,
     layers,
     colliders: Object.freeze([

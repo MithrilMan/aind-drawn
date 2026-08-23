@@ -19,9 +19,8 @@ import { createCharacterFacialHairProfile } from '../../identity/facial-hair-pro
 import { createCharacterEyewearProfile } from '../../identity/accessory-profile.js';
 import { createCharacterRoundEarProfile } from '../../identity/ear-profile.js';
 import type { SolidFaceRecipe } from './recipe.js';
-import type { SolidCharacterRecipe } from '../recipe.js';
 
-export type SolidFaceSourceRecipe = SolidFaceRecipe | SolidCharacterRecipe;
+export type SolidFaceSourceRecipe = SolidFaceRecipe;
 
 export type SolidFaceLayout = Readonly<{
   shape: Superellipsoid;

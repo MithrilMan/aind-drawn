@@ -650,7 +650,7 @@ function drawTail(sketch: Sketch, recipe: CharacterRecipe): void {
   });
 }
 
-export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprint {
+export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprint<'character'> {
   const layout = buildCharacterLayout(recipe);
   const medium = mediumById(recipe.style.medium);
   const pixelsPerUnit = layout.pixelsPerUnit;
@@ -941,8 +941,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
   ];
 
   return Object.freeze({
-    id: `character:${recipe.identity.seed}`,
-    kind: 'character',
+    blueprintVersion: 1,
+    family: 'character',
+    representation: 'raster',
+    assetId: `character:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
     medium: recipe.style.medium,
     bounds: layout.bounds,
@@ -966,12 +968,12 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
 export function createRasterCharacterBlueprint(
   identity: CharacterIdentityRecipe,
   options: RasterCharacterRecipeOptions = {},
-): AssetBlueprint {
+): AssetBlueprint<'character'> {
   return createCharacterBlueprint(createRasterCharacterRecipe(identity, options));
 }
 
 export function characterRecipeFingerprint(recipe: CharacterRecipe): string {
-  return `${recipe.version}:${recipe.identity.seed}:${recipe.identity.species}:${recipe.style.medium}`;
+  return `${recipe.schemaVersion}:${recipe.identity.seed}:${recipe.identity.species}:${recipe.style.medium}`;
 }
 
 export function characterBoilSeed(recipe: CharacterRecipe, layerId: string, state: string, frame: number): number {

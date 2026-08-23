@@ -1,5 +1,6 @@
 import { SeedTree, normalizeSeed, type Seed } from '../../../core/random.js';
 import { ACCENT_COLORS, type RgbColor } from '../../../core/sketch.js';
+import type { AssetIdentityEnvelope } from '../../../contracts/asset-envelope.js';
 
 export const VEHICLE_ARCHETYPES = ['city', 'coupe', 'sedan', 'van', 'pickup'] as const;
 export const VEHICLE_WHEEL_STYLES = ['steel', 'hubcap', 'sport'] as const;
@@ -16,10 +17,7 @@ export function vehicleSideSign(side: VehicleSide): -1 | 1 {
   return side === 'left' ? -1 : 1;
 }
 
-export type VehicleIdentityRecipe = Readonly<{
-  version: 1;
-  kind: 'vehicle-identity';
-  seed: number;
+export type VehicleIdentityRecipe = AssetIdentityEnvelope<'vehicle'> & Readonly<{
   archetype: VehicleArchetype;
   dimensions: Readonly<{
     length: number;
@@ -199,8 +197,8 @@ export function createVehicleIdentity(
   const frontEndRatio = doorEnd;
 
   return Object.freeze({
-    version: 1,
-    kind: 'vehicle-identity',
+    schemaVersion: 1,
+    family: 'vehicle',
     seed: normalizedSeed,
     archetype,
     dimensions: Object.freeze({

@@ -1,4 +1,5 @@
 import { SeedTree } from '../../../core/random.js';
+import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import type { SolidFinishId } from '../../../materials/finish.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
 
@@ -7,13 +8,12 @@ export type SolidCharacterStyle = Readonly<{
   depth: number;
 }>;
 
-export type SolidCharacterRecipe = Readonly<{
-  version: 1;
-  kind: 'solid-character';
-  representation: 'solid';
-  identity: CharacterIdentityRecipe;
-  style: SolidCharacterStyle;
-}>;
+export type SolidCharacterRecipe = AssetRecipeEnvelope<
+  'character',
+  'solid',
+  CharacterIdentityRecipe,
+  SolidCharacterStyle
+>;
 
 export type SolidCharacterRecipeOptions = Readonly<{
   finish?: SolidFinishId;
@@ -25,8 +25,8 @@ export function createSolidCharacterRecipe(
 ): SolidCharacterRecipe {
   const random = new SeedTree(identity.seed).random('character:solid');
   return Object.freeze({
-    version: 1,
-    kind: 'solid-character',
+    schemaVersion: 1,
+    family: 'character',
     representation: 'solid',
     identity,
     style: Object.freeze({

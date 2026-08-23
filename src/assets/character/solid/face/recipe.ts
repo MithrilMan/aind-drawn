@@ -2,25 +2,18 @@ import type { Seed } from '../../../../core/random.js';
 import {
   createCharacterIdentity,
   type CharacterHeadShape,
-  type CharacterIdentityRecipe,
   type CharacterIdentitySpecies,
 } from '../../identity/recipe.js';
 import {
   createSolidCharacterRecipe,
   type SolidCharacterRecipeOptions,
-  type SolidCharacterStyle,
+  type SolidCharacterRecipe,
 } from '../recipe.js';
 
 export type SolidFaceSpecies = CharacterIdentitySpecies;
 export type SolidHeadShape = CharacterHeadShape | 'block';
 
-export type SolidFaceRecipe = Readonly<{
-  version: 1;
-  kind: 'solid-face';
-  representation: 'solid';
-  identity: CharacterIdentityRecipe;
-  style: SolidCharacterStyle;
-}>;
+export type SolidFaceRecipe = SolidCharacterRecipe;
 
 export type SolidFaceRecipeOptions = SolidCharacterRecipeOptions & Readonly<{
   species?: SolidFaceSpecies;
@@ -36,11 +29,7 @@ export function createSolidFaceRecipe(
     ...(options.species === undefined ? {} : { species: options.species }),
     ...(shape === undefined ? {} : { shape }),
   });
-  const characterRecipe = createSolidCharacterRecipe(identity, {
+  return createSolidCharacterRecipe(identity, {
     ...(options.finish === undefined ? {} : { finish: options.finish }),
-  });
-  return Object.freeze({
-    ...characterRecipe,
-    kind: 'solid-face',
   });
 }

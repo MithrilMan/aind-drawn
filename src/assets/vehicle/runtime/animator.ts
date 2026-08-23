@@ -63,7 +63,7 @@ export class VehicleAnimator {
   private elapsedSeconds = 0;
 
   public constructor(rig: SpriteRig | SolidRig) {
-    if ('representation' in rig.blueprint) {
+    if (rig.blueprint.representation === 'solid') {
       this.raster = null;
       this.solid = rig as SolidRig;
       const wheels: SolidWheel[] = [];

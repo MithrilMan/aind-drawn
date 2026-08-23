@@ -60,8 +60,9 @@ or the line boil. Semantic parameters and visual redraw noise use separate seed
 namespaces.
 
 Recipes persist generated parameters rather than relying on the current
-generator implementation to recreate historical content. A version field makes
-future migrations explicit.
+generator implementation to recreate historical content. Identity and
+representation recipes expose `schemaVersion`; blueprints expose
+`blueprintVersion`. These fields version data contracts, not generator releases.
 
 The package is currently greenfield and unpublished. Obsolete contracts are
 removed together with their call sites; compatibility factories, aliases, and
@@ -74,6 +75,25 @@ not reroll eyes, palette, proportions, hair, or species.
 
 Pixel-identical output across browser rasterizers is not promised. Equivalent
 recipes do promise equivalent geometry, layer structure, sockets, and colliders.
+
+## Canonical asset envelopes
+
+Every public asset stage uses one explicit header vocabulary:
+
+- identities expose `schemaVersion`, `family`, and `seed`;
+- representation recipes expose `schemaVersion`, `family`, `representation`,
+  `identity`, and `style`;
+- raster, solid, and inked-solid blueprints expose `blueprintVersion`, `family`,
+  `representation`, `assetId`, and `seed`.
+
+`family` is a family-owned string literal, so adding a family does not require
+editing a closed core union. `representation` identifies the adapter and never
+needs to be inferred from a family name. `assetId` identifies deterministic
+authored content and remains equal across complete projections of the same
+identity. It is not a runtime instance identifier.
+
+The library is greenfield. The removed `version`, `kind`, and blueprint `id`
+headers have no aliases or compatibility adapters.
 
 ## Representation-neutral asset contract
 

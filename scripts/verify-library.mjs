@@ -43,12 +43,39 @@ for (const exportName of requiredExports) {
   assert.equal(typeof library[exportName], 'function', `Missing public export: ${exportName}`);
 }
 
+function assertNoObsoleteEnvelopeFields(value, label) {
+  assert.equal('version' in value, false, `${label} must not expose version`);
+  assert.equal('kind' in value, false, `${label} must not expose kind`);
+  assert.equal('id' in value, false, `${label} must not expose id`);
+}
+
 const firstCat = library.createCharacterRecipe(913, { species: 'cat', medium: 'watercolor' });
 const secondCat = library.createCharacterRecipe(913, { species: 'cat', medium: 'watercolor' });
 assert.deepEqual(firstCat, secondCat, 'Compiled recipes must remain deterministic');
 assert.ok(Object.isFrozen(firstCat), 'Compiled recipes must remain immutable');
+assert.deepEqual(
+  {
+    schemaVersion: firstCat.schemaVersion,
+    family: firstCat.family,
+    representation: firstCat.representation,
+  },
+  { schemaVersion: 1, family: 'character', representation: 'raster' },
+  'Compiled recipes must expose the canonical envelope',
+);
+assertNoObsoleteEnvelopeFields(firstCat, 'Compiled character recipe');
 
 const cat = library.createCharacterBlueprint(firstCat);
+assert.deepEqual(
+  {
+    blueprintVersion: cat.blueprintVersion,
+    family: cat.family,
+    representation: cat.representation,
+    assetId: cat.assetId,
+  },
+  { blueprintVersion: 1, family: 'character', representation: 'raster', assetId: 'character:913' },
+  'Compiled blueprints must expose the canonical envelope',
+);
+assertNoObsoleteEnvelopeFields(cat, 'Compiled character blueprint');
 assert.ok(cat.layers.some(({ id }) => id === 'muzzle'), 'Compiled cat is missing its muzzle');
 assert.ok(cat.layers.some(({ id }) => id === 'tail'), 'Compiled cat is missing its tail');
 
@@ -59,6 +86,16 @@ const buildingIdentity = library.createBuildingIdentity(612, {
   chimney: true,
   doorStyle: 'arched',
 });
+assert.deepEqual(
+  {
+    schemaVersion: buildingIdentity.schemaVersion,
+    family: buildingIdentity.family,
+    seed: buildingIdentity.seed,
+  },
+  { schemaVersion: 1, family: 'building', seed: 612 },
+  'Compiled identities must expose the canonical envelope',
+);
+assertNoObsoleteEnvelopeFields(buildingIdentity, 'Compiled building identity');
 const building = library.createRasterBuildingBlueprint(
   library.createRasterBuildingRecipe(buildingIdentity),
 );
@@ -66,6 +103,7 @@ assert.ok(building.layers.some(({ id }) => id === 'door'), 'Compiled building is
 assert.equal(building.interactions[0]?.id, 'door', 'Compiled building is missing its door interaction');
 assert.ok(building.sockets['door:entry'], 'Compiled building is missing its entry socket');
 const solidBuilding = library.createSolidBuildingBlueprint(buildingIdentity);
+assert.equal(building.assetId, solidBuilding.assetId, 'Building projections must share an asset ID');
 assert.equal(solidBuilding.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
 assert.ok(solidBuilding.parts.some(({ id }) => id === 'building:roof'), 'Compiled solid building is missing its roof volume');
 const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding, {
@@ -74,6 +112,7 @@ const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding, {
 });
 assert.equal(inkedBuilding.solid, solidBuilding, 'Inked solids must retain the source solid blueprint');
 assert.equal(inkedBuilding.representation, 'inked-solid');
+assert.equal(inkedBuilding.assetId, solidBuilding.assetId, 'Inked solids must retain the source asset ID');
 assert.ok(inkedBuilding.strokes.length > 0, 'Compiled inked building is missing semantic strokes');
 
 const vehicleIdentity = library.createVehicleIdentity(5101, {
@@ -84,6 +123,7 @@ const vehicle = library.createRasterVehicleBlueprint(
   library.createRasterVehicleRecipe(vehicleIdentity),
 );
 const solidVehicle = library.createSolidVehicleBlueprint(vehicleIdentity);
+assert.equal(vehicle.assetId, solidVehicle.assetId, 'Vehicle projections must share an asset ID');
 assert.deepEqual(
   vehicle.interactions.map(({ id }) => id),
   solidVehicle.interactions.map(({ id }) => id),

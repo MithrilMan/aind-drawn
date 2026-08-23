@@ -88,7 +88,7 @@ export class SpriteRig {
     this.canvasFactory = options.canvasFactory ?? automaticCanvasFactory;
     this.textureAnisotropy = Math.max(1, Math.floor(options.textureAnisotropy ?? 4));
     this.drawRank = Math.trunc(options.drawRank ?? 0);
-    this.root.name = blueprint.id;
+    this.root.name = blueprint.assetId;
     this.buildBones(blueprint.layers);
     this.buildLayers(blueprint.layers);
     this.initializeInteractions(blueprint.interactions);

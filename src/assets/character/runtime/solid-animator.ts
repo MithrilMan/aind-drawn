@@ -33,8 +33,8 @@ export class SolidCharacterAnimator {
   private requestedExpression: SolidFaceExpression = 'idle';
 
   public constructor(rig: SolidRig, options: SolidCharacterAnimatorOptions = {}) {
-    if (rig.blueprint.kind !== 'solid-character') {
-      throw new Error('Solid character animator requires a solid-character blueprint');
+    if (rig.blueprint.family !== 'character' || rig.getNode('torso') === null) {
+      throw new Error('Solid character animator requires a complete character blueprint');
     }
     this.rig = rig;
     this.face = new SolidFaceAnimator(rig, options);

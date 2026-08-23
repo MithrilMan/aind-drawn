@@ -1,8 +1,8 @@
 import type { Point } from '../core/geometry.js';
 import type { Bounds3, Point3, RadialDeformation, SurfaceAnchor } from '../core/geometry3.js';
-import type { Seed } from '../core/random.js';
 import type { SolidMaterialSpec } from '../materials/finish.js';
 import type { AssetCapabilities } from './asset-capabilities.js';
+import type { AssetBlueprintHeader } from './asset-envelope.js';
 
 export type SuperellipsoidGeometrySpec = Readonly<{
   type: 'superellipsoid';
@@ -98,11 +98,10 @@ export type SolidInteractionDefinition = Readonly<{
   nodeBindings: readonly SolidInteractionNodeBinding[];
 }>;
 
-export type SolidAssetBlueprint = Readonly<{
-  representation: 'solid';
-  id: string;
-  kind: string;
-  seed: Seed;
+export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprintHeader<
+  TFamily,
+  'solid'
+> & Readonly<{
   bounds: Bounds3;
   nodes: readonly SolidNodeDefinition[];
   parts: readonly SolidPartDefinition[];
@@ -110,9 +109,4 @@ export type SolidAssetBlueprint = Readonly<{
   colliders: readonly Collider3[];
   sockets: SocketMap3;
   interactions: readonly SolidInteractionDefinition[];
-}>;
-
-export type SolidRecipeHeader = Readonly<{
-  version: 1;
-  seed: number;
 }>;

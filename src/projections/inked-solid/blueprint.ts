@@ -4,6 +4,7 @@ import { SeedTree } from '../../core/random.js';
 import type { SolidMaterialSpec } from '../../materials/finish.js';
 import type { MediumId } from '../../materials/medium.js';
 import type { SolidAssetBlueprint } from '../../contracts/solid-asset.js';
+import type { AssetBlueprintHeader } from '../../contracts/asset-envelope.js';
 import { inkedSolidMediumDefaults } from './medium-projection.js';
 
 export type InkedSolidContourPolicy = Readonly<{
@@ -110,13 +111,12 @@ export type InkedSolidStrokeSpec = Readonly<{
   seed: number;
 }>;
 
-export type InkedSolidBlueprint = Readonly<{
-  representation: 'inked-solid';
-  id: string;
-  kind: string;
-  seed: SolidAssetBlueprint['seed'];
+export type InkedSolidBlueprint<TFamily extends string = string> = AssetBlueprintHeader<
+  TFamily,
+  'inked-solid'
+> & Readonly<{
   medium: MediumId;
-  solid: SolidAssetBlueprint;
+  solid: SolidAssetBlueprint<TFamily>;
   contour: InkedSolidContourPolicy;
   deposition: InkedSolidDepositionPolicy;
   viewMarks: readonly InkedSolidViewMarkPolicy[];
@@ -221,10 +221,10 @@ function strokePath(
  * The wrapped solid blueprint remains the sole owner of semantic geometry,
  * nodes, interactions, sockets, and colliders.
  */
-export function createInkedSolidBlueprint(
-  solid: SolidAssetBlueprint,
+export function createInkedSolidBlueprint<TFamily extends string>(
+  solid: SolidAssetBlueprint<TFamily>,
   options: InkedSolidBlueprintOptions,
-): InkedSolidBlueprint {
+): InkedSolidBlueprint<TFamily> {
   const tree = new SeedTree(solid.seed);
   const defaults = inkedSolidMediumDefaults(options.medium);
   const contour = { ...defaults.contour, ...options.contour };
@@ -292,9 +292,10 @@ export function createInkedSolidBlueprint(
   }));
 
   return Object.freeze({
+    blueprintVersion: 1,
+    family: solid.family,
     representation: 'inked-solid',
-    id: `inked:${options.medium}:${solid.id}`,
-    kind: solid.kind,
+    assetId: solid.assetId,
     seed: solid.seed,
     medium: options.medium,
     solid,

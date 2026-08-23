@@ -123,6 +123,12 @@ proud of each other. Build hard-surface bands from explicit non-degenerate trian
 do not rely on a concave or collinear n-gon that renderer or validator fan triangulation can split
 into zero-area triangles.
 
+An articulated door owns its complete visible glazing assembly: panel glass, optional frame,
+handle, and authored marks all move with the hinge node. The fixed cabin may own the windscreen,
+rear glass, pillars, and a real recessed opening, but it must not place a visible glass or interior
+plate across the door-window aperture. Tessellate fixed cabin side glass around that aperture so
+opening the door reveals an actual void rather than a stationary duplicate pane.
+
 Normalize generated door and window profiles before solid tessellation. Remove consecutive
 control points and transverse levels that would create sub-threshold edges after thickness is
 applied. Preserve the profile endpoints and identity shape, and use a scale-aware minimum rather
@@ -189,6 +195,8 @@ In addition to the common family matrix, test:
   an unchecked blueprint;
 - generated door and window profiles contain no near-coincident consecutive points or levels that
   can collapse into degenerate side faces;
+- the centre of every articulated door-window aperture is not covered by a fixed cabin face, while
+  the surrounding windscreen, pillars, and rear glass remain present;
 - geometric window contours are not duplicated by closed semantic strokes;
 - travel animation rotates front and rear wheels consistently without drift;
 - optional cargo or roof-rack namespaces do not reroll wheels or doors.

@@ -1,0 +1,716 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+:root {
+  color-scheme: dark;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  color: #f3ead5;
+  background: #111413;
+  font-synthesis: none;
+  text-rendering: geometricPrecision;
+  --ink: #171a18;
+  --ink-soft: #252925;
+  --paper: #eee3c9;
+  --paper-deep: #ded0ae;
+  --red: #c65034;
+  --green: #63775d;
+  --line: rgba(239, 227, 199, 0.22);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #111413;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 78% 8%, rgba(91, 111, 86, 0.15), transparent 28rem),
+    linear-gradient(135deg, #151917 0%, #0e1110 68%);
+}
+
+button,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button,
+select,
+canvas {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+select:focus-visible,
+canvas:focus-visible {
+  outline: 3px solid #e9a14a;
+  outline-offset: 3px;
+}
+
+.race-shell {
+  width: min(1580px, 100%);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: clamp(18px, 2.3vw, 34px);
+}
+
+.race-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 28px;
+  margin-bottom: 18px;
+}
+
+.brand-block {
+  max-width: 620px;
+}
+
+.eyebrow {
+  margin: 0 0 7px;
+  color: #b2b99c;
+  font-size: 0.69rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.brand-block h1 {
+  margin: 0;
+  color: #f6edd8;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(2.3rem, 5vw, 5rem);
+  font-weight: 400;
+  letter-spacing: -0.055em;
+  line-height: 0.86;
+}
+
+.brand-block > p:last-child {
+  margin: 12px 0 0;
+  color: #aaa994;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(0.9rem, 1.35vw, 1.08rem);
+}
+
+.race-controls {
+  display: flex;
+  align-items: end;
+  justify-content: end;
+  gap: 10px;
+}
+
+.field-control,
+.camera-control {
+  display: grid;
+  gap: 7px;
+}
+
+.field-control > span,
+.camera-control > span {
+  color: #a7aa94;
+  font-size: 0.63rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.field-control select,
+.segmented-control,
+.new-race-button {
+  min-height: 44px;
+  border: 1px solid rgba(235, 225, 201, 0.34);
+  background: #1b1f1d;
+}
+
+.field-control select {
+  min-width: 155px;
+  padding: 0 38px 0 14px;
+  color: #f3ead5;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  padding: 3px;
+}
+
+.segmented-control button {
+  min-width: 78px;
+  border: 0;
+  padding: 0 12px;
+  background: transparent;
+  color: #b5b3a0;
+  cursor: pointer;
+  font-size: 0.73rem;
+  font-weight: 700;
+}
+
+.segmented-control button[aria-pressed="true"] {
+  background: #52644e;
+  color: #fff5df;
+}
+
+.new-race-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 16px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.new-race-button:hover,
+.pause-button:hover,
+.renderer-error button:hover {
+  border-color: #d16848;
+  background: #272321;
+}
+
+.new-race-button span {
+  color: #d35f3d;
+  font-size: 1.25rem;
+}
+
+.race-board {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(235px, 285px);
+  min-height: min(680px, calc(100vh - 205px));
+  overflow: hidden;
+  border: 1px solid rgba(236, 225, 198, 0.42);
+  background: var(--ink);
+  box-shadow: 0 24px 55px rgba(0, 0, 0, 0.25);
+}
+
+.race-viewport {
+  position: relative;
+  min-width: 0;
+  min-height: 520px;
+  overflow: hidden;
+  border-right: 1px solid rgba(236, 225, 198, 0.34);
+  background: var(--paper);
+}
+
+.race-viewport::after {
+  position: absolute;
+  inset: 0;
+  border: 10px solid rgba(26, 28, 25, 0.06);
+  box-shadow: inset 0 0 60px rgba(71, 56, 34, 0.09);
+  content: "";
+  pointer-events: none;
+}
+
+.race-viewport canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.race-hud {
+  position: absolute;
+  z-index: 2;
+  top: 18px;
+  left: 18px;
+  display: flex;
+  border: 1px solid rgba(25, 28, 25, 0.68);
+  background: rgba(238, 227, 201, 0.88);
+  color: #1a1d1b;
+  box-shadow: 4px 4px 0 rgba(31, 33, 29, 0.18);
+  backdrop-filter: blur(6px);
+}
+
+.hud-card {
+  min-width: 92px;
+  padding: 9px 13px 8px;
+  border-right: 1px solid rgba(25, 28, 25, 0.28);
+}
+
+.hud-card:last-child {
+  border-right: 0;
+}
+
+.hud-card > span {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hud-card strong {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.hud-card small {
+  margin-left: 2px;
+  color: #5d6258;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.65rem;
+}
+
+.time-card {
+  min-width: 118px;
+}
+
+.time-card strong {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.countdown {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  min-width: 1.3em;
+  padding: 0.04em 0.17em 0.12em;
+  transform: translate(-50%, -50%) rotate(-2deg);
+  border: 4px solid #20241f;
+  background: rgba(237, 222, 187, 0.92);
+  color: #c24f34;
+  box-shadow: 8px 8px 0 rgba(31, 35, 30, 0.34);
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(4rem, 12vw, 8rem);
+  line-height: 0.9;
+  text-align: center;
+  pointer-events: none;
+}
+
+.countdown[hidden] {
+  display: none;
+}
+
+.renderer-error {
+  position: absolute;
+  z-index: 5;
+  inset: 50% auto auto 50%;
+  width: min(430px, calc(100% - 36px));
+  padding: 28px;
+  transform: translate(-50%, -50%);
+  border: 2px solid #272a26;
+  background: #e9dcc0;
+  color: #1d201d;
+  box-shadow: 9px 9px 0 rgba(29, 32, 28, 0.28);
+}
+
+.renderer-error[hidden] {
+  display: none;
+}
+
+.renderer-error h2 {
+  margin: 3px 0 9px;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 400;
+}
+
+.renderer-error p:not(.eyebrow) {
+  color: #56594f;
+  line-height: 1.5;
+}
+
+.renderer-error button,
+.pause-button {
+  min-height: 42px;
+  border: 1px solid currentColor;
+  background: transparent;
+  cursor: pointer;
+}
+
+.renderer-error button {
+  padding: 0 16px;
+  color: #242722;
+}
+
+.race-sidebar {
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.012) 1px, transparent 1px) 0 0 / 100% 24px,
+    #171a18;
+}
+
+.running-order,
+.drive-card {
+  padding: clamp(18px, 2vw, 26px);
+}
+
+.running-order {
+  min-height: 0;
+}
+
+.section-heading h2 {
+  margin: 0;
+  color: #f1e7cf;
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-size: 1.55rem;
+  font-weight: 400;
+}
+
+.running-order ol {
+  display: grid;
+  gap: 1px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.running-order li {
+  display: grid;
+  grid-template-columns: 27px 12px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  padding: 0 9px;
+  border-bottom: 1px solid rgba(238, 226, 199, 0.14);
+  color: #c7c4b1;
+}
+
+.running-order .player-row {
+  background: rgba(99, 119, 93, 0.23);
+  color: #fff3d8;
+}
+
+.order-position,
+.running-order small {
+  color: #858b79;
+  font-size: 0.65rem;
+}
+
+.racer-marker {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #e8ddc4;
+  border-radius: 50%;
+  background: #c65034;
+}
+
+[data-racer="mica"] .racer-marker {
+  background: #5d8197;
+}
+
+[data-racer="rook"] .racer-marker {
+  background: #d0a84b;
+}
+
+[data-racer="pip"] .racer-marker {
+  background: #8b7097;
+}
+
+.drive-card {
+  border-top: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.key-map {
+  display: grid;
+  gap: 7px;
+  margin: 19px 0;
+}
+
+.key-map > div {
+  display: grid;
+  grid-template-columns: 82px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.key-map dt {
+  display: flex;
+  gap: 4px;
+}
+
+.key-map dd {
+  margin: 0;
+  color: #a6a894;
+  font-size: 0.72rem;
+}
+
+kbd {
+  display: inline-grid;
+  min-width: 28px;
+  min-height: 27px;
+  place-items: center;
+  border: 1px solid rgba(239, 228, 203, 0.35);
+  border-bottom-width: 3px;
+  background: #202420;
+  color: #eee3ca;
+  font: inherit;
+  font-size: 0.68rem;
+}
+
+.pause-button {
+  width: 100%;
+  color: #d4cbb6;
+  font-size: 0.72rem;
+}
+
+.touch-controls {
+  display: none;
+}
+
+.race-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 12px 2px 0;
+  color: #888c7b;
+  font-size: 0.63rem;
+  letter-spacing: 0.04em;
+}
+
+.race-footer p {
+  margin: 0;
+}
+
+.off-road .race-viewport {
+  box-shadow: inset 0 0 0 4px rgba(193, 74, 48, 0.68);
+}
+
+@media (max-width: 1040px) {
+  .race-header {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .race-controls {
+    width: 100%;
+    justify-content: start;
+  }
+
+  .race-board {
+    min-height: 620px;
+  }
+}
+
+@media (max-width: 760px) {
+  .race-shell {
+    padding: 14px;
+  }
+
+  .brand-block h1 {
+    font-size: clamp(2.9rem, 15vw, 4.4rem);
+  }
+
+  .brand-block > p:last-child {
+    max-width: 34ch;
+  }
+
+  .race-controls {
+    display: grid;
+    grid-template-columns: 0.8fr 1.2fr;
+    align-items: end;
+  }
+
+  .field-control select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .camera-control {
+    min-width: 0;
+  }
+
+  .segmented-control button {
+    min-width: 0;
+    padding: 0 7px;
+    font-size: 0.65rem;
+  }
+
+  .new-race-button {
+    grid-column: 1 / -1;
+    justify-content: center;
+  }
+
+  .race-board {
+    display: block;
+    min-height: 0;
+  }
+
+  .race-viewport {
+    aspect-ratio: 1 / 1.14;
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid rgba(236, 225, 198, 0.34);
+  }
+
+  .race-sidebar {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .drive-card {
+    display: block;
+    padding: 0 16px 16px;
+    border-top: 0;
+  }
+
+  .drive-card .section-heading,
+  .drive-card .key-map {
+    display: none;
+  }
+
+  .running-order {
+    padding: 16px;
+  }
+
+  .running-order .section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .running-order .section-heading h2 {
+    font-size: 1.2rem;
+  }
+
+  .running-order ol {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 10px;
+    margin-top: 12px;
+  }
+
+  .running-order li {
+    min-width: 0;
+    min-height: 38px;
+    grid-template-columns: 22px 9px minmax(0, 1fr) auto;
+    gap: 6px;
+    padding: 0 4px;
+    font-size: 0.72rem;
+  }
+
+  .race-hud {
+    top: 10px;
+    left: 10px;
+  }
+
+  .hud-card {
+    min-width: 69px;
+    padding: 7px 8px;
+  }
+
+  .hud-card strong {
+    font-size: 1.05rem;
+  }
+
+  .time-card {
+    min-width: 92px;
+  }
+
+  .time-card strong {
+    font-size: 0.78rem;
+  }
+
+  .touch-controls {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 0 0;
+    touch-action: none;
+  }
+
+  .touch-steering,
+  .touch-pedals {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(58px, 74px));
+    gap: 8px;
+  }
+
+  .touch-controls button {
+    min-height: 58px;
+    border: 1px solid rgba(239, 228, 203, 0.42);
+    border-bottom-width: 4px;
+    background: #1d211e;
+    color: #efe5ce;
+    cursor: pointer;
+    font-weight: 700;
+    user-select: none;
+  }
+
+  .touch-controls button.pressed {
+    transform: translateY(3px);
+    border-bottom-width: 1px;
+    background: #3e4d3c;
+  }
+
+  .touch-controls .accelerator {
+    border-color: #b95337;
+    background: #8f3f2c;
+  }
+
+  .race-footer {
+    display: block;
+    line-height: 1.5;
+  }
+
+  .race-footer p:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .race-shell {
+    padding: 10px;
+  }
+
+  .race-header {
+    gap: 18px;
+  }
+
+  .brand-block > p:last-child {
+    font-size: 0.85rem;
+  }
+
+  .race-viewport {
+    aspect-ratio: 1 / 1.2;
+  }
+
+  .position-card {
+    display: none;
+  }
+
+  .running-order ol {
+    display: block;
+  }
+
+  .touch-steering,
+  .touch-pedals {
+    grid-template-columns: repeat(2, minmax(50px, 1fr));
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .race-viewport::after {
+    display: none;
+  }
+
+  .segmented-control button[aria-pressed="true"],
+  .running-order .player-row,
+  .touch-controls .accelerator {
+    border: 2px solid Highlight;
+  }
+}

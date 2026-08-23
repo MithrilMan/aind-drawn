@@ -420,8 +420,9 @@ Completed work:
 - extracted the body side section used by the faceted shell and reused it to build a thin warped
   solid door skin. Its lower and shoulder vertices follow the body width while the upper edge
   tucks inward to the belt ridge; the hinge now sits on the body surface rather than outside it;
-- split the solid aperture into body and window recesses owned by the chassis. The panel, optional
-  frame, glass, and handle remain on the hinged node and expose the authored recess when opened;
+- kept the lower body recess on the chassis while leaving the cabin physically open behind the
+  articulated window. The panel, optional frame, glass, and handle remain on the hinged node and
+  expose the authored aperture when opened;
 - aligned handle sockets, door-leaf colliders, sensor height, and both side conventions with the
   complete assembly rather than the former lower rectangle;
 - added a 160-case archetype/seed parity sweep plus focused assertions for A-pillar inclination,
@@ -446,8 +447,9 @@ Completed work:
   and roof overhang from the same body-side section used by the faceted shell;
 - rebuilt cabin and roof carriers as tapered hard-surface meshes and aligned roof-rack rails to the
   authored roof edge instead of total vehicle width;
-- warped articulated door glass, optional structural frames, and chassis-owned window recesses
-  onto the same cabin surface rather than placing constant-depth profile plates beside it;
+- warped articulated door glass, optional structural frames, and the fixed glass surrounding each
+  door aperture onto the same cabin surface rather than placing constant-depth profile plates
+  beside it;
 - assigned the horizontal roof skin exclusively to the roof carrier, removed the coplanar cabin
   face beneath it, and added physical clearance to prevent depth-buffer flicker;
 - replaced the roof side n-gons with explicit quads, including a focused runtime validation for
@@ -465,6 +467,31 @@ Verification completed with `pnpm verify`: TypeScript, ESLint, all 124 tests, co
 exact public API snapshot, and the Projection Studio production build pass. Desktop browser QA
 covered `4107` with the `city` and `van` overrides in front, profile, oblique, smooth-solid,
 rotating Doodle, and articulated-door views; runtime logs reported no asset or shader errors.
+
+### 2026-08-24 - Initiative 8 articulated glazing ownership correction completed
+
+An opened vehicle door now removes its complete glazing assembly from the fixed cabin. The
+previous dark window plate was not a contour problem: it was visible chassis-owned geometry in
+the space that the articulated leaf should vacate.
+
+Completed work:
+
+- removed the chassis-owned door-window plate and made the door node the sole owner of its glass
+  and optional structural frame;
+- rebuilt each fixed cabin side as glass ribbons around the authored door-window aperture, leaving
+  a real geometric void instead of painting an interior polygon over a continuous cabin face;
+- retained the fixed windscreen and rear glass while excluding the articulated window interior
+  for both vehicle sides and every door-frame mode;
+- extracted cabin and roof geometry into focused modules so the vehicle blueprint remains an
+  assembly boundary rather than accumulating unrelated tessellation logic;
+- added a geometric regression that projects cabin side faces into the elevation plane and proves
+  the door-window centre is not covered by fixed glass, alongside the existing 240-case topology
+  sweep.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 127 tests, compiled artifact,
+exact public API snapshot, and both experiment production builds pass. Browser QA for Paper
+Circuit also exercised four independently animated vehicle rigs in one Doodle scene without
+runtime or shader errors.
 
 ## Current strengths to preserve
 

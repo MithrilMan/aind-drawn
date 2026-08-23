@@ -352,6 +352,10 @@ remain declarative rig interactions. Projection Studio
 registers these controls through family metadata and does not branch on the
 `vehicle` family ID.
 
+The revealed aperture must also be geometric above the belt line. Fixed cabin glass is tessellated
+around the door-window opening; a chassis-owned pane or interior plate across that region will
+remain visible when the door opens and violates articulated ownership.
+
 ## Integration checklist
 
 1. Use the canonical identity, recipe, and blueprint envelopes and verify that

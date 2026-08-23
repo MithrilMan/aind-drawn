@@ -1,0 +1,29 @@
+{
+  "fixtureId": "oil-race-4107",
+  "provenance": "User requirements combined with the repository vehicle, medium, motion, and inked-solid public contracts.",
+  "product": {
+    "eyebrow": "AIND DRAWN / EXPERIMENT 06",
+    "title": "Paper Circuit",
+    "summary": "A tiny racing game redrawn every frame."
+  },
+  "race": {
+    "seed": 4107,
+    "medium": "Oil",
+    "availableMedia": ["Graphite", "Ink", "Watercolour", "Oil", "Charcoal", "Marker"],
+    "camera": "Follow",
+    "availableCameras": ["Follow", "Full course"],
+    "laps": 3,
+    "racers": ["You", "Mica", "Rook", "Pip"],
+    "position": "1 / 4",
+    "lap": "1 / 3",
+    "time": "00:00.000",
+    "controls": ["Accelerate", "Brake / reverse", "Steer left", "Steer right", "Pause", "New race"]
+  },
+  "states": {
+    "countdown": "Ready",
+    "running": "Race in progress",
+    "paused": "Race paused",
+    "finished": "Finished",
+    "rendererError": "The Doodle track could not start. Your race settings are still here."
+  }
+}

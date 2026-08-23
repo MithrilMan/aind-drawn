@@ -378,12 +378,26 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     }
   }
   if (identity.details.spoiler) {
+    const spoilerX = -layout.length * 0.43;
+    const spoilerY = layout.beltHeight + 0.2;
     add({
       id: 'spoiler', node: 'chassis', order: 11,
       geometry: roundedVolume([0.3, 0.035, layout.width * 0.42], 3.6), materialId: 'accent',
-      placement: placement([-layout.length * 0.43, layout.beltHeight + 0.2, 0]),
+      placement: placement([spoilerX, spoilerY, 0]),
       castShadow: true, receiveShadow: false,
     });
+    for (const side of identity.doors.sides) {
+      add({
+        id: `spoiler:support:${side}`, node: 'chassis', order: 10,
+        geometry: roundedVolume([0.035, 0.13, 0.035], 3.2), materialId: 'accent',
+        placement: placement([
+          spoilerX,
+          spoilerY - 0.13,
+          vehicleSideSign(side) * layout.width * 0.26,
+        ]),
+        castShadow: true, receiveShadow: false,
+      });
+    }
   }
   if (identity.details.towHitch) {
     add({

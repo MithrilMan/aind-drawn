@@ -10,7 +10,7 @@ import {
   type InkedSolidPartMaterials,
   type InkedSolidStrokeMaterials,
 } from './carrier-materials.js';
-import { normalizedInkedSolidSeed } from './policy-texture.js';
+import { InkedSolidCarrierOwnerKeys } from './carrier-owner-keys.js';
 
 type StageMaterials = Readonly<{
   albedo: THREE.Material;
@@ -102,6 +102,7 @@ export class RegisteredInkedSolidCarrier {
     this.materialCache = new InkedSolidCarrierMaterialCache(policySlot);
     this.strokeRig.visible = false;
     try {
+      const ownerKeys = new InkedSolidCarrierOwnerKeys();
       const materials = new Map(blueprint.solid.materials.map((material) => [material.id, material]));
       const marks = new Map(blueprint.viewMarks.map((mark) => [mark.materialId, mark]));
       for (const part of blueprint.solid.parts) {
@@ -116,7 +117,7 @@ export class RegisteredInkedSolidCarrier {
         stageMaterials.anchorData.set(
           0,
           0,
-          normalizedInkedSolidSeed(hashString(
+          ownerKeys.allocate(hashString(
             `${instanceId}:${blueprint.deposition.seed}:${part.id}`,
           )),
           contourOwner,

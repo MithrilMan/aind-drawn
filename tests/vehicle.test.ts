@@ -100,9 +100,10 @@ describe('vehicle asset family', () => {
       geometry: { type: 'mesh', smooth: false },
     });
     if (body?.geometry.type === 'mesh') {
-      expect(body.geometry.vertices).toHaveLength(32);
-      expect(body.geometry.faces).toHaveLength(23);
-      for (let ring = 0; ring < 4; ring += 1) {
+      expect(body.geometry.vertices.length).toBeGreaterThanOrEqual(32);
+      expect(body.geometry.vertices.length % 8).toBe(0);
+      expect(body.geometry.faces.length).toBeGreaterThanOrEqual(23);
+      for (let ring = 0; ring < body.geometry.vertices.length / 8; ring += 1) {
         const shoulder = body.geometry.vertices[ring * 8 + 2];
         const ridge = body.geometry.vertices[ring * 8 + 3];
         expect(shoulder?.[2]).toBeLessThan(ridge?.[2] ?? Number.NEGATIVE_INFINITY);
@@ -127,6 +128,62 @@ describe('vehicle asset family', () => {
       const inked = createInkedSolidBlueprint(solid, { medium, strokes });
       expect(inked.medium).toBe(medium);
       expect(inked.solid).toBe(solid);
+    }
+  });
+
+  it('covers every fixed cabin-to-hood deck interval across archetypes and seeds', () => {
+    const seeds = [4_115, ...Array.from({ length: 32 }, (_, index) => 5_200 + index)];
+    for (const archetype of VEHICLE_ARCHETYPES) {
+      for (const seed of seeds) {
+        const identity = createVehicleIdentity(seed, { archetype });
+        const layout = buildSolidVehicleLayout(identity);
+        const body = createSolidVehicleBlueprint(identity).parts.find(({ id }) => id === 'body');
+        expect(body?.geometry.type).toBe('mesh');
+        if (body?.geometry.type !== 'mesh') continue;
+        const geometry = body.geometry;
+
+        const cabinFrontX = -layout.length * 0.5
+          + identity.cabin.endRatio * layout.length;
+        const hasFrontDeckGap = layout.hoodHingeX - cabinFrontX > 1e-6;
+        const frontDeck = geometry.faces.find((face) => {
+          const vertices = face.map((index) => geometry.vertices[index]);
+          const xs = vertices.map((vertex) => vertex?.[0] ?? Number.NaN);
+          const ys = vertices.map((vertex) => vertex?.[1] ?? Number.NaN);
+          return face.length === 4
+            && Math.abs(Math.min(...xs) - cabinFrontX) <= 1e-6
+            && Math.abs(Math.max(...xs) - layout.hoodHingeX) <= 1e-6
+            && ys.every((y) => Math.abs(y - layout.beltHeight) <= 1e-6);
+        });
+        expect(frontDeck !== undefined).toBe(hasFrontDeckGap);
+        expect(geometry.vertices.flat().every(Number.isFinite)).toBe(true);
+        expect(geometry.faces.every((face) => (
+          face.length >= 3
+          && new Set(face).size === face.length
+          && face.every((index) => index >= 0 && index < geometry.vertices.length)
+        ))).toBe(true);
+      }
+    }
+  });
+
+  it('mounts generated spoilers to the body instead of leaving a floating wing', () => {
+    const identity = createVehicleIdentity(4_879);
+    expect(identity.details.spoiler).toBe(true);
+    const solid = createSolidVehicleBlueprint(identity);
+    const layout = buildSolidVehicleLayout(identity);
+    const wing = solid.parts.find(({ id }) => id === 'spoiler');
+    const supports = solid.parts.filter(({ id }) => id.startsWith('spoiler:support:'));
+    expect(wing?.semanticPartId).toBe('accessories');
+    expect(supports).toHaveLength(2);
+    expect(new Set(supports.map(({ placement: { position } }) => Math.sign(position[2]))))
+      .toEqual(new Set([-1, 1]));
+    for (const support of supports) {
+      expect(support.semanticPartId).toBe('accessories');
+      expect(support.geometry.type).toBe('superellipsoid');
+      if (support.geometry.type !== 'superellipsoid' || wing === undefined) continue;
+      expect(support.placement.position[1] + support.geometry.radii[1])
+        .toBeGreaterThanOrEqual(wing.placement.position[1] - 0.035);
+      expect(support.placement.position[1] - support.geometry.radii[1])
+        .toBeLessThanOrEqual(layout.beltHeight);
     }
   });
 

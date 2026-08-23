@@ -13,6 +13,7 @@ import {
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
 } from '../src/index.js';
+import { InkedSolidCarrierOwnerKeys } from '../src/projections/inked-solid/runtime/carrier-owner-keys.js';
 
 class RecordingRenderer {
   public autoClear = true;
@@ -47,6 +48,18 @@ function containsStroke(root: THREE.Object3D): boolean {
 }
 
 describe('multi-instance inked-solid scene rendering', () => {
+  it('allocates deterministic collision-free part owner keys', () => {
+    const first = new InkedSolidCarrierOwnerKeys();
+    const second = new InkedSolidCarrierOwnerKeys();
+    const seeds = Array.from({ length: 1_024 }, (_, index) => (index * 47) - 313);
+    const firstKeys = seeds.map((seed) => first.allocate(seed));
+    const secondKeys = seeds.map((seed) => second.allocate(seed));
+    expect(firstKeys).toEqual(secondKeys);
+    expect(new Set(firstKeys).size).toBe(1_024);
+    expect(firstKeys.every((key) => key > 0 && key < 1)).toBe(true);
+    expect(() => first.allocate(0)).toThrow(/1024/u);
+  });
+
   it('registers different families and repeated blueprints in one shared pass', () => {
     const characterSolid = createSolidCharacterBlueprint(createCharacterIdentity(7_101));
     const buildingSolid = createSolidBuildingBlueprint(createBuildingIdentity(7_102));

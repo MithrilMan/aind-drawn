@@ -68,6 +68,17 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     return mod(packed, 2.0);
   }
 
+  float sampledPolicySlot(vec2 uv) {
+    float packed = floor(
+      texture2D(normalTexture, clamp(uv, vec2(0.0), vec2(1.0))).a * 255.0 + 0.5
+    );
+    return floor(packed * 0.5);
+  }
+
+  float sampledCarrierOwner(vec2 uv) {
+    return texture2D(anchorTexture, clamp(uv, vec2(0.0), vec2(1.0))).b;
+  }
+
   vec4 policyTexel(float policySlot, float texel) {
     return texture2D(policyTexture, vec2(
       (texel + 0.5) / 6.0,
@@ -239,8 +250,11 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     float centerDepth = sampledDepth(uv);
     vec3 centerNormal = sampledNormal(uv);
     float centerFacetedResponse = sampledFacetedResponse(uv);
+    float centerPolicySlot = sampledPolicySlot(uv);
+    float centerCarrierOwner = sampledCarrierOwner(uv);
     float depthDifference = 0.0;
     float normalDifference = 0.0;
+    float carrierBoundary = 0.0;
     vec2 offsets[8];
     offsets[0] = vec2(stepSize.x, 0.0);
     offsets[1] = vec2(-stepSize.x, 0.0);
@@ -263,6 +277,22 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
         / max(min(centerDepth, neighbourDepth), 0.0001);
       depthDifference = max(depthDifference, relativeDifference * pairWeight);
       if (centerDepth < 9.0e5 && neighbourDepth < 9.0e5) {
+        float policyDifference = step(
+          0.5,
+          abs(centerPolicySlot - sampledPolicySlot(neighbourUv))
+        );
+        // Owner keys are quantised to exact 1/1024 intervals before entering
+        // the half-float anchor target. A change therefore identifies a real
+        // carrier-part boundary, while variation inside one smooth mesh does
+        // not reintroduce screen-space topographic bands.
+        float ownerDifference = step(
+          0.00024,
+          abs(centerCarrierOwner - sampledCarrierOwner(neighbourUv))
+        );
+        carrierBoundary = max(
+          carrierBoundary,
+          max(policyDifference, ownerDifference) * pairWeight
+        );
         float topologyWeight = max(
           centerFacetedResponse,
           sampledFacetedResponse(neighbourUv)
@@ -288,7 +318,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       ),
       normalDifference
     );
-    return max(depthEdge, normalEdge);
+    return max(max(depthEdge, normalEdge), carrierBoundary);
   }
 
   void main() {

@@ -374,6 +374,34 @@ The next recommended slice is to finish Initiative 8 with the renderer-neutral r
 primitive, migrate the vehicle tyre and one existing wearable or wrap, then add sweep only where
 the second proven consumer justifies it.
 
+### 2026-08-23 - Initiative 8 projection regression audit completed
+
+The hard-surface slice exposed two coverage mistakes that visual review correctly found outside
+the original happy-path seed. The corrections preserve the existing identities and the generic
+Doodle pipeline; no family-specific contour branch or manually drawn rescue crease was added.
+
+Completed work:
+
+- gave every registered carrier part a deterministic collision-free owner key in the existing
+  anchor buffer. The contour pass can now retain boundaries between distinct smooth parts, such
+  as character hair, face, torso, arms, and legs, while continuing to reject normal variation
+  inside one smooth carrier;
+- kept authored faceted-normal response separate from carrier ownership, so vehicle plane changes
+  still come from topology and smooth meshes still avoid triangulation or curvature bands;
+- closed the vehicle shell's fixed deck interval whenever an archetype's cabin front ends before
+  its articulated hood begins. Pickup seed `4115` is the explicit regression case;
+- completed the solid spoiler assembly with two body-mounted supports and semantic accessory
+  ownership. Coupe seed `4879` is the explicit regression case; the raster projection already
+  authored a spoiler support and the solid projection now preserves the same feature intent;
+- added deterministic owner-key exhaustion and collision tests, a 165-case vehicle
+  archetype/seed deck-coverage sweep with finite/index validation, and focused spoiler-mount
+  assertions.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 122 tests, compiled artifact,
+exact public API snapshot, and the Projection Studio production build pass. Desktop browser QA
+covered character `4113`, pickup `4115`, coupe `4879`, and building `4879` in oblique Graphite
+Doodle views; WebGL shader compilation reported no errors.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -1177,11 +1205,13 @@ ignored is worse than no control.
 
 ### Current delivery
 
-The vehicle hard-surface slice is complete: the body is an authored faceted shell, articulated
-lids close its upper topology, generic normal creases are gated by faceted classification, and
-runtime triangulation preserves one normal per authored polygon. Revolved-profile and
-swept-profile contracts, migrations, detail scaling, and their remaining acceptance tests are
-still pending; Initiative 8 is therefore intentionally marked in progress rather than complete.
+The vehicle hard-surface slice and its projection regression audit are complete: the body is an
+authored faceted shell with fixed deck coverage, articulated lids close its remaining upper
+topology, spoilers are mounted assemblies, generic normal creases are gated by faceted
+classification, distinct carrier-part boundaries survive on smooth assets, and runtime
+triangulation preserves one normal per authored polygon. Revolved-profile and swept-profile
+contracts, migrations, detail scaling, and their remaining acceptance tests are still pending;
+Initiative 8 is therefore intentionally marked in progress rather than complete.
 
 ## Initiative 9: typed capabilities
 

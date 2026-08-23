@@ -70,7 +70,7 @@ export function vehicleSemanticPartId(concreteId: string): VehicleSemanticPartId
   if (
     concreteId.startsWith('roof-rack:')
     || concreteId.startsWith('detail:roof-rack')
-    || concreteId === 'spoiler'
+    || concreteId.startsWith('spoiler')
     || concreteId === 'detail:spoiler'
     || concreteId === 'tow-hitch'
   ) return 'accessories';

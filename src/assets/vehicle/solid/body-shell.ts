@@ -78,9 +78,9 @@ function taperedLid(
 
 /**
  * Builds one authored hard-surface shell whose polygon boundaries represent
- * actual changes of plane. The open upper run is covered by the articulated
- * cargo lid, cabin, and hood, so those parts meet the shoulder topology instead
- * of floating above a smooth chassis volume.
+ * actual changes of plane. The upper run is covered by the articulated cargo
+ * lid, cabin, and hood. Archetypes whose cabin ends before the hood begins get
+ * a fixed deck bridge so the sheet-metal envelope remains watertight.
  */
 export function createVehicleBodyGeometry(
   identity: VehicleIdentityRecipe,
@@ -100,6 +100,8 @@ export function createVehicleBodyGeometry(
   const shoulder = layout.bodyBottom + bodyHeight * 0.7;
   const tipSideHalfWidth = sideHalfWidth * 0.86;
   const tipRidgeHalfWidth = ridgeHalfWidth * 0.78;
+  const cabinFrontX = -layout.length * 0.5 + identity.cabin.endRatio * layout.length;
+  const hasFrontDeck = layout.hoodHingeX - cabinFrontX > 1e-6;
 
   const rings: readonly BodyRing[] = Object.freeze([
     Object.freeze({
@@ -120,6 +122,15 @@ export function createVehicleBodyGeometry(
       shoulder,
       top: layout.beltHeight,
     }),
+    ...(hasFrontDeck ? [Object.freeze({
+      x: cabinFrontX,
+      sideHalfWidth,
+      ridgeHalfWidth,
+      bottom,
+      lowerSide,
+      shoulder,
+      top: layout.beltHeight,
+    })] : []),
     Object.freeze({
       x: layout.hoodHingeX,
       sideHalfWidth,
@@ -146,8 +157,12 @@ export function createVehicleBodyGeometry(
     const start = ringIndex * ringSize;
     const end = (ringIndex + 1) * ringSize;
     for (let edge = 0; edge < ringSize; edge += 1) {
-      // The upper face is deliberately open: lids and cabin are the surface.
-      if (edge === 3) continue;
+      // Lids and cabin own the upper surface. Only the fixed interval between
+      // the cabin front and hood hinge belongs to the body shell itself.
+      const isFrontDeck = hasFrontDeck
+        && Math.abs((rings[ringIndex]?.x ?? Number.NaN) - cabinFrontX) <= 1e-6
+        && Math.abs((rings[ringIndex + 1]?.x ?? Number.NaN) - layout.hoodHingeX) <= 1e-6;
+      if (edge === 3 && !isFrontDeck) continue;
       const next = (edge + 1) % ringSize;
       faces.push([start + edge, start + next, end + next, end + edge]);
     }

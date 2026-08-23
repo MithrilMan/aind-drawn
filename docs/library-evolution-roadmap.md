@@ -216,10 +216,38 @@ artifact, its exact 158-export snapshot, and the Projection Studio production bu
 browser QA confirmed representative character and vehicle raster and Doodle 3D projections plus
 vehicle door interaction, with no page-console errors or warnings.
 
-The next engineering slice is a focused size and responsibility review before Initiative 6.
-`blueprint-validation.ts`, `sprite-rig.ts`, and the family animators are the first candidates; the
-review should split coherent collaborators and tests, not merely exchange one long file for a
-confetti cannon of tiny abstractions.
+### 2026-08-23 - Runtime and validation decomposition completed
+
+The focused size and responsibility review before Initiative 6 is complete. File length was used
+as a diagnostic signal rather than a target: cohesive facades remain intact, while files mixing
+independent change reasons were split behind their existing public APIs.
+
+Completed work:
+
+- replaced the 1,201-line blueprint validator implementation with a four-line public facade over
+  internal shared, manifest, raster, solid, and parity modules;
+- kept structured issue collection and public validation exports unchanged while separating
+  renderer-free representation rules and cross-representation comparison;
+- reduced `SpriteRig` from 540 to 269 lines and made it the instance/spatial-query orchestrator;
+- extracted `RasterSkeleton` for bone topology and pose, `SpriteLayerRenderer` for baking,
+  texture state, draw order, and GPU lifecycle, and `InteractionStateController` for idempotent
+  interaction state;
+- extended architecture-boundary regressions across every extracted validator and runtime module,
+  so internal decomposition cannot hide family imports or renderer dependencies;
+- deliberately deferred `CharacterAnimator` decomposition to Initiative 6, where mutable motion
+  interpretation will be replaced by pure sampling and thin projection applicators;
+- deferred `InkedSolidPass` decomposition to the multi-instance rendering initiative. Most of its
+  apparent size is embedded shader source, while its scene-pass ownership changes in Initiative 7;
+- left `Sketch` as a cohesive drawing facade instead of manufacturing tiny abstractions solely to
+  reduce line count.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 109 tests, the compiled library
+artifact, its unchanged exact 158-export snapshot, and the Projection Studio production build
+pass. Desktop browser QA covered animated character bones and expression layers plus building and
+vehicle door interactions across repeated rig construction, with no page-console errors or
+warnings.
+
+The next recommended slice is Initiative 6, pure deterministic motion sampling.
 
 ## Current strengths to preserve
 

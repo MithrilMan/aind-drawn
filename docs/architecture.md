@@ -112,6 +112,12 @@ preserving valid blueprint references. `AssetValidationError` exposes every
 useful issue with a stable path and code rather than hiding the first useful
 fact behind a generic constructor exception.
 
+The public `blueprint-validation.ts` module is a deliberately thin facade.
+Manifest, raster, solid, and cross-representation parity validation live in
+separate internal modules over a small shared validation toolkit. This keeps
+representation rules independent without exposing extra package entry points or
+duplicating structured issue semantics.
+
 `SpriteRig` and `SolidRig` invoke these validators before canvas, material, or
 geometry allocation. If construction fails later for a renderer reason, each
 constructor releases everything it allocated before rethrowing. Runtime checks
@@ -235,9 +241,13 @@ decision and the integration checklist.
 ## Rasterization and runtime
 
 The baker creates a small canvas per layer/state/boil frame, then uploads the
-result as a `THREE.CanvasTexture`. `SpriteRig` owns planes, materials, texture
-state, transforms, and disposal. Static world layers may be baked as composites;
-interactive layers remain independent.
+result as a `THREE.CanvasTexture`. `SpriteRig` is the public instance and spatial
+query boundary. It delegates bone topology and mutable pose to `RasterSkeleton`,
+layer baking, texture state, draw order, and GPU disposal to
+`SpriteLayerRenderer`, and idempotent interaction state to
+`InteractionStateController`. These collaborators remain internal runtime
+infrastructure; consumers still use one rig API. Static world layers may be
+baked as composites; interactive layers remain independent.
 
 The canvas factory is injected. Browser canvases are the default adapter, while
 the drawing core remains compatible with `OffscreenCanvas` and test doubles.

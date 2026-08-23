@@ -41,6 +41,14 @@ describe('architectural boundaries', () => {
       'src/contracts/asset-capabilities.ts',
       'src/contracts/asset-validation.ts',
       'src/contracts/blueprint-validation.ts',
+      'src/contracts/blueprint-validation/manifest.ts',
+      'src/contracts/blueprint-validation/parity.ts',
+      'src/contracts/blueprint-validation/raster.ts',
+      'src/contracts/blueprint-validation/shared.ts',
+      'src/contracts/blueprint-validation/solid.ts',
+      'src/runtime/interaction-state-controller.ts',
+      'src/runtime/raster-skeleton.ts',
+      'src/runtime/sprite-layer-renderer.ts',
       'src/runtime/sprite-rig.ts',
       'src/runtime/solid-rig.ts',
       'src/projections/inked-solid/runtime/pass.ts',
@@ -53,6 +61,11 @@ describe('architectural boundaries', () => {
     for (const file of [
       'src/contracts/asset-validation.ts',
       'src/contracts/blueprint-validation.ts',
+      'src/contracts/blueprint-validation/manifest.ts',
+      'src/contracts/blueprint-validation/parity.ts',
+      'src/contracts/blueprint-validation/raster.ts',
+      'src/contracts/blueprint-validation/shared.ts',
+      'src/contracts/blueprint-validation/solid.ts',
       'src/validation/value-validator.ts',
     ]) {
       expect(source(file), file).not.toMatch(/from ['"]three['"]/);

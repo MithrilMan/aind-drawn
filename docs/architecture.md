@@ -289,6 +289,34 @@ its exact column-major world transform. Both include interaction, animation,
 root translation, rotation, scale, and mirrored facing. Missing IDs return
 `null`, so ordinary consumers do not need to inspect the renderer scene graph.
 
+## Runtime instances and composition
+
+`assetId` identifies immutable generated content; `instanceId` identifies one
+mutable runtime projection of that content. `SpriteRig` and `SolidRig` accept an
+explicit `instanceId` and generate a process-local ID when none is supplied.
+Persisted scenes must provide their own stable IDs rather than storing generated
+ones. Instance metadata is written to renderer roots and parts without mutating
+the blueprint, identity, or recipe.
+
+Both rigs implement the renderer-neutral `AssetInstance` contract. Their frozen
+`getInstanceState()` snapshots contain the world-space root pose, interaction
+states, and playback time. `setWorldPose()` converts a world pose through any
+existing renderer parent while preserving root scale. `SpriteRig.setPlaybackTime()`
+also samples boil frames; family motion sampling remains a separate concern.
+
+`AssetComposition` is an optional coordinator, not a scene graph replacement.
+It inserts and removes instances, assigns complete back-to-front raster draw
+order, applies same-dimension socket attachments, visits parents before attached
+children, and returns deterministic serialisable snapshots. Inserted runtime
+resources are explicitly `owned` or `borrowed`: removal and composition disposal
+release only owned rigs, and every disposal path is idempotent.
+
+Blueprints are shared immutable references, while GPU resources remain owned by
+individual rigs. Geometry, material, or texture sharing is intentionally deferred
+until measurements justify a reference-counted cache with exact disposal tests.
+The composition service does not own physics, navigation, gameplay, ECS storage,
+or persistence policy.
+
 Buildings use the same boundary without character concepts. A shared building
 identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,
 chimney, and palette. Its identity-adjacent facade geometry owns normalized wall,

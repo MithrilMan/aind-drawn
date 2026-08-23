@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 
 import type {
+  AssetInstanceId,
+  AssetInstanceState,
+  RasterAssetInstance,
+} from '../contracts/asset-instance.js';
+import type {
   AffineTransform2,
   AssetBlueprint,
   ColliderShape2,
@@ -15,12 +20,15 @@ import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
 import { automaticCanvasFactory } from '../core/canvas.js';
 import { combineSeed, hashString } from '../core/random.js';
 import { Sketch } from '../core/sketch.js';
+import { resolveAssetInstanceId } from './instance-id.js';
+import { readWorldPose2, writeWorldPose2 } from './instance-pose.js';
 
 export type SpriteRigOptions = Readonly<{
   boilFrames?: number;
   canvasFactory?: CanvasFactory;
   textureAnisotropy?: number;
   drawRank?: number;
+  instanceId?: AssetInstanceId;
 }>;
 
 export type BonePose = Readonly<{
@@ -69,9 +77,12 @@ function createTexture(canvas: DrawingCanvas, anisotropy: number): THREE.CanvasT
  * bone API. The blueprint remains the source of truth; the rig only owns GPU
  * resources and transient animation state.
  */
-export class SpriteRig {
+export class SpriteRig implements RasterAssetInstance {
+  public readonly dimension = '2d' as const;
   public readonly root = new THREE.Group();
   public readonly blueprint: AssetBlueprint;
+  public readonly instanceId: AssetInstanceId;
+  public readonly assetId: string;
 
   private readonly boilFrames: number;
   private readonly canvasFactory: CanvasFactory;
@@ -80,15 +91,20 @@ export class SpriteRig {
   private readonly layers = new Map<string, LayerRecord>();
   private readonly interactionStates = new Map<string, string>();
   private drawRank: number;
+  private playbackTime = 0;
   private disposed = false;
 
   public constructor(blueprint: AssetBlueprint, options: SpriteRigOptions = {}) {
     this.blueprint = validateRasterAssetBlueprint(blueprint);
+    this.assetId = this.blueprint.assetId;
+    this.instanceId = resolveAssetInstanceId(this.assetId, options.instanceId);
     this.boilFrames = Math.max(1, Math.floor(options.boilFrames ?? 3));
     this.canvasFactory = options.canvasFactory ?? automaticCanvasFactory;
     this.textureAnisotropy = Math.max(1, Math.floor(options.textureAnisotropy ?? 4));
     this.drawRank = Math.trunc(options.drawRank ?? 0);
-    this.root.name = this.blueprint.assetId;
+    this.root.name = `instance:${this.instanceId}`;
+    this.root.userData.assetId = this.assetId;
+    this.root.userData.instanceId = this.instanceId;
     try {
       this.buildBones(this.blueprint.bones);
       this.buildLayers(this.blueprint.layers);
@@ -96,6 +112,7 @@ export class SpriteRig {
         this.blueprint.manifest.interactions,
         this.blueprint.interactionBindings,
       );
+      this.setPlaybackTime(0);
     } catch (error) {
       this.dispose();
       throw error;
@@ -112,6 +129,32 @@ export class SpriteRig {
 
   public get interactionIds(): readonly string[] {
     return [...this.interactionStates.keys()];
+  }
+
+  public getInstanceState(): AssetInstanceState<Pose2> {
+    return Object.freeze({
+      id: this.instanceId,
+      assetId: this.assetId,
+      transform: readWorldPose2(this.root),
+      interactionStates: Object.freeze(Object.fromEntries(this.interactionStates)),
+      playbackTime: this.playbackTime,
+    });
+  }
+
+  public setWorldPose(pose: Pose2): void {
+    writeWorldPose2(this.root, pose);
+  }
+
+  public setPlaybackTime(time: number): void {
+    if (!Number.isFinite(time)) throw new RangeError('playback time must be finite');
+    this.playbackTime = time;
+    for (const layer of this.layers.values()) {
+      const frame = normalizedFrame(
+        Math.floor(time * layer.fps + layer.offset),
+        this.boilFrames,
+      );
+      this.setBoilFrame(layer.definition.id, frame);
+    }
   }
 
   public getBone(id: string): THREE.Group | null {
@@ -244,13 +287,7 @@ export class SpriteRig {
   }
 
   public updateBoil(elapsedSeconds: number): void {
-    for (const layer of this.layers.values()) {
-      const frame = normalizedFrame(
-        Math.floor(elapsedSeconds * layer.fps + layer.offset),
-        this.boilFrames,
-      );
-      this.setBoilFrame(layer.definition.id, frame);
-    }
+    this.setPlaybackTime(elapsedSeconds);
   }
 
   public dispose(): void {
@@ -391,6 +428,8 @@ export class SpriteRig {
       mesh.renderOrder = this.renderOrder(definition.order);
       mesh.position.z = definition.order * 0.001 + definition.depth * 0.0001;
       mesh.userData.layerId = definition.id;
+      mesh.userData.assetId = this.assetId;
+      mesh.userData.instanceId = this.instanceId;
       this.requireBone(definition.bone).add(mesh);
 
       const hash = hashString(`${this.blueprint.seed}:${definition.id}`);

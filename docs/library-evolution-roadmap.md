@@ -15,11 +15,10 @@ and inked-solid output are adapters rather than independent generators; and Thre
 outside identity, layout, and blueprint authoring. The next step should preserve those choices,
 not replace them with a more fashionable framework.
 
-The main limitation is now at the runtime and composition boundaries. The library can describe,
-validate, and compare a rich asset across projections, but several of its promises are not yet
-first-class capabilities for a consumer:
+Runtime identity and the minimal composition boundary are now first-class capabilities. The
+library can describe, validate, compare, and instantiate a rich asset across projections, but
+several of its promises are not yet first-class capabilities for a consumer:
 
-- runtime identity is still conflated with deterministic authored content identity;
 - animation intent is still coupled to renderer-specific rigs;
 - the inked-solid pass is organised around one blueprint policy rather than a registered set of
   scene instances;
@@ -28,14 +27,14 @@ first-class capabilities for a consumer:
 - export, composition, inspection, and selective regeneration are architectural promises rather
   than public library features.
 
-The recommended direction is therefore:
+The remaining recommended direction is therefore:
 
-1. build runtime instances and composition on the now-normalised public contracts;
+1. review and split the oversized runtime and validation classes along proven responsibilities;
 2. separate pure motion sampling from renderer application;
-4. evolve inked-solid rendering from a single-blueprint pass into a multi-instance scene service;
-5. add small reusable geometry primitives where duplication already proves the need;
-6. ship persistence, export, composition, and inspection as first-class library capabilities;
-7. only then add a family that stresses a genuinely new architectural axis.
+3. evolve inked-solid rendering from a single-blueprint pass into a multi-instance scene service;
+4. add small reusable geometry primitives where duplication already proves the need;
+5. ship persistence, export, and inspection as first-class library capabilities;
+6. only then add a family that stresses a genuinely new architectural axis.
 
 This document deliberately does not propose a monorepo, a generic game engine, a universal asset
 registry, or a family-agnostic procedural geometry language. Those would add ceremony before they
@@ -185,6 +184,43 @@ The next recommended slice is Initiative 5, runtime instances and composition. T
 contract is now coherent enough that instance identity can be introduced without leaking family
 or renderer state back into blueprints.
 
+### 2026-08-23 - Initiative 5 completed
+
+Runtime content identity and mutable scene identity now have separate owners. One immutable
+blueprint can back multiple independently transformed and stateful rigs without acquiring runtime
+fields or renderer policy.
+
+Completed work:
+
+- added the public renderer-neutral `AssetInstance`, `AssetInstanceState`, raster instance, and
+  solid instance contracts with frozen serialisable world-space snapshots;
+- added explicit `instanceId` options to `SpriteRig` and `SolidRig`, plus process-local generated
+  IDs for transient consumers and separate `assetId`/`instanceId` renderer metadata;
+- added world-pose setters that account for an existing renderer parent and preserve root scale;
+- made interaction states and playback time instance-owned, with sprite playback time driving
+  absolute boil-frame sampling rather than accumulating deltas;
+- added the optional `AssetComposition` service for insertion, removal, complete raster draw
+  order, same-dimension socket attachments, deterministic parent-before-child updates, and
+  serialisable composition snapshots;
+- made composition resource responsibility explicit through `owned` and `borrowed` insertion;
+  removal and disposal release only owned rigs and remain idempotent;
+- kept immutable blueprints directly shareable while retaining per-rig GPU ownership. Shared GPU
+  caches remain intentionally deferred until measurement justifies reference-counted resources;
+- added source and compiled-artifact regressions for independent state, generated IDs, world
+  transforms, attachment following, deterministic update order, draw ordering, cycle rejection,
+  serialisation, and exact disposal ownership;
+- updated architecture, asset-authoring, and authoring-skill guidance with the new runtime rules.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 109 tests, the compiled library
+artifact, its exact 158-export snapshot, and the Projection Studio production build pass. Desktop
+browser QA confirmed representative character and vehicle raster and Doodle 3D projections plus
+vehicle door interaction, with no page-console errors or warnings.
+
+The next engineering slice is a focused size and responsibility review before Initiative 6.
+`blueprint-validation.ts`, `sprite-rig.ts`, and the family animators are the first candidates; the
+review should split coherent collaborators and tests, not merely exchange one long file for a
+confetti cannon of tiny abstractions.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -230,9 +266,9 @@ collapsed into a single style identifier.
 ### Verification focuses on semantic invariants
 
 The current tests cover deterministic generation, namespace isolation, cross-representation
-parity, topology, interactions, material ownership, runtime idempotence, and resource disposal.
-The baseline is healthy: the current library suite passes all 104 tests, and the compiled artifact
-verification enforces an exact snapshot of 155 public exports.
+parity, topology, interactions, material ownership, runtime idempotence, composition, and resource
+disposal. The baseline is healthy: the current library suite passes all 109 tests, and the compiled
+artifact verification enforces an exact snapshot of 158 public exports.
 
 The recommended work adds new kinds of verification; it does not replace these tests with visual
 snapshots alone.

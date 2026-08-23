@@ -1,5 +1,6 @@
 export * from './contracts/asset-capabilities.js';
 export * from './contracts/asset-envelope.js';
+export * from './contracts/asset-instance.js';
 export * from './contracts/asset-semantics.js';
 export * from './contracts/asset-validation.js';
 export * from './contracts/blueprint-validation.js';
@@ -89,6 +90,8 @@ export * from './core/random.js';
 export * from './core/sketch.js';
 export * from './materials/finish.js';
 export * from './materials/medium.js';
+export * from './runtime/asset-composition.js';
+export { createAssetInstanceId } from './runtime/instance-id.js';
 export * from './runtime/solid-geometry.js';
 export * from './runtime/solid-materials.js';
 export * from './runtime/solid-rig.js';

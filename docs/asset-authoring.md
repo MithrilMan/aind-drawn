@@ -198,6 +198,15 @@ identity data.
 - Never infer physics or interaction regions from texture alpha.
 - Use `getSocketWorldPose` and `getColliderWorldShape` for runtime integration;
   do not reconstruct hierarchy transforms or require Three.js access.
+- Treat `assetId` as immutable content identity and `instanceId` as runtime
+  identity. Provide stable instance IDs for persisted scenes; generated IDs are
+  process-local conveniences only.
+- Read serialisable runtime state through `getInstanceState()` and apply root
+  movement through `setWorldPose()`. Never write transforms, interaction state,
+  or playback time back into a blueprint, identity, or recipe.
+- When using `AssetComposition`, declare each rig `owned` or `borrowed`, keep
+  attachments within one spatial dimension, and let the composition assign the
+  complete raster draw order. Physics and gameplay remain consumer concerns.
 - Choose pivots at the physical joint: wheel center, door hinge, limb shoulder.
 - Keep local layer order small; `SpriteRig.drawRank` assigns the global block.
 - For solids, use stable node and part IDs and mount features through a shared

@@ -1,5 +1,6 @@
 [
   "ACCENT_COLORS",
+  "AssetComposition",
   "AssetValidationError",
   "BUILDING_ARCHETYPES",
   "BUILDING_AUTHORING_SCHEMA",
@@ -72,6 +73,8 @@
   "closePath",
   "combineSeed",
   "createAssetCapability",
+  "createAssetComposition",
+  "createAssetInstanceId",
   "createBuildingDrawingStyle",
   "createBuildingFacadeGeometry",
   "createBuildingIdentity",

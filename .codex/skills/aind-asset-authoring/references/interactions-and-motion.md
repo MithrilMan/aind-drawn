@@ -100,6 +100,32 @@ Do not create a bespoke animator merely to switch `open` and `closed`; the
 interaction contract already does that. Add interpolation only when continuous
 motion is an actual requirement.
 
+## Runtime instances and composition
+
+Keep deterministic content identity and mutable runtime identity separate.
+`assetId` belongs to the immutable blueprint; `instanceId`, world pose,
+interaction states, and playback time belong to one rig instance. Supply an
+explicit instance ID whenever a scene will persist or exchange state. Generated
+IDs are process-local only.
+
+Use `getInstanceState()` for frozen serialisable snapshots and `setWorldPose()`
+for root movement. Never copy runtime state into an identity, recipe, blueprint,
+or shared semantic manifest. Two rigs created from the same blueprint must be
+able to diverge in interaction state and playback time without cloning or
+mutating authored data.
+
+Use `AssetComposition` only when a consumer benefits from its narrow policy:
+
+- deterministic parent-before-child updates;
+- same-dimension socket attachments;
+- complete back-to-front raster draw ordering;
+- explicit `owned` or `borrowed` disposal responsibility;
+- renderer-neutral state snapshots.
+
+Do not add physics, navigation, gameplay rules, ECS storage, or persistence to
+the composition layer. Shared GPU caches require reference-counted leases and
+measured benefit; immutable blueprints may be shared directly.
+
 ## Shared motion vocabulary
 
 Share a domain motion contract when raster and solid representations need to

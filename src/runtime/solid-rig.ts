@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 
 import type {
+  AssetInstanceId,
+  AssetInstanceState,
+  SolidAssetInstance,
+} from '../contracts/asset-instance.js';
+import type {
   AffineTransform3,
   ColliderShape3,
   Pose3,
@@ -13,6 +18,8 @@ import type { InteractionSpec } from '../contracts/asset-semantics.js';
 import { validateSolidAssetBlueprint } from '../contracts/blueprint-validation.js';
 import { surfaceFrame } from '../core/geometry3.js';
 import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
+import { resolveAssetInstanceId } from './instance-id.js';
+import { readWorldPose3, writeWorldPose3 } from './instance-pose.js';
 import {
   SolidMaterialProvider,
   type SolidMaterialProviderOptions,
@@ -25,15 +32,20 @@ type NodeRestTransform = Readonly<{
   scale: THREE.Vector3;
 }>;
 
-export type SolidRigOptions = SolidMaterialProviderOptions & SolidGeometryFactoryOptions;
+export type SolidRigOptions = SolidMaterialProviderOptions
+  & SolidGeometryFactoryOptions
+  & Readonly<{ instanceId?: AssetInstanceId }>;
 
 /**
  * Three.js adapter for data-only solid blueprints. Asset code never imports
  * Three.js; this runtime owns all scene objects and GPU resources.
  */
-export class SolidRig {
+export class SolidRig implements SolidAssetInstance {
+  public readonly dimension = '3d' as const;
   public readonly root = new THREE.Group();
   public readonly blueprint: SolidAssetBlueprint;
+  public readonly instanceId: AssetInstanceId;
+  public readonly assetId: string;
 
   private readonly nodes = new Map<string, THREE.Group>();
   private readonly nodeRest = new Map<string, NodeRestTransform>();
@@ -41,13 +53,17 @@ export class SolidRig {
   private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
   private readonly materialProvider: SolidMaterialProvider;
   private readonly interactionStates = new Map<string, string>();
+  private playbackTime = 0;
   private disposed = false;
 
   public constructor(blueprint: SolidAssetBlueprint, options: SolidRigOptions = {}) {
     this.blueprint = validateSolidAssetBlueprint(blueprint);
+    this.assetId = this.blueprint.assetId;
+    this.instanceId = resolveAssetInstanceId(this.assetId, options.instanceId);
     this.materialProvider = new SolidMaterialProvider(options);
-    this.root.name = this.blueprint.assetId;
-    this.root.userData.assetId = this.blueprint.assetId;
+    this.root.name = `instance:${this.instanceId}`;
+    this.root.userData.assetId = this.assetId;
+    this.root.userData.instanceId = this.instanceId;
     try {
       for (const spec of this.blueprint.materials) {
         this.materials.set(spec.id, this.materialProvider.create(spec));
@@ -67,7 +83,8 @@ export class SolidRig {
         mesh.castShadow = part.castShadow;
         mesh.receiveShadow = part.receiveShadow;
         mesh.userData.partId = part.id;
-        mesh.userData.assetId = this.blueprint.assetId;
+        mesh.userData.assetId = this.assetId;
+        mesh.userData.instanceId = this.instanceId;
         mesh.userData.materialId = part.materialId;
         mesh.position.set(...part.placement.position);
         if (part.placement.surface !== undefined) {
@@ -108,6 +125,25 @@ export class SolidRig {
 
   public get interactionIds(): readonly string[] {
     return [...this.interactionStates.keys()];
+  }
+
+  public getInstanceState(): AssetInstanceState<Pose3> {
+    return Object.freeze({
+      id: this.instanceId,
+      assetId: this.assetId,
+      transform: readWorldPose3(this.root),
+      interactionStates: Object.freeze(Object.fromEntries(this.interactionStates)),
+      playbackTime: this.playbackTime,
+    });
+  }
+
+  public setWorldPose(pose: Pose3): void {
+    writeWorldPose3(this.root, pose);
+  }
+
+  public setPlaybackTime(time: number): void {
+    if (!Number.isFinite(time)) throw new RangeError('playback time must be finite');
+    this.playbackTime = time;
   }
 
   public getNode(id: string): THREE.Group | null {

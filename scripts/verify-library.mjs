@@ -16,6 +16,7 @@ assert.deepEqual(
   'Public API exports changed; review the package surface and update scripts/public-api.snapshot.json intentionally',
 );
 const requiredExports = [
+  'AssetComposition',
   'SpriteRig',
   'SolidRig',
   'InkedSolidPass',
@@ -52,6 +53,8 @@ const requiredExports = [
   'encodeAssetIdentity',
   'validateRasterAssetBlueprint',
   'validateSolidAssetBlueprint',
+  'createAssetComposition',
+  'createAssetInstanceId',
 ];
 
 for (const exportName of requiredExports) {
@@ -172,6 +175,37 @@ assert.deepEqual(
   'Compiled world-pose queries must return serialisable values',
 );
 solidBuildingRig.dispose();
+const firstRuntimeBuilding = new library.SolidRig(solidBuilding, {
+  instanceId: 'compiled/building/first',
+});
+const secondRuntimeBuilding = new library.SolidRig(solidBuilding, {
+  instanceId: 'compiled/building/second',
+});
+firstRuntimeBuilding.setInteractionState('door', 'open');
+firstRuntimeBuilding.setPlaybackTime(1.5);
+secondRuntimeBuilding.setPlaybackTime(4.25);
+assert.equal(firstRuntimeBuilding.blueprint, secondRuntimeBuilding.blueprint);
+assert.equal(firstRuntimeBuilding.getInstanceState().interactionStates.door, 'open');
+assert.equal(secondRuntimeBuilding.getInstanceState().interactionStates.door, 'closed');
+const compiledComposition = library.createAssetComposition();
+compiledComposition.insert(firstRuntimeBuilding, { ownership: 'owned' });
+compiledComposition.insert(secondRuntimeBuilding, { ownership: 'owned' });
+compiledComposition.attach('compiled/building/second', 'compiled/building/first', 'door:handle');
+compiledComposition.update();
+assert.deepEqual(
+  secondRuntimeBuilding.getInstanceState().transform,
+  firstRuntimeBuilding.getSocketWorldPose('door:handle'),
+  'Compiled composition attachments must follow public socket poses',
+);
+assert.deepEqual(
+  compiledComposition.snapshot().map(({ id, playbackTime }) => ({ id, playbackTime })),
+  [
+    { id: 'compiled/building/first', playbackTime: 1.5 },
+    { id: 'compiled/building/second', playbackTime: 4.25 },
+  ],
+  'Compiled composition snapshots must preserve independent instance state',
+);
+compiledComposition.dispose();
 const inkedBuilding = library.createInkedSolidBlueprint(solidBuilding, {
   medium: 'graphite',
   strokes: library.createSolidBuildingInkStrokes(solidBuilding),

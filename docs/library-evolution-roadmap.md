@@ -19,8 +19,6 @@ The main limitation is now at the public and runtime boundaries. The library can
 render a rich asset, but several of its promises are not yet first-class capabilities for a
 consumer:
 
-- recipe and blueprint envelopes are inconsistent across families and representations;
-- serialisable data has no official decoder, validation boundary, or migration path;
 - sockets and colliders are static coordinates rather than attachments to articulated parts;
 - shared semantic interactions are duplicated in raster and solid blueprints;
 - animation intent is still coupled to renderer-specific rigs;
@@ -82,6 +80,36 @@ Verification completed with `pnpm verify`: TypeScript, ESLint, all 85 tests, the
 artifact, and its 138 public exports pass. The regression suite also checks that obsolete envelope
 fields are absent and that complete projections retain one `assetId`.
 
+### 2026-08-23 - Initiative 2 completed
+
+The second P0 item establishes supported input and validation boundaries without introducing a
+runtime schema dependency or pretending that TypeScript assertions validate JSON.
+
+Completed work:
+
+- added `AssetValidationIssue` and `AssetValidationError`, with immutable aggregated issues,
+  stable paths, and stable machine-readable codes;
+- added strict family-owned decoders for character, building, and vehicle identities;
+- made decoders reject future versions, foreign discriminants, obsolete or unknown fields,
+  malformed values, and impossible family combinations;
+- made decoded identities detached and deeply immutable, without rerunning any generator;
+- added `encodeAssetIdentity` as the supported detached JSON boundary for trusted identities;
+- added renderer-free raster and solid blueprint validators covering envelopes, dimensions,
+  geometry, hierarchy cycles, IDs, references, capabilities, sockets, colliders, materials, and
+  interaction bindings;
+- made `SpriteRig` and `SolidRig` validate before canvas, material, or geometry allocation;
+- made both constructors release partial resources if rendering construction fails after a valid
+  contract crosses the boundary;
+- added malformed fixtures, representative multi-seed factory validation, decoder regressions,
+  pre-allocation assertions, controlled constructor faults, and compiled-artifact codec checks.
+
+No migrations or compatibility decoders were added. Schema version `1` is the first supported
+format; unsupported versions fail explicitly.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 98 tests, the compiled library
+artifact, and its 145 public exports pass. Compiled-artifact checks exercise identity encode/decode,
+future-version rejection, and both blueprint validators.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -128,8 +156,8 @@ collapsed into a single style identifier.
 
 The current tests cover deterministic generation, namespace isolation, cross-representation
 parity, topology, interactions, material ownership, runtime idempotence, and resource disposal.
-The baseline is healthy: the current library suite passes all 85 tests, and the compiled artifact
-verification reports 138 public exports.
+The baseline is healthy: the current library suite passes all 98 tests, and the compiled artifact
+verification reports 145 public exports.
 
 The recommended work adds new kinds of verification; it does not replace these tests with visual
 snapshots alone.
@@ -182,20 +210,20 @@ render targets.
 
 ## Priority map
 
-| Priority | Initiative | Primary outcome | Main prerequisite |
-| --- | --- | --- | --- |
-| P0 | Unified recipe and blueprint envelopes | Coherent public data model | None |
-| P0 | Codecs and pure validators | Safe persistence and fail-fast runtimes | Unified envelopes |
-| P0 | Attached sockets and colliders | Real equipment, portals, and physics integration | Contract cleanup |
-| P1 | Shared semantic manifest | Guaranteed cross-representation state parity | Unified envelopes |
-| P1 | Runtime instance identity | Multiple independent instances of one asset | Contract cleanup |
-| P1 | Pure motion samplers | Seekable, exportable, deterministic motion | Runtime instance model |
-| P1 | Multi-instance inked-solid rendering | Doodle rendering for complete scenes | Runtime instance identity |
-| P1 | Export adapters | Useful assets outside the runtime | Codecs and spatial semantics |
-| P2 | Focused solid geometry primitives | Less duplicated topology and better LOD | Geometry validation |
-| P2 | Semantic inspection and parity reports | Better authoring and integration tooling | Shared semantic manifest |
-| P2 | Selective reroll and locks | Controlled procedural iteration | Stable identity codecs |
-| P3 | New stress-test family | Validate branching, repetition, wind, and LOD | Earlier foundations |
+| Priority | Initiative | Status | Primary outcome | Main prerequisite |
+| --- | --- | --- | --- | --- |
+| P0 | Unified recipe and blueprint envelopes | Completed | Coherent public data model | None |
+| P0 | Codecs and pure validators | Completed | Safe persistence and fail-fast runtimes | Unified envelopes |
+| P0 | Attached sockets and colliders | Planned | Real equipment, portals, and physics integration | Contract cleanup |
+| P1 | Shared semantic manifest | Planned | Guaranteed cross-representation state parity | Unified envelopes |
+| P1 | Runtime instance identity | Planned | Multiple independent instances of one asset | Contract cleanup |
+| P1 | Pure motion samplers | Planned | Seekable, exportable, deterministic motion | Runtime instance model |
+| P1 | Multi-instance inked-solid rendering | Planned | Doodle rendering for complete scenes | Runtime instance identity |
+| P1 | Export adapters | Planned | Useful assets outside the runtime | Codecs and spatial semantics |
+| P2 | Focused solid geometry primitives | Planned | Less duplicated topology and better LOD | Geometry validation |
+| P2 | Semantic inspection and parity reports | Planned | Better authoring and integration tooling | Shared semantic manifest |
+| P2 | Selective reroll and locks | Planned | Controlled procedural iteration | Stable identity codecs |
+| P3 | New stress-test family | Planned | Validate branching, repetition, wind, and LOD | Earlier foundations |
 
 ## Initiative 1: unified recipe and blueprint envelopes - completed 2026-08-23
 
@@ -303,7 +331,7 @@ first coherent format and update every internal call site while the package rema
 - [x] No runtime uses `'representation' in blueprint` or parses representation from `kind`.
 - [x] JSON round trips preserve every recipe and serialisable blueprint.
 
-## Initiative 2: codecs and pure contract validation
+## Initiative 2: codecs and pure contract validation - completed 2026-08-23
 
 ### Problem
 
@@ -399,12 +427,12 @@ fail after a controlled number of allocations.
 
 ### Acceptance criteria
 
-- Unknown JSON cannot enter the domain through a type assertion in supported APIs.
-- Invalid blueprints fail before GPU or canvas allocation.
-- Decoder errors contain stable paths and codes suitable for tools.
-- Every factory output passes the matching validator over representative and property-generated
+- [x] Unknown JSON cannot enter the domain through a type assertion in supported APIs.
+- [x] Invalid blueprints fail before GPU or canvas allocation.
+- [x] Decoder errors contain stable paths and codes suitable for tools.
+- [x] Every factory output passes the matching validator over representative and property-generated
   seeds.
-- Constructor fault tests prove partial resources are released.
+- [x] Constructor fault tests prove partial resources are released.
 
 ## Initiative 3: a shared semantic manifest
 
@@ -916,7 +944,7 @@ flow, or character vocabulary.
 
 The root barrel currently exports contracts, low-level geometry, family internals, layouts,
 capability constructors, runtimes, material providers, and high-level factories together. The
-compiled artifact currently exposes 138 names.
+compiled artifact currently exposes 145 names.
 
 A large root API makes accidental commitments cheap and future cleanup expensive. It also makes it
 hard to communicate the intended path for ordinary consumers versus family authors.
@@ -1334,16 +1362,16 @@ should remain small and explicit.
 
 ### Phase 0: contract hardening
 
-Completed in Initiative 1:
+Completed in Initiatives 1 and 2:
 
 - unified family and representation identifiers;
 - normalised identity, recipe, and blueprint envelopes;
 - removal of obsolete headers and inconsistent `kind` values;
+- pure raster and solid validators;
+- family identity codecs;
 
 Remaining in Phase 0:
 
-- pure raster and solid validators;
-- family identity codecs;
 - public API snapshot.
 
 Exit criteria:
@@ -1420,9 +1448,8 @@ Exit criteria:
 ## Recommended first implementation slice
 
 The original recommendation combined envelope normalisation and pure validators. Implementation
-split it at the actual architectural seam: the envelope migration is complete, while validators
-remain the next P0 slice. This kept the breaking greenfield contract change reviewable and leaves
-Initiative 2 free to define validation policy without temporary dual shapes.
+split it at the actual architectural seam: Initiative 1 migrated the greenfield contracts, then
+Initiative 2 added validation and codecs against the canonical shape. Both slices are complete.
 
 ### Concrete work
 
@@ -1431,9 +1458,9 @@ Initiative 2 free to define validation policy without temporary dual shapes.
 3. [x] Give raster blueprints an explicit representation discriminant.
 4. [x] Make semantic family values identical across raster and solid output.
 5. [x] Replace runtime representation detection based on property existence or encoded kind strings.
-6. [ ] Implement pure raster and solid blueprint validators.
-7. [ ] Invoke validation before resource construction.
-8. [ ] Add malformed blueprint fixtures for every reference type.
+6. [x] Implement pure raster and solid blueprint validators.
+7. [x] Invoke validation before resource construction.
+8. [x] Add malformed blueprint fixtures for every reference type.
 9. [x] Add compiled-artifact assertions for the new headers.
 10. [x] Update architecture and authoring documentation in the same change.
 

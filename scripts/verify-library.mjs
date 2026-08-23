@@ -37,6 +37,12 @@ const requiredExports = [
   'inkedSolidMediumDefaults',
   'createSolidCharacterInkStrokes',
   'createSolidBuildingInkStrokes',
+  'decodeCharacterIdentity',
+  'decodeBuildingIdentity',
+  'decodeVehicleIdentity',
+  'encodeAssetIdentity',
+  'validateRasterAssetBlueprint',
+  'validateSolidAssetBlueprint',
 ];
 
 for (const exportName of requiredExports) {
@@ -96,13 +102,44 @@ assert.deepEqual(
   'Compiled identities must expose the canonical envelope',
 );
 assertNoObsoleteEnvelopeFields(buildingIdentity, 'Compiled building identity');
+const encodedBuildingIdentity = library.encodeAssetIdentity(buildingIdentity);
+const decodedBuildingIdentity = library.decodeBuildingIdentity(
+  JSON.parse(JSON.stringify(encodedBuildingIdentity)),
+);
+assert.deepEqual(
+  decodedBuildingIdentity,
+  buildingIdentity,
+  'Compiled identity codecs must preserve resolved semantic data',
+);
+assert.notEqual(
+  decodedBuildingIdentity,
+  buildingIdentity,
+  'Compiled identity decoders must return detached values',
+);
+assert.ok(Object.isFrozen(decodedBuildingIdentity.palette), 'Decoded identities must be deeply immutable');
+assert.throws(
+  () => library.decodeBuildingIdentity({ ...encodedBuildingIdentity, schemaVersion: 2 }),
+  (error) => error?.name === 'AssetValidationError'
+    && error.issues?.some(({ path, code }) => path[0] === 'schemaVersion' && code === 'value.literal'),
+  'Compiled decoders must reject unsupported schema versions with structured issues',
+);
 const building = library.createRasterBuildingBlueprint(
   library.createRasterBuildingRecipe(buildingIdentity),
+);
+assert.equal(
+  library.validateRasterAssetBlueprint(building),
+  building,
+  'Compiled raster validators must preserve valid blueprints by reference',
 );
 assert.ok(building.layers.some(({ id }) => id === 'door'), 'Compiled building is missing its door layer');
 assert.equal(building.interactions[0]?.id, 'door', 'Compiled building is missing its door interaction');
 assert.ok(building.sockets['door:entry'], 'Compiled building is missing its entry socket');
 const solidBuilding = library.createSolidBuildingBlueprint(buildingIdentity);
+assert.equal(
+  library.validateSolidAssetBlueprint(solidBuilding),
+  solidBuilding,
+  'Compiled solid validators must preserve valid blueprints by reference',
+);
 assert.equal(building.assetId, solidBuilding.assetId, 'Building projections must share an asset ID');
 assert.equal(solidBuilding.interactions[0]?.id, 'door', 'Compiled solid building is missing its door interaction');
 assert.ok(solidBuilding.parts.some(({ id }) => id === 'building:roof'), 'Compiled solid building is missing its roof volume');

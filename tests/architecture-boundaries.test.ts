@@ -39,12 +39,24 @@ describe('architectural boundaries', () => {
       'src/contracts/raster-asset.ts',
       'src/contracts/solid-asset.ts',
       'src/contracts/asset-capabilities.ts',
+      'src/contracts/asset-validation.ts',
+      'src/contracts/blueprint-validation.ts',
       'src/runtime/sprite-rig.ts',
       'src/runtime/solid-rig.ts',
       'src/projections/inked-solid/runtime/pass.ts',
     ];
     const familyImport = /from ['"][^'"]*(character|building|vehicle|solid-face)[^'"]*['"]/i;
     for (const file of files) expect(source(file), file).not.toMatch(familyImport);
+  });
+
+  it('keeps contract validation renderer-free', () => {
+    for (const file of [
+      'src/contracts/asset-validation.ts',
+      'src/contracts/blueprint-validation.ts',
+      'src/validation/value-validator.ts',
+    ]) {
+      expect(source(file), file).not.toMatch(/from ['"]three['"]/);
+    }
   });
 
   it('organizes multi-representation code by semantic family', () => {

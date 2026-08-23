@@ -43,6 +43,21 @@ the adapter. Do not combine them in a `kind` string. Representation policy
 belongs under `style`; a recipe must not duplicate its identity seed or lift
 family-specific style fields into its envelope.
 
+## Codecs and blueprint validation
+
+Every persisted multi-representation identity needs a strict family-owned
+decoder beside its identity recipe. The decoder accepts `unknown`, validates the
+common envelope before family vocabulary, rejects unknown fields and impossible
+combinations, and returns a detached deeply frozen value. Do not regenerate an
+identity from its seed while loading, and do not turn a type assertion into a
+codec with better branding.
+
+Factory output must pass `validateRasterAssetBlueprint` or
+`validateSolidAssetBlueprint`. Generic validators own structural invariants;
+family codecs own domain invariants. Rigs validate again at their public runtime
+boundary before allocation, so consumers cannot bypass safety by skipping
+factory-level tests.
+
 ## Choose the smallest honest model
 
 First choose the representation: use raster layers for hand-drawn planes and
@@ -297,22 +312,24 @@ registers these controls through family metadata and does not branch on the
 
 1. Use the canonical identity, recipe, and blueprint envelopes and verify that
    all complete projections share the same `family`, `assetId`, and `seed`.
-2. Export the new public types and factories from `src/index.ts`.
-3. If generic editors customize the family, publish and validate an
+2. Add and export a strict identity decoder, then run every representative
+   factory output through the matching public blueprint validator.
+3. Export the new public types and factories from `src/index.ts`.
+4. If generic editors customize the family, publish and validate an
    `AssetFamilyAuthoringSchema` beside identity. The schema owns safe parameter
    metadata, defaults, choices, and semantic preview layers; the family adapter
    still maps values to typed recipe options explicitly.
-4. Register the asset in the consumer catalog rather than importing internals.
-5. Extend the serializable experiment document only for authored parameters.
-6. Add deterministic recipe tests, authoring-schema validation, and blueprint contract tests.
-7. Test state validation and animation in the runtime when applicable.
-8. Test every public medium through both raster and inked-solid projections;
+5. Register the asset in the consumer catalog rather than importing internals.
+6. Extend the serializable experiment document only for authored parameters.
+7. Add deterministic recipe tests, authoring-schema validation, and blueprint contract tests.
+8. Test state validation and animation in the runtime when applicable.
+9. Test every public medium through both raster and inked-solid projections;
    both outputs must retain the same `MediumId` and distinct deterministic policy.
-9. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
+10. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
    `InkedSolidPass.dispose()`, and `InkedSolidStrokeRig.dispose()` when that
    representation is active. Dispose strokes before their owner solid rig.
-10. Run `pnpm verify`.
-11. Inspect representative seeds in the internal browser at every width the
+11. Run `pnpm verify`.
+12. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under

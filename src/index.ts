@@ -1,11 +1,16 @@
 export * from './contracts/asset-capabilities.js';
 export * from './contracts/asset-envelope.js';
+export * from './contracts/asset-validation.js';
+export * from './contracts/blueprint-validation.js';
+export * from './contracts/json.js';
 export * from './contracts/raster-asset.js';
 export * from './contracts/solid-asset.js';
 export * from './authoring/family-schema.js';
+export * from './codecs/asset-identity.js';
 
 // Building family
 export * from './assets/building/identity/authoring.js';
+export * from './assets/building/identity/codec.js';
 export * from './assets/building/identity/drawing-style.js';
 export * from './assets/building/identity/geometry.js';
 export * from './assets/building/identity/recipe.js';
@@ -19,6 +24,7 @@ export * from './assets/building/solid/recipe.js';
 // Character family
 export * from './assets/character/identity/accessory-profile.js';
 export * from './assets/character/identity/authoring.js';
+export * from './assets/character/identity/codec.js';
 export * from './assets/character/identity/drawing-style.js';
 export * from './assets/character/identity/ear-profile.js';
 export * from './assets/character/identity/expression-profile.js';
@@ -50,6 +56,7 @@ export * from './assets/character/runtime/solid-animator.js';
 
 // Vehicle family
 export * from './assets/vehicle/identity/authoring.js';
+export * from './assets/vehicle/identity/codec.js';
 export * from './assets/vehicle/identity/drawing-style.js';
 export * from './assets/vehicle/identity/geometry.js';
 export * from './assets/vehicle/identity/recipe.js';

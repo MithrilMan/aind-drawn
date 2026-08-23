@@ -95,6 +95,29 @@ identity. It is not a runtime instance identifier.
 The library is greenfield. The removed `version`, `kind`, and blueprint `id`
 headers have no aliases or compatibility adapters.
 
+## Validation and persistence boundaries
+
+Unknown JSON enters a family only through its explicit identity decoder:
+`decodeCharacterIdentity`, `decodeBuildingIdentity`, or `decodeVehicleIdentity`.
+Each decoder validates the common envelope before family fields, rejects unknown
+fields and unsupported versions, accumulates structured `AssetValidationIssue`
+values, and returns a detached deeply immutable identity. Loading never reruns
+the generator. `encodeAssetIdentity` creates a detached immutable JSON value
+from an already trusted identity.
+
+`validateRasterAssetBlueprint` and `validateSolidAssetBlueprint` are pure,
+renderer-free boundaries. They validate hierarchies, identifiers, references,
+geometry, capabilities, interactions, colliders, sockets, and materials while
+preserving valid blueprint references. `AssetValidationError` exposes every
+useful issue with a stable path and code rather than hiding the first useful
+fact behind a generic constructor exception.
+
+`SpriteRig` and `SolidRig` invoke these validators before canvas, material, or
+geometry allocation. If construction fails later for a renderer reason, each
+constructor releases everything it allocated before rethrowing. Runtime checks
+may still defend mutable state commands, but they are no longer the first
+blueprint validation boundary.
+
 ## Representation-neutral asset contract
 
 The library does not equate an asset with a sprite. Recipe and layout express

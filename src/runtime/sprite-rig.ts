@@ -6,6 +6,7 @@ import type {
   LayerDefinition,
   Vector2,
 } from '../contracts/raster-asset.js';
+import { validateRasterAssetBlueprint } from '../contracts/blueprint-validation.js';
 import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
 import { automaticCanvasFactory } from '../core/canvas.js';
 import { combineSeed, hashString } from '../core/random.js';
@@ -83,15 +84,20 @@ export class SpriteRig {
   private disposed = false;
 
   public constructor(blueprint: AssetBlueprint, options: SpriteRigOptions = {}) {
-    this.blueprint = blueprint;
+    this.blueprint = validateRasterAssetBlueprint(blueprint);
     this.boilFrames = Math.max(1, Math.floor(options.boilFrames ?? 3));
     this.canvasFactory = options.canvasFactory ?? automaticCanvasFactory;
     this.textureAnisotropy = Math.max(1, Math.floor(options.textureAnisotropy ?? 4));
     this.drawRank = Math.trunc(options.drawRank ?? 0);
-    this.root.name = blueprint.assetId;
-    this.buildBones(blueprint.layers);
-    this.buildLayers(blueprint.layers);
-    this.initializeInteractions(blueprint.interactions);
+    this.root.name = this.blueprint.assetId;
+    try {
+      this.buildBones(this.blueprint.layers);
+      this.buildLayers(this.blueprint.layers);
+      this.initializeInteractions(this.blueprint.interactions);
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
 
   public get boneIds(): readonly string[] {
@@ -360,23 +366,30 @@ export class SpriteRig {
     }
     const textures: THREE.CanvasTexture[] = [];
     const canvases: DrawingCanvas[] = [];
-    for (let frame = 0; frame < this.boilFrames; frame += 1) {
-      const seed = combineSeed(
-        this.blueprint.seed,
-        `asset:boil:${layer.definition.id}:${state}:${frame}`,
-      );
-      const sketch = new Sketch(
-        layer.definition.canvas.width,
-        layer.definition.canvas.height,
-        seed,
-        this.canvasFactory,
-      );
-      layer.definition.draw({ sketch, state, frame });
-      canvases.push(sketch.canvas);
-      textures.push(createTexture(sketch.canvas, this.textureAnisotropy));
-    }
     layer.canvases.set(state, canvases);
     layer.frames.set(state, textures);
+    try {
+      for (let frame = 0; frame < this.boilFrames; frame += 1) {
+        const seed = combineSeed(
+          this.blueprint.seed,
+          `asset:boil:${layer.definition.id}:${state}:${frame}`,
+        );
+        const sketch = new Sketch(
+          layer.definition.canvas.width,
+          layer.definition.canvas.height,
+          seed,
+          this.canvasFactory,
+        );
+        layer.definition.draw({ sketch, state, frame });
+        canvases.push(sketch.canvas);
+        textures.push(createTexture(sketch.canvas, this.textureAnisotropy));
+      }
+    } catch (error) {
+      for (const texture of textures) texture.dispose();
+      layer.canvases.delete(state);
+      layer.frames.delete(state);
+      throw error;
+    }
   }
 
   private applyTexture(layer: LayerRecord): void {

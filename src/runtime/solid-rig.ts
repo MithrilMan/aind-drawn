@@ -6,6 +6,7 @@ import type {
   SolidNodeDefinition,
   SolidNodeState,
 } from '../contracts/solid-asset.js';
+import { validateSolidAssetBlueprint } from '../contracts/blueprint-validation.js';
 import { surfaceFrame } from '../core/geometry3.js';
 import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
 import {
@@ -39,52 +40,55 @@ export class SolidRig {
   private disposed = false;
 
   public constructor(blueprint: SolidAssetBlueprint, options: SolidRigOptions = {}) {
-    this.blueprint = blueprint;
+    this.blueprint = validateSolidAssetBlueprint(blueprint);
     this.materialProvider = new SolidMaterialProvider(options);
-    this.root.name = blueprint.assetId;
-    this.root.userData.assetId = blueprint.assetId;
-    for (const spec of blueprint.materials) {
-      if (this.materials.has(spec.id)) throw new Error(`Duplicate solid material id: ${spec.id}`);
-      this.materials.set(spec.id, this.materialProvider.create(spec));
-    }
-    this.buildNodes(blueprint.nodes);
-    for (const part of [...blueprint.parts].sort((left, right) => left.order - right.order)) {
-      if (this.parts.has(part.id)) throw new Error(`Duplicate solid part id: ${part.id}`);
-      const parent = this.requireNode(part.node);
-      const material = this.materials.get(part.materialId);
-      if (material === undefined) throw new Error(`Unknown solid material: ${part.materialId}`);
-      const mesh: SolidPartMesh = new THREE.Mesh(
-        createSolidGeometry(part.geometry, options),
-        material,
-      );
-      mesh.name = `part:${part.id}`;
-      mesh.renderOrder = part.order;
-      mesh.visible = part.visible ?? true;
-      mesh.castShadow = part.castShadow;
-      mesh.receiveShadow = part.receiveShadow;
-      mesh.userData.partId = part.id;
-      mesh.userData.assetId = blueprint.assetId;
-      mesh.userData.materialId = part.materialId;
-      mesh.position.set(...part.placement.position);
-      if (part.placement.surface !== undefined) {
-        const frame = surfaceFrame(part.placement.surface.normal, part.placement.surface.roll);
-        const matrix = new THREE.Matrix4().makeBasis(
-          new THREE.Vector3(...frame.right),
-          new THREE.Vector3(...frame.up),
-          new THREE.Vector3(...frame.normal),
-        );
-        mesh.quaternion.setFromRotationMatrix(matrix);
+    this.root.name = this.blueprint.assetId;
+    this.root.userData.assetId = this.blueprint.assetId;
+    try {
+      for (const spec of this.blueprint.materials) {
+        this.materials.set(spec.id, this.materialProvider.create(spec));
       }
-      if (part.placement.rotation !== undefined) {
-        const localRotation = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(...part.placement.rotation, 'XYZ'),
+      this.buildNodes(this.blueprint.nodes);
+      for (const part of [...this.blueprint.parts].sort((left, right) => left.order - right.order)) {
+        const parent = this.requireNode(part.node);
+        const material = this.materials.get(part.materialId);
+        if (material === undefined) throw new Error(`Unknown solid material: ${part.materialId}`);
+        const mesh: SolidPartMesh = new THREE.Mesh(
+          createSolidGeometry(part.geometry, options),
+          material,
         );
-        mesh.quaternion.multiply(localRotation);
+        mesh.name = `part:${part.id}`;
+        mesh.renderOrder = part.order;
+        mesh.visible = part.visible ?? true;
+        mesh.castShadow = part.castShadow;
+        mesh.receiveShadow = part.receiveShadow;
+        mesh.userData.partId = part.id;
+        mesh.userData.assetId = this.blueprint.assetId;
+        mesh.userData.materialId = part.materialId;
+        mesh.position.set(...part.placement.position);
+        if (part.placement.surface !== undefined) {
+          const frame = surfaceFrame(part.placement.surface.normal, part.placement.surface.roll);
+          const matrix = new THREE.Matrix4().makeBasis(
+            new THREE.Vector3(...frame.right),
+            new THREE.Vector3(...frame.up),
+            new THREE.Vector3(...frame.normal),
+          );
+          mesh.quaternion.setFromRotationMatrix(matrix);
+        }
+        if (part.placement.rotation !== undefined) {
+          const localRotation = new THREE.Quaternion().setFromEuler(
+            new THREE.Euler(...part.placement.rotation, 'XYZ'),
+          );
+          mesh.quaternion.multiply(localRotation);
+        }
+        parent.add(mesh);
+        this.parts.set(part.id, mesh);
       }
-      parent.add(mesh);
-      this.parts.set(part.id, mesh);
+      this.initializeInteractions(this.blueprint.interactions);
+    } catch (error) {
+      this.dispose();
+      throw error;
     }
-    this.initializeInteractions(blueprint.interactions);
   }
 
   public get nodeIds(): readonly string[] {

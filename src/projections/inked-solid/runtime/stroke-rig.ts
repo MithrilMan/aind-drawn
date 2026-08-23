@@ -1,16 +1,16 @@
 import * as THREE from 'three';
 
-import type {
-  InkedSolidBlueprint,
-  InkedSolidStrokeSpec,
-} from '../blueprint.js';
+import type { InkedSolidBlueprint } from '../blueprint.js';
+import type { InkedSolidStrokeSpec } from '../contracts.js';
 import { add3, pointOnSuperellipsoid, scale3, type Point3 } from '../../../core/geometry3.js';
 import { Random } from '../../../core/random.js';
 import type { RgbColor } from '../../../core/sketch.js';
 import type { SolidRig } from '../../../runtime/solid-rig.js';
 
 type StrokeRuntime = Readonly<{
+  stroke: InkedSolidStrokeSpec;
   group: THREE.Group;
+  meshes: readonly THREE.Mesh[];
   geometries: readonly THREE.BufferGeometry[];
   material: THREE.MeshBasicMaterial;
 }>;
@@ -80,7 +80,12 @@ export class InkedSolidStrokeRig {
     if (solidRig.blueprint !== blueprint.solid) {
       throw new Error('InkedSolidStrokeRig requires the exact wrapped solid blueprint');
     }
-    for (const stroke of blueprint.strokes) this.addStroke(stroke);
+    try {
+      for (const stroke of blueprint.strokes) this.addStroke(stroke);
+    } catch (error) {
+      this.dispose();
+      throw error;
+    }
   }
 
   public get strokeIds(): readonly string[] {
@@ -93,6 +98,14 @@ export class InkedSolidStrokeRig {
 
   public get visible(): boolean {
     return this.runtimes.values().next().value?.group.visible ?? false;
+  }
+
+  /** Visits registration-time renderer data without exposing mutable ownership. */
+  public forEachRuntimeStroke(
+    visitor: (stroke: InkedSolidStrokeSpec, meshes: readonly THREE.Mesh[]) => void,
+  ): void {
+    this.assertAlive();
+    for (const { stroke, meshes } of this.runtimes.values()) visitor(stroke, meshes);
   }
 
   public dispose(): void {
@@ -133,6 +146,7 @@ export class InkedSolidStrokeRig {
     tube.castShadow = false;
     tube.receiveShadow = false;
     group.add(tube);
+    const meshes: THREE.Mesh[] = [tube];
     const geometries: THREE.BufferGeometry[] = [geometry];
     if (!stroke.closed) {
       for (const endpoint of [points[0], points[points.length - 1]]) {
@@ -141,14 +155,21 @@ export class InkedSolidStrokeRig {
         const cap = new THREE.Mesh(capGeometry, material);
         cap.position.set(...endpoint);
         group.add(cap);
+        meshes.push(cap);
         geometries.push(capGeometry);
       }
     }
     owner.add(group);
     this.runtimes.set(stroke.id, Object.freeze({
+      stroke,
       group,
+      meshes: Object.freeze(meshes),
       geometries: Object.freeze(geometries),
       material,
     }));
+  }
+
+  private assertAlive(): void {
+    if (this.disposed) throw new Error('InkedSolidStrokeRig has been disposed');
   }
 }

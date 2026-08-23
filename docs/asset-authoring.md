@@ -90,7 +90,13 @@ Author semantic strokes in the family adapter. Use a
 `part-local` path when it belongs to a box, profile, mesh, or deliberately
 leaves the surface. Every stroke names its owner part. Do not store Three.js
 curves or world coordinates in the blueprint; `InkedSolidStrokeRig` resolves
-and parents the runtime geometry.
+and parents the runtime geometry owned by an `InkedSolidScenePass` registration.
+
+Construct one scene pass with one explicit paper policy, then register each exact
+`instanceId`/`InkedSolidBlueprint`/`SolidRig` triple. Registrations may carry different media and
+contour policies; registration disposal releases its proxy materials and semantic stroke rig
+without disposing the borrowed solid rig. Unregistered scene geometry is excluded unless the pass
+was explicitly constructed with `unregisteredOcclusion: 'depth-only'`.
 
 Create a dedicated asset family when any of these are true:
 
@@ -275,7 +281,7 @@ identity data.
 - Add a new drawing medium once in `src/materials/medium.ts`, implement one
   provider under `src/projections/inked-solid/projection-providers/`, and register it
   in `medium-projection.ts`; add a new generic
-  shader field in `InkedSolidPass` only when its paper-space statistics cannot reuse
+  compositor field in `InkedSolidScenePass` only when its paper-space statistics cannot reuse
   an existing one. Do not add asset-family-specific medium presets.
 - Derive that volumetric policy from the raster operation itself. Watercolour
   remains layered translucent coverage rather than directional bands; Ink uses
@@ -361,9 +367,10 @@ registers these controls through family metadata and does not branch on the
 9. Test state validation and animation in the runtime when applicable.
 10. Test every public medium through both raster and inked-solid projections;
    both outputs must retain the same `MediumId` and distinct deterministic policy.
-11. Dispose generated resources through `SpriteRig.dispose()`, `SolidRig.dispose()`,
-   `InkedSolidPass.dispose()`, and `InkedSolidStrokeRig.dispose()` when that
-   representation is active. Dispose strokes before their owner solid rig.
+11. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
+   inked-solid representation, dispose its scene registration before the owner solid rig, then
+   dispose `InkedSolidScenePass` when the drawing surface is torn down. Direct lower-level
+   `InkedSolidStrokeRig` consumers still dispose strokes before their owner solid rig.
 11. Run `pnpm verify`.
 12. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.

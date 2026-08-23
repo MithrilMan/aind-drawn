@@ -146,7 +146,7 @@ without switching on character, building, vehicle, or any future family ID.
 | --- | --- | --- |
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
 | Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
-| Inked solid | An invisible smooth-solid carrier plus semantic strokes, multipass contour, material-aware pigment deposition, and paper policy | `InkedSolidPass` and `InkedSolidStrokeRig` around `SolidRig` |
+| Inked solid | An invisible smooth-solid carrier plus semantic strokes, multipass contour, material-aware pigment deposition, and paper policy | `InkedSolidScenePass` registrations around `SolidRig` |
 
 The inked-solid projection is implemented as a representation adapter around
 the exact smooth-solid blueprint. The mesh contributes occlusion, normals, and
@@ -173,17 +173,17 @@ same boundary instead of pretending a voxel field is a smooth mesh recipe.
 CharacterIdentityRecipe
   ├─ RasterCharacterStyle -> CharacterRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidCharacterStyle  -> SolidCharacterRecipe -> SolidAssetBlueprint -> SolidRig
-                                                          └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
+                                                          └─ InkedSolidBlueprint -> InkedSolidScenePass registration
 
 BuildingIdentityRecipe
   ├─ RasterBuildingStyle  -> RasterBuildingRecipe -> AssetBlueprint -> SpriteRig
   └─ SolidBuildingStyle   -> SolidBuildingRecipe  -> SolidAssetBlueprint -> SolidRig
-                                                          └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
+                                                          └─ InkedSolidBlueprint -> InkedSolidScenePass registration
 
 VehicleIdentityRecipe
   ├─ RasterVehicleStyle  -> RasterVehicleRecipe  -> AssetBlueprint -> SpriteRig
   └─ SolidVehicleStyle   -> SolidVehicleRecipe   -> SolidAssetBlueprint -> SolidRig
-                                                          └─ InkedSolidBlueprint -> InkedSolidPass + InkedSolidStrokeRig
+                                                          └─ InkedSolidBlueprint -> InkedSolidScenePass registration
 ```
 
 Identity includes spatial topology when it changes meaning across projections.
@@ -372,8 +372,10 @@ Applications such as `pigment`, `tint`, `paper`, `ink`, `wash`, and `glaze`
 describe deposition rather than asset semantics; the selected medium provider
 resolves them without inspecting family, material, or part names. Physical
 `SolidFinishId` remains an orthogonal smooth-rendering concern.
-`InkedSolidPass` renders unlit semantic albedo, depth, normals, and material
-membership. Its composite shader treats the mesh as an invisible G-buffer
+`InkedSolidScenePass` registers exact blueprint/rig/instance triples and precomputes part,
+material, topology, owner-anchor, semantic-stroke, and pass-material mappings. The service renders
+all registered carriers into shared unlit semantic albedo, depth, normal/topology, material-mark,
+and owner-anchor buffers. Its composite shader treats each mesh as an invisible G-buffer
 carrier and synthesizes a fresh two-dimensional drawing for the current camera
 projection. Carrier pixels start from opaque paper, receive an irregular
 semantic-colour pigment bed, then gesture marks and contours. Mark fields live
@@ -389,11 +391,19 @@ distance and viewport resolution cannot reclassify a surface. Camera rotation
 changes projection and occlusion without rerolling pigment colour or noise at a
 discrete view threshold. Paper grain alone remains stationary in screen space.
 Smooth-solid roughness, metalness, and clearcoat never enter this path.
-`InkedSolidStrokeRig`
-resolves family-authored paths into small ink volumes parented to their owner
-parts. These volumes are reserved for genuinely spatial marks such as whiskers,
-wires, lifted seams, and other strokes that must leave or follow a surface. Both
-runtimes own and dispose their generated GPU resources.
+Every visible carrier encodes a registration policy slot, allowing media and contour policy to
+vary per instance while paper remains one immutable scene-level choice. Unregistered geometry is
+excluded by default; the explicit `depth-only` scene policy may let it occlude carriers without
+entering semantic colour or material buffers. Internal proxy scenes share source geometry and
+update preallocated matrices, avoiding source-material mutation, unrelated scene traversal, and
+per-frame swap records.
+
+Each registration owns an `InkedSolidStrokeRig`, which resolves family-authored paths into small
+ink volumes parented to their owner parts. These volumes are reserved for genuinely spatial marks
+such as whiskers, wires, lifted seams, and other strokes that must leave or follow a surface.
+Disposing the registration releases its proxy materials and stroke resources before the caller
+disposes the `SolidRig`; disposing the scene pass releases every remaining registration and shared
+G-buffer resource.
 
 Raster and solid character animators consume the same transient
 `CharacterMotion` vocabulary (`idle`, `walk`, `run`, `airborne`, `sit`, `sleep`,

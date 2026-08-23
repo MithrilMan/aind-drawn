@@ -10,6 +10,7 @@
     "build:lib": "tsc -p tsconfig.lib.json",
     "build:experiments": "pnpm build:projection-studio",
     "build:projection-studio": "vite build --config experiments/projection-studio/vite.config.ts",
+    "benchmark:inked-solid": "vitest bench --run benchmarks/inked-solid-scene.bench.ts",
     "clean": "node scripts/clean.mjs",
     "dev": "vite --config experiments/projection-studio/vite.config.ts",
     "dev:projection-studio": "vite --config experiments/projection-studio/vite.config.ts",

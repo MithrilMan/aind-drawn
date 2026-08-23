@@ -124,7 +124,7 @@ features such as panel seams, tyre grooves, window borders, light divisions, or
 lifted wires.
 
 Smooth body panels remain view-oriented; explicitly faceted panels can change
-hatch flow across creases. Do not add vehicle branches to `InkedSolidPass`.
+hatch flow across creases. Do not add vehicle branches to `InkedSolidScenePass`.
 
 ## Interaction and runtime
 

@@ -105,6 +105,8 @@ describe('vehicle asset family', () => {
 
     const strokes = createSolidVehicleInkStrokes(solid);
     expect(strokes.some(({ id }) => id.startsWith('window:division'))).toBe(true);
+    expect(strokes.some(({ id }) => id === 'hood:panel-seam')).toBe(true);
+    expect(strokes.some(({ id }) => id === 'cargo:panel-seam')).toBe(true);
     expect(strokes.some(({ id }) => id.endsWith(':rim-marker'))).toBe(true);
     for (const medium of MEDIUM_IDS) {
       const inked = createInkedSolidBlueprint(solid, { medium, strokes });

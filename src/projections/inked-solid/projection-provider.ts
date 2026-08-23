@@ -5,7 +5,7 @@ import type {
   InkedSolidDepositionPolicy,
   InkedSolidMarkStyle,
   InkedSolidPaperPolicy,
-} from './blueprint.js';
+} from './contracts.js';
 
 type Unseeded<T> = Omit<T, 'seed'>;
 

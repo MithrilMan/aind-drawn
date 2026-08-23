@@ -140,11 +140,13 @@ parts but do not participate in line boil.
 3. Locate owners by stable part ID and verify compatible geometry before
    creating a path.
 4. Call `createInkedSolidBlueprint(solid, { medium, strokes })`.
-5. Instantiate one generic `InkedSolidPass` and, when strokes exist, one
-   `InkedSolidStrokeRig` around the exact same `SolidRig`.
-6. On replacement, update pass policy without mutating solid identity.
-7. Dispose `InkedSolidStrokeRig`, then `SolidRig`, and dispose the shared pass
-   when the view is torn down.
+5. Instantiate one generic `InkedSolidScenePass` for the drawing surface and
+   register the exact `instanceId`, inked blueprint, and `SolidRig`. The
+   registration owns the semantic `InkedSolidStrokeRig` when strokes exist.
+6. On policy replacement, dispose and recreate the registration without
+   mutating solid identity or reconstructing the solid rig.
+7. Dispose the registration, then `SolidRig`, and dispose the shared scene pass
+   when the drawing surface is torn down.
 
 ## Verification matrix
 

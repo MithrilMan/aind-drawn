@@ -247,7 +247,10 @@ family IDs.
 - Keep line boil on view-dependent contour passes. View-synthesized medium marks
   follow animated owner parts but never use boil frames; paper grain alone stays
   stationary in screen space.
-- Reuse `InkedSolidPass` across asset families and dispose it explicitly.
+- Reuse one `InkedSolidScenePass` across asset families, register each exact
+  instance/blueprint/rig triple, dispose registrations before their solid rigs,
+  and dispose the scene pass explicitly. A registration owns its semantic
+  `InkedSolidStrokeRig`; ordinary consumers do not construct a second one.
 - In Doodle 3D, the solid mesh is an invisible carrier for depth, occlusion,
   normals, semantic colour, and material masks. Never composite its continuous
   albedo. Semantic material colour may only source synthesized pigment; PBR
@@ -276,7 +279,7 @@ family IDs.
   medium behaviour centrally in `src/materials/medium.ts`, add one provider
   under `src/projections/inked-solid/projection-providers/`, and register it in
   `src/projections/inked-solid/medium-projection.ts`; extend the generic
-  `InkedSolidPass` field only when necessary, never a family adapter.
+  `InkedSolidScenePass` compositor field only when necessary, never a family adapter.
 - Treat `ToneStyle` as density intent, not permission to change a medium's mark
   vocabulary. Oil answers every tone with loaded brush daubs, charcoal with
   granular pickup, and marker with broad translucent passes. Never translate

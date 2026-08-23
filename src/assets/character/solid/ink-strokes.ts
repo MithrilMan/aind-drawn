@@ -1,6 +1,6 @@
 import type {
   InkedSolidStrokeDefinition,
-} from '../../../projections/inked-solid/blueprint.js';
+} from '../../../projections/inked-solid/contracts.js';
 import { add3, pointOnSuperellipsoid, scale3, type Point3 } from '../../../core/geometry3.js';
 import type { SolidAssetBlueprint, SuperellipsoidGeometrySpec } from '../../../contracts/solid-asset.js';
 

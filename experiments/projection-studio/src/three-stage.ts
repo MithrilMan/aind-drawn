@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 import {
-  InkedSolidPass,
-  InkedSolidStrokeRig,
+  InkedSolidScenePass,
   SolidRig,
   createInkedSolidBlueprint,
   inkedSolidMediumDefaults,
   type InkedSolidStrokeDefinition,
+  type InkedSolidSceneRegistration,
   type MediumId,
   type SolidAssetBlueprint,
 } from '../../../src/index.js';
@@ -38,8 +38,8 @@ export class ThreeStage {
   private readonly observer: ResizeObserver;
   private readonly onViewChange: ViewChangeHandler;
   private rig: SolidRig | null = null;
-  private pass: InkedSolidPass | null = null;
-  private strokeRig: InkedSolidStrokeRig | null = null;
+  private pass: InkedSolidScenePass | null = null;
+  private inkRegistration: InkedSolidSceneRegistration | null = null;
   private runtime: StudioRuntimeAdapter | null = null;
   private solid: SolidAssetBlueprint | null = null;
   private strokes: readonly InkedSolidStrokeDefinition[] = [];
@@ -99,7 +99,7 @@ export class ThreeStage {
     solidFrameScale: number,
     autoGaze: boolean,
   ): void {
-    this.strokeRig?.dispose();
+    this.inkRegistration?.dispose();
     this.rig?.root.removeFromParent();
     this.rig?.dispose();
     this.solid = solid;
@@ -163,7 +163,7 @@ export class ThreeStage {
     this.canvas.removeEventListener('pointerup', this.handlePointerUp);
     this.canvas.removeEventListener('pointercancel', this.handlePointerUp);
     this.canvas.removeEventListener('keydown', this.handleKeyDown);
-    this.strokeRig?.dispose();
+    this.inkRegistration?.dispose();
     this.pass?.dispose();
     this.rig?.dispose();
     this.environmentMap.dispose();
@@ -213,17 +213,18 @@ export class ThreeStage {
       },
       strokes: this.strokes,
     });
-    this.strokeRig?.dispose();
-    if (this.pass === null) this.pass = new InkedSolidPass(this.renderer, blueprint);
-    else this.pass.setBlueprint(blueprint);
-    this.strokeRig = new InkedSolidStrokeRig(blueprint, this.rig);
-    this.strokeRig.visible = this.renderMode === 'doodle';
+    this.inkRegistration?.dispose();
+    this.pass ??= new InkedSolidScenePass(this.renderer);
+    this.inkRegistration = this.pass.register({
+      instanceId: this.rig.instanceId,
+      blueprint,
+      rig: this.rig,
+    });
     this.resize();
   }
 
   private applyRenderMode(): void {
     const solid = this.renderMode === 'solid';
-    if (this.strokeRig !== null) this.strokeRig.visible = !solid;
     this.renderer.toneMapping = solid
       ? THREE.ACESFilmicToneMapping
       : THREE.NoToneMapping;

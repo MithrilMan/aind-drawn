@@ -81,6 +81,7 @@ export { applyRasterVehicleMotion } from './assets/vehicle/runtime/raster-motion
 export { applySolidVehicleMotion } from './assets/vehicle/runtime/solid-motion-applicator.js';
 
 // Cross-family projections
+export * from './projections/inked-solid/contracts.js';
 export * from './projections/inked-solid/blueprint.js';
 export * from './projections/inked-solid/medium-projection.js';
 export * from './projections/inked-solid/runtime/pass.js';

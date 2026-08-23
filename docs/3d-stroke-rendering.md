@@ -64,9 +64,10 @@ type InkedSolidContourPolicy = Readonly<{
 }>;
 
 type InkedSolidBlueprint = Readonly<{
+  blueprintVersion: 1;
+  family: string;
   representation: 'inked-solid';
-  id: string;
-  kind: string;
+  assetId: string;
   seed: Seed;
   medium: MediumId;
   solid: SolidAssetBlueprint;
@@ -88,8 +89,8 @@ fallback from asset or material names. Explicit
 options are authoring diagnostics, not alternate user-facing render styles.
 Setting `viewMarks: false` may isolate the pigment bed while debugging, but a
 truthful Doodle projection keeps the medium's gesture marks enabled. The runtime
-consumer is `InkedSolidPass`, used unchanged by both the character and building
-labs.
+consumer is `InkedSolidScenePass`, used unchanged by character, building, vehicle, and future
+solid families.
 
 ```ts
 const raster = createRasterCharacterBlueprint(identity, { medium: 'watercolor' });
@@ -97,7 +98,19 @@ const inked = createInkedSolidBlueprint(solid, {
   medium: 'watercolor',
   strokes: createSolidCharacterInkStrokes(solid),
 });
+
+const pass = new InkedSolidScenePass(renderer);
+const registration = pass.register({
+  instanceId: rig.instanceId,
+  blueprint: inked,
+  rig,
+});
 ```
+
+Registration compiles part, material, topology, owner-anchor, and semantic-stroke lookups once.
+Multiple instances of one solid blueprint and different media may share one pass; paper remains a
+single scene-level policy and never depends on registration order. Dispose the registration
+before its borrowed `SolidRig`, and dispose the pass when the drawing surface is torn down.
 
 ## Rendering pipeline
 
@@ -137,7 +150,8 @@ least three points, all owners are validated, and seeded wobble is stable.
 
 ### 3. Contours
 
-`InkedSolidPass` renders carrier albedo with depth, then a normal buffer. The composite
+`InkedSolidScenePass` renders every registered carrier into shared albedo/depth, material-mark,
+owner-anchor, and normal/topology buffers. The composite
 shader detects relative view-depth discontinuities and normal creases. Line
 width is screen-space and therefore remains legible as the camera moves.
 Authored ink geometry and semantic stroke volumes own their visible line and
@@ -206,8 +220,9 @@ inked solid.
 
 ## Delivery state
 
-1. **Shipped:** one generic Three.js contour pass consuming any
-   `SolidAssetBlueprint` through `InkedSolidBlueprint`.
+1. **Shipped:** one generic registered Three.js scene pass consuming any
+   `SolidAssetBlueprint` through `InkedSolidBlueprint`, including different per-instance media and
+   contour policies on one scene paper.
 2. **Shipped:** all six raster media projected into camera-conditioned paper
    fields, with role-aware masks and contour-only quantised boil timing.
 3. **Shipped proof:** the same runtime on a complete animated character and an
@@ -217,8 +232,10 @@ inked solid.
    is never shown.
 5. **Shipped:** semantic surface strokes on character face/body and building
    facade/roof/door, including cat whiskers and articulated ownership.
-6. **Next:** extend semantic authoring to vehicles, props, and plants as those
-   solid families are introduced.
+6. **Shipped:** semantic vehicle strokes, including wheel detail and articulated hood and cargo
+   panel seams.
+7. **Next:** author intentional faceted vehicle body topology, then extend semantic authoring to
+   props and plants as those solid families are introduced.
 
 The runtime is already generic. New families add stroke recipes, not shader
 branches or renderer subclasses.

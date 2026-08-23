@@ -1,876 +1,175 @@
 import * as THREE from 'three';
 
-import type { InkedSolidBlueprint } from '../blueprint.js';
+import type { AssetInstanceId } from '../../../contracts/asset-instance.js';
 import { hashString } from '../../../core/random.js';
-import type { RgbColor } from '../../../core/sketch.js';
-import type { MediumId } from '../../../materials/medium.js';
-import { inkedSolidSurfaceFlow } from './surface-flow.js';
+import { PAPER_RGB } from '../../../core/sketch.js';
+import type { SolidRig } from '../../../runtime/solid-rig.js';
+import type { InkedSolidBlueprint } from '../blueprint.js';
+import type { InkedSolidPaperPolicy } from '../contracts.js';
+import { InkedSolidCompositor } from './compositor.js';
+import {
+  InkedSolidCarrierScenes,
+  RegisteredInkedSolidCarrier,
+} from './registered-carrier.js';
+import {
+  INKED_SOLID_POLICY_CAPACITY,
+  InkedSolidPolicyTexture,
+} from './policy-texture.js';
+import { InkedSolidRenderTargets } from './render-targets.js';
 
-type InkedUniforms = {
-  albedoTexture: { value: THREE.Texture };
-  normalTexture: { value: THREE.Texture };
-  markTexture: { value: THREE.Texture };
-  anchorTexture: { value: THREE.Texture };
-  depthTexture: { value: THREE.DepthTexture };
-  resolution: { value: THREE.Vector2 };
-  displayScale: { value: number };
-  projectionInverse: { value: THREE.Matrix4 };
-  contourColor: { value: THREE.Color };
-  contourWidth: { value: number };
-  contourOpacity: { value: number };
-  contourEchoOpacity: { value: number };
-  contourGhostOpacity: { value: number };
-  contourGhostSpread: { value: number };
-  contourGranulation: { value: number };
-  contourWander: { value: number };
-  depthThreshold: { value: number };
-  normalThreshold: { value: number };
-  contourJitter: { value: number };
-  contourFrame: { value: number };
-  contourSeed: { value: number };
-  fillPigmentStrength: { value: number };
-  planeSeparationStrength: { value: number };
-  planeSeparationSteps: { value: number };
-  fillVariationStrength: { value: number };
-  fillVariationScale: { value: number };
-  fillTextureMode: { value: number };
-  fillSeed: { value: number };
-  paperColor: { value: THREE.Color };
-  paperGrain: { value: number };
-  paperSeed: { value: number };
-};
+export type InkedSolidUnregisteredOcclusion = 'exclude' | 'depth-only';
 
-type MaterialOwner = {
-  material: THREE.Material | THREE.Material[];
-};
-
-type MaterialSwap = Readonly<{
-  mesh: MaterialOwner;
-  material: THREE.Material | THREE.Material[];
+export type InkedSolidScenePassOptions = Readonly<{
+  paper?: InkedSolidPaperPolicy;
+  unregisteredOcclusion?: InkedSolidUnregisteredOcclusion;
 }>;
 
-const FILL_TEXTURE_MODE: Readonly<Record<MediumId, number>> = Object.freeze({
-  graphite: 0,
-  ink: 1,
-  watercolor: 2,
-  oil: 3,
-  chalk: 4,
-  marker: 5,
+export type InkedSolidSceneRegistrationOptions = Readonly<{
+  instanceId: AssetInstanceId;
+  blueprint: InkedSolidBlueprint;
+  rig: SolidRig;
+}>;
+
+export type InkedSolidSceneRegistration = Readonly<{
+  instanceId: AssetInstanceId;
+  dispose: () => void;
+}>;
+
+export type InkedSolidSceneDiagnostics = Readonly<{
+  registeredInstances: number;
+  carrierParts: number;
+  semanticStrokeMeshes: number;
+  proxyMeshes: number;
+  passMaterials: number;
+  renderTargets: 4;
+  renderCalls: number;
+  steadyStatePerMeshAllocations: 0;
+}>;
+
+export const DEFAULT_INKED_SOLID_SCENE_PAPER: InkedSolidPaperPolicy = Object.freeze({
+  color: Object.freeze([...PAPER_RGB] as [number, number, number]),
+  grainStrength: 0.025,
+  seed: hashString('inked-solid:scene-paper'),
 });
 
-const MARK_STYLE_MODE = Object.freeze({
-  none: 0,
-  hatch: 1,
-  crosshatch: 2,
-  scribble: 3,
-  stipple: 4,
-  wash: 5,
-  bristle: 6,
-  marker: 7,
-  solid: 8,
-} as const);
+type RegistrationRecord = Readonly<{
+  slot: number;
+  carrier: RegisteredInkedSolidCarrier;
+  handle: RegistrationHandle;
+}>;
 
-const MARK_STYLE_DIVISOR = 9;
+class RegistrationHandle implements InkedSolidSceneRegistration {
+  private active = true;
 
-const FULLSCREEN_VERTEX = /* glsl */`
-  varying vec2 inkedUv;
+  public constructor(
+    public readonly instanceId: AssetInstanceId,
+    private readonly release: () => void,
+  ) {}
 
-  void main() {
-    inkedUv = uv;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
+  public dispose = (): void => {
+    if (!this.active) return;
+    this.active = false;
+    this.release();
+  };
+
+  public invalidate(): void {
+    this.active = false;
   }
-`;
-
-const MARK_VERTEX = /* glsl */`
-  void main() {
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const MARK_FRAGMENT = /* glsl */`
-  uniform vec4 markData;
-
-  void main() {
-    gl_FragColor = markData;
-  }
-`;
-
-const ANCHOR_FRAGMENT = /* glsl */`
-  uniform vec4 anchorData;
-
-  void main() {
-    gl_FragColor = anchorData;
-  }
-`;
-
-const COMPOSITE_FRAGMENT = /* glsl */`
-  uniform sampler2D albedoTexture;
-  uniform sampler2D normalTexture;
-  uniform sampler2D markTexture;
-  uniform sampler2D anchorTexture;
-  uniform sampler2D depthTexture;
-  uniform vec2 resolution;
-  uniform float displayScale;
-  uniform mat4 projectionInverse;
-  uniform vec3 contourColor;
-  uniform float contourWidth;
-  uniform float contourOpacity;
-  uniform float contourEchoOpacity;
-  uniform float contourGhostOpacity;
-  uniform float contourGhostSpread;
-  uniform float contourGranulation;
-  uniform float contourWander;
-  uniform float depthThreshold;
-  uniform float normalThreshold;
-  uniform float contourJitter;
-  uniform float contourFrame;
-  uniform float contourSeed;
-  uniform float fillPigmentStrength;
-  uniform float planeSeparationStrength;
-  uniform float planeSeparationSteps;
-  uniform float fillVariationStrength;
-  uniform float fillVariationScale;
-  uniform float fillTextureMode;
-  uniform float fillSeed;
-  uniform vec3 paperColor;
-  uniform float paperGrain;
-  uniform float paperSeed;
-  varying vec2 inkedUv;
-
-  float hash21(vec2 point) {
-    vec3 value = fract(vec3(point.xyx) * 0.1031);
-    value += dot(value, value.yzx + 33.33);
-    return fract((value.x + value.y) * value.z);
-  }
-
-  float valueNoise(vec2 point) {
-    vec2 cell = floor(point);
-    vec2 fraction = fract(point);
-    fraction = fraction * fraction * (3.0 - 2.0 * fraction);
-    float bottom = mix(hash21(cell), hash21(cell + vec2(1.0, 0.0)), fraction.x);
-    float top = mix(
-      hash21(cell + vec2(0.0, 1.0)),
-      hash21(cell + vec2(1.0, 1.0)),
-      fraction.x
-    );
-    return mix(bottom, top, fraction.y);
-  }
-
-  vec2 rotateDrawingField(vec2 point, float angle) {
-    float cosine = cos(angle);
-    float sine = sin(angle);
-    return mat2(cosine, -sine, sine, cosine) * point;
-  }
-
-  float sampledDepth(vec2 uv) {
-    float depth = texture2D(depthTexture, clamp(uv, vec2(0.0), vec2(1.0))).x;
-    if (depth >= 0.999999) return 1.0e6;
-    vec4 clip = vec4(uv * 2.0 - 1.0, depth * 2.0 - 1.0, 1.0);
-    vec4 view = projectionInverse * clip;
-    return max(0.0001, -view.z / view.w);
-  }
-
-  vec3 sampledNormal(vec2 uv) {
-    return normalize(texture2D(normalTexture, clamp(uv, vec2(0.0), vec2(1.0))).xyz * 2.0 - 1.0);
-  }
-
-  float pencilLine(
-    vec2 point,
-    float angle,
-    float phase,
-    float lineWidth,
-    float waviness,
-    float irregularity
-  ) {
-    vec2 direction = vec2(cos(angle), sin(angle));
-    vec2 tangent = vec2(-direction.y, direction.x);
-    float along = dot(point, tangent);
-    float baseCoordinate = dot(point, direction) + phase;
-    float lineIndex = floor(baseCoordinate);
-    // A pencil field is a family of related gestures, not graph paper. Give
-    // each line a stable lateral offset, then bend it continuously along its
-    // own path. The discontinuity between line cells stays in the empty gap,
-    // so spacing varies without cutting a visible stroke into segments.
-    float lineOffset = (
-      hash21(vec2(lineIndex + phase * 7.1, phase * 13.7)) - 0.5
-    ) * irregularity;
-    float slowWander = valueNoise(vec2(
-      along * 0.075 + phase * 0.41,
-      lineIndex * 0.37 + phase * 1.73
-    )) - 0.5;
-    float fineWander = valueNoise(vec2(
-      along * 0.29 + phase * 1.17,
-      lineIndex * 0.83 + phase * 2.31
-    )) - 0.5;
-    float pencilWander = lineOffset;
-    pencilWander += slowWander * irregularity * 0.72;
-    pencilWander += fineWander * irregularity * 0.28;
-    pencilWander += sin(along * 1.7 + phase * 4.1) * waviness;
-    float coordinate = baseCoordinate + pencilWander;
-    float distanceToLine = abs(fract(coordinate) - 0.5);
-    float antialias = max(fwidth(coordinate) * 0.8, 0.006);
-    float line = 1.0 - smoothstep(
-      lineWidth - antialias,
-      lineWidth + antialias,
-      distanceToLine
-    );
-    // Pencil pressure varies continuously along one path. The old periodic
-    // segment mask cut every hatch into aligned dashes; wander then made the
-    // two exposed endpoints look like a geometric kink. Paper tooth still
-    // supplies small broken pickup without changing the line trajectory.
-    float pickup = valueNoise(vec2(
-      along * 0.21 + phase * 0.43,
-      lineIndex * 0.73 + phase * 1.19
-    ));
-    float pressure = mix(0.48, 1.0, smoothstep(0.12, 0.82, pickup));
-    float abrasion = smoothstep(
-      0.08,
-      0.3,
-      valueNoise(vec2(along * 0.83, lineIndex * 1.37) + phase * 2.1)
-    );
-    return line * pressure * mix(0.58, 1.0, abrasion);
-  }
-
-  float viewPencil(
-    vec2 viewPosition,
-    float scale,
-    float angle,
-    float phase,
-    float lineWidth,
-    float waviness,
-    float irregularity
-  ) {
-    return pencilLine(
-      viewPosition * scale * 4.2,
-      angle,
-      phase,
-      lineWidth,
-      waviness,
-      irregularity
-    );
-  }
-
-  float viewNoise(vec2 viewPosition, float scale, float phase) {
-    return valueNoise(viewPosition * scale + vec2(phase, phase * 1.37));
-  }
-
-  float brushBands(vec2 point, float phase) {
-    // A loaded oil brush leaves short, fat daubs. Continuous parallel bands
-    // read as hatching and belong to neither the raster oil vocabulary nor the
-    // physical gesture of a brush lifting from the paper.
-    vec2 direction = normalize(vec2(0.68, 0.74));
-    vec2 acrossDirection = vec2(-direction.y, direction.x);
-    float along = dot(point, direction);
-    float across = dot(point, acrossDirection);
-    const vec2 cellSize = vec2(2.35, 0.94);
-    float row = floor(across / cellSize.y);
-    along += mod(row, 2.0) * cellSize.x * 0.46;
-    vec2 cell = floor(vec2(along, across) / cellSize);
-    vec2 local = fract(vec2(along, across) / cellSize) - 0.5;
-    float jitter = valueNoise(cell * 0.73 + vec2(phase, phase * 1.41));
-    local.x += (jitter - 0.5) * 0.24;
-    local.y += (valueNoise(cell * 1.17 + phase * 2.1) - 0.5) * 0.16;
-    float halfLength = mix(0.3, 0.49, jitter);
-    float halfWidth = mix(0.22, 0.36, valueNoise(cell * 0.91 + phase * 3.7));
-    float ellipse = (local.x * local.x) / (halfLength * halfLength)
-      + (local.y * local.y) / (halfWidth * halfWidth);
-    float daub = 1.0 - smoothstep(0.72, 1.08, ellipse);
-    float pickup = mix(0.68, 1.0, valueNoise(cell * 1.83 + phase * 4.3));
-    return daub * pickup;
-  }
-
-  float viewBrush(vec2 viewPosition, float scale, float phase) {
-    return brushBands(viewPosition * scale, phase);
-  }
-
-  float viewMarker(vec2 viewPosition, float scale, float phase) {
-    // Marker fills are broad translucent passes with narrow seams where the
-    // nib overlaps. They are not pencil families with a different colour.
-    vec2 point = viewPosition * scale;
-    vec2 direction = normalize(vec2(0.96, 0.28));
-    vec2 acrossDirection = vec2(-direction.y, direction.x);
-    float along = dot(point, direction);
-    float across = dot(point, acrossDirection);
-    float wander = (valueNoise(vec2(along * 0.13, floor(across)) + phase) - 0.5) * 0.08;
-    float lane = fract(across + wander + phase * 0.07);
-    float distanceToCentre = abs(lane - 0.5);
-    float pass = 1.0 - smoothstep(0.37, 0.49, distanceToCentre);
-    float load = mix(0.72, 1.0, valueNoise(vec2(floor(across), along * 0.08) + phase));
-    return pass * load;
-  }
-
-  float viewSpeckle(vec2 viewPosition, float scale, float phase) {
-    return valueNoise(viewPosition * scale * 7.2 + vec2(phase, phase * 1.91));
-  }
-
-  float contourSurfaceKind(vec2 uv, float depth) {
-    if (depth >= 9.0e5) return 0.0;
-    float owner = texture2D(anchorTexture, clamp(uv, vec2(0.0), vec2(1.0))).a;
-    if (owner < 0.25) return 1.0;
-    if (owner < 0.75) return 2.0;
-    return 3.0;
-  }
-
-  float contourPairWeight(
-    vec2 centerUv,
-    vec2 neighbourUv,
-    float centerDepth,
-    float neighbourDepth
-  ) {
-    float centerKind = contourSurfaceKind(centerUv, centerDepth);
-    float neighbourKind = contourSurfaceKind(neighbourUv, neighbourDepth);
-    // Semantic stroke volumes and authored ink shapes already own their
-    // visible boundary. Feeding them back through the contour detector draws
-    // a second outline, then displaced echo/ghost copies turn it into spikes.
-    if (centerKind > 0.5 && centerKind < 2.5) return 0.0;
-    if (neighbourKind > 0.5 && neighbourKind < 2.5) return 0.0;
-    return 1.0;
-  }
-
-  float sceneEdge(vec2 uv, vec2 pixel, float width) {
-    vec2 stepSize = pixel * width;
-    float centerDepth = sampledDepth(uv);
-    vec3 centerNormal = sampledNormal(uv);
-    float depthDifference = 0.0;
-    float normalDifference = 0.0;
-    vec2 offsets[8];
-    offsets[0] = vec2(stepSize.x, 0.0);
-    offsets[1] = vec2(-stepSize.x, 0.0);
-    offsets[2] = vec2(0.0, stepSize.y);
-    offsets[3] = vec2(0.0, -stepSize.y);
-    offsets[4] = vec2(stepSize.x, stepSize.y) * 0.70710678;
-    offsets[5] = vec2(-stepSize.x, stepSize.y) * 0.70710678;
-    offsets[6] = vec2(stepSize.x, -stepSize.y) * 0.70710678;
-    offsets[7] = vec2(-stepSize.x, -stepSize.y) * 0.70710678;
-    for (int index = 0; index < 8; index += 1) {
-      vec2 neighbourUv = uv + offsets[index];
-      float neighbourDepth = sampledDepth(neighbourUv);
-      float pairWeight = contourPairWeight(
-        uv,
-        neighbourUv,
-        centerDepth,
-        neighbourDepth
-      );
-      float relativeDifference = abs(centerDepth - neighbourDepth)
-        / max(min(centerDepth, neighbourDepth), 0.0001);
-      depthDifference = max(depthDifference, relativeDifference * pairWeight);
-      if (centerDepth < 9.0e5 && neighbourDepth < 9.0e5) {
-        normalDifference = max(
-          normalDifference,
-          (1.0 - dot(centerNormal, sampledNormal(neighbourUv))) * pairWeight
-        );
-      }
-    }
-    float depthEdge = smoothstep(depthThreshold, depthThreshold * 2.4, depthDifference);
-    float normalEdge = smoothstep(
-      normalThreshold,
-      max(normalThreshold + 0.0001, min(1.0, normalThreshold * 2.2)),
-      normalDifference
-    );
-    return max(depthEdge, normalEdge);
-  }
-
-  void main() {
-    vec2 pixel = 1.0 / resolution;
-    vec2 boilCell = inkedUv * resolution / 18.0;
-    vec2 boilOffset = vec2(
-      valueNoise(boilCell + vec2(contourFrame * 1.71, contourSeed * 13.0)),
-      valueNoise(boilCell + vec2(contourSeed * 17.0, contourFrame * 1.37))
-    ) - 0.5;
-    vec2 paperPoint = inkedUv * resolution;
-    vec2 wanderOffset = vec2(
-      valueNoise(paperPoint / 46.0 + vec2(contourSeed * 19.0, contourSeed * 7.0)),
-      valueNoise(paperPoint / 39.0 + vec2(contourSeed * 11.0, contourSeed * 23.0))
-    ) - 0.5;
-    wanderOffset += (vec2(
-      valueNoise(paperPoint / 17.0 + vec2(contourSeed * 31.0, 4.0)),
-      valueNoise(paperPoint / 21.0 + vec2(9.0, contourSeed * 37.0))
-    ) - 0.5) * 0.32;
-    vec2 sampleUv = inkedUv
-      + wanderOffset * pixel * contourWander * displayScale
-      + boilOffset * pixel * contourJitter * displayScale;
-    float stableDepth = sampledDepth(inkedUv);
-    vec4 stableNormalData = texture2D(normalTexture, inkedUv);
-    vec3 stableNormal = normalize(stableNormalData.xyz * 2.0 - 1.0);
-    float mainEdge = sceneEdge(sampleUv, pixel, contourWidth * displayScale);
-    vec2 echoOffset = vec2(
-      valueNoise(boilCell * 0.71 + contourSeed * 31.0),
-      valueNoise(boilCell * 0.83 + contourSeed * 47.0)
-    ) - 0.5;
-    float echoEdge = sceneEdge(
-      sampleUv + echoOffset * pixel * 1.35 * displayScale,
-      pixel,
-      contourWidth * 0.88 * displayScale
-    );
-    float ghostEdge = sceneEdge(
-      inkedUv - echoOffset * pixel * 1.8 * displayScale,
-      pixel,
-      contourWidth * contourGhostSpread * displayScale
-    );
-    float graphitePickup = mix(
-      1.0,
-      smoothstep(0.08, 0.72, hash21(gl_FragCoord.xy * 0.63 + contourSeed * 101.0)),
-      contourGranulation
-    );
-    float pressureWander = mix(
-      0.72,
-      1.08,
-      valueNoise(paperPoint / 31.0 + contourSeed * 53.0)
-    );
-    float contour = mainEdge * contourOpacity * graphitePickup * pressureWander;
-    // Secondary graphite passes may roughen an existing guide, but must never
-    // become detached screen-space antennae around a small feature.
-    float secondaryGuide = smoothstep(0.02, 0.62, mainEdge);
-    contour += echoEdge * contourEchoOpacity * secondaryGuide * (1.0 - mainEdge * 0.55);
-    contour += ghostEdge
-      * contourGhostOpacity
-      * secondaryGuide
-      * (1.0 - mainEdge * 0.72)
-      * (1.0 - echoEdge * 0.4);
-    contour = clamp(contour, 0.0, 1.0);
-
-    vec4 albedo = texture2D(albedoTexture, inkedUv);
-    float surface = step(stableDepth, 9.0e5);
-    vec2 viewPosition = (gl_FragCoord.xy - resolution * 0.5) / resolution.y;
-    vec4 anchorData = texture2D(anchorTexture, inkedUv);
-    vec2 anchorNdc = anchorData.xy * 2.0 - 1.0;
-    vec2 anchorPosition = vec2(
-      anchorNdc.x * resolution.x / resolution.y,
-      anchorNdc.y
-    ) * 0.5;
-    // The paper stays fixed, but pigment is deposited in a field translated
-    // with the semantic part currently visible at this pixel. Articulated
-    // meshes therefore carry their drawing instead of sliding over it.
-    vec2 depositedPosition = viewPosition - anchorPosition;
-    float partPhase = anchorData.b * 19.0;
-    vec3 doodleLight = normalize(vec3(-0.38, 0.58, 0.72));
-    float diffuse = clamp(dot(stableNormal, doodleLight), 0.0, 1.0);
-    float planeLevels = max(1.0, planeSeparationSteps - 1.0);
-    float steppedPlaneTone = floor(diffuse * planeLevels + 0.5) / planeLevels;
-
-    // The owner anchor keeps marks attached during animation. Authored carrier
-    // topology decides whether the visible normal may turn the drawing field:
-    // smooth carriers stay view-oriented, while faceted carriers use one
-    // coherent direction per plane. This avoids both spherical topography and
-    // screen-space curvature thresholds that change with zoom.
-    float surfaceYaw = atan(stableNormal.x, max(0.16, abs(stableNormal.z)));
-    float surfacePitch = asin(clamp(stableNormal.y, -1.0, 1.0));
-    float facetedResponse = step(0.5, stableNormalData.a);
-    float surfaceTurn = clamp(
-      (surfaceYaw * 0.62 - surfacePitch * 0.34) * facetedResponse,
-      -1.12,
-      1.12
-    );
-    vec2 surfacePosition = rotateDrawingField(depositedPosition, surfaceTurn);
-    float grazing = smoothstep(0.18, 0.92, 1.0 - abs(stableNormal.z));
-    surfacePosition.x *= mix(1.0, 1.34, grazing * facetedResponse);
-
-    // Pigment and gesture marks are deposited filler on smooth carriers, not
-    // fake illumination. Only authored faceted topology may use drawing light
-    // to separate adjacent planes; even there the authored RGB stays intact.
-    float opposedToDrawingLight = 1.0 - steppedPlaneTone;
-    float planeSeparation = opposedToDrawingLight * facetedResponse;
-    float pigmentShapeDensity = mix(
-      1.0,
-      1.0 + planeSeparation * 0.18,
-      planeSeparationStrength
-    );
-    float markShapeDensity = mix(
-      1.0,
-      1.0 + planeSeparation * 0.86,
-      planeSeparationStrength
-    );
-    float fillNoise = viewNoise(
-      depositedPosition,
-      fillVariationScale,
-      fillSeed * 31.0 + partPhase
-    );
-    float fineNoise = viewNoise(
-      depositedPosition,
-      fillVariationScale * 4.3,
-      fillSeed * 47.0 + partPhase * 1.31 + 0.31
-    );
-    float brush = viewBrush(
-      surfacePosition,
-      fillVariationScale,
-      fillSeed * 17.0 + partPhase * 0.73
-    );
-    float markerPass = viewMarker(
-      surfacePosition,
-      fillVariationScale * 0.72,
-      fillSeed * 29.0 + partPhase * 0.83
-    );
-    float speckle = viewSpeckle(
-      depositedPosition,
-      fillVariationScale,
-      fillSeed * 83.0 + partPhase * 1.73
-    );
-    float mediumVariation = fillNoise - 0.5;
-    if (fillTextureMode < 0.5) {
-      // Graphite: porous coverage and visible paper tooth.
-      mediumVariation = (fillNoise - 0.5) * 0.45 + (fineNoise - 0.5) * 0.8;
-    } else if (fillTextureMode < 1.5) {
-      // Ink: mostly continuous fill with small pooling irregularities.
-      mediumVariation = (fillNoise - 0.5) * 0.35 + (fineNoise - 0.5) * 0.2;
-    } else if (fillTextureMode < 2.5) {
-      // Watercolour: broad overlapping washes, not pencil hatching.
-      float wash = viewNoise(
-        depositedPosition,
-        fillVariationScale * 0.52,
-        fillSeed * 61.0 + partPhase * 0.91 + 0.73
-      );
-      mediumVariation = (fillNoise - 0.5) * 0.82 + (wash - 0.5) * 1.18;
-    } else if (fillTextureMode < 3.5) {
-      // Oil: dense pigment with directional bristle marks.
-      mediumVariation = (brush - 0.5) * 0.7 + (fillNoise - 0.5) * 0.28;
-    } else if (fillTextureMode < 4.5) {
-      // Chalk: coarse granular pickup with frequent paper gaps.
-      mediumVariation = (fineNoise - 0.5) * 0.38
-        + (fillNoise - 0.5) * 0.2
-        + (speckle - 0.5) * 0.84;
-    } else {
-      // Marker: translucent parallel passes and overlap bands.
-      mediumVariation = (markerPass - 0.5) * 0.42 + (fillNoise - 0.5) * 0.18;
-    }
-    float pigmentCoverage = clamp(
-      fillPigmentStrength + mediumVariation * fillVariationStrength,
-      0.0,
-      1.0
-    );
-    vec3 pigment = albedo.rgb;
-    vec4 markData = texture2D(markTexture, inkedUv);
-    float encodedMark = markData.r * 9.0;
-    float markStyle = floor(encodedMark + 0.001);
-    float packedStrengthAndWidth = markData.g * 64.0;
-    float markStrength = floor(packedStrengthAndWidth + 0.001) / 63.0;
-    float markLineWidth = max(0.008, fract(packedStrengthAndWidth));
-    float markCoverage = markData.b;
-    float markScale = max(0.1, (markData.a - 0.5) * 48.0);
-    float markPhase = fillSeed * 23.0 + fract(encodedMark) * 17.0 + partPhase;
-    float surfacePhase = markPhase + surfaceTurn * 0.37;
-    float graphiteGesture = 1.0 - step(0.5, fillTextureMode);
-    float pencilIrregularity = mix(0.12, 0.46, graphiteGesture);
-    float firstFamily = viewPencil(
-      surfacePosition,
-      markScale,
-      0.22,
-      surfacePhase,
-      markLineWidth,
-      mix(0.025, 0.082, graphiteGesture),
-      pencilIrregularity
-    );
-    float secondFamily = viewPencil(
-      surfacePosition,
-      markScale * 0.93,
-      -0.82,
-      surfacePhase + 0.43,
-      markLineWidth,
-      mix(0.035, 0.098, graphiteGesture),
-      pencilIrregularity
-    );
-    float scribble = viewPencil(
-      surfacePosition,
-      markScale,
-      1.48,
-      surfacePhase + 0.17,
-      markLineWidth * 1.15,
-      0.24,
-      max(0.24, pencilIrregularity)
-    );
-    scribble += viewPencil(
-      surfacePosition,
-      markScale * 1.12,
-      1.22,
-      surfacePhase + 0.61,
-      markLineWidth * 0.72,
-      0.2,
-      max(0.2, pencilIrregularity)
-    ) * 0.52;
-    float stippleMark = smoothstep(
-      0.7,
-      0.86,
-      viewSpeckle(depositedPosition, markScale * 0.9, markPhase)
-    );
-    float washMark = smoothstep(
-      0.52,
-      0.78,
-      viewNoise(depositedPosition, markScale * 0.34, markPhase)
-    );
-    float bristleMark = smoothstep(
-      0.12,
-      0.76,
-      viewBrush(surfacePosition, markScale, surfacePhase)
-    );
-    float bristlePickup = smoothstep(
-      0.3,
-      0.72,
-      viewNoise(
-        depositedPosition * vec2(0.31, 0.11),
-        markScale,
-        markPhase + 1.37
-      )
-    );
-    bristleMark *= mix(0.14, 1.0, bristlePickup);
-    float markerMark = viewMarker(surfacePosition, markScale, surfacePhase);
-    float solidMark = mix(
-      0.72,
-      1.0,
-      viewNoise(depositedPosition, markScale * 1.7, markPhase + 0.83)
-    );
-    float viewMark = 0.0;
-    if (markStyle < 0.5) viewMark = 0.0;
-    else if (markStyle < 1.5) viewMark = firstFamily;
-    else if (markStyle < 2.5) viewMark = clamp(firstFamily + secondFamily * 0.78, 0.0, 1.0);
-    else if (markStyle < 3.5) viewMark = clamp(scribble, 0.0, 1.0);
-    else if (markStyle < 4.5) viewMark = stippleMark;
-    else if (markStyle < 5.5) viewMark = washMark;
-    else if (markStyle < 6.5) viewMark = bristleMark;
-    else if (markStyle < 7.5) viewMark = markerMark;
-    else if (markStyle > 7.5) viewMark = solidMark;
-    viewMark *= markStrength * markShapeDensity * surface;
-
-    float assetSurface = step(0.49, markData.a) * surface;
-    // Authored carrier surfaces begin as opaque drawing paper. Sampling the
-    // hidden-carrier background here would import transparent-clear black and
-    // turn light graphite coverage into a muddy solid mass.
-    vec3 color = mix(albedo.rgb, paperColor, assetSurface);
-    float grain = valueNoise(
-      gl_FragCoord.xy / 3.2 + vec2(paperSeed * 97.0, paperSeed * 53.0)
-    ) - 0.5;
-    float pigmentBed = markCoverage * assetSurface;
-    if (fillTextureMode < 0.5) {
-      // Match the raster graphite base opacity; paper tooth modulates it around
-      // the authored value instead of halving it or replacing its hue.
-      float tooth = smoothstep(0.08, 0.86, fineNoise + grain * 0.34);
-      pigmentBed *= mix(0.82, 1.08, tooth) * mix(0.9, 1.1, pigmentCoverage);
-    } else if (fillTextureMode < 1.5) {
-      pigmentBed *= mix(0.9, 1.0, fillNoise);
-    } else if (fillTextureMode < 2.5) {
-      // Watercolour is a broad translucent stain, not a sparse binary patch.
-      pigmentBed *= mix(0.64, 1.0, fillNoise) * mix(0.82, 1.0, pigmentCoverage);
-    } else if (fillTextureMode < 3.5) {
-      pigmentBed *= mix(0.96, 1.0, brush);
-    } else if (fillTextureMode < 4.5) {
-      pigmentBed *= mix(0.55, 1.0, smoothstep(0.16, 0.82, speckle));
-    } else {
-      pigmentBed *= mix(0.76, 1.0, markerPass);
-    }
-    if (markStyle > 7.5) {
-      // Opaque-ink applications must read as authored linework rather than as
-      // half-empty shading fields.
-      pigmentBed = max(
-        pigmentBed,
-        max(0.985, markCoverage) * mix(0.98, 1.0, fineNoise) * assetSurface
-      );
-    }
-    pigmentBed *= pigmentShapeDensity;
-    pigmentBed *= clamp(1.0 + grain * paperGrain * 3.2, 0.0, 1.0);
-    color = mix(color, pigment, clamp(pigmentBed, 0.0, 1.0));
-
-    float depositedPigment = viewMark;
-    depositedPigment *= clamp(1.0 + grain * paperGrain * 5.0, 0.0, 1.0);
-    vec3 gesturePigment = pigment;
-    if (fillTextureMode > 2.5 && fillTextureMode < 3.5) {
-      // Oil daubs remain visible over an opaque pigment bed because each pass
-      // carries a slightly different pigment load, as in the raster medium.
-      float bristleTone = viewNoise(
-        surfacePosition,
-        markScale * 0.46,
-        surfacePhase + 0.57
-      );
-      vec3 loaded = pigment * mix(0.72, 1.0, bristleTone);
-      vec3 dry = clamp(pigment * mix(0.9, 1.14, bristleTone), 0.0, 1.0);
-      gesturePigment = mix(loaded, dry, bristleTone);
-    }
-    color = mix(color, gesturePigment, clamp(depositedPigment, 0.0, 1.0));
-    color = mix(color, contourColor, contour);
-    // The albedo pass contains the carrier opacity even where its RGB is
-    // deliberately replaced by paper/background. Using background alpha on
-    // carrier pixels made a correctly synthesized pigment bed transparent.
-    float alpha = albedo.a;
-    alpha = max(alpha, max(depositedPigment, contour));
-    gl_FragColor = vec4(color, alpha);
-    #include <colorspace_fragment>
-  }
-`;
-
-function colorFromRgb(color: RgbColor): THREE.Color {
-  return new THREE.Color(color[0] / 255, color[1] / 255, color[2] / 255).convertSRGBToLinear();
 }
 
-function normalizedSeed(seed: number): number {
-  return (seed % 65_521) / 65_521;
-}
-
-function createTarget(
-  width: number,
-  height: number,
-  options: THREE.RenderTargetOptions = {},
-): THREE.WebGLRenderTarget {
-  const target = new THREE.WebGLRenderTarget(width, height, {
-    minFilter: THREE.NearestFilter,
-    magFilter: THREE.NearestFilter,
-    generateMipmaps: false,
-    ...options,
+function resolvePaper(policy: InkedSolidPaperPolicy | undefined): InkedSolidPaperPolicy {
+  const paper = policy ?? DEFAULT_INKED_SOLID_SCENE_PAPER;
+  if (paper.color.some((channel) => !Number.isFinite(channel) || channel < 0 || channel > 255)) {
+    throw new RangeError('Scene paper color channels must be between zero and 255');
+  }
+  if (!Number.isFinite(paper.grainStrength)
+    || paper.grainStrength < 0
+    || paper.grainStrength > 1) {
+    throw new RangeError('Scene paper grain strength must be between zero and one');
+  }
+  if (!Number.isFinite(paper.seed)) throw new RangeError('Scene paper seed must be finite');
+  return Object.freeze({
+    color: Object.freeze([...paper.color] as [number, number, number]),
+    grainStrength: paper.grainStrength,
+    seed: paper.seed,
   });
-  target.texture.colorSpace = THREE.NoColorSpace;
-  return target;
 }
 
 /**
- * Camera-conditioned hand-drawn renderer for any Three.js scene built from a
- * solid blueprint. Geometry supplies depth, normals, and semantic masks; the
- * composite pass synthesizes a fresh two-dimensional drawing for the current
- * projection instead of revealing or texturing the carrier meshes.
+ * Scene-level Doodle 3D service. Registration compiles immutable blueprints
+ * into reusable carrier metadata and pass materials; rendering only updates
+ * world matrices and preallocated uniforms before drawing the shared G-buffer.
  */
-export class InkedSolidPass {
-  private readonly albedoTarget: THREE.WebGLRenderTarget;
-  private readonly normalTarget: THREE.WebGLRenderTarget;
-  private readonly markTarget: THREE.WebGLRenderTarget;
-  private readonly anchorTarget: THREE.WebGLRenderTarget;
-  private readonly viewNormalMaterial = new THREE.MeshNormalMaterial({
-    blending: THREE.NoBlending,
-    opacity: 0,
-    transparent: true,
+export class InkedSolidScenePass {
+  public readonly paper: InkedSolidPaperPolicy;
+  public readonly unregisteredOcclusion: InkedSolidUnregisteredOcclusion;
+
+  private readonly targets = new InkedSolidRenderTargets();
+  private readonly policies = new InkedSolidPolicyTexture();
+  private readonly carrierScenes = new InkedSolidCarrierScenes();
+  private readonly compositor: InkedSolidCompositor;
+  private readonly registrations = new Map<AssetInstanceId, RegistrationRecord>();
+  private readonly occupiedSlots = new Uint8Array(INKED_SOLID_POLICY_CAPACITY);
+  private readonly depthOnlyMaterial = new THREE.MeshDepthMaterial({
+    depthPacking: THREE.BasicDepthPacking,
   });
-  private readonly facetedNormalMaterial = new THREE.MeshNormalMaterial({
-    blending: THREE.NoBlending,
-    opacity: 1,
-    transparent: true,
-  });
-  private readonly emptyAnchorMaterial = new THREE.MeshBasicMaterial({
-    color: 0x000000,
-    blending: THREE.NoBlending,
-    depthWrite: true,
-    toneMapped: false,
-  });
-  private readonly uniforms: InkedUniforms;
-  private readonly compositeMaterial: THREE.ShaderMaterial;
-  private readonly compositeGeometry = new THREE.PlaneGeometry(2, 2);
-  private readonly compositeScene = new THREE.Scene();
-  private readonly compositeCamera = new THREE.Camera();
-  private readonly albedoMaterials = new Map<THREE.Material, THREE.MeshBasicMaterial>();
-  private readonly markMaterials = new Map<string, THREE.ShaderMaterial>();
-  private readonly anchorMaterials = new Map<string, THREE.ShaderMaterial>();
-  private readonly projectedAnchor = new THREE.Vector3();
-  private blueprint: InkedSolidBlueprint;
   private disposed = false;
 
   public constructor(
     private readonly renderer: THREE.WebGLRenderer,
-    blueprint: InkedSolidBlueprint,
+    options: InkedSolidScenePassOptions = {},
   ) {
-    this.blueprint = blueprint;
-    this.albedoTarget = createTarget(1, 1, {
-      depthBuffer: true,
-      stencilBuffer: false,
-    });
-    this.albedoTarget.depthTexture = new THREE.DepthTexture(1, 1, THREE.UnsignedIntType);
-    this.albedoTarget.depthTexture.format = THREE.DepthFormat;
-    this.normalTarget = createTarget(1, 1, { depthBuffer: true, stencilBuffer: false });
-    this.markTarget = createTarget(1, 1, {
-      depthBuffer: true,
-      stencilBuffer: false,
-      type: THREE.HalfFloatType,
-    });
-    this.anchorTarget = createTarget(1, 1, {
-      depthBuffer: true,
-      stencilBuffer: false,
-      type: THREE.HalfFloatType,
-    });
-    this.uniforms = {
-      albedoTexture: { value: this.albedoTarget.texture },
-      normalTexture: { value: this.normalTarget.texture },
-      markTexture: { value: this.markTarget.texture },
-      anchorTexture: { value: this.anchorTarget.texture },
-      depthTexture: { value: this.albedoTarget.depthTexture },
-      resolution: { value: new THREE.Vector2(1, 1) },
-      displayScale: { value: 1 },
-      projectionInverse: { value: new THREE.Matrix4() },
-      contourColor: { value: new THREE.Color() },
-      contourWidth: { value: 1 },
-      contourOpacity: { value: 1 },
-      contourEchoOpacity: { value: 0 },
-      contourGhostOpacity: { value: 0 },
-      contourGhostSpread: { value: 2 },
-      contourGranulation: { value: 0 },
-      contourWander: { value: 0 },
-      depthThreshold: { value: 0.01 },
-      normalThreshold: { value: 0.2 },
-      contourJitter: { value: 0 },
-      contourFrame: { value: 0 },
-      contourSeed: { value: 0 },
-      fillPigmentStrength: { value: 0.84 },
-      planeSeparationStrength: { value: 0.24 },
-      planeSeparationSteps: { value: 4 },
-      fillVariationStrength: { value: 0.14 },
-      fillVariationScale: { value: 3.6 },
-      fillTextureMode: { value: 0 },
-      fillSeed: { value: 0 },
-      paperColor: { value: new THREE.Color() },
-      paperGrain: { value: 0 },
-      paperSeed: { value: 0 },
-    };
-    this.compositeMaterial = new THREE.ShaderMaterial({
-      uniforms: this.uniforms,
-      vertexShader: FULLSCREEN_VERTEX,
-      fragmentShader: COMPOSITE_FRAGMENT,
-      depthTest: false,
-      depthWrite: false,
-      blending: THREE.NoBlending,
-      toneMapped: false,
-    });
-    const quad = new THREE.Mesh(this.compositeGeometry, this.compositeMaterial);
-    quad.frustumCulled = false;
-    this.compositeScene.add(quad);
-    this.setBlueprint(blueprint);
+    this.paper = resolvePaper(options.paper);
+    this.unregisteredOcclusion = options.unregisteredOcclusion ?? 'exclude';
+    this.depthOnlyMaterial.colorWrite = false;
+    this.compositor = new InkedSolidCompositor(this.targets, this.policies, this.paper);
   }
 
-  public setBlueprint(blueprint: InkedSolidBlueprint): void {
+  public register(options: InkedSolidSceneRegistrationOptions): InkedSolidSceneRegistration {
     this.assertAlive();
-    this.blueprint = blueprint;
-    const { contour, deposition, paper } = blueprint;
-    this.disposeAlbedoMaterials();
-    this.disposeMarkMaterials();
-    this.disposeAnchorMaterials();
-    this.uniforms.contourColor.value.copy(colorFromRgb(contour.color));
-    this.uniforms.contourWidth.value = contour.width;
-    this.uniforms.contourOpacity.value = contour.opacity;
-    this.uniforms.contourEchoOpacity.value = contour.echoOpacity;
-    this.uniforms.contourGhostOpacity.value = contour.ghostOpacity;
-    this.uniforms.contourGhostSpread.value = contour.ghostSpread;
-    this.uniforms.contourGranulation.value = contour.granulation;
-    this.uniforms.contourWander.value = contour.wander;
-    this.uniforms.depthThreshold.value = contour.depthThreshold;
-    this.uniforms.normalThreshold.value = contour.normalThreshold;
-    this.uniforms.contourJitter.value = contour.jitter;
-    this.uniforms.contourSeed.value = normalizedSeed(contour.seed);
-    this.uniforms.fillPigmentStrength.value = deposition.pigmentStrength;
-    this.uniforms.planeSeparationStrength.value = deposition.planeSeparationStrength;
-    this.uniforms.planeSeparationSteps.value = deposition.planeSeparationSteps;
-    this.uniforms.fillVariationStrength.value = deposition.variationStrength;
-    this.uniforms.fillVariationScale.value = deposition.variationScale;
-    this.uniforms.fillTextureMode.value = FILL_TEXTURE_MODE[deposition.texture];
-    this.uniforms.fillSeed.value = normalizedSeed(deposition.seed);
-    this.uniforms.paperColor.value.copy(colorFromRgb(paper.color));
-    this.uniforms.paperGrain.value = paper.grainStrength;
-    this.uniforms.paperSeed.value = normalizedSeed(paper.seed);
+    const { instanceId, blueprint, rig } = options;
+    if (instanceId !== rig.instanceId) {
+      throw new Error('Inked-solid registration instanceId must match its SolidRig');
+    }
+    if (rig.blueprint !== blueprint.solid) {
+      throw new Error('Inked-solid registration requires the exact wrapped solid blueprint');
+    }
+    if (this.registrations.has(instanceId)) {
+      throw new Error(`Duplicate inked-solid instance registration: ${instanceId}`);
+    }
+    const slot = this.claimPolicySlot();
+    this.policies.write(slot, blueprint);
+    try {
+      const carrier = new RegisteredInkedSolidCarrier(
+        instanceId,
+        blueprint,
+        rig,
+        this.carrierScenes,
+        slot,
+      );
+      const handle = new RegistrationHandle(instanceId, () => {
+        this.unregister(instanceId);
+      });
+      this.registrations.set(instanceId, Object.freeze({ slot, carrier, handle }));
+      return handle;
+    } catch (error) {
+      this.releasePolicySlot(slot);
+      throw error;
+    }
   }
 
   public setSize(width: number, height: number, pixelRatio = 1): void {
     this.assertAlive();
-    const targetWidth = Math.max(1, Math.round(width * pixelRatio));
-    const targetHeight = Math.max(1, Math.round(height * pixelRatio));
-    this.albedoTarget.setSize(targetWidth, targetHeight);
-    this.normalTarget.setSize(targetWidth, targetHeight);
-    this.markTarget.setSize(targetWidth, targetHeight);
-    this.anchorTarget.setSize(targetWidth, targetHeight);
-    this.uniforms.resolution.value.set(targetWidth, targetHeight);
-    this.uniforms.displayScale.value = pixelRatio;
+    if (![width, height, pixelRatio].every((value) => Number.isFinite(value) && value > 0)) {
+      throw new RangeError('Inked-solid pass size and pixel ratio must be positive finite numbers');
+    }
+    this.targets.setSize(width, height, pixelRatio);
+    this.compositor.setSize(width, height, pixelRatio);
   }
 
   public render(scene: THREE.Scene, camera: THREE.Camera, elapsedSeconds: number): void {
     this.assertAlive();
+    if (!Number.isFinite(elapsedSeconds)) throw new RangeError('elapsedSeconds must be finite');
     const previousTarget = this.renderer.getRenderTarget();
     const previousOverride = scene.overrideMaterial;
     const previousBackground = scene.background;
@@ -878,53 +177,21 @@ export class InkedSolidPass {
     const previousAutoClear = this.renderer.autoClear;
     const previousXrEnabled = this.renderer.xr.enabled;
     const previousShadowAutoUpdate = this.renderer.shadowMap.autoUpdate;
-    this.uniforms.projectionInverse.value.copy(camera.projectionMatrixInverse);
-    this.uniforms.contourFrame.value = Math.floor(
-      elapsedSeconds * this.blueprint.contour.boilFramesPerSecond,
-    );
+
+    camera.updateMatrixWorld(true);
+    for (const { carrier } of this.registrations.values()) carrier.sync(camera);
+    this.carrierScenes.setAlbedoBackground(previousBackground);
 
     try {
       this.renderer.xr.enabled = false;
-      this.renderer.autoClear = true;
       this.renderer.shadowMap.autoUpdate = false;
-      scene.overrideMaterial = null;
-      const swaps = this.applyAlbedoMaterials(scene);
-      try {
-        this.renderer.setRenderTarget(this.albedoTarget);
-        this.renderer.render(scene, camera);
-      } finally {
-        this.restoreMaterials(swaps);
-      }
-
-      scene.background = null;
-      scene.fog = null;
-      scene.overrideMaterial = null;
-      const markSwaps = this.applyMarkMaterials(scene);
-      try {
-        this.renderer.setRenderTarget(this.markTarget);
-        this.renderer.render(scene, camera);
-      } finally {
-        this.restoreMaterials(markSwaps);
-      }
-
-      const anchorSwaps = this.applyAnchorMaterials(scene, camera);
-      try {
-        this.renderer.setRenderTarget(this.anchorTarget);
-        this.renderer.render(scene, camera);
-      } finally {
-        this.restoreMaterials(anchorSwaps);
-      }
-
-      const normalSwaps = this.applyNormalMaterials(scene);
-      try {
-        this.renderer.setRenderTarget(this.normalTarget);
-        this.renderer.render(scene, camera);
-      } finally {
-        this.restoreMaterials(normalSwaps);
-      }
-
+      this.renderGBuffer(scene, camera, this.carrierScenes.albedo, this.targets.albedo);
+      this.renderGBuffer(scene, camera, this.carrierScenes.mark, this.targets.mark);
+      this.renderGBuffer(scene, camera, this.carrierScenes.anchor, this.targets.anchor);
+      this.renderGBuffer(scene, camera, this.carrierScenes.normal, this.targets.normal);
+      this.renderer.autoClear = true;
       this.renderer.setRenderTarget(previousTarget);
-      this.renderer.render(this.compositeScene, this.compositeCamera);
+      this.compositor.render(this.renderer, camera, elapsedSeconds);
     } finally {
       scene.overrideMaterial = previousOverride;
       scene.background = previousBackground;
@@ -936,221 +203,89 @@ export class InkedSolidPass {
     }
   }
 
+  public getDiagnostics(): InkedSolidSceneDiagnostics {
+    let carrierParts = 0;
+    let semanticStrokeMeshes = 0;
+    let proxyMeshes = 0;
+    let passMaterials = 0;
+    for (const { carrier } of this.registrations.values()) {
+      carrierParts += carrier.partCount;
+      semanticStrokeMeshes += carrier.strokeMeshCount;
+      proxyMeshes += carrier.proxyMeshCount;
+      passMaterials += carrier.materialCount;
+    }
+    return Object.freeze({
+      registeredInstances: this.registrations.size,
+      carrierParts,
+      semanticStrokeMeshes,
+      proxyMeshes,
+      passMaterials,
+      renderTargets: 4,
+      renderCalls: this.unregisteredOcclusion === 'depth-only' ? 9 : 5,
+      steadyStatePerMeshAllocations: 0,
+    });
+  }
+
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.albedoTarget.dispose();
-    this.normalTarget.dispose();
-    this.markTarget.dispose();
-    this.anchorTarget.dispose();
-    this.viewNormalMaterial.dispose();
-    this.facetedNormalMaterial.dispose();
-    this.emptyAnchorMaterial.dispose();
-    this.compositeGeometry.dispose();
-    this.compositeMaterial.dispose();
-    this.compositeScene.clear();
-    this.disposeAlbedoMaterials();
-    this.disposeMarkMaterials();
-    this.disposeAnchorMaterials();
+    for (const { carrier, handle } of this.registrations.values()) {
+      handle.invalidate();
+      carrier.dispose();
+    }
+    this.registrations.clear();
+    this.carrierScenes.clear();
+    this.targets.dispose();
+    this.policies.dispose();
+    this.compositor.dispose();
+    this.depthOnlyMaterial.dispose();
+    this.occupiedSlots.fill(0);
   }
 
-  private applyAlbedoMaterials(
-    scene: THREE.Scene,
-  ): readonly MaterialSwap[] {
-    const swaps: MaterialSwap[] = [];
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const mesh = object as MaterialOwner;
-      const material = mesh.material;
-      swaps.push(Object.freeze({ mesh, material }));
-      mesh.material = Array.isArray(material)
-        ? material.map((entry) => this.albedoMaterial(entry))
-        : this.albedoMaterial(material);
-    });
-    return swaps;
-  }
-
-  private restoreMaterials(
-    swaps: readonly MaterialSwap[],
-  ): void {
-    for (const { mesh, material } of swaps) mesh.material = material;
-  }
-
-  private applyAnchorMaterials(
-    scene: THREE.Scene,
+  private renderGBuffer(
+    sourceScene: THREE.Scene,
     camera: THREE.Camera,
-  ): readonly MaterialSwap[] {
-    const swaps: MaterialSwap[] = [];
-    scene.updateMatrixWorld(true);
-    camera.updateMatrixWorld(true);
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const mesh = object as THREE.Mesh & MaterialOwner;
-      const material = mesh.material;
-      const belongsToCarrier = mesh.userData.assetId === this.blueprint.solid.assetId;
-      const partId = belongsToCarrier && typeof mesh.userData.partId === 'string'
-        ? mesh.userData.partId
-        : '';
-      swaps.push(Object.freeze({ mesh, material }));
-      if (partId.length === 0) {
-        mesh.material = this.emptyAnchorMaterial;
-        return;
+    carrierScene: THREE.Scene,
+    target: THREE.WebGLRenderTarget,
+  ): void {
+    this.renderer.setRenderTarget(target);
+    this.renderer.autoClear = true;
+    if (this.unregisteredOcclusion === 'depth-only') {
+      sourceScene.overrideMaterial = this.depthOnlyMaterial;
+      sourceScene.background = null;
+      sourceScene.fog = null;
+      this.renderer.render(sourceScene, camera);
+      this.renderer.autoClear = false;
+    }
+    this.renderer.render(carrierScene, camera);
+  }
+
+  private unregister(instanceId: AssetInstanceId): void {
+    const record = this.registrations.get(instanceId);
+    if (record === undefined) return;
+    this.registrations.delete(instanceId);
+    record.carrier.dispose();
+    this.releasePolicySlot(record.slot);
+  }
+
+  private claimPolicySlot(): number {
+    for (let slot = 0; slot < this.occupiedSlots.length; slot += 1) {
+      if (this.occupiedSlots[slot] === 0) {
+        this.occupiedSlots[slot] = 1;
+        return slot;
       }
-      this.projectedAnchor.setFromMatrixPosition(mesh.matrixWorld).project(camera);
-      const part = this.blueprint.solid.parts.find(({ id }) => id === partId);
-      const drawingApplication = part === undefined
-        ? undefined
-        : this.blueprint.solid.materials.find(({ id }) => id === part.materialId)?.drawing.application;
-      const contourOwner = drawingApplication === 'ink' ? 0.5 : 1;
-      const anchorMaterial = this.anchorMaterial(partId);
-      const anchorData = anchorMaterial.uniforms.anchorData?.value as THREE.Vector4;
-      anchorData.set(
-        this.projectedAnchor.x * 0.5 + 0.5,
-        this.projectedAnchor.y * 0.5 + 0.5,
-        normalizedSeed(hashString(`${this.blueprint.deposition.seed}:${partId}`)),
-        contourOwner,
-      );
-      mesh.material = anchorMaterial;
-    });
-    return swaps;
+    }
+    throw new RangeError(
+      `Inked-solid scene supports at most ${INKED_SOLID_POLICY_CAPACITY} registered instances`,
+    );
   }
 
-  private anchorMaterial(partId: string): THREE.ShaderMaterial {
-    const cached = this.anchorMaterials.get(partId);
-    if (cached !== undefined) return cached;
-    const material = new THREE.ShaderMaterial({
-      vertexShader: MARK_VERTEX,
-      fragmentShader: ANCHOR_FRAGMENT,
-      uniforms: {
-        anchorData: { value: new THREE.Vector4() },
-      },
-      blending: THREE.NoBlending,
-      toneMapped: false,
-    });
-    this.anchorMaterials.set(partId, material);
-    return material;
-  }
-
-  private applyMarkMaterials(scene: THREE.Scene): readonly MaterialSwap[] {
-    const swaps: MaterialSwap[] = [];
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const mesh = object as THREE.Mesh & MaterialOwner;
-      const material = mesh.material;
-      const belongsToCarrier = mesh.userData.assetId === this.blueprint.solid.assetId;
-      const materialId = belongsToCarrier && typeof mesh.userData.materialId === 'string'
-        ? mesh.userData.materialId
-        : '';
-      swaps.push(Object.freeze({ mesh, material }));
-      mesh.material = this.markMaterial(materialId);
-    });
-    return swaps;
-  }
-
-  private applyNormalMaterials(scene: THREE.Scene): readonly MaterialSwap[] {
-    const swaps: MaterialSwap[] = [];
-    scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
-      const mesh = object as THREE.Mesh & MaterialOwner;
-      const material = mesh.material;
-      const belongsToCarrier = mesh.userData.assetId === this.blueprint.solid.assetId;
-      const partId = belongsToCarrier && typeof mesh.userData.partId === 'string'
-        ? mesh.userData.partId
-        : '';
-      const part = partId.length === 0
-        ? undefined
-        : this.blueprint.solid.parts.find(({ id }) => id === partId);
-      const flow = part === undefined
-        ? 'view-oriented'
-        : inkedSolidSurfaceFlow(part.geometry);
-      swaps.push(Object.freeze({ mesh, material }));
-      mesh.material = flow === 'faceted'
-        ? this.facetedNormalMaterial
-        : this.viewNormalMaterial;
-    });
-    return swaps;
-  }
-
-  private markMaterial(materialId: string): THREE.ShaderMaterial {
-    const cached = this.markMaterials.get(materialId);
-    if (cached !== undefined) return cached;
-    const mark = this.blueprint.viewMarks.find((candidate) => (
-      candidate.materialId === materialId
-    ));
-    const style = mark === undefined ? MARK_STYLE_MODE.none : MARK_STYLE_MODE[mark.style];
-    const packedStrengthAndWidth = mark === undefined
-      ? 0
-      : (
-        Math.min(63, Math.floor(mark.strength * 63))
-        + Math.min(0.99, mark.lineWidth)
-      ) / 64;
-    const material = new THREE.ShaderMaterial({
-      vertexShader: MARK_VERTEX,
-      fragmentShader: MARK_FRAGMENT,
-      uniforms: {
-        markData: {
-          value: new THREE.Vector4(
-            (style + normalizedSeed(mark?.seed ?? 0) * 0.45) / MARK_STYLE_DIVISOR,
-            packedStrengthAndWidth,
-            mark?.coverage ?? 0,
-            mark === undefined ? 0 : 0.5 + Math.min(0.49, mark.scale / 48),
-          ),
-        },
-      },
-      blending: THREE.NoBlending,
-      toneMapped: false,
-    });
-    this.markMaterials.set(materialId, material);
-    return material;
-  }
-
-  private albedoMaterial(source: THREE.Material): THREE.MeshBasicMaterial {
-    const cached = this.albedoMaterials.get(source);
-    if (cached !== undefined) return cached;
-    const surface = source as THREE.Material & Readonly<{
-      color?: THREE.Color;
-      map?: THREE.Texture | null;
-      alphaMap?: THREE.Texture | null;
-      vertexColors?: boolean;
-    }>;
-    const material = new THREE.MeshBasicMaterial({
-      color: surface.color?.clone() ?? new THREE.Color(0xffffff),
-      map: surface.map ?? null,
-      alphaMap: surface.alphaMap ?? null,
-      vertexColors: surface.vertexColors,
-      // Semantic albedo is a G-buffer value. Scene fog belongs to the smooth
-      // presentation and must not recolour the drawing pigment source.
-      fog: false,
-      opacity: source.opacity,
-      transparent: source.transparent,
-      alphaTest: source.alphaTest,
-      side: source.side,
-      depthTest: source.depthTest,
-      depthWrite: source.depthWrite,
-      visible: source.visible,
-      toneMapped: false,
-    });
-    material.colorWrite = source.colorWrite;
-    this.albedoMaterials.set(source, material);
-    return material;
-  }
-
-  private disposeAlbedoMaterials(): void {
-    for (const material of this.albedoMaterials.values()) material.dispose();
-    this.albedoMaterials.clear();
-  }
-
-  private disposeMarkMaterials(): void {
-    for (const material of this.markMaterials.values()) material.dispose();
-    this.markMaterials.clear();
-  }
-
-  private disposeAnchorMaterials(): void {
-    for (const material of this.anchorMaterials.values()) material.dispose();
-    this.anchorMaterials.clear();
+  private releasePolicySlot(slot: number): void {
+    this.occupiedSlots[slot] = 0;
+    this.policies.clear(slot);
   }
 
   private assertAlive(): void {
-    if (this.disposed) throw new Error('InkedSolidPass has been disposed');
+    if (this.disposed) throw new Error('InkedSolidScenePass has been disposed');
   }
 }

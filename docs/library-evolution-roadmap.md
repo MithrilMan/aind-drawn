@@ -15,23 +15,21 @@ and inked-solid output are adapters rather than independent generators; and Thre
 outside identity, layout, and blueprint authoring. The next step should preserve those choices,
 not replace them with a more fashionable framework.
 
-Runtime identity, minimal composition, and pure family motion are now first-class capabilities.
-The library can describe, validate, compare, instantiate, and deterministically sample a rich
-asset across projections, but several of its promises are not yet first-class capabilities for a
-consumer:
+Runtime identity, minimal composition, pure family motion, and registered multi-instance Doodle
+rendering are now first-class capabilities. The library can describe, validate, compare,
+instantiate, deterministically sample, and render complete mixed-policy scenes, but several of
+its promises are not yet first-class capabilities for a consumer:
 
-- the inked-solid pass is organised around one blueprint policy rather than a registered set of
-  scene instances;
 - recurring solid topology is rebuilt by family-local mesh code;
 - the root package exposes a much larger API than an ordinary consumer should need;
-- export, composition, inspection, and selective regeneration are architectural promises rather
-  than public library features.
+- export, inspection, and selective regeneration are architectural promises rather than public
+  library features.
 
 The remaining recommended direction is therefore:
 
-1. evolve inked-solid rendering from a single-blueprint pass into a multi-instance scene service;
-2. add small reusable geometry primitives where duplication already proves the need;
-3. ship persistence, export, and inspection as first-class library capabilities;
+1. add small reusable geometry primitives where duplication already proves the need;
+2. ship persistence, export, and inspection as first-class library capabilities;
+3. reduce the ordinary-consumer package surface without hiding advanced authoring APIs;
 4. only then add a family that stresses a genuinely new architectural axis.
 
 This document deliberately does not propose a monorepo, a generic game engine, a universal asset
@@ -294,6 +292,59 @@ warnings.
 
 The next recommended slice is Initiative 7, multi-instance inked-solid rendering.
 
+### 2026-08-23 - Initiative 7 completed
+
+The inked-solid runtime is now a scene service rather than a mutable single-blueprint pass. The
+old `InkedSolidPass` contract and every call site were replaced directly; no compatibility alias
+or wrapper remains.
+
+Completed work:
+
+- added the public `InkedSolidScenePass`, registration handle, scene paper policy, diagnostics,
+  and explicit `exclude` or `depth-only` unregistered-geometry occlusion policy;
+- made registration validate exact blueprint/rig ownership and matching `instanceId`, while
+  allowing multiple runtime instances of the same immutable blueprint and different families in
+  one pass;
+- moved shared policy types out of blueprint/provider construction, removing the previous
+  type-only dependency cycle;
+- split shader source, compositor, G-buffer targets, per-instance policy texture, carrier
+  material cache, registered carrier metadata, stroke runtime, and scene lifecycle into focused
+  modules;
+- precomputed part, material, topology, semantic-stroke, and pass-material mappings at
+  registration time; the steady-state render loop updates only existing matrices and uniforms and
+  performs no scene traversal or frozen swap-record allocation proportional to mesh count;
+- encoded each visible carrier's policy slot in the normal/topology buffer and stored contour,
+  deposition, and medium parameters in a lookup texture, so different media and contour policies
+  coexist while one immutable scene paper remains independent of registration order;
+- rendered registered geometry through shared internal proxy scenes. Unregistered objects are
+  excluded by default and may occlude through depth only when the scene service is constructed
+  with that explicit policy;
+- made registrations own their semantic stroke rig and every pass material. Registration removal
+  releases all proxies, stroke geometry, and cached GPU materials without disturbing its
+  `SolidRig` or another instance;
+- migrated Projection Studio to dispose and replace registrations when ink policy changes and
+  removed its direct ownership of `InkedSolidStrokeRig`;
+- added source regressions covering two character instances sharing one blueprint, a building in
+  the same pass, distinct media, ownership validation, unrelated geometry, explicit depth-only
+  occlusion, renderer-state restoration, idempotent disposal, and empty post-removal caches;
+- added `pnpm benchmark:inked-solid`, a 48-instance, 2,448-part, 1,728-semantic-stroke JS-side
+  benchmark across all six media. The recorded baseline is 3.72 ms mean preparation time
+  (269 Hz), five render calls, four G-buffer targets, and zero steady-state per-mesh allocations;
+  it deliberately excludes GPU raster time rather than presenting a fake end-to-end number;
+- added authored hood and cargo panel seams to vehicle Doodle output. The remaining missing body
+  creases are correctly classified as carrier-topology work for Initiative 8 rather than a looser
+  screen-space contour heuristic.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 118 tests, the compiled
+library artifact, its exact 164-export snapshot, and the Projection Studio production build pass.
+Desktop browser QA exercised character, vehicle, and building Doodle projections with Graphite,
+Ink, and Watercolour at front and oblique views; WebGL shader compilation and page-console
+inspection reported no errors or warnings.
+
+The next recommended slice is Initiative 8, focused solid geometry authoring primitives, starting
+with vehicle body topology that exposes intentional bonnet, shoulder, belt, and fender plane
+changes instead of asking a smooth superellipsoid to impersonate sheet metal.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -339,9 +390,10 @@ collapsed into a single style identifier.
 ### Verification focuses on semantic invariants
 
 The current tests cover deterministic generation, namespace isolation, cross-representation
-parity, topology, interactions, material ownership, runtime idempotence, composition, and resource
-disposal. The baseline is healthy: the current library suite passes all 109 tests, and the compiled
-artifact verification enforces an exact snapshot of 158 public exports.
+parity, topology, interactions, material ownership, runtime idempotence, composition, registered
+scene rendering, and resource disposal. The baseline is healthy: the current library suite passes
+all 118 tests, and the compiled artifact verification enforces an exact snapshot of 164 public
+exports.
 
 The recommended work adds new kinds of verification; it does not replace these tests with visual
 snapshots alone.
@@ -400,9 +452,9 @@ render targets.
 | P0 | Codecs and pure validators | Completed | Safe persistence and fail-fast runtimes | Unified envelopes |
 | P0 | Attached sockets and colliders | Completed | Real equipment, portals, and physics integration | Contract cleanup |
 | P1 | Shared semantic manifest | Completed | Guaranteed cross-representation state parity | Unified envelopes |
-| P1 | Runtime instance identity | Planned | Multiple independent instances of one asset | Contract cleanup |
-| P1 | Pure motion samplers | Planned | Seekable, exportable, deterministic motion | Runtime instance model |
-| P1 | Multi-instance inked-solid rendering | Planned | Doodle rendering for complete scenes | Runtime instance identity |
+| P1 | Runtime instance identity | Completed | Multiple independent instances of one asset | Contract cleanup |
+| P1 | Pure motion samplers | Completed | Seekable, exportable, deterministic motion | Runtime instance model |
+| P1 | Multi-instance inked-solid rendering | Completed | Doodle rendering for complete scenes | Runtime instance identity |
 | P1 | Export adapters | Planned | Useful assets outside the runtime | Codecs and spatial semantics |
 | P2 | Focused solid geometry primitives | Planned | Less duplicated topology and better LOD | Geometry validation |
 | P2 | Semantic inspection and parity reports | Planned | Better authoring and integration tooling | Shared semantic manifest |
@@ -923,11 +975,11 @@ must not restart transitions or autonomic schedules.
 - Applying one sample twice does not accumulate transforms.
 - Motion sampling imports neither Three.js nor raster drawing infrastructure.
 
-## Initiative 7: multi-instance inked-solid rendering
+## Initiative 7: multi-instance inked-solid rendering - completed 2026-08-23
 
 ### Problem
 
-`InkedSolidPass` currently stores one `InkedSolidBlueprint`. Its render loop traverses the scene
+Before this initiative, `InkedSolidPass` stored one `InkedSolidBlueprint`. Its render loop traversed the scene
 four times to produce semantic albedo, view marks, anchors, and normals before compositing. During
 those traversals it replaces materials, allocates swap records, and performs repeated linear
 searches through blueprint parts and materials.
@@ -1017,6 +1069,10 @@ registered visible parts.
 - A performance benchmark records CPU time, draw calls, targets, and steady-state allocations.
 - Existing medium parity and contour invariants remain unchanged.
 
+All acceptance criteria are implemented. The benchmark records JavaScript-side carrier
+preparation and renderer submission separately from GPU time; a future GPU benchmark should use
+timer queries in a stable browser harness rather than infer raster cost from CPU wall time.
+
 ## Initiative 8: focused solid geometry authoring primitives
 
 ### Problem
@@ -1028,6 +1084,12 @@ Several families manually build indexed mesh vertices and faces for recurring to
 - hair shells and wraps;
 - facial-hair rings;
 - building shells and profiled volumes.
+
+Vehicle body carriers also need a focused faceted-shell construction. The current smooth
+superellipsoid preserves volume but cannot publish the intentional bonnet, shoulder, belt, and
+fender creases visible in designed sheet metal. Those plane changes must exist in authored
+topology or shared semantic profiles; they must not be invented by lowering the screen-space
+normal threshold until incidental tessellation becomes visible.
 
 Some family-specific meshes are appropriate. Reimplementing common revolution and sweep topology
 is not. It makes validation, detail scaling, normal generation, and inked-solid flow behaviour
@@ -1725,10 +1787,10 @@ custom refinements to express. Reconsider only if duplication becomes measurable
 Recommendation: store normalized quaternions in public 3D socket poses. Accept Euler convenience
 inputs in authoring helpers when useful, but resolve them before blueprint publication.
 
-### Replace or evolve `InkedSolidPass`
+### Replace or evolve `InkedSolidPass` - resolved
 
-Recommendation: because the package is unpublished, prefer a clean `InkedSolidScenePass` contract
-and update all call sites. Do not preserve a legacy wrapper unless a released consumer exists.
+Implemented as a clean `InkedSolidScenePass` contract with all call sites migrated. The obsolete
+single-blueprint class was deleted without a legacy wrapper because no released consumer exists.
 
 ### Semantic metadata inside glTF or beside it
 

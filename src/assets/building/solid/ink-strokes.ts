@@ -1,4 +1,4 @@
-import type { InkedSolidStrokeDefinition } from '../../../projections/inked-solid/blueprint.js';
+import type { InkedSolidStrokeDefinition } from '../../../projections/inked-solid/contracts.js';
 import type { Point3 } from '../../../core/geometry3.js';
 import type { SolidAssetBlueprint } from '../../../contracts/solid-asset.js';
 

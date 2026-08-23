@@ -1,5 +1,5 @@
 import type { Point3 } from '../../../core/geometry3.js';
-import type { InkedSolidStrokeDefinition } from '../../../projections/inked-solid/blueprint.js';
+import type { InkedSolidStrokeDefinition } from '../../../projections/inked-solid/contracts.js';
 import type { SolidAssetBlueprint } from '../../../contracts/solid-asset.js';
 import { vehicleSideSign, type VehicleSide } from '../identity/recipe.js';
 
@@ -65,6 +65,20 @@ export function createSolidVehicleInkStrokes(
       outline,
       radius * 0.72,
       { closed: true, wobble: radius * 0.2 },
+    ));
+  }
+
+  for (const lid of solid.parts.filter(({ id }) => id === 'hood' || id === 'cargo')) {
+    if (lid.geometry.type !== 'mesh') continue;
+    const topPerimeter = lid.geometry.vertices.slice(0, 4).map(([x, y, z]): Point3 => (
+      Object.freeze([x, y + radius * 0.7, z] as const)
+    ));
+    strokes.push(localStroke(
+      `${lid.id}:panel-seam`,
+      lid.id,
+      Object.freeze(topPerimeter),
+      radius * 0.72,
+      { closed: true, wobble: radius * 0.16 },
     ));
   }
 

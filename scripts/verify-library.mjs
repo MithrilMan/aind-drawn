@@ -19,7 +19,7 @@ const requiredExports = [
   'AssetComposition',
   'SpriteRig',
   'SolidRig',
-  'InkedSolidPass',
+  'InkedSolidScenePass',
   'InkedSolidStrokeRig',
   'sampleCharacterMotion',
   'createCharacterMotionState',

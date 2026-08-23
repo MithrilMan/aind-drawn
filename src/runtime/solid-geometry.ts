@@ -87,12 +87,30 @@ function createMeshGeometry(
   spec: Extract<SolidGeometrySpec, { type: 'mesh' }>,
 ): THREE.BufferGeometry {
   const triangles: number[] = [];
+  const normals: number[] = [];
   for (const face of spec.faces) {
     if (face.length < 3) continue;
     const first = spec.vertices[face[0] ?? -1];
     if (first === undefined) {
       throw new RangeError('Mesh face references an unknown vertex');
     }
+    const faceNormal = spec.smooth ? undefined : (() => {
+      const normal = new THREE.Vector3();
+      for (let index = 0; index < face.length; index += 1) {
+        const current = spec.vertices[face[index] ?? -1];
+        const next = spec.vertices[face[(index + 1) % face.length] ?? -1];
+        if (current === undefined || next === undefined) {
+          throw new RangeError('Mesh face references an unknown vertex');
+        }
+        normal.x += (current[1] - next[1]) * (current[2] + next[2]);
+        normal.y += (current[2] - next[2]) * (current[0] + next[0]);
+        normal.z += (current[0] - next[0]) * (current[1] + next[1]);
+      }
+      if (normal.lengthSq() < 1e-18) {
+        throw new RangeError('Mesh face must have a non-zero surface normal');
+      }
+      return normal.normalize();
+    })();
     for (let index = 1; index < face.length - 1; index += 1) {
       const second = spec.vertices[face[index] ?? -1];
       const third = spec.vertices[face[index + 1] ?? -1];
@@ -103,6 +121,12 @@ function createMeshGeometry(
         triangles.push(face[0] as number, face[index] as number, face[index + 1] as number);
       } else {
         triangles.push(...first, ...second, ...third);
+        if (faceNormal === undefined) {
+          throw new Error('Faceted mesh face normal was not generated');
+        }
+        for (let vertex = 0; vertex < 3; vertex += 1) {
+          normals.push(faceNormal.x, faceNormal.y, faceNormal.z);
+        }
       }
     }
   }
@@ -112,8 +136,9 @@ function createMeshGeometry(
     geometry.setIndex(triangles);
   } else {
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(triangles, 3));
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
   }
-  geometry.computeVertexNormals();
+  if (spec.smooth) geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;

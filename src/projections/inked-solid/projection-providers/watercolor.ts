@@ -30,7 +30,7 @@ const glaze = toneMarks({
 
 export const watercolorProjectionProvider = createInkedSolidProjectionProvider({
   contour: {
-    width: 1.08, opacity: 0.66, jitter: 0.18, wander: 1.5, normalThreshold: 0.25,
+    width: 1.08, opacity: 0.66, jitter: 0.18, wander: 1.5, normalThreshold: 0.08,
   },
   deposition: {
     pigmentStrength: 0.68,

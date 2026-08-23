@@ -264,6 +264,10 @@ identity data.
   reveal their volume, but drawing light must not turn filler into shadow.
   A geometric crease belongs in mesh smoothing topology, not in a
   screen-resolution-dependent curvature test.
+- Treat each face in a faceted `MeshGeometrySpec` as one authored plane. The runtime may
+  triangulate that polygon for rasterization, but every generated triangle retains the polygon
+  normal so technical fan diagonals do not become Doodle contours. Split the authored face only
+  where the asset really changes plane.
 - Keep a synthesized field's frequency and phase invariant across one carrier
   region. On faceted topology, lighting may modulate pressure or opacity, or
   reveal an additional fixed-frequency pass; it must not rescale the field per

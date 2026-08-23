@@ -52,7 +52,7 @@ const BASE_CONTOUR = Object.freeze({
   granulation: 0.18,
   wander: 0.82,
   depthThreshold: 0.012,
-  normalThreshold: 0.2,
+  normalThreshold: 0.055,
   jitter: 0.34,
   boilFramesPerSecond: 6,
 });

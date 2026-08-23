@@ -94,6 +94,22 @@ describe('vehicle asset family', () => {
     expect(solid.parts.find(({ id }) => id === 'door:left:window')?.node).toBe('door:left');
     expect(solid.parts.find(({ id }) => id === 'door:left:window-frame')?.node).toBe('door:left');
 
+    const body = solid.parts.find(({ id }) => id === 'body');
+    expect(body).toMatchObject({
+      placement: { position: [0, 0, 0] },
+      geometry: { type: 'mesh', smooth: false },
+    });
+    if (body?.geometry.type === 'mesh') {
+      expect(body.geometry.vertices).toHaveLength(32);
+      expect(body.geometry.faces).toHaveLength(23);
+      for (let ring = 0; ring < 4; ring += 1) {
+        const shoulder = body.geometry.vertices[ring * 8 + 2];
+        const ridge = body.geometry.vertices[ring * 8 + 3];
+        expect(shoulder?.[2]).toBeLessThan(ridge?.[2] ?? Number.NEGATIVE_INFINITY);
+        expect(shoulder?.[1]).toBeLessThan(ridge?.[1] ?? Number.NEGATIVE_INFINITY);
+      }
+    }
+
     const tyre = solid.parts.find(({ id }) => id === 'wheel:front:left:tyre');
     expect(tyre === undefined ? undefined : vehicleRollingPartOf(tyre))
       .toMatchObject({ steering: true, side: -1 });
@@ -105,8 +121,7 @@ describe('vehicle asset family', () => {
 
     const strokes = createSolidVehicleInkStrokes(solid);
     expect(strokes.some(({ id }) => id.startsWith('window:division'))).toBe(true);
-    expect(strokes.some(({ id }) => id === 'hood:panel-seam')).toBe(true);
-    expect(strokes.some(({ id }) => id === 'cargo:panel-seam')).toBe(true);
+    expect(strokes.some(({ id }) => id.endsWith(':panel-seam'))).toBe(false);
     expect(strokes.some(({ id }) => id.endsWith(':rim-marker'))).toBe(true);
     for (const medium of MEDIUM_IDS) {
       const inked = createInkedSolidBlueprint(solid, { medium, strokes });

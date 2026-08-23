@@ -478,6 +478,28 @@ describe('solid rig runtime', () => {
     reduced.dispose();
   });
 
+  it('keeps one faceted normal per authored polygon instead of exposing fan diagonals', () => {
+    const geometry = createSolidGeometry({
+      type: 'mesh',
+      vertices: [
+        [0, 0, 0],
+        [2, 0, 0],
+        [2, 1, 0.08],
+        [0, 1, 0],
+      ],
+      faces: [[0, 1, 2, 3]],
+      smooth: false,
+    });
+    const normals = geometry.getAttribute('normal');
+    expect(normals.count).toBe(6);
+    const first = new THREE.Vector3().fromBufferAttribute(normals, 0);
+    for (let index = 1; index < normals.count; index += 1) {
+      expect(new THREE.Vector3().fromBufferAttribute(normals, index).distanceTo(first))
+        .toBeLessThan(1e-6);
+    }
+    geometry.dispose();
+  });
+
   it('projects one eyebrow expression contract into raster and solid rigs', () => {
     const identity = createCharacterIdentity(4_104);
     expect(identity.brows.present).toBe(true);

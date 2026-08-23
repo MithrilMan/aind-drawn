@@ -61,6 +61,13 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     return normalize(texture2D(normalTexture, clamp(uv, vec2(0.0), vec2(1.0))).xyz * 2.0 - 1.0);
   }
 
+  float sampledFacetedResponse(vec2 uv) {
+    float packed = floor(
+      texture2D(normalTexture, clamp(uv, vec2(0.0), vec2(1.0))).a * 255.0 + 0.5
+    );
+    return mod(packed, 2.0);
+  }
+
   vec4 policyTexel(float policySlot, float texel) {
     return texture2D(policyTexture, vec2(
       (texel + 0.5) / 6.0,
@@ -231,6 +238,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     vec2 stepSize = pixel * width;
     float centerDepth = sampledDepth(uv);
     vec3 centerNormal = sampledNormal(uv);
+    float centerFacetedResponse = sampledFacetedResponse(uv);
     float depthDifference = 0.0;
     float normalDifference = 0.0;
     vec2 offsets[8];
@@ -255,9 +263,15 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
         / max(min(centerDepth, neighbourDepth), 0.0001);
       depthDifference = max(depthDifference, relativeDifference * pairWeight);
       if (centerDepth < 9.0e5 && neighbourDepth < 9.0e5) {
+        float topologyWeight = max(
+          centerFacetedResponse,
+          sampledFacetedResponse(neighbourUv)
+        );
         normalDifference = max(
           normalDifference,
-          (1.0 - dot(centerNormal, sampledNormal(neighbourUv))) * pairWeight
+          (1.0 - dot(centerNormal, sampledNormal(neighbourUv)))
+            * pairWeight
+            * topologyWeight
         );
       }
     }

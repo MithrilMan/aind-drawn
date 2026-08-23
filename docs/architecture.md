@@ -398,6 +398,11 @@ entering semantic colour or material buffers. Internal proxy scenes share source
 update preallocated matrices, avoiding source-material mutation, unrelated scene traversal, and
 per-frame swap records.
 
+Normal-derived crease contours use that same topology bit. They are evaluated only across
+explicitly faceted carrier pixels; smooth analytic surfaces retain silhouettes without exposing
+curvature bands or tessellation. A faceted mesh publishes one face normal per authored polygon,
+not per generated fan triangle, so renderer triangulation diagonals cannot leak into the drawing.
+
 Each registration owns an `InkedSolidStrokeRig`, which resolves family-authored paths into small
 ink volumes parented to their owner parts. These volumes are reserved for genuinely spatial marks
 such as whiskers, wires, lifted seams, and other strokes that must leave or follow a surface.

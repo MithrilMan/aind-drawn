@@ -19,6 +19,7 @@ import type {
   SuperellipsoidGeometrySpec,
 } from '../../../contracts/solid-asset.js';
 import { buildSolidVehicleLayout, type SolidVehicleLayout } from './layout.js';
+import { createVehicleBodyGeometry } from './body-shell.js';
 import {
   createSolidVehicleRecipe,
   type SolidVehicleRecipe,
@@ -120,43 +121,6 @@ function cylinder(radius: number, depth: number, segments = 24): MeshGeometrySpe
   });
 }
 
-function taperedLid(
-  length: number,
-  width: number,
-  drop: number,
-  direction: -1 | 1,
-): MeshGeometrySpec {
-  const hingeHalfWidth = width * 0.34;
-  const farHalfWidth = width * 0.26;
-  const thickness = Math.max(0.035, width * 0.024);
-  const farX = direction * length;
-  const vertices: readonly Point3[] = Object.freeze([
-    Object.freeze([0, 0, -hingeHalfWidth] as const),
-    Object.freeze([0, 0, hingeHalfWidth] as const),
-    Object.freeze([farX, -drop, farHalfWidth] as const),
-    Object.freeze([farX, -drop, -farHalfWidth] as const),
-    Object.freeze([0, -thickness, -hingeHalfWidth] as const),
-    Object.freeze([0, -thickness, hingeHalfWidth] as const),
-    Object.freeze([farX, -drop - thickness, farHalfWidth] as const),
-    Object.freeze([farX, -drop - thickness, -farHalfWidth] as const),
-  ]);
-  const top = direction === 1 ? [0, 1, 2, 3] : [3, 2, 1, 0];
-  const bottom = direction === 1 ? [7, 6, 5, 4] : [4, 5, 6, 7];
-  return Object.freeze({
-    type: 'mesh',
-    vertices,
-    faces: Object.freeze([
-      Object.freeze(top),
-      Object.freeze(bottom),
-      Object.freeze([0, 4, 5, 1]),
-      Object.freeze([1, 5, 6, 2]),
-      Object.freeze([2, 6, 7, 3]),
-      Object.freeze([3, 7, 4, 0]),
-    ]),
-    smooth: false,
-  });
-}
-
 function cabinGeometry(identity: VehicleIdentityRecipe, layout: SolidVehicleLayout): MeshGeometrySpec {
   const profile = createVehicleCabinSideProfile(identity).outline;
   const halfDepth = layout.width * 0.44;
@@ -239,15 +203,12 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     parts.push(Object.freeze({ ...part, semanticPartId: vehicleSemanticPartId(part.id) }));
   };
   const bodyHeight = Math.max(identity.wheels.radius * 0.95, layout.beltHeight - layout.bodyBottom);
+  const bodyGeometry = createVehicleBodyGeometry(identity, layout);
 
   add({
     id: 'body', node: 'chassis', order: 0,
-    geometry: roundedVolume([
-      layout.length * 0.49,
-      bodyHeight * 0.56,
-      layout.width * 0.5,
-    ], 3.6 + identity.body.cornerRoundness),
-    materialId: 'body', placement: placement([0, layout.bodyBottom + bodyHeight * 0.52, 0]),
+    geometry: bodyGeometry.shell,
+    materialId: 'body', placement: placement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
   add({
@@ -349,18 +310,8 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
       castShadow: true, receiveShadow: false,
     });
   }
-  const hoodGeometry = taperedLid(
-    layout.hoodLength,
-    layout.width,
-    Math.max(0.07, Math.min(bodyHeight * 0.3, layout.hoodLength * 0.18)),
-    1,
-  );
-  const cargoGeometry = taperedLid(
-    layout.cargoLength,
-    layout.width,
-    Math.max(0.06, Math.min(bodyHeight * 0.25, layout.cargoLength * 0.14)),
-    -1,
-  );
+  const hoodGeometry = bodyGeometry.hood;
+  const cargoGeometry = bodyGeometry.cargo;
   add({
     id: 'hood:opening', node: 'chassis', order: 6,
     geometry: hoodGeometry, materialId: 'interior',

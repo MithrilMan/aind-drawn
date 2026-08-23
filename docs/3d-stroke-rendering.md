@@ -152,7 +152,11 @@ least three points, all owners are validated, and seeded wobble is stable.
 
 `InkedSolidScenePass` renders every registered carrier into shared albedo/depth, material-mark,
 owner-anchor, and normal/topology buffers. The composite
-shader detects relative view-depth discontinuities and normal creases. Line
+shader detects relative view-depth discontinuities and authored normal creases. Normal-edge
+response is enabled only when at least one sampled carrier is explicitly faceted; smooth meshes
+and superellipsoids cannot reveal curvature bands or tessellation through a lower contour
+threshold. Faceted mesh triangles inherit one normal from their authored polygon, so fan
+triangulation remains an implementation detail rather than becoming linework. Line
 width is screen-space and therefore remains legible as the camera moves.
 Authored ink geometry and semantic stroke volumes own their visible line and
 are excluded from the generic contour detector; outlining them again would
@@ -232,10 +236,12 @@ inked solid.
    is never shown.
 5. **Shipped:** semantic surface strokes on character face/body and building
    facade/roof/door, including cat whiskers and articulated ownership.
-6. **Shipped:** semantic vehicle strokes, including wheel detail and articulated hood and cargo
-   panel seams.
-7. **Next:** author intentional faceted vehicle body topology, then extend semantic authoring to
-   props and plants as those solid families are introduced.
+6. **Shipped:** semantic vehicle strokes for genuine drawn marks, including grille, window, tyre,
+   and wheel detail. Hood and cargo outlines are geometric boundaries, not authored ink paths.
+7. **Shipped:** an intentional faceted vehicle shell with bonnet, shoulder, belt, and end-plane
+   changes detected generically from the normal/topology buffer.
+8. **Next:** complete the focused revolution and sweep primitives, then extend semantic authoring
+   to props and plants as those solid families are introduced.
 
 The runtime is already generic. New families add stroke recipes, not shader
 branches or renderer subclasses.

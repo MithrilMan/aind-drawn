@@ -331,9 +331,9 @@ Completed work:
   benchmark across all six media. The recorded baseline is 3.72 ms mean preparation time
   (269 Hz), five render calls, four G-buffer targets, and zero steady-state per-mesh allocations;
   it deliberately excludes GPU raster time rather than presenting a fake end-to-end number;
-- added authored hood and cargo panel seams to vehicle Doodle output. The remaining missing body
-  creases are correctly classified as carrier-topology work for Initiative 8 rather than a looser
-  screen-space contour heuristic.
+- initially added hood and cargo perimeter strokes while diagnosing the vehicle preview. The
+  subsequent Initiative 8 review removed them: those boundaries and body creases belong to
+  carrier topology, not to semantic ink authoring.
 
 Verification completed with `pnpm verify`: TypeScript, ESLint, all 118 tests, the compiled
 library artifact, its exact 164-export snapshot, and the Projection Studio production build pass.
@@ -341,9 +341,38 @@ Desktop browser QA exercised character, vehicle, and building Doodle projections
 Ink, and Watercolour at front and oblique views; WebGL shader compilation and page-console
 inspection reported no errors or warnings.
 
-The next recommended slice is Initiative 8, focused solid geometry authoring primitives, starting
-with vehicle body topology that exposes intentional bonnet, shoulder, belt, and fender plane
-changes instead of asking a smooth superellipsoid to impersonate sheet metal.
+### 2026-08-23 - Initiative 8 vehicle hard-surface slice completed
+
+The first Initiative 8 slice replaces the vehicle's smooth chassis proxy with actual sheet-metal
+topology and makes the generic contour pass respect authored surface classification. This is not
+the full geometry-primitives initiative: shared revolution and sweep specifications remain open.
+
+Completed work:
+
+- replaced the vehicle body superellipsoid with a focused faceted shell whose polygon planes own
+  bonnet ridges, shoulders, belt lines, lower chamfers, and front/rear transitions;
+- aligned the shell's open upper run with the articulated cargo lid, cabin, and hood, so closed
+  panels meet real shoulder edges and opening a panel reveals authored interior geometry;
+- removed the manually authored hood and cargo `panel-seam` strokes. Grille, window, tyre, and
+  wheel marks remain semantic strokes because they describe actual drawn details;
+- made normal-derived contour response conditional on the generic faceted-topology bit already
+  encoded in the normal buffer. Lower crease thresholds can now reveal shallow designed plane
+  changes without drawing curvature bands on superellipsoids or smooth meshes;
+- made every triangle generated from one faceted `MeshGeometrySpec` polygon retain the polygon's
+  single authored normal, preventing fan diagonals from leaking into Doodle linework;
+- extracted vehicle body-shell construction into a focused module instead of adding another
+  responsibility to the already substantial vehicle blueprint factory;
+- added regressions for body topology, the absence of fake panel strokes, and polygon-normal
+  preservation across runtime triangulation.
+
+Verification completed with TypeScript, ESLint, and all 119 tests. Desktop browser QA covered
+profile and oblique Graphite views plus an opened bonnet; hard-surface creases remain visible,
+smooth tyres retain no triangulation cage, and WebGL/page-console inspection reported no errors
+or warnings.
+
+The next recommended slice is to finish Initiative 8 with the renderer-neutral revolved-profile
+primitive, migrate the vehicle tyre and one existing wearable or wrap, then add sweep only where
+the second proven consumer justifies it.
 
 ## Current strengths to preserve
 
@@ -456,7 +485,7 @@ render targets.
 | P1 | Pure motion samplers | Completed | Seekable, exportable, deterministic motion | Runtime instance model |
 | P1 | Multi-instance inked-solid rendering | Completed | Doodle rendering for complete scenes | Runtime instance identity |
 | P1 | Export adapters | Planned | Useful assets outside the runtime | Codecs and spatial semantics |
-| P2 | Focused solid geometry primitives | Planned | Less duplicated topology and better LOD | Geometry validation |
+| P2 | Focused solid geometry primitives | In progress | Less duplicated topology and better LOD | Geometry validation |
 | P2 | Semantic inspection and parity reports | Planned | Better authoring and integration tooling | Shared semantic manifest |
 | P2 | Selective reroll and locks | Planned | Controlled procedural iteration | Stable identity codecs |
 | P3 | New stress-test family | Planned | Validate branching, repetition, wind, and LOD | Earlier foundations |
@@ -1073,7 +1102,7 @@ All acceptance criteria are implemented. The benchmark records JavaScript-side c
 preparation and renderer submission separately from GPU time; a future GPU benchmark should use
 timer queries in a stable browser harness rather than infer raster cost from CPU wall time.
 
-## Initiative 8: focused solid geometry authoring primitives
+## Initiative 8: focused solid geometry authoring primitives - in progress 2026-08-23
 
 ### Problem
 
@@ -1145,6 +1174,14 @@ ignored is worse than no control.
 - Reduced runtime detail preserves bounds, sockets, colliders, and semantic IDs.
 - Generated normals and face winding pass focused tests.
 - Inked-solid surface-flow classification remains authored and stable.
+
+### Current delivery
+
+The vehicle hard-surface slice is complete: the body is an authored faceted shell, articulated
+lids close its upper topology, generic normal creases are gated by faceted classification, and
+runtime triangulation preserves one normal per authored polygon. Revolved-profile and
+swept-profile contracts, migrations, detail scaling, and their remaining acceptance tests are
+still pending; Initiative 8 is therefore intentionally marked in progress rather than complete.
 
 ## Initiative 9: typed capabilities
 

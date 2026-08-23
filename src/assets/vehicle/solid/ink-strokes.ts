@@ -20,7 +20,7 @@ function localStroke(
   });
 }
 
-/** Spatial seams and grooves that belong to vehicle parts rather than the camera contour pass. */
+/** Spatial marks that belong to vehicle parts rather than the camera contour pass. */
 export function createSolidVehicleInkStrokes(
   solid: SolidAssetBlueprint,
 ): readonly InkedSolidStrokeDefinition[] {
@@ -28,22 +28,26 @@ export function createSolidVehicleInkStrokes(
     throw new RangeError('Vehicle ink strokes require a solid vehicle blueprint');
   }
   const body = solid.parts.find(({ id }) => id === 'body');
-  if (body?.geometry.type !== 'superellipsoid') {
-    throw new RangeError('Vehicle ink strokes require the semantic body volume');
+  if (body?.geometry.type !== 'mesh') {
+    throw new RangeError('Vehicle ink strokes require the semantic body shell');
   }
-  const [bodyRadiusX, bodyRadiusY, bodyRadiusZ] = body.geometry.radii;
-  const radius = Math.max(0.008, Math.min(bodyRadiusY, bodyRadiusZ) * 0.018);
+  const minimumY = Math.min(...body.geometry.vertices.map(([, y]) => y));
+  const maximumY = Math.max(...body.geometry.vertices.map(([, y]) => y));
+  const maximumX = Math.max(...body.geometry.vertices.map(([x]) => x));
+  const maximumZ = Math.max(...body.geometry.vertices.map(([, , z]) => Math.abs(z)));
+  const bodyHeight = maximumY - minimumY;
+  const radius = Math.max(0.008, Math.min(bodyHeight, maximumZ * 2) * 0.018);
   const strokes: InkedSolidStrokeDefinition[] = [];
   for (const side of [-1, 1] as const) {
-    const z = side * bodyRadiusZ * 1.015;
+    const z = side * maximumZ;
     for (let index = -1; index <= 1; index += 1) {
-      const y = -bodyRadiusY * 0.08 + index * bodyRadiusY * 0.19;
+      const y = minimumY + bodyHeight * (0.34 + index * 0.08);
       strokes.push(localStroke(
         `grille:${side}:${index}`,
         body.id,
         Object.freeze([
-          Object.freeze([bodyRadiusX * 0.94, y, z * 0.42] as const),
-          Object.freeze([bodyRadiusX * 0.99, y + radius * 0.4, z * 0.18] as const),
+          Object.freeze([maximumX + radius * 0.18, y, z * 0.42] as const),
+          Object.freeze([maximumX + radius * 0.3, y + radius * 0.4, z * 0.18] as const),
         ]),
         radius * 0.66,
         { wobble: radius * 0.35 },
@@ -65,20 +69,6 @@ export function createSolidVehicleInkStrokes(
       outline,
       radius * 0.72,
       { closed: true, wobble: radius * 0.2 },
-    ));
-  }
-
-  for (const lid of solid.parts.filter(({ id }) => id === 'hood' || id === 'cargo')) {
-    if (lid.geometry.type !== 'mesh') continue;
-    const topPerimeter = lid.geometry.vertices.slice(0, 4).map(([x, y, z]): Point3 => (
-      Object.freeze([x, y + radius * 0.7, z] as const)
-    ));
-    strokes.push(localStroke(
-      `${lid.id}:panel-seam`,
-      lid.id,
-      Object.freeze(topPerimeter),
-      radius * 0.72,
-      { closed: true, wobble: radius * 0.16 },
     ));
   }
 

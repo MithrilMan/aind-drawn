@@ -24,6 +24,7 @@ import {
   vehicleRollingLayerOf,
   vehicleRollingPartOf,
   validateAssetFamilyAuthoringSchema,
+  validateSolidAssetBlueprint,
 } from '../src/index.js';
 
 describe('vehicle asset family', () => {
@@ -78,9 +79,13 @@ describe('vehicle asset family', () => {
     expect(identity.doors.frontEndRatio).toBeLessThan(identity.cabin.endRatio);
     expect(identity.doors.frontEndRatio - identity.doors.frontStartRatio).toBeLessThanOrEqual(0.3);
     const roof = solid.parts.find(({ id }) => id === 'roof');
-    expect(roof?.geometry.type).toBe('extruded-profile');
-    if (roof?.geometry.type === 'extruded-profile') {
-      expect(roof.placement.position[2]).toBeCloseTo(roof.geometry.depth * 0.5);
+    expect(roof?.geometry.type).toBe('mesh');
+    if (roof?.geometry.type === 'mesh') {
+      expect(roof.placement.position).toEqual([0, 0, 0]);
+      const width = Math.max(...roof.geometry.vertices.map(([, , z]) => z))
+        - Math.min(...roof.geometry.vertices.map(([, , z]) => z));
+      expect(width).toBeGreaterThan(identity.dimensions.width * 0.58);
+      expect(width).toBeLessThan(identity.dimensions.width * 0.76);
     }
     expect(solid.parts.find(({ id }) => id === 'door:left:opening')).toMatchObject({
       node: 'chassis', materialId: 'interior',
@@ -96,6 +101,7 @@ describe('vehicle asset family', () => {
     });
     expect(solid.parts.find(({ id }) => id === 'door:left:window')?.node).toBe('door:left');
     expect(solid.parts.find(({ id }) => id === 'door:left:window-frame')?.node).toBe('door:left');
+    expect(solid.parts.find(({ id }) => id === 'door:left:window')?.geometry.type).toBe('mesh');
 
     const body = solid.parts.find(({ id }) => id === 'body');
     expect(body).toMatchObject({
@@ -124,7 +130,7 @@ describe('vehicle asset family', () => {
     expect(depth).toBeCloseTo(identity.wheels.width);
 
     const strokes = createSolidVehicleInkStrokes(solid);
-    expect(strokes.some(({ id }) => id.startsWith('window:division'))).toBe(true);
+    expect(strokes.some(({ id }) => id.startsWith('window:division'))).toBe(false);
     expect(strokes.some(({ id }) => id.endsWith(':panel-seam'))).toBe(false);
     expect(strokes.some(({ id }) => id.endsWith(':rim-marker'))).toBe(true);
     for (const medium of MEDIUM_IDS) {
@@ -265,16 +271,67 @@ describe('vehicle asset family', () => {
         expect(rasterLayout.cabinOutline).toEqual(profile.outline.map(([x, y]) => (
           [x + identity.dimensions.length * 0.5, y]
         )));
-      }
-      const identity = createVehicleIdentity(4107, { archetype });
-      const roof = createSolidVehicleBlueprint(identity).parts.find(({ id }) => id === 'roof');
-      expect(roof?.geometry.type).toBe('extruded-profile');
-      if (roof?.geometry.type !== 'extruded-profile') continue;
-      const outer = roof.geometry.outline.slice(0, 4);
-      for (let index = 1; index < outer.length; index += 1) {
-        expect(outer[index]?.[0]).toBeGreaterThan(outer[index - 1]?.[0] ?? 0);
+        const solidLayout = buildSolidVehicleLayout(identity);
+        expect(solidLayout.cabinBeltHalfWidth)
+          .toBeGreaterThan(identity.dimensions.width * 0.32);
+        expect(solidLayout.cabinBeltHalfWidth)
+          .toBeLessThan(identity.dimensions.width * 0.38);
+        expect(solidLayout.cabinRoofHalfWidth)
+          .toBeGreaterThan(identity.dimensions.width * 0.29);
+        expect(solidLayout.cabinRoofHalfWidth)
+          .toBeLessThan(solidLayout.cabinBeltHalfWidth);
+        const solid = createSolidVehicleBlueprint(identity);
+        try {
+          expect(validateSolidAssetBlueprint(solid)).toBe(solid);
+        } catch (error) {
+          throw new Error(`Vehicle validation failed for ${archetype} seed ${seed}`, { cause: error });
+        }
+        const cabin = solid.parts.find(({ id }) => id === 'cabin');
+        const roof = solid.parts.find(({ id }) => id === 'roof');
+        expect(cabin?.geometry.type).toBe('mesh');
+        expect(roof?.geometry.type).toBe('mesh');
+        if (cabin?.geometry.type === 'mesh') {
+          const beltWidth = Math.max(...cabin.geometry.vertices
+            .filter(([, y]) => Math.abs(y - solidLayout.beltHeight) <= 1e-6)
+            .map(([, , z]) => Math.abs(z)));
+          const roofWidth = Math.max(...cabin.geometry.vertices
+            .filter(([, y]) => Math.abs(y - solidLayout.roofHeight) <= 1e-6)
+            .map(([, , z]) => Math.abs(z)));
+          expect(beltWidth).toBeCloseTo(solidLayout.cabinBeltHalfWidth);
+          expect(roofWidth).toBeCloseTo(solidLayout.cabinRoofHalfWidth);
+          expect(roofWidth).toBeLessThan(beltWidth);
+        }
+        if (roof?.geometry.type === 'mesh') {
+          const roofCarrierWidth = Math.max(...roof.geometry.vertices.map(([, , z]) => z))
+            - Math.min(...roof.geometry.vertices.map(([, , z]) => z));
+          expect(roofCarrierWidth).toBeGreaterThan(identity.dimensions.width * 0.58);
+          expect(roofCarrierWidth).toBeLessThan(identity.dimensions.width * 0.76);
+        }
       }
     }
+  });
+
+  it('builds a validated non-coplanar roof for the city override regression', () => {
+    const identity = createVehicleIdentity(4_107, { archetype: 'city' });
+    const layout = buildSolidVehicleLayout(identity);
+    const solid = createSolidVehicleBlueprint(identity);
+    const cabin = solid.parts.find(({ id }) => id === 'cabin');
+    const roof = solid.parts.find(({ id }) => id === 'roof');
+    expect(cabin?.geometry.type).toBe('mesh');
+    expect(roof?.geometry.type).toBe('mesh');
+    if (cabin?.geometry.type === 'mesh' && roof?.geometry.type === 'mesh') {
+      const cabinGeometry = cabin.geometry;
+      const roofGeometry = roof.geometry;
+      expect(roofGeometry.faces.every((face) => face.length === 4)).toBe(true);
+      const cabinHasRoofFace = cabinGeometry.faces.some((face) => face.every((index) => (
+        Math.abs((cabinGeometry.vertices[index]?.[1] ?? Number.NaN) - layout.roofHeight) <= 1e-6
+      )));
+      expect(cabinHasRoofFace).toBe(false);
+      expect(Math.max(...roofGeometry.vertices.map(([, y]) => y)))
+        .toBeGreaterThan(layout.roofHeight);
+    }
+    const rig = new SolidRig(solid);
+    rig.dispose();
   });
 
   it('projects one shaped recessed door construction across every vehicle archetype', () => {
@@ -334,10 +391,12 @@ describe('vehicle asset family', () => {
       const panel = solid.parts.find(({ id }) => id === `door:${side}`);
       const opening = solid.parts.find(({ id }) => id === `door:${side}:opening`);
       const windowOpening = solid.parts.find(({ id }) => id === `door:${side}:window-opening`);
+      const window = solid.parts.find(({ id }) => id === `door:${side}:window`);
       expect(node?.restPose.position[2]).toBeCloseTo(sign * layout.doorSurfaceHalfWidth);
       expect(panel).toMatchObject({ node: `door:${side}`, geometry: { type: 'mesh' } });
       expect(opening).toMatchObject({ node: 'chassis', geometry: { type: 'mesh' } });
-      expect(windowOpening?.node).toBe('chassis');
+      expect(windowOpening).toMatchObject({ node: 'chassis', geometry: { type: 'mesh' } });
+      expect(window).toMatchObject({ node: `door:${side}`, geometry: { type: 'mesh' } });
       if (panel?.geometry.type !== 'mesh' || node === undefined) continue;
       const panelGeometry = panel.geometry;
       const exteriorZ = panelGeometry.vertices.map(([, , z]) => node.restPose.position[2] + z);
@@ -348,6 +407,18 @@ describe('vehicle asset family', () => {
         .filter(([, y]) => Math.abs(y - panelTop) <= 1e-6)
         .map(([, , z]) => Math.abs(node.restPose.position[2] + z));
       expect(Math.max(...topExtent)).toBeCloseTo(beltRidge + 0.004);
+      if (window?.geometry.type === 'mesh') {
+        const exterior = window.geometry.vertices.slice(0, layout.doorWindowGlassOutline.length);
+        const minimumY = Math.min(...exterior.map(([, y]) => y));
+        const maximumY = Math.max(...exterior.map(([, y]) => y));
+        const lowerWidth = Math.max(...exterior
+          .filter(([, y]) => Math.abs(y - minimumY) <= 1e-6)
+          .map(([, , z]) => Math.abs(node.restPose.position[2] + z)));
+        const upperWidth = Math.max(...exterior
+          .filter(([, y]) => Math.abs(y - maximumY) <= 1e-6)
+          .map(([, , z]) => Math.abs(node.restPose.position[2] + z)));
+        expect(upperWidth).toBeLessThan(lowerWidth);
+      }
     }
   });
 
@@ -360,7 +431,7 @@ describe('vehicle asset family', () => {
       if (lid?.geometry.type !== 'mesh') continue;
       const width = Math.max(...lid.geometry.vertices.map(([, , z]) => z))
         - Math.min(...lid.geometry.vertices.map(([, , z]) => z));
-      expect(width).toBeLessThan(identity.dimensions.width * 0.7);
+      expect(width).toBeLessThan(identity.dimensions.width * 0.82);
       expect(Math.max(...lid.geometry.vertices.map(([, y]) => y))).toBeCloseTo(0);
       expect(Math.min(...lid.geometry.vertices.map(([, y]) => y))).toBeLessThan(0);
     }

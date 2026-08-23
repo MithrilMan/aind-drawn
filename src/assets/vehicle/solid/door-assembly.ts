@@ -1,7 +1,6 @@
 import type { Point } from '../../../core/geometry.js';
 import type { Point3 } from '../../../core/geometry3.js';
 import type {
-  ExtrudedProfileGeometrySpec,
   MeshGeometrySpec,
   SolidPartDefinition,
   SuperellipsoidGeometrySpec,
@@ -10,6 +9,10 @@ import {
   createVehicleBodySideSection,
   vehicleBodyHalfWidthAt,
 } from '../identity/body-side-section.js';
+import {
+  createVehicleCabinCrossSection,
+  vehicleCabinHalfWidthAt,
+} from '../identity/cabin-section.js';
 import {
   vehicleSideSign,
   type VehicleIdentityRecipe,
@@ -31,32 +34,27 @@ function freezeMesh(
   });
 }
 
-function plate(
-  outline: readonly Point[],
-  depth: number,
-  bevel: number,
-): ExtrudedProfileGeometrySpec {
-  return Object.freeze({
-    type: 'extruded-profile', outline, depth, bevel, curveSegments: 1,
-  });
-}
-
 function roundedVolume(radii: Point3, exponent: number): SuperellipsoidGeometrySpec {
   return Object.freeze({
     type: 'superellipsoid', radii, exponent, widthSegments: 32, heightSegments: 20,
   });
 }
 
-function centeredPlateZ(center: number, depth: number): number {
-  return center + depth * 0.5;
-}
-
-function uniqueSorted(values: readonly number[]): readonly number[] {
-  return Object.freeze([...values]
-    .sort((left, right) => left - right)
-    .filter((value, index, sorted) => (
-      index === 0 || Math.abs(value - (sorted[index - 1] ?? value)) > 1e-6
-    )));
+function sortedLevelsWithMinimumGap(
+  values: readonly number[],
+  minimumGap: number,
+): readonly number[] {
+  const sorted = [...values].sort((left, right) => left - right);
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (first === undefined || last === undefined) return Object.freeze([]);
+  const result = [first];
+  for (const value of sorted.slice(1, -1)) {
+    const previous = result[result.length - 1] ?? first;
+    if (value - previous >= minimumGap && last - value >= minimumGap) result.push(value);
+  }
+  result.push(last);
+  return Object.freeze(result);
 }
 
 function warpedPanelGeometry(
@@ -79,7 +77,10 @@ function warpedPanelGeometry(
   const sectionLevels = section.samples
     .map(([y]) => y - layout.bodyBottom)
     .filter((y) => y > cornerHeight + 1e-6 && y < maximumY - 1e-6);
-  const levels = uniqueSorted([minimumY, cornerHeight, ...sectionLevels, maximumY]);
+  const levels = sortedLevelsWithMinimumGap(
+    [minimumY, cornerHeight, ...sectionLevels, maximumY],
+    0.006,
+  );
   const vertices: Point3[] = [];
   const xBoundsAt = (y: number): readonly [number, number] => {
     if (y >= cornerHeight) return [rearX, frontX];
@@ -124,6 +125,45 @@ function warpedPanelGeometry(
   return freezeMesh(vertices, faces);
 }
 
+function warpedCabinProfileGeometry(
+  identity: VehicleIdentityRecipe,
+  layout: SolidVehicleLayout,
+  outline: readonly Point[],
+  side: VehicleSide,
+  proud: number,
+  thickness: number,
+): MeshGeometrySpec {
+  const section = createVehicleCabinCrossSection(identity);
+  const sideSign = vehicleSideSign(side);
+  const vertices: Point3[] = outline.map(([x, y]) => Object.freeze([
+    x,
+    y,
+    sideSign * (
+      vehicleCabinHalfWidthAt(section, layout.bodyBottom + y)
+        - layout.doorSurfaceHalfWidth
+        + proud
+    ),
+  ] as const));
+  const exteriorCount = vertices.length;
+  for (const [x, y, z] of vertices.slice()) {
+    vertices.push(Object.freeze([x, y, z - sideSign * thickness] as const));
+  }
+  const exterior = Array.from({ length: exteriorCount }, (_, index) => index);
+  const interior = Array.from(
+    { length: exteriorCount },
+    (_, index) => exteriorCount * 2 - 1 - index,
+  );
+  const faces: number[][] = [
+    sideSign === 1 ? exterior : [...exterior].reverse(),
+    sideSign === 1 ? interior : [...interior].reverse(),
+  ];
+  for (let index = 0; index < exteriorCount; index += 1) {
+    const next = (index + 1) % exteriorCount;
+    faces.push([index, next, exteriorCount + next, exteriorCount + index]);
+  }
+  return freezeMesh(vertices, faces);
+}
+
 function part(definition: VehicleDoorPartDefinition): VehicleDoorPartDefinition {
   return Object.freeze(definition);
 }
@@ -141,12 +181,6 @@ export function createSolidVehicleDoorParts(
   const panelDepth = 0.045;
   const frameDepth = 0.032;
   const windowDepth = 0.018;
-  const windowCenter = sideSign * (
-    layout.cabinSideHalfWidth - layout.doorSurfaceHalfWidth + skinProud
-  );
-  const apertureWindowCenter = sideSign * (
-    layout.cabinSideHalfWidth - layout.doorSurfaceHalfWidth + apertureProud
-  );
   const openingPlacement: Point3 = [
     layout.doorHingeX,
     layout.bodyBottom,
@@ -161,16 +195,16 @@ export function createSolidVehicleDoorParts(
     }),
     part({
       id: `door:${side}:window-opening`, node: 'chassis', order: 7,
-      geometry: plate(layout.doorWindowOutline, apertureDepth, 0.002),
+      geometry: warpedCabinProfileGeometry(
+        identity,
+        layout,
+        layout.doorWindowOutline,
+        side,
+        apertureProud,
+        apertureDepth,
+      ),
       materialId: 'interior',
-      placement: Object.freeze({
-        position: Object.freeze([
-          layout.doorHingeX,
-          layout.bodyBottom,
-          sideSign * layout.doorSurfaceHalfWidth
-            + centeredPlateZ(apertureWindowCenter, apertureDepth),
-        ] as const),
-      }),
+      placement: Object.freeze({ position: openingPlacement }),
       castShadow: false, receiveShadow: false,
     }),
     part({
@@ -183,29 +217,31 @@ export function createSolidVehicleDoorParts(
   if (identity.doors.windowFrame === 'framed') {
     parts.push(part({
       id: `door:${side}:window-frame`, node: `door:${side}`, order: 8,
-      geometry: plate(layout.doorWindowOutline, frameDepth, 0.006),
+      geometry: warpedCabinProfileGeometry(
+        identity,
+        layout,
+        layout.doorWindowOutline,
+        side,
+        skinProud,
+        frameDepth,
+      ),
       materialId: 'body',
-      placement: Object.freeze({
-        position: Object.freeze([
-          0,
-          0,
-          centeredPlateZ(windowCenter, frameDepth),
-        ] as const),
-      }),
+      placement: Object.freeze({ position: [0, 0, 0] as const }),
       castShadow: true, receiveShadow: true,
     }));
   }
   parts.push(part({
     id: `door:${side}:window`, node: `door:${side}`, order: 9,
-    geometry: plate(layout.doorWindowGlassOutline, windowDepth, 0.004),
+    geometry: warpedCabinProfileGeometry(
+      identity,
+      layout,
+      layout.doorWindowGlassOutline,
+      side,
+      skinProud + 0.003,
+      windowDepth,
+    ),
     materialId: 'glass',
-    placement: Object.freeze({
-      position: Object.freeze([
-        0,
-        0,
-        centeredPlateZ(windowCenter + sideSign * 0.003, windowDepth),
-      ] as const),
-    }),
+    placement: Object.freeze({ position: [0, 0, 0] as const }),
     castShadow: false, receiveShadow: false,
   }));
   const section = createVehicleBodySideSection(identity);

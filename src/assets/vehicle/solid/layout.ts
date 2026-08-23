@@ -6,6 +6,7 @@ import type {
   SolidSocketDefinition,
 } from '../../../contracts/solid-asset.js';
 import { createVehicleBodySideSection } from '../identity/body-side-section.js';
+import { createVehicleCabinCrossSection } from '../identity/cabin-section.js';
 import { createVehicleDoorSideProfile } from '../identity/door-profile.js';
 import { createVehicleCabinSideProfile } from '../identity/geometry.js';
 import { vehicleSideSign, type VehicleIdentityRecipe } from '../identity/recipe.js';
@@ -29,7 +30,9 @@ export type SolidVehicleLayout = Readonly<{
   doorOpeningOutline: readonly Point[];
   doorHandle: Point;
   doorSurfaceHalfWidth: number;
-  cabinSideHalfWidth: number;
+  cabinBeltHalfWidth: number;
+  cabinRoofHalfWidth: number;
+  roofOverhang: number;
   hoodLength: number;
   hoodHingeX: number;
   cargoLength: number;
@@ -53,6 +56,7 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
   const frontAxleX = length * 0.5 - axleInset;
   const doorProfile = createVehicleDoorSideProfile(identity);
   const bodySection = createVehicleBodySideSection(identity);
+  const cabinSection = createVehicleCabinCrossSection(identity);
   const doorHingeX = doorProfile.hingeX;
   const doorLength = doorProfile.length;
   const doorPanelHeight = doorProfile.panelHeight;
@@ -124,7 +128,9 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
     doorOpeningOutline,
     doorHandle,
     doorSurfaceHalfWidth: bodySection.sideHalfWidth,
-    cabinSideHalfWidth: width * 0.44,
+    cabinBeltHalfWidth: cabinSection.beltHalfWidth,
+    cabinRoofHalfWidth: cabinSection.roofHalfWidth,
+    roofOverhang: cabinSection.roofOverhang,
     hoodLength,
     hoodHingeX,
     cargoLength,

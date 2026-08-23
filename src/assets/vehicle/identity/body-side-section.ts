@@ -22,7 +22,7 @@ export function createVehicleBodySideSection(
     0,
     Math.min(1, (identity.body.cornerRoundness - 0.72) / 0.46),
   );
-  const ridgeHalfWidth = sideHalfWidth * (0.62 + roundness * 0.06);
+  const ridgeHalfWidth = sideHalfWidth * (0.7 + roundness * 0.08);
   const bottom = cabin.bodyBottom - bodyHeight * 0.035;
   const lowerSide = cabin.bodyBottom + bodyHeight * 0.18;
   const shoulder = cabin.bodyBottom + bodyHeight * 0.7;

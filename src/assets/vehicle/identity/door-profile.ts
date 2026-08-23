@@ -72,13 +72,16 @@ export function createVehicleDoorSideProfile(
     doorLength * 0.26,
     Math.max(length * 0.035, doorLength * 0.18),
   );
-  const topXs = [
-    rearX,
-    ...cabin.outline
-      .map(([x]) => x)
-      .filter((x) => x > rearX + 1e-6 && x < frontUpperX - 1e-6),
-    frontUpperX,
-  ];
+  const minimumTopEdgeLength = Math.max(0.006, length * 0.002);
+  const topXs: number[] = [rearX];
+  for (const x of cabin.outline.map(([candidateX]) => candidateX)) {
+    const previousX = topXs[topXs.length - 1] ?? rearX;
+    if (
+      x - previousX >= minimumTopEdgeLength
+      && frontUpperX - x >= minimumTopEdgeLength
+    ) topXs.push(x);
+  }
+  topXs.push(frontUpperX);
   const topPath = topXs.map((x): Point => Object.freeze([
     x,
     Math.max(

@@ -128,6 +128,21 @@ may collapse it to a 2D outline, but solid adapters must not reconstruct it from
 that outline. Use stable surface coordinates, sockets, or normalized host radii
 instead of adapter-local world-space guesses.
 
+A canonical elevation does not define the missing depth axis. When width changes over height or
+length, author a representation-neutral cross-section and make every solid surface and mounted
+feature consume it; never extrude the silhouette at one arbitrary constant depth.
+
+Give each visible carrier surface one owner. Do not stack coplanar semantic parts to fake a border
+or covering skin; omit the covered host face or model real physical clearance so the depth buffer
+cannot alternate between them. Author hard-surface mesh bands with explicit non-degenerate
+triangles or quads. Avoid concave or collinear n-gons whose fan triangulation can create zero-area
+triangles, and validate the actual runtime rig for representative seeds and every authoring
+override.
+
+Normalize procedural profiles before tessellation. Collapse consecutive points and section levels
+whose separation falls below a scale-aware minimum edge length; an outline that looks valid in
+elevation can otherwise create zero-area side faces once given physical thickness.
+
 
 ## Add a dedicated family
 

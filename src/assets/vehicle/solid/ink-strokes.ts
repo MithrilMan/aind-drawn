@@ -55,23 +55,6 @@ export function createSolidVehicleInkStrokes(
     }
   }
 
-  for (const window of solid.parts.filter(({ id }) => /^door:(left|right):window$/u.test(id))) {
-    if (window.geometry.type !== 'extruded-profile') continue;
-    const side: VehicleSide = window.id.includes(':left:') ? 'left' : 'right';
-    const lift = Math.max(0.006, window.geometry.depth * 0.08);
-    const z = side === 'right' ? lift : -window.geometry.depth - lift;
-    const outline = Object.freeze(window.geometry.outline.map(([x, y]): Point3 => (
-      Object.freeze([x, y, z] as const)
-    )));
-    strokes.push(localStroke(
-      `window:division:${side}`,
-      window.id,
-      outline,
-      radius * 0.72,
-      { closed: true, wobble: radius * 0.2 },
-    ));
-  }
-
   for (const tyre of solid.parts.filter(({ id }) => id.endsWith(':tyre'))) {
     if (tyre.geometry.type !== 'mesh') continue;
     const outerRadius = Math.max(...tyre.geometry.vertices.map(([x, y]) => Math.hypot(x, y)));

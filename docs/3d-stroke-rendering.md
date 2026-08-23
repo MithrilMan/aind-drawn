@@ -236,8 +236,9 @@ inked solid.
    is never shown.
 5. **Shipped:** semantic surface strokes on character face/body and building
    facade/roof/door, including cat whiskers and articulated ownership.
-6. **Shipped:** semantic vehicle strokes for genuine drawn marks, including grille, window, tyre,
-   and wheel detail. Hood and cargo outlines are geometric boundaries, not authored ink paths.
+6. **Shipped:** semantic vehicle strokes for genuine drawn marks, including grille, tyre, and wheel
+   detail. Window, hood, and cargo outlines are geometric boundaries, not duplicate authored ink
+   paths; window strokes are reserved for real internal divisions.
 7. **Shipped:** an intentional faceted vehicle shell with bonnet, shoulder, belt, and end-plane
    changes detected generically from the normal/topology buffer.
 8. **Next:** complete the focused revolution and sweep primitives, then extend semantic authoring

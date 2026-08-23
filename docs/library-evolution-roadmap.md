@@ -433,6 +433,39 @@ exact public API snapshot, and the Projection Studio production build pass. Desk
 covered closed profile and oblique views, an opened complete door, coupe frameless glass, and a
 four-door framed sedan; WebGL shader compilation reported no errors.
 
+### 2026-08-24 - Initiative 8 vehicle transverse cabin topology completed
+
+Vehicle upper bodies now use an authored transverse section instead of extruding the canonical
+side elevation at one constant depth. This fixes oversized slab cabins, the subsequent
+overcorrection to narrow cabins, roof depth flicker, and invalid roof triangulation while keeping
+the existing deterministic vehicle identity unchanged.
+
+Completed work:
+
+- added one identity-adjacent cabin cross-section defining belt width, roof width, archetype taper,
+  and roof overhang from the same body-side section used by the faceted shell;
+- rebuilt cabin and roof carriers as tapered hard-surface meshes and aligned roof-rack rails to the
+  authored roof edge instead of total vehicle width;
+- warped articulated door glass, optional structural frames, and chassis-owned window recesses
+  onto the same cabin surface rather than placing constant-depth profile plates beside it;
+- assigned the horizontal roof skin exclusively to the roof carrier, removed the coplanar cabin
+  face beneath it, and added physical clearance to prevent depth-buffer flicker;
+- replaced the roof side n-gons with explicit quads, including a focused runtime validation for
+  seed `4107` with the `city` archetype override;
+- normalized procedural door-window control points and panel section levels with minimum edge
+  spacing, eliminating degenerate side faces without seed-specific branches;
+- removed the closed semantic outline around door glass because the generic geometry contour
+  already owns that boundary; genuine internal window divisions remain eligible semantic marks;
+- extended the cabin sweep to 240 archetype/seed combinations with lower and upper width bounds,
+  taper, roof-carrier width, non-coplanar ownership, mesh topology, and door-glass conformity;
+- updated the asset-authoring skill and its vehicle reference with cross-section, surface
+  ownership, anti-z-fighting, explicit-face, runtime-override, and non-duplicate-contour rules.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 124 tests, compiled artifact,
+exact public API snapshot, and the Projection Studio production build pass. Desktop browser QA
+covered `4107` with the `city` and `van` overrides in front, profile, oblique, smooth-solid,
+rotating Doodle, and articulated-door views; runtime logs reported no asset or shader errors.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -1239,11 +1272,13 @@ ignored is worse than no control.
 The vehicle hard-surface slice and its projection regression audit are complete: the body is an
 authored faceted shell with fixed deck coverage, articulated lids close its remaining upper
 topology, spoilers are mounted assemblies, and doors are warped recessed assemblies derived from
-one cross-representation profile. Generic normal creases are gated by faceted classification,
-distinct carrier-part boundaries survive on smooth assets, and runtime triangulation preserves
-one normal per authored polygon. Revolved-profile and swept-profile contracts, migrations, detail
-scaling, and their remaining acceptance tests are still pending; Initiative 8 is therefore
-intentionally marked in progress rather than complete.
+one cross-representation profile. The upper body now derives cabin, roof, mounted rack, and door
+glass depth from one transverse section with exclusive carrier-surface ownership and explicit
+non-degenerate roof faces. Generic normal creases are gated by faceted classification, distinct
+carrier-part boundaries survive on smooth assets, and runtime triangulation preserves one normal
+per authored polygon. Revolved-profile and swept-profile contracts, migrations, detail scaling,
+and their remaining acceptance tests are still pending; Initiative 8 is therefore intentionally
+marked in progress rather than complete.
 
 ## Initiative 9: typed capabilities
 

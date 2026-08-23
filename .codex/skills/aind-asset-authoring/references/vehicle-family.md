@@ -110,6 +110,24 @@ Use true volumes:
 - doors own real hinge nodes and remain spatially distinct from body paint;
 - lights, mirrors, racks, and cargo use semantic parts and explicit drawing applications.
 
+A canonical side silhouette is not a transverse cabin model. Define an identity-adjacent
+cross-section for belt width, roof width, taper, and overhang, then make the cabin, roof, door
+glass, and roof-mounted details consume it. Never obtain a cabin by extruding its elevation at a
+constant fraction of total vehicle width: that produces vertical slab sides, an oversized roof,
+and door glass that cannot sit on the carrier surface.
+
+Give every visible surface one owner. When the roof owns the upper skin, omit the coincident top
+face from the glass cabin instead of stacking two coplanar carriers and hoping the depth buffer
+chooses politely. Use an authored clearance only where two distinct physical skins genuinely sit
+proud of each other. Build hard-surface bands from explicit non-degenerate triangles or quads;
+do not rely on a concave or collinear n-gon that renderer or validator fan triangulation can split
+into zero-area triangles.
+
+Normalize generated door and window profiles before solid tessellation. Remove consecutive
+control points and transverse levels that would create sub-threshold edges after thickness is
+applied. Preserve the profile endpoints and identity shape, and use a scale-aware minimum rather
+than a seed-specific coordinate exception.
+
 The solid representation recipe references the same identity and adds only
 finish/mesh policy. Place seat and entry sockets in vehicle-local 3D space.
 Keep the body collider independent from wheel or interaction sensors.
@@ -120,8 +138,13 @@ Wrap the exact solid blueprint with `createInkedSolidBlueprint` and the same
 medium used by the raster comparison. The vehicle adapter maps body, tyres,
 glass, and accents to generic drawing applications; the medium compiler never
 learns those vehicle concepts. Add family-authored spatial strokes only for genuine
-features such as panel seams, tyre grooves, window borders, light divisions, or
-lifted wires.
+features such as panel seams, tyre grooves, window divisions or seals, light divisions,
+or lifted wires.
+
+Do not add a closed semantic stroke around a window merely to reinforce the boundary of its
+existing solid carrier. The generic contour pass already owns that geometric border; duplicating
+it produces a detached or doubled frame when the door moves. A window stroke is justified only
+for an internal division, seal, or other authored mark not represented by carrier topology.
 
 Smooth body panels remain view-oriented; explicitly faceted panels can change
 hatch flow across creases. Do not add vehicle branches to `InkedSolidScenePass`.
@@ -159,5 +182,13 @@ In addition to the common family matrix, test:
 - raster and solid adapters retain body archetype, door count, palette roles,
   and wheel proportions from the same identity;
 - tyres occupy real depth in solid output;
+- cabin belt and roof widths remain within authored cross-section ranges for every archetype;
+- roof and cabin carriers have no coplanar duplicate surface and roof faces are explicit,
+  non-degenerate polygons;
+- representative seeds plus every authoring override construct a validated `SolidRig`, not merely
+  an unchecked blueprint;
+- generated door and window profiles contain no near-coincident consecutive points or levels that
+  can collapse into degenerate side faces;
+- geometric window contours are not duplicated by closed semantic strokes;
 - travel animation rotates front and rear wheels consistently without drift;
 - optional cargo or roof-rack namespaces do not reroll wheels or doors.

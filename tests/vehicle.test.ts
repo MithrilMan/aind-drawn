@@ -85,6 +85,9 @@ describe('vehicle asset family', () => {
     expect(solid.parts.find(({ id }) => id === 'door:left:opening')).toMatchObject({
       node: 'chassis', materialId: 'interior',
     });
+    expect(solid.parts.find(({ id }) => id === 'door:left:window-opening')).toMatchObject({
+      node: 'chassis', materialId: 'interior',
+    });
     expect(solid.parts.find(({ id }) => id === 'hood:opening')).toMatchObject({
       node: 'chassis', materialId: 'interior',
     });
@@ -271,6 +274,80 @@ describe('vehicle asset family', () => {
       for (let index = 1; index < outer.length; index += 1) {
         expect(outer[index]?.[0]).toBeGreaterThan(outer[index - 1]?.[0] ?? 0);
       }
+    }
+  });
+
+  it('projects one shaped recessed door construction across every vehicle archetype', () => {
+    const closePoints = (
+      actual: readonly (readonly [number, number])[],
+      expected: readonly (readonly [number, number])[],
+    ): void => {
+      expect(actual).toHaveLength(expected.length);
+      for (let index = 0; index < expected.length; index += 1) {
+        expect(actual[index]?.[0]).toBeCloseTo(expected[index]?.[0] ?? Number.NaN);
+        expect(actual[index]?.[1]).toBeCloseTo(expected[index]?.[1] ?? Number.NaN);
+      }
+    };
+    for (const archetype of VEHICLE_ARCHETYPES) {
+      for (let seed = 1; seed <= 32; seed += 1) {
+        const identity = createVehicleIdentity(seed, { archetype });
+        const raster = createVehicleLayout(identity, 'right');
+        const solidLayout = buildSolidVehicleLayout(identity);
+        const toSolidDoorSpace = (points: readonly (readonly [number, number])[]) => points.map(
+          ([x, y]) => [
+            x - identity.dimensions.length * 0.5 - solidLayout.doorHingeX,
+            y - solidLayout.bodyBottom,
+          ] as const,
+        );
+        closePoints(toSolidDoorSpace(raster.doorOutline), solidLayout.doorPanelOutline);
+        closePoints(toSolidDoorSpace(raster.doorWindowOutline), solidLayout.doorWindowOutline);
+        closePoints(
+          toSolidDoorSpace(raster.doorWindowGlassOutline),
+          solidLayout.doorWindowGlassOutline,
+        );
+        closePoints(toSolidDoorSpace(raster.doorOpeningOutline), solidLayout.doorOpeningOutline);
+
+        const frame = solidLayout.doorWindowOutline;
+        const frontTop = frame[frame.length - 2];
+        const frontBottom = frame[frame.length - 1];
+        expect((frontBottom?.[0] ?? 0) - (frontTop?.[0] ?? 0))
+          .toBeGreaterThan(solidLayout.doorLength * 0.08);
+        expect((frontTop?.[1] ?? 0) - (frontBottom?.[1] ?? 0)).toBeGreaterThan(0.14);
+        expect(solidLayout.doorAssemblyHeight)
+          .toBeGreaterThan(solidLayout.doorPanelHeight + 0.14);
+      }
+    }
+
+    const identity = createVehicleIdentity(4_879, { archetype: 'coupe' });
+    const layout = buildSolidVehicleLayout(identity);
+    const solid = createSolidVehicleBlueprint(identity);
+    const body = solid.parts.find(({ id }) => id === 'body');
+    expect(body?.geometry.type).toBe('mesh');
+    const beltRidge = body?.geometry.type === 'mesh'
+      ? Math.max(...body.geometry.vertices
+        .filter(([, y]) => Math.abs(y - layout.beltHeight) <= 1e-6)
+        .map(([, , z]) => Math.abs(z)))
+      : Number.NaN;
+    for (const side of ['left', 'right'] as const) {
+      const sign = vehicleSideSign(side);
+      const node = layout.nodes.find(({ id }) => id === `door:${side}`);
+      const panel = solid.parts.find(({ id }) => id === `door:${side}`);
+      const opening = solid.parts.find(({ id }) => id === `door:${side}:opening`);
+      const windowOpening = solid.parts.find(({ id }) => id === `door:${side}:window-opening`);
+      expect(node?.restPose.position[2]).toBeCloseTo(sign * layout.doorSurfaceHalfWidth);
+      expect(panel).toMatchObject({ node: `door:${side}`, geometry: { type: 'mesh' } });
+      expect(opening).toMatchObject({ node: 'chassis', geometry: { type: 'mesh' } });
+      expect(windowOpening?.node).toBe('chassis');
+      if (panel?.geometry.type !== 'mesh' || node === undefined) continue;
+      const panelGeometry = panel.geometry;
+      const exteriorZ = panelGeometry.vertices.map(([, , z]) => node.restPose.position[2] + z);
+      const outwardExtent = sign === 1 ? Math.max(...exteriorZ) : -Math.min(...exteriorZ);
+      expect(outwardExtent).toBeLessThanOrEqual(layout.doorSurfaceHalfWidth + 0.0041);
+      const panelTop = Math.max(...panelGeometry.vertices.map(([, y]) => y));
+      const topExtent = panelGeometry.vertices
+        .filter(([, y]) => Math.abs(y - panelTop) <= 1e-6)
+        .map(([, , z]) => Math.abs(node.restPose.position[2] + z));
+      expect(Math.max(...topExtent)).toBeCloseTo(beltRidge + 0.004);
     }
   });
 

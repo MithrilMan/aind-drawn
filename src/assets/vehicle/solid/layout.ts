@@ -5,6 +5,8 @@ import type {
   SolidNodeDefinition,
   SolidSocketDefinition,
 } from '../../../contracts/solid-asset.js';
+import { createVehicleBodySideSection } from '../identity/body-side-section.js';
+import { createVehicleDoorSideProfile } from '../identity/door-profile.js';
 import { createVehicleCabinSideProfile } from '../identity/geometry.js';
 import { vehicleSideSign, type VehicleIdentityRecipe } from '../identity/recipe.js';
 
@@ -17,11 +19,17 @@ export type SolidVehicleLayout = Readonly<{
   roofHeight: number;
   rearAxleX: number;
   frontAxleX: number;
-  doorHeight: number;
+  doorPanelHeight: number;
+  doorAssemblyHeight: number;
   doorLength: number;
   doorHingeX: number;
+  doorPanelOutline: readonly Point[];
   doorWindowOutline: readonly Point[];
+  doorWindowGlassOutline: readonly Point[];
   doorOpeningOutline: readonly Point[];
+  doorHandle: Point;
+  doorSurfaceHalfWidth: number;
+  cabinSideHalfWidth: number;
   hoodLength: number;
   hoodHingeX: number;
   cargoLength: number;
@@ -43,40 +51,30 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
   const axleInset = length * (1 - identity.wheels.wheelbaseRatio) / 2;
   const rearAxleX = -length * 0.5 + axleInset;
   const frontAxleX = length * 0.5 - axleInset;
-  const doorHingeX = -length * 0.5 + identity.doors.frontEndRatio * length;
-  const doorRearX = -length * 0.5 + identity.doors.frontStartRatio * length;
-  const doorLength = doorHingeX - doorRearX;
-  const doorHeight = beltHeight - bodyBottom;
-  const cabinProfile: readonly Point[] = cabinSideProfile.outline;
-  const roofAt = (x: number): number => {
-    for (let index = 1; index < cabinProfile.length; index += 1) {
-      const start = cabinProfile[index - 1] as Point;
-      const end = cabinProfile[index] as Point;
-      if (x < start[0] || x > end[0]) continue;
-      const amount = (x - start[0]) / Math.max(1e-9, end[0] - start[0]);
-      return start[1] + (end[1] - start[1]) * amount;
-    }
-    return beltHeight;
-  };
-  const rearWindowTop = Math.max(beltHeight + 0.08, roofAt(doorRearX) - 0.055) - bodyBottom;
-  const frontWindowTop = Math.max(beltHeight + 0.08, roofAt(doorHingeX) - 0.055) - bodyBottom;
-  const doorWindowOutline = Object.freeze([
-    Object.freeze([-doorLength, doorHeight] as const),
-    Object.freeze([-doorLength, rearWindowTop] as const),
-    Object.freeze([0, frontWindowTop] as const),
-    Object.freeze([0, doorHeight] as const),
-  ]);
-  const doorOpeningOutline = Object.freeze([
-    Object.freeze([-doorLength, 0] as const),
-    Object.freeze([-doorLength, rearWindowTop] as const),
-    Object.freeze([0, frontWindowTop] as const),
-    Object.freeze([0, 0] as const),
-  ]);
+  const doorProfile = createVehicleDoorSideProfile(identity);
+  const bodySection = createVehicleBodySideSection(identity);
+  const doorHingeX = doorProfile.hingeX;
+  const doorLength = doorProfile.length;
+  const doorPanelHeight = doorProfile.panelHeight;
+  const localDoorPoints = (points: readonly Point[]): readonly Point[] => Object.freeze(
+    points.map(([x, y]) => Object.freeze([
+      x - doorHingeX,
+      y - bodyBottom,
+    ] as const)),
+  );
+  const doorPanelOutline = localDoorPoints(doorProfile.panelOutline);
+  const doorWindowOutline = localDoorPoints(doorProfile.windowFrameOutline);
+  const doorWindowGlassOutline = localDoorPoints(doorProfile.windowGlassOutline);
+  const doorOpeningOutline = localDoorPoints(doorProfile.openingOutline);
+  const doorHandle = Object.freeze([
+    doorProfile.handle[0] - doorHingeX,
+    doorProfile.handle[1] - bodyBottom,
+  ] as const);
   const hoodHingeX = -length * 0.5 + Math.max(identity.cabin.endRatio, 1 - identity.body.bonnetRatio) * length;
   const hoodLength = Math.max(0.42, length * 0.99 - (hoodHingeX + length * 0.5));
   const cargoHingeX = -length * 0.5 + identity.cabin.startRatio * length;
   const cargoLength = Math.max(0.42, cargoHingeX - (-length * 0.49));
-  const doorZ = width * 0.5 + 0.065;
+  const doorZ = bodySection.sideHalfWidth;
   const wheelZ = width * 0.5 + identity.wheels.width * 0.32;
   const nodes: readonly SolidNodeDefinition[] = Object.freeze([
     Object.freeze({ id: 'root', restPose: pose([0, 0, 0] as const) }),
@@ -116,11 +114,17 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
     roofHeight,
     rearAxleX,
     frontAxleX,
-    doorHeight,
+    doorPanelHeight,
+    doorAssemblyHeight: doorProfile.assemblyHeight,
     doorLength,
     doorHingeX,
+    doorPanelOutline,
     doorWindowOutline,
+    doorWindowGlassOutline,
     doorOpeningOutline,
+    doorHandle,
+    doorSurfaceHalfWidth: bodySection.sideHalfWidth,
+    cabinSideHalfWidth: width * 0.44,
     hoodLength,
     hoodHingeX,
     cargoLength,
@@ -135,9 +139,9 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
         id: `door:${side}:handle`,
         node: `door:${side}`,
         localPose: pose([
-          -doorLength * 0.18,
-          doorHeight * 0.58,
-          vehicleSideSign(side) * 0.045,
+          doorHandle[0],
+          doorHandle[1],
+          vehicleSideSign(side) * 0.035,
         ] as const),
       })),
       Object.freeze({ id: 'entry:left', node: 'root', localPose: pose([

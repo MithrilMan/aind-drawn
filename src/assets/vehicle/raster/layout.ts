@@ -1,5 +1,6 @@
 import type { Bounds, Point } from '../../../core/geometry.js';
 import type { Size2, Vector2 } from '../../../contracts/raster-asset.js';
+import { createVehicleDoorSideProfile } from '../identity/door-profile.js';
 import { createVehicleCabinSideProfile } from '../identity/geometry.js';
 import type { VehicleIdentityRecipe, VehicleSide } from '../identity/recipe.js';
 
@@ -19,8 +20,10 @@ export type VehicleLayout = Readonly<{
   cabinOutline: readonly Point[];
   doorOutline: readonly Point[];
   doorWindowOutline: readonly Point[];
+  doorWindowGlassOutline: readonly Point[];
   doorOpeningOutline: readonly Point[];
   doorHinge: Vector2;
+  doorHandle: Vector2;
   hoodOutline: readonly Point[];
   cargoOutline: readonly Point[];
 }>;
@@ -62,39 +65,22 @@ export function createVehicleLayout(
   const cabinOutline = freezePoints(cabinProfile.outline.map(([x, y]) => (
     [x + length * 0.5, y] as const
   )));
-  const doorTop = beltHeight * 0.985;
-  const doorBottom = bodyBottom + radius * 0.1;
-  const doorOutline = freezePoints([
-    [identity.doors.frontStartRatio * length, doorBottom],
-    [identity.doors.frontStartRatio * length, doorTop],
-    [identity.doors.frontEndRatio * length, doorTop],
-    [identity.doors.frontEndRatio * length, doorBottom],
-  ]);
-  const roofAt = (x: number): number => {
-    for (let index = 1; index < cabinOutline.length; index += 1) {
-      const start = cabinOutline[index - 1] as Point;
-      const end = cabinOutline[index] as Point;
-      if (x < start[0] || x > end[0]) continue;
-      const amount = (x - start[0]) / Math.max(1e-9, end[0] - start[0]);
-      return start[1] + (end[1] - start[1]) * amount;
-    }
-    return beltHeight;
-  };
-  const doorStartX = identity.doors.frontStartRatio * length;
-  const doorEndX = identity.doors.frontEndRatio * length;
-  const doorWindowOutline = freezePoints([
-    [doorStartX, doorTop],
-    [doorStartX, Math.max(doorTop + 0.08, roofAt(doorStartX) - 0.055)],
-    [doorEndX, Math.max(doorTop + 0.08, roofAt(doorEndX) - 0.055)],
-    [doorEndX, doorTop],
-  ]);
-  const doorOpeningOutline = freezePoints([
-    [doorStartX, doorBottom],
-    [doorStartX, (doorWindowOutline[1] as Point)[1]],
-    [doorEndX, (doorWindowOutline[2] as Point)[1]],
-    [doorEndX, doorBottom],
-  ]);
-  const doorHinge = Object.freeze({ x: doorEndX, y: doorBottom });
+  const doorProfile = createVehicleDoorSideProfile(identity);
+  const projectDoorPoints = (points: readonly Point[]): readonly Point[] => freezePoints(
+    points.map(([x, y]) => [x + length * 0.5, y] as const),
+  );
+  const doorOutline = projectDoorPoints(doorProfile.panelOutline);
+  const doorWindowOutline = projectDoorPoints(doorProfile.windowFrameOutline);
+  const doorWindowGlassOutline = projectDoorPoints(doorProfile.windowGlassOutline);
+  const doorOpeningOutline = projectDoorPoints(doorProfile.openingOutline);
+  const doorHinge = Object.freeze({
+    x: doorProfile.hingeX + length * 0.5,
+    y: doorProfile.panelBottom,
+  });
+  const doorHandle = Object.freeze({
+    x: doorProfile.handle[0] + length * 0.5,
+    y: doorProfile.handle[1],
+  });
   const hoodStart = Math.max(identity.cabin.endRatio, 1 - identity.body.bonnetRatio) * length;
   const hoodOutline = freezePoints([
     [hoodStart, beltHeight * 0.985], [0.97 * length, beltHeight * 0.92],
@@ -128,8 +114,10 @@ export function createVehicleLayout(
     cabinOutline,
     doorOutline,
     doorWindowOutline,
+    doorWindowGlassOutline,
     doorOpeningOutline,
     doorHinge,
+    doorHandle,
     hoodOutline,
     cargoOutline,
   });

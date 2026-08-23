@@ -110,7 +110,8 @@ function drawDoor(
   state: string,
 ): void {
   const panel = canvasPoints(layout, layout.doorOutline);
-  const window = canvasPoints(layout, layout.doorWindowOutline);
+  const windowFrame = canvasPoints(layout, layout.doorWindowOutline);
+  const windowGlass = canvasPoints(layout, layout.doorWindowGlassOutline);
   if (state === 'open') {
     const opening = canvasPoints(layout, layout.doorOpeningOutline);
     sketch.paperFill(opening);
@@ -120,33 +121,38 @@ function drawDoor(
     const projection = Math.max(0.12, Math.cos(recipe.identity.doors.openingAngle));
     const project = ([x, y]: Point): Point => [hingeX + (x - hingeX) * projection, y];
     const openPanel = panel.map(project);
-    const openWindow = window.map(project);
+    const openWindowFrame = windowFrame.map(project);
+    const openWindowGlass = windowGlass.map(project);
     sketch.paperFill(openPanel);
     medium.tone(sketch, openPanel, { style: recipe.style.bodyTone, color: recipe.identity.palette.body });
     medium.edge(sketch, closePath(openPanel), 4, { ghost: true });
     if (recipe.identity.doors.windowFrame === 'framed') {
-      sketch.paperFill(openWindow);
-      medium.tone(sketch, openWindow, { style: recipe.style.bodyTone, color: recipe.identity.palette.body });
+      sketch.paperFill(openWindowFrame);
+      medium.tone(sketch, openWindowFrame, {
+        style: recipe.style.bodyTone,
+        color: recipe.identity.palette.body,
+      });
     }
-    const glass = openWindow.map(([x, y]) => [
-      hingeX + (x - hingeX) * 0.92,
-      y + (layout.canvas.height * 0.5 - y) * 0.025,
-    ] as Point);
-    sketch.paperFill(glass);
-    medium.tone(sketch, glass, { style: recipe.style.glassTone, color: recipe.identity.palette.glass });
-    medium.edge(sketch, closePath(openWindow), recipe.identity.doors.windowFrame === 'framed' ? 4 : 2.6, {
-      ghost: true,
+    sketch.paperFill(openWindowGlass);
+    medium.tone(sketch, openWindowGlass, {
+      style: recipe.style.glassTone,
+      color: recipe.identity.palette.glass,
     });
+    medium.edge(
+      sketch,
+      closePath(openWindowFrame),
+      recipe.identity.doors.windowFrame === 'framed' ? 4 : 2.6,
+      { ghost: true },
+    );
   } else {
     medium.edge(sketch, closePath(panel), 2.8, { alpha: 0.62, ghost: true });
-    medium.edge(sketch, closePath(window), recipe.identity.doors.windowFrame === 'framed' ? 3.2 : 2.1, {
-      alpha: 0.68,
-      ghost: true,
-    });
-    const handle = canvasPoint(layout, [
-      recipe.identity.doors.frontEndRatio * recipe.identity.dimensions.length - 0.18,
-      layout.beltHeight * 0.88,
-    ]);
+    medium.edge(
+      sketch,
+      closePath(windowFrame),
+      recipe.identity.doors.windowFrame === 'framed' ? 3.2 : 2.1,
+      { alpha: 0.68, ghost: true },
+    );
+    const handle = canvasPoint(layout, [layout.doorHandle.x, layout.doorHandle.y]);
     sketch.stroke([[handle[0] - 9, handle[1]], [handle[0] + 1, handle[1] + sketch.jitter(-1, 1)]], 2.5, {
       alpha: 0.74, ghost: true,
     });

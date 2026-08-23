@@ -1,5 +1,6 @@
 import type { MeshGeometrySpec } from '../../../contracts/solid-asset.js';
 import type { Point3 } from '../../../core/geometry3.js';
+import { createVehicleBodySideSection } from '../identity/body-side-section.js';
 import type { VehicleIdentityRecipe } from '../identity/recipe.js';
 import type { SolidVehicleLayout } from './layout.js';
 
@@ -86,18 +87,13 @@ export function createVehicleBodyGeometry(
   identity: VehicleIdentityRecipe,
   layout: SolidVehicleLayout,
 ): VehicleBodyGeometry {
-  const bodyHeight = Math.max(
-    identity.wheels.radius * 0.95,
-    layout.beltHeight - layout.bodyBottom,
-  );
-  const sideHalfWidth = layout.width * 0.5;
-  const roundness = Math.max(0, Math.min(1, (identity.body.cornerRoundness - 0.72) / 0.46));
-  const ridgeHalfWidth = sideHalfWidth * (0.62 + roundness * 0.06);
+  const section = createVehicleBodySideSection(identity);
+  const { bodyHeight, sideHalfWidth, ridgeHalfWidth } = section;
   const hoodDrop = Math.max(0.07, Math.min(bodyHeight * 0.3, layout.hoodLength * 0.18));
   const cargoDrop = Math.max(0.06, Math.min(bodyHeight * 0.25, layout.cargoLength * 0.14));
-  const bottom = layout.bodyBottom - bodyHeight * 0.035;
-  const lowerSide = layout.bodyBottom + bodyHeight * 0.18;
-  const shoulder = layout.bodyBottom + bodyHeight * 0.7;
+  const bottom = section.samples[0]?.[0] ?? layout.bodyBottom;
+  const lowerSide = section.samples[1]?.[0] ?? layout.bodyBottom;
+  const shoulder = section.samples[2]?.[0] ?? layout.beltHeight;
   const tipSideHalfWidth = sideHalfWidth * 0.86;
   const tipRidgeHalfWidth = ridgeHalfWidth * 0.78;
   const cabinFrontX = -layout.length * 0.5 + identity.cabin.endRatio * layout.length;

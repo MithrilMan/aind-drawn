@@ -402,6 +402,37 @@ exact public API snapshot, and the Projection Studio production build pass. Desk
 covered character `4113`, pickup `4115`, coupe `4879`, and building `4879` in oblique Graphite
 Doodle views; WebGL shader compilation reported no errors.
 
+### 2026-08-23 - Initiative 8 vehicle door construction completed
+
+Vehicle doors are now authored as integrated articulated assemblies rather than rectangular
+plates positioned outside the body. This remains an Initiative 8 geometry correction: identity
+and interaction meaning are unchanged, while both representations now consume one exact side
+construction.
+
+Completed work:
+
+- added one identity-adjacent door profile owning the lower skin, complete opening, roof-following
+  frame, inset glass, physical hinge, lower corner treatment, and latch-side handle position;
+- made the front window edge follow the windscreen as an inclined A-pillar instead of sampling the
+  roof at the hinge and collapsing into a thin triangular or horizontal pane;
+- migrated raster layout and open/closed drawing to that shared construction, removing its
+  independently calculated door and window proportions;
+- extracted the body side section used by the faceted shell and reused it to build a thin warped
+  solid door skin. Its lower and shoulder vertices follow the body width while the upper edge
+  tucks inward to the belt ridge; the hinge now sits on the body surface rather than outside it;
+- split the solid aperture into body and window recesses owned by the chassis. The panel, optional
+  frame, glass, and handle remain on the hinged node and expose the authored recess when opened;
+- aligned handle sockets, door-leaf colliders, sensor height, and both side conventions with the
+  complete assembly rather than the former lower rectangle;
+- added a 160-case archetype/seed parity sweep plus focused assertions for A-pillar inclination,
+  non-collapsed glass, body-width conformity, belt-ridge alignment, aperture ownership, and
+  mirrored hinge placement.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 123 tests, compiled artifact,
+exact public API snapshot, and the Projection Studio production build pass. Desktop browser QA
+covered closed profile and oblique views, an opened complete door, coupe frameless glass, and a
+four-door framed sedan; WebGL shader compilation reported no errors.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -1207,11 +1238,12 @@ ignored is worse than no control.
 
 The vehicle hard-surface slice and its projection regression audit are complete: the body is an
 authored faceted shell with fixed deck coverage, articulated lids close its remaining upper
-topology, spoilers are mounted assemblies, generic normal creases are gated by faceted
-classification, distinct carrier-part boundaries survive on smooth assets, and runtime
-triangulation preserves one normal per authored polygon. Revolved-profile and swept-profile
-contracts, migrations, detail scaling, and their remaining acceptance tests are still pending;
-Initiative 8 is therefore intentionally marked in progress rather than complete.
+topology, spoilers are mounted assemblies, and doors are warped recessed assemblies derived from
+one cross-representation profile. Generic normal creases are gated by faceted classification,
+distinct carrier-part boundaries survive on smooth assets, and runtime triangulation preserves
+one normal per authored polygon. Revolved-profile and swept-profile contracts, migrations, detail
+scaling, and their remaining acceptance tests are still pending; Initiative 8 is therefore
+intentionally marked in progress rather than complete.
 
 ## Initiative 9: typed capabilities
 

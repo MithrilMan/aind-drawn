@@ -20,6 +20,7 @@ import type {
 } from '../../../contracts/solid-asset.js';
 import { buildSolidVehicleLayout, type SolidVehicleLayout } from './layout.js';
 import { createVehicleBodyGeometry } from './body-shell.js';
+import { createSolidVehicleDoorParts } from './door-assembly.js';
 import {
   createSolidVehicleRecipe,
   type SolidVehicleRecipe,
@@ -49,18 +50,6 @@ function plate(
   return Object.freeze({
     type: 'extruded-profile', outline, depth, bevel, curveSegments: 2,
   });
-}
-
-function insetProfile(
-  outline: readonly (readonly [number, number])[],
-  amount: number,
-): readonly (readonly [number, number])[] {
-  const centerX = (Math.min(...outline.map(([x]) => x)) + Math.max(...outline.map(([x]) => x))) * 0.5;
-  const centerY = (Math.min(...outline.map(([, y]) => y)) + Math.max(...outline.map(([, y]) => y))) * 0.5;
-  return Object.freeze(outline.map(([x, y]) => Object.freeze([
-    centerX + (x - centerX) * amount,
-    centerY + (y - centerY) * amount,
-  ] as const)));
 }
 
 function torusWheel(radius: number, width: number): MeshGeometrySpec {
@@ -251,64 +240,8 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     }
   }
 
-  const doorPanelOutline = Object.freeze([
-    Object.freeze([-layout.doorLength, 0] as const),
-    Object.freeze([0, 0] as const),
-    Object.freeze([0, layout.doorHeight] as const),
-    Object.freeze([-layout.doorLength, layout.doorHeight] as const),
-  ]);
   for (const side of identity.doors.sides) {
-    const sideSign = vehicleSideSign(side);
-    const openingDepth = 0.045;
-    const panelDepth = 0.07;
-    const frameDepth = 0.058;
-    const windowDepth = 0.04;
-    add({
-      id: `door:${side}:opening`, node: 'chassis', order: 7,
-      geometry: plate(layout.doorOpeningOutline, openingDepth, 0.006),
-      materialId: 'interior',
-      placement: placement([
-        layout.doorHingeX,
-        layout.bodyBottom,
-        sideSign * (layout.width * 0.5 + 0.025) + openingDepth * 0.5,
-      ]),
-      castShadow: false, receiveShadow: false,
-    });
-    add({
-      id: `door:${side}`, node: `door:${side}`, order: 8,
-      geometry: plate(doorPanelOutline, panelDepth, 0.012),
-      materialId: 'body',
-      placement: placement([0, 0, panelDepth * 0.5]),
-      castShadow: true, receiveShadow: true,
-    });
-    if (identity.doors.windowFrame === 'framed') {
-      add({
-        id: `door:${side}:window-frame`, node: `door:${side}`, order: 8,
-        geometry: plate(layout.doorWindowOutline, frameDepth, 0.008),
-        materialId: 'body',
-        placement: placement([0, 0, frameDepth * 0.5 + sideSign * 0.004]),
-        castShadow: true, receiveShadow: true,
-      });
-    }
-    add({
-      id: `door:${side}:window`, node: `door:${side}`, order: 9,
-      geometry: plate(
-        identity.doors.windowFrame === 'framed'
-          ? insetProfile(layout.doorWindowOutline, 0.88)
-          : layout.doorWindowOutline,
-        windowDepth,
-        0.006,
-      ),
-      materialId: 'glass',
-      placement: placement([0, 0, windowDepth * 0.5 + sideSign * 0.04]),
-      castShadow: false, receiveShadow: false,
-    });
-    add({
-      id: `door:${side}:handle`, node: `door:${side}`, order: 9,
-      geometry: roundedVolume([0.11, 0.025, 0.025], 2.8), materialId: 'accent',
-      placement: placement([-layout.doorLength * 0.78, layout.doorHeight * 0.78, sideSign * 0.065]),
-      castShadow: true, receiveShadow: false,
-    });
+    for (const doorPart of createSolidVehicleDoorParts(identity, layout, side)) add(doorPart);
   }
   const hoodGeometry = bodyGeometry.hood;
   const cargoGeometry = bodyGeometry.cargo;
@@ -408,7 +341,10 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     });
   }
 
-  const doorSensorSize: Point3 = [layout.doorLength, layout.doorHeight, 1.2];
+  const doorMinimumY = Math.min(...layout.doorOpeningOutline.map(([, y]) => y));
+  const doorMaximumY = Math.max(...layout.doorOpeningOutline.map(([, y]) => y));
+  const doorAssemblyHeight = doorMaximumY - doorMinimumY;
+  const doorSensorSize: Point3 = [layout.doorLength, doorAssemblyHeight, 1.2];
   const interaction = (
     id: 'door:left' | 'door:right',
     side: VehicleSide,
@@ -447,16 +383,16 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
         node: `door:${side}`,
         localPose: spatialPose([
           -layout.doorLength * 0.5,
-          layout.doorHeight * 0.5,
+          doorMinimumY + doorAssemblyHeight * 0.5,
           0,
         ] as const),
-        size: [layout.doorLength, layout.doorHeight, 0.1] as const,
+        size: [layout.doorLength, doorAssemblyHeight, 0.1] as const,
       })),
       Object.freeze({
         id: 'door:left:sensor', kind: 'sensor', shape: 'box',
         node: 'root', localPose: spatialPose([
           layout.doorHingeX - layout.doorLength * 0.5,
-          layout.bodyBottom + layout.doorHeight * 0.5,
+          layout.bodyBottom + doorMinimumY + doorAssemblyHeight * 0.5,
           vehicleSideSign('left') * (layout.width * 0.5 + 0.6),
         ] as const),
         size: doorSensorSize,
@@ -465,7 +401,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
         id: 'door:right:sensor', kind: 'sensor', shape: 'box',
         node: 'root', localPose: spatialPose([
           layout.doorHingeX - layout.doorLength * 0.5,
-          layout.bodyBottom + layout.doorHeight * 0.5,
+          layout.bodyBottom + doorMinimumY + doorAssemblyHeight * 0.5,
           vehicleSideSign('right') * (layout.width * 0.5 + 0.6),
         ] as const),
         size: doorSensorSize,

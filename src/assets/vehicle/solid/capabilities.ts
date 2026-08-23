@@ -4,7 +4,6 @@ import type { SolidPartDefinition } from '../../../contracts/solid-asset.js';
 const VEHICLE_ROLLING_PART_CAPABILITY = 'aind.vehicle.rolling-part/v1';
 
 export type VehicleRollingPartCapability = Readonly<{
-  radius: number;
   steering: boolean;
   side: -1 | 1;
 }>;

@@ -5,6 +5,7 @@ import {
   type AssetBlueprint,
 } from '../../../src/index.js';
 import type {
+  FamilyIdentity,
   FamilyDynamicState,
   StudioRasterRuntimeFactory,
   StudioRuntimeAdapter,
@@ -36,13 +37,14 @@ export class RasterStage {
 
   public setBlueprint(
     blueprint: AssetBlueprint,
+    identity: FamilyIdentity,
     createRuntime: StudioRasterRuntimeFactory,
     autoGaze: boolean,
   ): void {
     this.rig?.root.removeFromParent();
     this.rig?.dispose();
     this.rig = new SpriteRig(blueprint, { boilFrames: 3 });
-    this.runtime = createRuntime(this.rig, { autoGaze });
+    this.runtime = createRuntime(this.rig, identity, { autoGaze });
     this.scene.add(this.rig.root);
     this.frame();
   }

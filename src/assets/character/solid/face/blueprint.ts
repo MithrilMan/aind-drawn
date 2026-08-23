@@ -660,15 +660,14 @@ export function createSolidFaceBlueprint(
         placement: placement(tearAnchor),
         capabilities: Object.freeze([solidFaceMotionCapability({
           kind: 'flow-effect',
+          sampleId: `tear:${sideId}:${component.id}`,
           attachment: component.id === 'stream' ? 'source' : 'free',
           activationState: 'crying',
-          phase: component.phase + (side < 0 ? 0 : 0.33),
           travel: Object.freeze([
             component.travel[0] === 0 ? 0 : side * component.travel[0] * headRadiusX,
             component.travel[1] * headRadiusY,
             0,
           ] as const),
-          pulse: component.pulse,
         })]),
         visible: false,
         castShadow: false,

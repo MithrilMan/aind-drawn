@@ -1,5 +1,6 @@
 import type { Point3 } from '../../../../core/geometry3.js';
 import type { CharacterExpression } from '../../identity/expression-profile.js';
+import type { CharacterTearMotionId } from '../../identity/tear-profile.js';
 import { createAssetCapability, readAssetCapability, type AssetCapability } from '../../../../contracts/asset-capabilities.js';
 import type { SolidPartDefinition } from '../../../../contracts/solid-asset.js';
 
@@ -16,11 +17,10 @@ export type SolidFaceMotionCapability =
   | Readonly<{ kind: 'mouth'; expression: CharacterExpression }>
   | Readonly<{
     kind: 'flow-effect';
+    sampleId: CharacterTearMotionId;
     attachment: 'source' | 'free';
     activationState: string;
-    phase: number;
     travel: Point3;
-    pulse: number;
   }>;
 
 export function solidFaceMotionCapability(

@@ -15,11 +15,11 @@ and inked-solid output are adapters rather than independent generators; and Thre
 outside identity, layout, and blueprint authoring. The next step should preserve those choices,
 not replace them with a more fashionable framework.
 
-Runtime identity and the minimal composition boundary are now first-class capabilities. The
-library can describe, validate, compare, and instantiate a rich asset across projections, but
-several of its promises are not yet first-class capabilities for a consumer:
+Runtime identity, minimal composition, and pure family motion are now first-class capabilities.
+The library can describe, validate, compare, instantiate, and deterministically sample a rich
+asset across projections, but several of its promises are not yet first-class capabilities for a
+consumer:
 
-- animation intent is still coupled to renderer-specific rigs;
 - the inked-solid pass is organised around one blueprint policy rather than a registered set of
   scene instances;
 - recurring solid topology is rebuilt by family-local mesh code;
@@ -29,12 +29,10 @@ several of its promises are not yet first-class capabilities for a consumer:
 
 The remaining recommended direction is therefore:
 
-1. review and split the oversized runtime and validation classes along proven responsibilities;
-2. separate pure motion sampling from renderer application;
-3. evolve inked-solid rendering from a single-blueprint pass into a multi-instance scene service;
-4. add small reusable geometry primitives where duplication already proves the need;
-5. ship persistence, export, and inspection as first-class library capabilities;
-6. only then add a family that stresses a genuinely new architectural axis.
+1. evolve inked-solid rendering from a single-blueprint pass into a multi-instance scene service;
+2. add small reusable geometry primitives where duplication already proves the need;
+3. ship persistence, export, and inspection as first-class library capabilities;
+4. only then add a family that stresses a genuinely new architectural axis.
 
 This document deliberately does not propose a monorepo, a generic game engine, a universal asset
 registry, or a family-agnostic procedural geometry language. Those would add ceremony before they
@@ -248,6 +246,53 @@ vehicle door interactions across repeated rig construction, with no page-console
 warnings.
 
 The next recommended slice is Initiative 6, pure deterministic motion sampling.
+
+### 2026-08-23 - Initiative 6 completed
+
+Character and vehicle animation are now sampled as immutable semantic data before either
+projection mutates a rig. The implementation replaces the former animator hierarchy rather than
+wrapping it, in keeping with the package's unpublished greenfield status.
+
+Completed work:
+
+- replaced `CharacterAnimator`, `SolidCharacterAnimator`, `SolidFaceAnimator`,
+  `CharacterPoseBlend`, and `VehicleAnimator` with explicit state reducers, pure family samplers,
+  and thin raster and solid applicators;
+- added frozen serialisable `CharacterMotionState`, absolute transition anchors, normalized
+  articulated part intent, shared face intent, and identity-keyed secondary-effect samples;
+- made repeated character and vehicle commands return their existing state when unchanged, so
+  defensive per-frame assignment cannot restart transitions or autonomic behaviour;
+- replaced hidden elapsed counters and random cursors with absolute-time locomotion, breathing,
+  flow, blink, and gaze sampling. Blink and gaze use namespaced seed-derived time windows that can
+  be inspected directly without replaying prior frames;
+- separated body pose sampling, facial schedules, flowing-effect sampling, and projection
+  application into focused modules rather than moving the old animator into one large function;
+- made both character projections consume the exact same `CharacterMotionSample`, including pose
+  weights, semantic joint swing, planar roll, foreground-crossing intent, expression, gaze, blink,
+  mouth state, and tear-component phase;
+- made vehicle sampling derive one wheel angle from identity-owned radius and cumulative signed
+  travel before raster or solid application. Rolling capabilities now select projection targets
+  only and no longer duplicate wheel radius;
+- added focused `SolidRig` node and part rest-pose resets so solid applicators remain idempotent
+  without owning hidden renderer caches or disturbing unrelated interaction nodes;
+- migrated Projection Studio to pass the canonical generated identity into its catalog-owned
+  runtime adapters. The stages remain family-agnostic and both projections sample against the
+  same absolute playback time;
+- added regressions for deep sample equality and serialisation, direct seeking, intermediate and
+  converged pose transitions, deterministic and disableable autonomic schedules, idempotent
+  commands, repeated sample application without drift, shared vehicle kinematics, signed travel,
+  and renderer-free sampler imports;
+- intentionally changed the public API snapshot: five mutable animator exports were removed and
+  ten explicit state, sampler, and applicator functions were added, for 163 reviewed runtime
+  exports.
+
+Verification completed with `pnpm verify`: TypeScript, ESLint, all 116 tests, the compiled
+library artifact, its exact 163-export snapshot, and the Projection Studio production build
+pass. Desktop browser QA exercised character run plus crying motion and vehicle drive plus right
+steering across raster and Doodle 3D projections; page-console inspection reported no errors or
+warnings.
+
+The next recommended slice is Initiative 7, multi-instance inked-solid rendering.
 
 ## Current strengths to preserve
 
@@ -810,12 +855,12 @@ policy. Consumers may integrate these assets into their own engines.
 - Removing one instance disposes only resources it owns.
 - Shared immutable resources use explicit reference ownership and are disposed exactly once.
 
-## Initiative 6: pure, deterministic motion sampling
+## Initiative 6: pure, deterministic motion sampling - completed 2026-08-23
 
 ### Problem
 
-The current runtimes correctly avoid accumulated transform drift, and characters share temporal
-pose weights. However, motion interpretation is still mixed with rig mutation:
+Before this initiative, the runtimes avoided accumulated transform drift and characters shared
+temporal pose weights, but motion interpretation was still mixed with rig mutation:
 
 - `VehicleAnimator` accepts either a raster or solid rig and imports Three.js;
 - raster and solid character animators repeat pose interpretation with representation-specific
@@ -823,7 +868,7 @@ pose weights. However, motion interpretation is still mixed with rig mutation:
 - elapsed time is internal mutable state, which makes exact seeking and offline export harder;
 - consumers cannot inspect or serialise the sampled semantic pose before it is applied.
 
-### Proposed two-stage model
+### Implemented two-stage model
 
 Each animated family owns a pure semantic sampler and thin projection applicators:
 

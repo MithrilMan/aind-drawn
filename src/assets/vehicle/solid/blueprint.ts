@@ -272,7 +272,6 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
         geometry: torusWheel(identity.wheels.radius, identity.wheels.width),
         materialId: 'tyre', placement: placement([0, 0, 0]),
         capabilities: Object.freeze([vehicleRollingPartCapability({
-          radius: identity.wheels.radius,
           steering: axle === 'front',
           side: sideSign,
         })]),

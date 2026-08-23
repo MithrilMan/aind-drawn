@@ -21,7 +21,11 @@ const requiredExports = [
   'SolidRig',
   'InkedSolidPass',
   'InkedSolidStrokeRig',
-  'SolidCharacterAnimator',
+  'sampleCharacterMotion',
+  'createCharacterMotionState',
+  'setCharacterMotion',
+  'applyRasterCharacterMotion',
+  'applySolidCharacterMotion',
   'createCharacterBlueprint',
   'createCharacterIdentity',
   'createCharacterRecipe',
@@ -38,7 +42,11 @@ const requiredExports = [
   'createRasterVehicleRecipe',
   'createSolidVehicleBlueprint',
   'createSolidVehicleInkStrokes',
-  'VehicleAnimator',
+  'sampleVehicleMotion',
+  'createVehicleMotionState',
+  'setVehicleMotion',
+  'applyRasterVehicleMotion',
+  'applySolidVehicleMotion',
   'createSolidFaceBlueprint',
   'createSolidFaceRecipe',
   'createSolidCharacterBlueprint',
@@ -96,6 +104,37 @@ assert.deepEqual(
 assertNoObsoleteEnvelopeFields(cat, 'Compiled character blueprint');
 assert.ok(cat.layers.some(({ id }) => id === 'muzzle'), 'Compiled cat is missing its muzzle');
 assert.ok(cat.layers.some(({ id }) => id === 'tail'), 'Compiled cat is missing its tail');
+let characterMotionState = library.createCharacterMotionState({ autoBlink: false, autoGaze: false });
+characterMotionState = library.setCharacterMotion(characterMotionState, {
+  pose: 'run', speed: 0.8, expression: 'happy',
+}, 0);
+const characterMotionSample = library.sampleCharacterMotion(
+  firstCat.identity,
+  characterMotionState,
+  0.6,
+);
+assert.deepEqual(
+  characterMotionSample,
+  library.sampleCharacterMotion(firstCat.identity, characterMotionState, 0.6),
+  'Compiled character motion sampling must remain deterministic',
+);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(characterMotionSample)),
+  characterMotionSample,
+  'Compiled character motion samples must remain serialisable',
+);
+const compiledCharacterRig = new library.SolidRig(
+  library.createSolidCharacterBlueprint(firstCat.identity),
+);
+library.applySolidCharacterMotion(compiledCharacterRig, characterMotionSample);
+const firstArmPose = compiledCharacterRig.getNode('arm:left').quaternion.toArray();
+library.applySolidCharacterMotion(compiledCharacterRig, characterMotionSample);
+assert.deepEqual(
+  compiledCharacterRig.getNode('arm:left').quaternion.toArray(),
+  firstArmPose,
+  'Compiled character motion application must not accumulate transforms',
+);
+compiledCharacterRig.dispose();
 
 const buildingIdentity = library.createBuildingIdentity(612, {
   archetype: 'townhouse',
@@ -223,6 +262,15 @@ const vehicle = library.createRasterVehicleBlueprint(
   library.createRasterVehicleRecipe(vehicleIdentity),
 );
 const solidVehicle = library.createSolidVehicleBlueprint(vehicleIdentity);
+const vehicleMotionState = library.createVehicleMotionState({
+  travelDistance: 2.5, speed: 0.7, steering: -0.4,
+});
+const vehicleMotionSample = library.sampleVehicleMotion(vehicleIdentity, vehicleMotionState, 1.2);
+assert.equal(
+  vehicleMotionSample.wheelRotation,
+  -vehicleMotionState.travelDistance / vehicleIdentity.wheels.radius,
+  'Compiled vehicle sampling must derive wheel angle from shared identity radius',
+);
 assert.equal(vehicle.assetId, solidVehicle.assetId, 'Vehicle projections must share an asset ID');
 assert.deepEqual(
   vehicle.manifest.interactions.map(({ id }) => id),

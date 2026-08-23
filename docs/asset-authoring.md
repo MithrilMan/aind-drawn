@@ -321,8 +321,9 @@ not an opening.
 Family-specific animation metadata is published as namespaced capabilities.
 The generic layer and solid-part contracts do not contain a growing union of
 character, vehicle, or effect roles. Define a capability ID, payload, constructor,
-and reader beside the owning family; its animator consumes that reader while
-generic rigs remain unaware of the payload.
+and reader beside the owning family; its projection motion applicator consumes
+that reader while generic rigs and semantic samplers remain unaware of the
+payload.
 
 The vehicle family is the articulated machinery reference. One
 `VehicleIdentityRecipe` owns body archetype, proportions, cabin, wheelbase,
@@ -332,8 +333,9 @@ up along `+Y`, with the right side along `+Z`; adapters derive every side sign
 from that right-handed convention.
 Raster wheels and solid
 torus tyres publish family-owned rolling capabilities consumed by
-`VehicleAnimator`; rotation is
-derived from cumulative signed travel, so frames cannot accumulate drift.
+their projection applicators. `sampleVehicleMotion` derives one shared rotation
+from identity-owned wheel radius and cumulative signed travel, so frames cannot
+accumulate drift and direct timeline seeking remains exact.
 The door panel, its glass, frame, handle, and drawing marks share the hinged
 node, while the chassis owns the revealed aperture. Doors, bonnet, and cargo
 remain declarative rig interactions. Projection Studio

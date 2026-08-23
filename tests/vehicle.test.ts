@@ -6,7 +6,7 @@ import {
   VEHICLE_ARCHETYPES,
   VEHICLE_AUTHORING_SCHEMA,
   SolidRig,
-  VehicleAnimator,
+  applySolidVehicleMotion,
   buildSolidVehicleLayout,
   createInkedSolidBlueprint,
   createRasterVehicleBlueprint,
@@ -16,6 +16,9 @@ import {
   createSolidVehicleBlueprint,
   createSolidVehicleInkStrokes,
   createVehicleIdentity,
+  createVehicleMotionState,
+  sampleVehicleMotion,
+  setVehicleMotion,
   vehicleSideSign,
   vehicleSteeringInput,
   vehicleRollingLayerOf,
@@ -62,7 +65,7 @@ describe('vehicle asset family', () => {
     );
     expect(rasterFrontBone?.restPose.position.y).toBeCloseTo(solidFront?.restPose.position[1] ?? 0);
     expect(rasterFront === undefined ? undefined : vehicleRollingLayerOf(rasterFront))
-      .toMatchObject({ radius: identity.wheels.radius, steering: true });
+      .toMatchObject({ steering: true });
     expect(raster.manifest).toBe(solid.manifest);
     expect(raster.manifest.interactions.map(({ id }) => id)).toEqual(
       solid.manifest.interactions.map(({ id }) => id),
@@ -93,7 +96,7 @@ describe('vehicle asset family', () => {
 
     const tyre = solid.parts.find(({ id }) => id === 'wheel:front:left:tyre');
     expect(tyre === undefined ? undefined : vehicleRollingPartOf(tyre))
-      .toMatchObject({ radius: identity.wheels.radius, steering: true, side: -1 });
+      .toMatchObject({ steering: true, side: -1 });
     expect(tyre?.geometry.type).toBe('mesh');
     if (tyre?.geometry.type !== 'mesh') return;
     const depth = Math.max(...tyre.geometry.vertices.map(([, , z]) => z))
@@ -219,29 +222,41 @@ describe('vehicle asset family', () => {
   });
 
   it('derives wheel rotation from signed travel without frame drift', () => {
-    const solid = createSolidVehicleBlueprint(createVehicleIdentity(5105, { archetype: 'coupe' }));
+    const identity = createVehicleIdentity(5105, { archetype: 'coupe' });
+    const solid = createSolidVehicleBlueprint(identity);
     const rig = new SolidRig(solid);
-    const animator = new VehicleAnimator(rig);
     const wheel = rig.getNode('wheel:front:left');
-    animator.update(0.1, { travelDistance: 2, speed: 1, steering: 0.4 });
+    let state = createVehicleMotionState({ travelDistance: 2, speed: 1, steering: 0.4 });
+    applySolidVehicleMotion(rig, sampleVehicleMotion(identity, state, 0.1));
     const first = wheel?.quaternion.clone();
-    animator.update(0, { travelDistance: 2, speed: 1, steering: 0.4 });
+    const repeated = setVehicleMotion(state, { travelDistance: 2, speed: 1, steering: 0.4 });
+    expect(repeated).toBe(state);
+    applySolidVehicleMotion(rig, sampleVehicleMotion(identity, repeated, 0.1));
     expect(wheel?.quaternion.equals(first ?? wheel.quaternion)).toBe(true);
-    animator.update(0, { travelDistance: -2, speed: 1, steering: 0.4 });
+    state = setVehicleMotion(state, { travelDistance: -2, speed: 1, steering: 0.4 });
+    applySolidVehicleMotion(rig, sampleVehicleMotion(identity, state, 0.1));
     expect(wheel?.quaternion.equals(first ?? wheel.quaternion)).toBe(false);
     rig.dispose();
   });
 
   it('maps named steering directions to the right-handed vehicle axes', () => {
-    const solid = createSolidVehicleBlueprint(createVehicleIdentity(5112, { archetype: 'sedan' }));
+    const identity = createVehicleIdentity(5112, { archetype: 'sedan' });
+    const solid = createSolidVehicleBlueprint(identity);
     const rig = new SolidRig(solid);
-    const animator = new VehicleAnimator(rig);
     const wheel = rig.getNode('wheel:front:right');
-    animator.update(0, { travelDistance: 0, steering: vehicleSteeringInput('left', 1) });
+    let state = createVehicleMotionState({
+      travelDistance: 0,
+      steering: vehicleSteeringInput('left', 1),
+    });
+    applySolidVehicleMotion(rig, sampleVehicleMotion(identity, state, 0));
     const leftForward = new THREE.Vector3(1, 0, 0)
       .applyQuaternion(wheel?.quaternion ?? new THREE.Quaternion());
     expect(leftForward.z).toBeLessThan(0);
-    animator.update(0, { travelDistance: 0, steering: vehicleSteeringInput('right', 1) });
+    state = setVehicleMotion(state, {
+      travelDistance: 0,
+      steering: vehicleSteeringInput('right', 1),
+    });
+    applySolidVehicleMotion(rig, sampleVehicleMotion(identity, state, 0));
     const rightForward = new THREE.Vector3(1, 0, 0)
       .applyQuaternion(wheel?.quaternion ?? new THREE.Quaternion());
     expect(rightForward.z).toBeGreaterThan(0);

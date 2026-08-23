@@ -276,12 +276,38 @@ being remapped by representation-specific constants.
 
 `SolidRig` resolves pure specifications to Three.js geometry and physical
 materials. Each semantic part remains an independent mesh. Mouth expressions
-are authored profile variants selected by `SolidFaceAnimator`, not scale-only
-distortions of one neutral mouth. The animator also owns blink, gaze, and head
-follow; `SolidCharacterAnimator` adds rest-pose body nodes, locomotion,
-breathing, and tail motion. Both reset their targets before applying transforms,
-so animation never accumulates drift or rebuilds geometry. The rig owns and
-disposes all generated GPU resources.
+are authored profile variants selected by the solid character motion
+applicator, not scale-only distortions of one neutral mouth. `SolidRig` owns the
+authored rest transforms and exposes focused node and part reset operations;
+projection applicators therefore remain idempotent without caching renderer
+state outside the rig. The rig owns and disposes all generated GPU resources.
+
+## Pure family motion
+
+Transient motion is evaluated before either renderer mutates. Character
+commands are reduced into a frozen `CharacterMotionState` whose pose transition
+stores absolute start time and source weights. `sampleCharacterMotion` combines
+that state, the shared identity, and an absolute time into one immutable
+`CharacterMotionSample`. Body articulation, face schedules, and flowing
+secondary effects are separate pure collaborators behind that sampler.
+
+Blink and gaze use namespaced, seed-derived absolute time windows instead of a
+hidden random cursor. Sampling a time directly therefore produces the same
+result as inspecting every preceding frame. Reapplying an equal command returns
+the same state object and does not restart a transition or autonomic schedule.
+
+`applyRasterCharacterMotion` and `applySolidCharacterMotion` consume the same
+semantic sample. They translate joint swing, planar roll, foreground crossing,
+face intent, and flow phase into their own bone, layer, node, and part
+operations. Both restore authored targets before application, so applying one
+sample repeatedly cannot accumulate transforms. Raster line boil is selected
+from the sample's absolute time.
+
+Vehicle motion follows the same boundary. `sampleVehicleMotion` derives one
+wheel angle from identity-owned radius and cumulative signed travel, plus
+steering and suspension intent. Separate raster and solid applicators select
+their family capability targets without inspecting or discriminating the other
+rig representation.
 
 Physical material resolution is centralized in `SolidMaterialProvider`.
 `SolidMaterialSpec.finish` selects a renderer policy from the complete public

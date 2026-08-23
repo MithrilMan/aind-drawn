@@ -163,6 +163,7 @@ function rebuildProjection(): void {
   const projection = family.createProjection(seed, medium, currentCustomization(), currentFinish());
   rasterStage.setBlueprint(
     projection.raster,
+    projection.identity,
     family.createRasterRuntime,
     autoGazeInput.checked,
   );
@@ -171,6 +172,7 @@ function rebuildProjection(): void {
       projection.solid,
       projection.strokes,
       medium,
+      projection.identity,
       family.createSolidRuntime,
       family.solidFrameScale,
       autoGazeInput.checked,

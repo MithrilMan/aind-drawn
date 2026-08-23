@@ -6,11 +6,18 @@ import {
   VEHICLE_AUTHORING_SCHEMA,
   VEHICLE_MOTIONS,
   VEHICLE_STEERING_DIRECTIONS,
-  CharacterAnimator,
-  SolidCharacterAnimator,
   SpriteRig,
   SolidRig,
-  VehicleAnimator,
+  applyRasterCharacterMotion,
+  applyRasterVehicleMotion,
+  applySolidCharacterMotion,
+  applySolidVehicleMotion,
+  createCharacterMotionState,
+  createVehicleMotionState,
+  sampleCharacterMotion,
+  sampleVehicleMotion,
+  setCharacterMotion,
+  setVehicleMotion,
   vehicleSteeringInput,
   createDefaultAssetAuthoringValues,
   createBuildingIdentity,
@@ -31,6 +38,7 @@ import {
   type AssetBlueprint,
   type AssetFamilyAuthoringSchema,
   type BuildingArchetype,
+  type BuildingIdentityRecipe,
   type BuildingIdentityOptions,
   type CharacterDentalStyle,
   type CharacterEarStyle,
@@ -40,9 +48,11 @@ import {
   type CharacterHairStyle,
   type CharacterHeadShape,
   type CharacterIdentityOptions,
+  type CharacterIdentityRecipe,
   type CharacterIdentitySpecies,
   type CharacterExpression,
   type CharacterMotion,
+  type CharacterMotionSample,
   type CharacterMouthStyle,
   type CharacterNoseStyle,
   type CharacterOutfitStyle,
@@ -56,6 +66,8 @@ import {
   type VehicleArchetype,
   type VehicleDoorCount,
   type VehicleIdentityOptions,
+  type VehicleIdentityRecipe,
+  type VehicleMotionSample,
   type VehicleWheelStyle,
 } from '../../../src/index.js';
 
@@ -84,16 +96,20 @@ export type StudioRuntimeAdapter = Readonly<{
 }>;
 
 export type StudioRuntimeOptions = Readonly<{ autoGaze: boolean }>;
+export type FamilyIdentity = BuildingIdentityRecipe | CharacterIdentityRecipe | VehicleIdentityRecipe;
 export type StudioRasterRuntimeFactory = (
   rig: SpriteRig,
+  identity: FamilyIdentity,
   options: StudioRuntimeOptions,
 ) => StudioRuntimeAdapter;
 export type StudioSolidRuntimeFactory = (
   rig: SolidRig,
+  identity: FamilyIdentity,
   options: StudioRuntimeOptions,
 ) => StudioRuntimeAdapter;
 
 export type FamilyProjection = Readonly<{
+  identity: FamilyIdentity;
   raster: AssetBlueprint;
   solid: SolidAssetBlueprint;
   strokes: readonly InkedSolidStrokeDefinition[];
@@ -185,6 +201,7 @@ function characterProjection(
   const raster = createRasterCharacterBlueprint(identity, { medium });
   const solid = createSolidCharacterBlueprint(identity, { finish });
   return Object.freeze({
+    identity,
     raster,
     solid,
     strokes: createSolidCharacterInkStrokes(solid),
@@ -213,6 +230,7 @@ function buildingProjection(
   const raster = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity, { medium }));
   const solid = createSolidBuildingBlueprint(identity, { finish });
   return Object.freeze({
+    identity,
     raster,
     solid,
     strokes: createSolidBuildingInkStrokes(solid),
@@ -247,35 +265,41 @@ function vehicleProjection(
   }));
   const solid = createSolidVehicleBlueprint(identity, { finish });
   return Object.freeze({
+    identity,
     raster,
     solid,
     strokes: createSolidVehicleInkStrokes(solid),
   });
 }
 
-type CharacterRuntime = Readonly<{
-  readonly currentExpression: CharacterExpression;
-  setExpression: (expression: CharacterExpression) => void;
-  update: (deltaSeconds: number, motion: CharacterMotion) => void;
-}>;
-
-function characterRuntime(animator: CharacterRuntime): StudioRuntimeAdapter {
+function characterRuntime(
+  identity: CharacterIdentityRecipe,
+  options: StudioRuntimeOptions,
+  apply: (sample: CharacterMotionSample) => void,
+): StudioRuntimeAdapter {
+  let state = createCharacterMotionState({ autoGaze: options.autoGaze });
   return Object.freeze({
-    update: ({ deltaSeconds, dynamicState, speed }) => {
+    update: ({ dynamicState, speed, elapsedSeconds }) => {
       const expression = (dynamicState.expression ?? 'idle') as CharacterExpression;
-      if (animator.currentExpression !== expression) animator.setExpression(expression);
-      animator.update(deltaSeconds, Object.freeze({
+      const motion: CharacterMotion = Object.freeze({
         pose: (dynamicState.pose ?? 'idle') as CharacterPose,
         speed,
         facing: 1 as const,
-      }));
+        expression,
+      });
+      state = setCharacterMotion(state, motion, elapsedSeconds);
+      apply(sampleCharacterMotion(identity, state, elapsedSeconds));
     },
   });
 }
 
-function vehicleRuntime(animator: VehicleAnimator): StudioRuntimeAdapter {
+function vehicleRuntime(
+  identity: VehicleIdentityRecipe,
+  apply: (sample: VehicleMotionSample) => void,
+): StudioRuntimeAdapter {
+  let state = createVehicleMotionState();
   return Object.freeze({
-    update: ({ deltaSeconds, dynamicState, speed, elapsedSeconds }) => {
+    update: ({ dynamicState, speed, elapsedSeconds }) => {
       const preset = dynamicState.motion ?? 'parked';
       const steeringChoice = dynamicState.steering ?? 'straight';
       const signedSpeed = preset === 'reverse' ? -speed : preset === 'parked' ? 0 : speed;
@@ -284,12 +308,13 @@ function vehicleRuntime(animator: VehicleAnimator): StudioRuntimeAdapter {
       const steering = preset === 'showcase'
         ? Math.sin(elapsedSeconds * 0.8) * 0.72
         : vehicleSteeringInput(steeringDirection);
-      animator.update(deltaSeconds, Object.freeze({
+      state = setVehicleMotion(state, Object.freeze({
         travelDistance: elapsedSeconds * signedSpeed * 2.4,
         speed: Math.abs(signedSpeed),
         steering,
         suspension: preset === 'showcase' ? 0.78 : 0.42,
       }));
+      apply(sampleVehicleMotion(identity, state, elapsedSeconds));
     },
   });
 }
@@ -329,12 +354,22 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: CHARACTER_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(CHARACTER_AUTHORING_SCHEMA),
     createProjection: characterProjection,
-    createRasterRuntime: (rig: SpriteRig, options: StudioRuntimeOptions) => characterRuntime(
-      new CharacterAnimator(rig, { autoGaze: options.autoGaze }),
-    ),
-    createSolidRuntime: (rig: SolidRig, options: StudioRuntimeOptions) => characterRuntime(
-      new SolidCharacterAnimator(rig, { autoGaze: options.autoGaze }),
-    ),
+    createRasterRuntime: (
+      rig: SpriteRig,
+      identity: FamilyIdentity,
+      options: StudioRuntimeOptions,
+    ) => {
+      if (identity.family !== 'character') throw new TypeError('Character runtime requires character identity');
+      return characterRuntime(identity, options, (sample) => { applyRasterCharacterMotion(rig, sample); });
+    },
+    createSolidRuntime: (
+      rig: SolidRig,
+      identity: FamilyIdentity,
+      options: StudioRuntimeOptions,
+    ) => {
+      if (identity.family !== 'character') throw new TypeError('Character runtime requires character identity');
+      return characterRuntime(identity, options, (sample) => { applySolidCharacterMotion(rig, sample); });
+    },
   }),
   Object.freeze({
     id: 'building',
@@ -391,8 +426,14 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: VEHICLE_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(VEHICLE_AUTHORING_SCHEMA),
     createProjection: vehicleProjection,
-    createRasterRuntime: (rig: SpriteRig) => vehicleRuntime(new VehicleAnimator(rig)),
-    createSolidRuntime: (rig: SolidRig) => vehicleRuntime(new VehicleAnimator(rig)),
+    createRasterRuntime: (rig: SpriteRig, identity: FamilyIdentity) => {
+      if (identity.family !== 'vehicle') throw new TypeError('Vehicle runtime requires vehicle identity');
+      return vehicleRuntime(identity, (sample) => { applyRasterVehicleMotion(rig, sample); });
+    },
+    createSolidRuntime: (rig: SolidRig, identity: FamilyIdentity) => {
+      if (identity.family !== 'vehicle') throw new TypeError('Vehicle runtime requires vehicle identity');
+      return vehicleRuntime(identity, (sample) => { applySolidVehicleMotion(rig, sample); });
+    },
   }),
 ]);
 

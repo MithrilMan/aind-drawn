@@ -1,16 +1,16 @@
 import { createAssetCapability, readAssetCapability, type AssetCapability } from '../../../contracts/asset-capabilities.js';
 import type { LayerDefinition, Vector2 } from '../../../contracts/raster-asset.js';
+import type { CharacterTearMotionId } from '../identity/tear-profile.js';
 
 const CHARACTER_FLOW_CAPABILITY = 'aind.character.flow/v1';
 
 export type CharacterFlowCapability = Readonly<{
+  sampleId: CharacterTearMotionId;
   /** Source remains attached; free components travel and restart cyclically. */
   attachment: 'source' | 'free';
   /** Layer state that enables this effect in the character runtime. */
   activationState: string;
-  phase: number;
   travel: Vector2;
-  pulse: number;
 }>;
 
 export function characterFlowCapability(

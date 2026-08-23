@@ -281,7 +281,6 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
       pivot: [0.5, 0.5] as const,
       states: ['idle'] as const,
       capabilities: Object.freeze([vehicleRollingLayerCapability({
-        radius: recipe.identity.wheels.radius,
         steering: id === 'wheel:front',
       })]),
       draw: ({ sketch }): void => {

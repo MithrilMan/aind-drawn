@@ -72,6 +72,22 @@ describe('architectural boundaries', () => {
     }
   });
 
+  it('keeps semantic motion sampling renderer-free', () => {
+    for (const file of [
+      'src/assets/character/runtime/face-motion-sampler.ts',
+      'src/assets/character/runtime/flow-motion-sampler.ts',
+      'src/assets/character/runtime/motion-sampler.ts',
+      'src/assets/character/runtime/motion-state.ts',
+      'src/assets/vehicle/runtime/motion-sampler.ts',
+      'src/assets/vehicle/runtime/motion.ts',
+    ]) {
+      const content = source(file);
+      expect(content, file).not.toMatch(/from ['"]three['"]/);
+      expect(content, file).not.toMatch(/runtime\/(?:sprite|solid)-rig/);
+      expect(content, file).not.toMatch(/assets\/[^/]+\/(?:raster|solid)\//);
+    }
+  });
+
   it('organizes multi-representation code by semantic family', () => {
     const expected = [
       'src/assets/building/identity',

@@ -12,6 +12,7 @@ import {
   type SolidAssetBlueprint,
 } from '../../../src/index.js';
 import type {
+  FamilyIdentity,
   FamilyDynamicState,
   StudioRuntimeAdapter,
   StudioSolidRuntimeFactory,
@@ -93,6 +94,7 @@ export class ThreeStage {
     solid: SolidAssetBlueprint,
     strokes: readonly InkedSolidStrokeDefinition[],
     medium: MediumId,
+    identity: FamilyIdentity,
     createRuntime: StudioSolidRuntimeFactory,
     solidFrameScale: number,
     autoGaze: boolean,
@@ -105,7 +107,7 @@ export class ThreeStage {
     this.medium = medium;
     this.solidFrameScale = solidFrameScale;
     this.rig = new SolidRig(solid, { environmentMap: this.environmentMap });
-    this.runtime = createRuntime(this.rig, { autoGaze });
+    this.runtime = createRuntime(this.rig, identity, { autoGaze });
     this.applyView();
     this.scene.add(this.rig.root);
     this.rebuildInk();

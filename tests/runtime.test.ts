@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
-  CharacterAnimator,
-  SolidCharacterAnimator,
-  SolidFaceAnimator,
+  applyRasterCharacterMotion,
+  applySolidCharacterMotion,
+  createCharacterMotionState,
+  sampleCharacterMotion,
+  setCharacterMotion,
   SolidMaterialProvider,
   InkedSolidStrokeRig,
   SOLID_FINISH_CATALOG,
@@ -29,6 +31,9 @@ import {
   solidFaceMotionOf,
   type AssetBlueprint,
   type CanvasFactory,
+  type CharacterIdentityRecipe,
+  type CharacterMotion,
+  type CharacterMotionState,
 } from '../src/index.js';
 import { inkedSolidSurfaceFlow } from '../src/projections/inked-solid/runtime/surface-flow.js';
 
@@ -36,6 +41,18 @@ const inertCanvasFactory: CanvasFactory = (width, height) => ({
   canvas: { width, height } as HTMLCanvasElement,
   context: {} as CanvasRenderingContext2D,
 });
+
+function applySolidCharacterFrame(
+  rig: SolidRig,
+  identity: CharacterIdentityRecipe,
+  state: CharacterMotionState,
+  motion: CharacterMotion,
+  time: number,
+): CharacterMotionState {
+  const next = setCharacterMotion(state, motion, time);
+  applySolidCharacterMotion(rig, sampleCharacterMotion(identity, next, time));
+  return next;
+}
 
 function testBlueprint(): AssetBlueprint {
   const size = Object.freeze({ width: 8, height: 8 });
@@ -227,11 +244,13 @@ describe('sprite rig runtime', () => {
     expect(after?.x).toBeCloseTo((before?.x ?? 0) + 4);
     expect(after?.y).toBeCloseTo((before?.y ?? 0) + 3);
 
-    const animator = new CharacterAnimator(rig, { autoBlink: false, autoGaze: false });
+    const identity = createCharacterIdentity(27);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = setCharacterMotion(state, { pose: 'walk', speed: 1 }, 0);
     const gaitSamples: Readonly<{ left: number; right: number }>[] = Array.from(
       { length: 10 },
-      (): Readonly<{ left: number; right: number }> => {
-        animator.update(0.05, { pose: 'walk', speed: 1 });
+      (_, index): Readonly<{ left: number; right: number }> => {
+        applyRasterCharacterMotion(rig, sampleCharacterMotion(identity, state, (index + 1) * 0.05));
         return {
           left: rig.getBone('leg:left')?.rotation.z ?? 0,
           right: rig.getBone('leg:right')?.rotation.z ?? 0,
@@ -320,10 +339,10 @@ describe('sprite rig runtime', () => {
     });
     const rig = new SpriteRig(blueprint, { boilFrames: 1, canvasFactory: inertCanvasFactory });
     const initial = rig.getSocketWorldPose('hand:left');
-    const animator = new CharacterAnimator(rig, { autoBlink: false, autoGaze: false });
-    for (let frame = 0; frame < 6; frame += 1) {
-      animator.update(0.05, { pose: 'walk', speed: 1 });
-    }
+    const identity = createCharacterIdentity(4210);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = setCharacterMotion(state, { pose: 'walk', speed: 1 }, 0);
+    applyRasterCharacterMotion(rig, sampleCharacterMotion(identity, state, 0.2));
     const animated = rig.getSocketWorldPose('hand:left');
     expect(initial).not.toBeNull();
     expect(animated).not.toBeNull();
@@ -345,12 +364,12 @@ describe('sprite rig runtime', () => {
 
 describe('solid rig runtime', () => {
   it('resolves animated hand sockets as renderer-neutral world poses', () => {
-    const rig = new SolidRig(createSolidCharacterBlueprint(createCharacterIdentity(4211)));
+    const identity = createCharacterIdentity(4211);
+    const rig = new SolidRig(createSolidCharacterBlueprint(identity));
     const initial = rig.getSocketWorldPose('hand:right');
-    const animator = new SolidCharacterAnimator(rig, { autoBlink: false, autoGaze: false });
-    for (let frame = 0; frame < 6; frame += 1) {
-      animator.update(0.05, { pose: 'walk', speed: 1 });
-    }
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = setCharacterMotion(state, { pose: 'walk', speed: 1 }, 0);
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, state, 0.2));
     const animated = rig.getSocketWorldPose('hand:right');
     expect(initial).not.toBeNull();
     expect(animated).not.toBeNull();
@@ -475,17 +494,9 @@ describe('solid rig runtime', () => {
       boilFrames: 1,
       canvasFactory: inertCanvasFactory,
     });
-    const rasterAnimator = new CharacterAnimator(rasterRig, {
-      autoBlink: false,
-      autoGaze: false,
-    });
-
     const solidBlueprint = createSolidCharacterBlueprint(identity);
     const solidRig = new SolidRig(solidBlueprint);
-    const solidAnimator = new SolidCharacterAnimator(solidRig, {
-      autoBlink: false,
-      autoGaze: false,
-    });
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
     const solidLeftBrow = solidRig.getPart('brow:left');
     const solidRightBrow = solidRig.getPart('brow:right');
     const solidLeftPupil = solidRig.getPart('eye:left:pupil');
@@ -503,10 +514,10 @@ describe('solid rig runtime', () => {
       'XYZ',
     ).z;
 
-    rasterAnimator.setExpression('angry');
-    rasterAnimator.update(0);
-    solidAnimator.setExpression('angry');
-    solidAnimator.update(0);
+    state = setCharacterMotion(state, { expression: 'angry' }, 0);
+    const angry = sampleCharacterMotion(identity, state, 0);
+    applyRasterCharacterMotion(rasterRig, angry);
+    applySolidCharacterMotion(solidRig, angry);
     const rasterAngryLeft = rasterRig.getBone('brow:left')?.rotation.z ?? 0;
     const rasterAngryRight = rasterRig.getBone('brow:right')?.rotation.z ?? 0;
     const solidAngryLeft = relativeRoll(leftRest, solidLeftBrow.quaternion);
@@ -524,10 +535,10 @@ describe('solid rig runtime', () => {
     const pupilBounds = new THREE.Box3().setFromObject(solidLeftPupil);
     expect(browBounds.min.y).toBeGreaterThan(pupilBounds.max.y);
 
-    rasterAnimator.setExpression('sad');
-    rasterAnimator.update(0);
-    solidAnimator.setExpression('sad');
-    solidAnimator.update(0);
+    state = setCharacterMotion(state, { expression: 'sad' }, 0.1);
+    const sad = sampleCharacterMotion(identity, state, 0.1);
+    applyRasterCharacterMotion(rasterRig, sad);
+    applySolidCharacterMotion(solidRig, sad);
     const rasterSadLeft = rasterRig.getBone('brow:left')?.rotation.z ?? 0;
     const rasterSadRight = rasterRig.getBone('brow:right')?.rotation.z ?? 0;
     expect(rasterSadLeft).toBeGreaterThan(0);
@@ -616,6 +627,7 @@ describe('solid rig runtime', () => {
   });
 
   it('builds semantic meshes and animates the rest pose without geometry rebuilds', () => {
+    const identity = createCharacterIdentity(404, { species: 'human', shape: 'round' });
     const blueprint = createSolidFaceBlueprint(createSolidFaceRecipe(404, {
       species: 'human', shape: 'round', finish: 'ceramic',
     }));
@@ -628,62 +640,57 @@ describe('solid rig runtime', () => {
     expect(pupil?.userData.assetId).toBe(blueprint.assetId);
     const geometry = pupil?.geometry;
     const before = pupil?.position.clone();
-    const animator = new SolidFaceAnimator(rig, { autoBlink: false, autoGaze: false });
-    animator.setGaze(1, 0.4, 1);
-    animator.update(0.12);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = applySolidCharacterFrame(rig, identity, state, {
+      gaze: { x: 1, y: 0.4, headFollow: 1 },
+    }, 0.12);
     expect(pupil?.geometry).toBe(geometry);
     expect(pupil?.position.distanceTo(before ?? new THREE.Vector3())).toBeGreaterThan(0.01);
-    animator.setExpression('surprised');
-    animator.update(0.1);
+    state = applySolidCharacterFrame(rig, identity, state, { expression: 'surprised' }, 0.22);
     expect(pupil?.scale.x).toBeGreaterThan(1);
     expect(rig.getPart('mouth')?.visible).toBe(false);
     expect(rig.getPart('mouth:surprised')?.visible).toBe(true);
-    animator.setExpression('sad');
-    animator.update(0.1);
+    state = applySolidCharacterFrame(rig, identity, state, { expression: 'sad' }, 0.32);
     expect(rig.getPart('mouth:surprised')?.visible).toBe(false);
     expect(rig.getPart('mouth:sad')?.visible).toBe(true);
     const tear = rig.getPart('tear:left:drop');
     expect(tear?.visible).toBe(false);
-    animator.setExpression('crying');
-    animator.update(0.1);
+    state = applySolidCharacterFrame(rig, identity, state, { expression: 'crying' }, 0.42);
     const tearPosition = tear?.position.clone();
     expect(tear?.visible).toBe(true);
-    animator.update(0.2);
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, state, 0.62));
     expect(tear?.position.distanceTo(tearPosition ?? new THREE.Vector3())).toBeGreaterThan(0);
-    animator.setExpression('idle');
-    animator.update(0.1);
+    applySolidCharacterFrame(rig, identity, state, { expression: 'idle' }, 0.72);
     expect(tear?.visible).toBe(false);
     rig.dispose();
     expect(rig.partIds).toEqual([]);
   });
 
-  it('does not restart a blink when the same solid expression is assigned every frame', () => {
+  it('keeps repeated expression commands idempotent and free of hidden blink state', () => {
+    const identity = createCharacterIdentity(4104, { species: 'human', shape: 'round' });
     const rig = new SolidRig(createSolidFaceBlueprint(createSolidFaceRecipe(4104, {
       species: 'human', shape: 'round', finish: 'skin',
     })));
     const pupil = rig.getPart('eye:left:pupil');
     const restScaleY = pupil?.scale.y ?? 0;
-    const animator = new SolidFaceAnimator(rig, { autoBlink: false, autoGaze: false });
-
-    for (let frame = 0; frame < 30; frame += 1) {
-      animator.setExpression('idle');
-      animator.update(1 / 60);
-      expect(pupil?.scale.y).toBeCloseTo(restScaleY, 6);
-    }
-
-    animator.setExpression('angry');
-    animator.update(0.07);
-    expect(pupil?.scale.y).toBeLessThan(restScaleY * 0.2);
-    animator.setExpression('angry');
-    animator.update(0.07);
-    expect(pupil?.scale.y).toBeGreaterThan(restScaleY * 0.5);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    expect(setCharacterMotion(state, { expression: 'idle' }, 1)).toBe(state);
+    state = setCharacterMotion(state, { expression: 'angry' }, 1.1);
+    const repeated = setCharacterMotion(state, { expression: 'angry' }, 4.5);
+    expect(repeated).toBe(state);
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, state, 1.1));
+    const angryScale = pupil?.scale.y ?? 0;
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, repeated, 4.5));
+    expect(pupil?.scale.y).toBeCloseTo(angryScale, 6);
+    expect(angryScale).toBeLessThan(restScaleY);
     rig.dispose();
   });
 
   it('keeps a complete solid body articulated while the face animator targets the head', () => {
-    const blueprint = createSolidCharacterBlueprint(createCharacterIdentity(5150, {
+    const identity = createCharacterIdentity(5150, {
       species: 'cat', hairStyle: 'none',
-    }));
+    });
+    const blueprint = createSolidCharacterBlueprint(identity);
     const rig = new SolidRig(blueprint);
     const torso = rig.getNode('torso');
     const head = rig.getNode('head');
@@ -694,36 +701,33 @@ describe('solid rig runtime', () => {
     expect(tail?.quaternion.equals(new THREE.Quaternion())).toBe(false);
 
     const headBefore = head?.position.clone();
-    const animator = new SolidCharacterAnimator(rig, { autoBlink: false, autoGaze: false });
-    animator.setGaze(1, 0.3, 1);
-    animator.update(0.12);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = applySolidCharacterFrame(rig, identity, state, {
+      gaze: { x: 1, y: 0.3, headFollow: 1 },
+    }, 0.12);
     expect(head?.position.distanceTo(headBefore ?? new THREE.Vector3())).toBeGreaterThan(0);
-    for (let index = 0; index < 8; index += 1) {
-      animator.update(0.05, { pose: 'walk', speed: 1 });
-    }
+    state = setCharacterMotion(state, { pose: 'walk', speed: 1 }, 0.12);
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, state, 0.52));
     expect(Math.abs(rig.getNode('leg:left')?.rotation.x ?? 0)).toBeGreaterThan(0.1);
     expect(rig.getNode('leg:right')?.rotation.x).toBeCloseTo(
       -(rig.getNode('leg:left')?.rotation.x ?? 0),
     );
-    animator.setExpression('angry');
     const torsoBeforeSleep = torso?.position.y ?? 0;
-    animator.update(0.05, { pose: 'sleep' });
-    expect(animator.currentExpression).toBe('angry');
+    state = applySolidCharacterFrame(rig, identity, state, {
+      pose: 'sleep', expression: 'angry',
+    }, 0.57);
+    expect(state.command.expression).toBe('angry');
     expect(rig.getPart('mouth:angry')?.visible).toBe(true);
     const firstSleepStep = torso?.position.y ?? 0;
     expect(Math.abs(firstSleepStep - torsoBeforeSleep)).toBeLessThan(0.08);
-    for (let index = 0; index < 8; index += 1) {
-      animator.update(0.05, { pose: 'sleep' });
-    }
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, state, 0.97));
     expect(rig.getPart('mouth:sleeping')?.visible).toBe(true);
     expect((torso?.position.y ?? 0) - firstSleepStep).toBeLessThan(-0.08);
-    for (let index = 0; index < 8; index += 1) {
-      animator.update(0.05, { pose: 'idle' });
-    }
+    state = setCharacterMotion(state, { pose: 'idle' }, 0.97);
+    applySolidCharacterMotion(rig, sampleCharacterMotion(identity, state, 1.37));
     expect(rig.getPart('mouth:angry')?.visible).toBe(true);
 
-    animator.setExpression('crying');
-    animator.update(0.05, { pose: 'idle' });
+    applySolidCharacterFrame(rig, identity, state, { expression: 'crying' }, 1.42);
     rig.root.updateMatrixWorld(true);
     const torsoBounds = new THREE.Box3().setFromObject(rig.getPart('body:torso') ?? rig.root);
     for (const side of ['left', 'right'] as const) {

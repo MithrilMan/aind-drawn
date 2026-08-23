@@ -959,16 +959,15 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         },
         pivot: [0.5, 0.5], states: ['idle', 'crying'],
         capabilities: Object.freeze([characterFlowCapability({
+          sampleId: `tear:${sideId}:${component.id}`,
           attachment: component.id === 'stream' ? 'source' : 'free',
           activationState: 'crying',
-          phase: component.phase + (side < 0 ? 0 : 0.33),
           travel: Object.freeze({
             x: component.travel[0] === 0
               ? 0
               : side * component.travel[0] * layout.head.widthPixels * 0.5 / pixelsPerUnit,
             y: component.travel[1] * layout.head.heightPixels * 0.5 / pixelsPerUnit,
           }),
-          pulse: component.pulse,
         })]),
         draw: ({ sketch, state }) => {
           drawTearComponent(

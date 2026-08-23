@@ -141,9 +141,10 @@ L'animazione visiva combina due meccanismi:
 
 L'upstream usa ancora `Math.random()` in diversi comportamenti autonomici
 dell'animatore. Il personaggio resta semanticamente riproducibile, ma la sua
-sequenza temporale non lo è. `CharacterAnimator` usa invece un RNG dedicato
-derivato dal seed della ricetta: a parità di aggiornamenti temporali, blink e
-sguardi si ripetono.
+sequenza temporale non lo è. Il port valuta invece blink e sguardi attraverso
+finestre temporali assolute derivate da namespace seedati. Identità, stato e
+tempo uguali producono lo stesso `CharacterMotionSample` anche con seek diretto,
+senza dipendere dal numero di frame già eseguiti.
 
 ## 7. Facce 3D: la superficie è un contratto condiviso
 
@@ -177,8 +178,10 @@ Nel port questo diventa un confine pubblico, non un sottoprogetto gloss:
 - `SurfaceAnchor` unifica punto, normale e roll;
 - `SolidMaterialSpec` dichiara ruolo cromatico e finitura fisica;
 - `SolidRig` è l'adapter Three.js e possiede le risorse GPU;
-- `SolidFaceAnimator` anima le parti semantiche senza rebuild.
-- `SolidCharacterAnimator` aggiunge locomozione e moto autonomico ai nodi del corpo.
+- `sampleCharacterMotion` produce locomozione, espressione e moto autonomico
+  come dato semantico immutabile;
+- `applySolidCharacterMotion` proietta quel dato sui nodi e sulle parti senza
+  rebuild né accumulo di trasformazioni.
 
 La scena fotografica, le softbox e il crowd layout restano fuori: sono politiche
 di presentazione. Il core conserva invece ciò che serve anche a un gioco 2.5D,

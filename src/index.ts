@@ -53,10 +53,11 @@ export * from './assets/character/solid/face/blueprint.js';
 export * from './assets/character/solid/face/capabilities.js';
 export * from './assets/character/solid/face/layout.js';
 export * from './assets/character/solid/face/recipe.js';
-export * from './assets/character/runtime/face-animator.js';
-export * from './assets/character/runtime/pose-blend.js';
-export * from './assets/character/runtime/raster-animator.js';
-export * from './assets/character/runtime/solid-animator.js';
+export * from './assets/character/runtime/motion.js';
+export { createCharacterMotionState, setCharacterMotion } from './assets/character/runtime/motion-state.js';
+export { sampleCharacterMotion } from './assets/character/runtime/motion-sampler.js';
+export { applyRasterCharacterMotion } from './assets/character/runtime/raster-motion-applicator.js';
+export { applySolidCharacterMotion } from './assets/character/runtime/solid-motion-applicator.js';
 
 // Vehicle family
 export * from './assets/vehicle/identity/authoring.js';
@@ -74,7 +75,10 @@ export * from './assets/vehicle/solid/capabilities.js';
 export * from './assets/vehicle/solid/ink-strokes.js';
 export * from './assets/vehicle/solid/layout.js';
 export * from './assets/vehicle/solid/recipe.js';
-export * from './assets/vehicle/runtime/animator.js';
+export * from './assets/vehicle/runtime/motion.js';
+export { sampleVehicleMotion } from './assets/vehicle/runtime/motion-sampler.js';
+export { applyRasterVehicleMotion } from './assets/vehicle/runtime/raster-motion-applicator.js';
+export { applySolidVehicleMotion } from './assets/vehicle/runtime/solid-motion-applicator.js';
 
 // Cross-family projections
 export * from './projections/inked-solid/blueprint.js';

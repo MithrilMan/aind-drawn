@@ -2,6 +2,8 @@ import type { Point } from '../../../core/geometry.js';
 import type { CharacterIdentityRecipe } from './recipe.js';
 
 export type CharacterTearComponentId = 'stream' | 'drop' | 'bead';
+export type CharacterTearSide = 'left' | 'right';
+export type CharacterTearMotionId = `tear:${CharacterTearSide}:${CharacterTearComponentId}`;
 
 export type CharacterTearComponent = Readonly<{
   id: CharacterTearComponentId;

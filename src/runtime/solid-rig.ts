@@ -31,6 +31,7 @@ type NodeRestTransform = Readonly<{
   quaternion: THREE.Quaternion;
   scale: THREE.Vector3;
 }>;
+type PartRestTransform = NodeRestTransform & Readonly<{ visible: boolean }>;
 
 export type SolidRigOptions = SolidMaterialProviderOptions
   & SolidGeometryFactoryOptions
@@ -50,6 +51,7 @@ export class SolidRig implements SolidAssetInstance {
   private readonly nodes = new Map<string, THREE.Group>();
   private readonly nodeRest = new Map<string, NodeRestTransform>();
   private readonly parts = new Map<string, SolidPartMesh>();
+  private readonly partRest = new Map<string, PartRestTransform>();
   private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
   private readonly materialProvider: SolidMaterialProvider;
   private readonly interactionStates = new Map<string, string>();
@@ -104,6 +106,12 @@ export class SolidRig implements SolidAssetInstance {
         }
         parent.add(mesh);
         this.parts.set(part.id, mesh);
+        this.partRest.set(part.id, Object.freeze({
+          position: mesh.position.clone(),
+          quaternion: mesh.quaternion.clone(),
+          scale: mesh.scale.clone(),
+          visible: mesh.visible,
+        }));
       }
       this.initializeInteractions(
         this.blueprint.manifest.interactions,
@@ -152,6 +160,27 @@ export class SolidRig implements SolidAssetInstance {
 
   public getPart(id: string): SolidPartMesh | null {
     return this.parts.get(id) ?? null;
+  }
+
+  /** Restores one authored node without disturbing unrelated interactions. */
+  public resetNodePose(id: string): void {
+    const node = this.requireNode(id);
+    const rest = this.nodeRest.get(id);
+    if (rest === undefined) throw new Error(`Solid node ${id} has no rest transform`);
+    node.position.copy(rest.position);
+    node.quaternion.copy(rest.quaternion);
+    node.scale.copy(rest.scale);
+  }
+
+  /** Restores one authored part transform and its initial visibility. */
+  public resetPartPose(id: string): void {
+    const part = this.parts.get(id);
+    const rest = this.partRest.get(id);
+    if (part === undefined || rest === undefined) throw new Error(`Unknown solid part: ${id}`);
+    part.position.copy(rest.position);
+    part.quaternion.copy(rest.quaternion);
+    part.scale.copy(rest.scale);
+    part.visible = rest.visible;
   }
 
   public getSocketWorldPose(id: string): Pose3 | null {
@@ -216,6 +245,7 @@ export class SolidRig implements SolidAssetInstance {
     for (const part of this.parts.values()) part.geometry.dispose();
     this.materialProvider.dispose();
     this.parts.clear();
+    this.partRest.clear();
     this.nodes.clear();
     this.nodeRest.clear();
     this.materials.clear();
@@ -308,11 +338,7 @@ export class SolidRig implements SolidAssetInstance {
 
   private applyNodeState(id: string, state: SolidNodeState): void {
     const node = this.requireNode(id);
-    const rest = this.nodeRest.get(id);
-    if (rest === undefined) throw new Error(`Solid node ${id} has no rest transform`);
-    node.position.copy(rest.position);
-    node.quaternion.copy(rest.quaternion);
-    node.scale.copy(rest.scale);
+    this.resetNodePose(id);
     if (state.translation !== undefined) node.position.add(new THREE.Vector3(...state.translation));
     if (state.rotation !== undefined) {
       node.quaternion.multiply(

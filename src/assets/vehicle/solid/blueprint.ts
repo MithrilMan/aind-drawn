@@ -6,11 +6,6 @@ import {
   vehicleSemanticPartId,
 } from '../identity/semantics.js';
 import {
-  createVehicleCabinCrossSection,
-  vehicleCabinHalfWidthAt,
-} from '../identity/cabin-section.js';
-import { createVehicleCabinSideProfile } from '../identity/geometry.js';
-import {
   vehicleSideSign,
   type VehicleIdentityRecipe,
   type VehicleSide,
@@ -21,9 +16,11 @@ import type {
   SolidPartDefinition,
   SuperellipsoidGeometrySpec,
 } from '../../../contracts/solid-asset.js';
-import { buildSolidVehicleLayout, type SolidVehicleLayout } from './layout.js';
+import { buildSolidVehicleLayout } from './layout.js';
 import { createVehicleBodyGeometry } from './body-shell.js';
+import { createVehicleCabinGeometry } from './cabin-geometry.js';
 import { createSolidVehicleDoorParts } from './door-assembly.js';
+import { createVehicleRoofGeometry } from './roof-geometry.js';
 import {
   createSolidVehicleRecipe,
   type SolidVehicleRecipe,
@@ -103,87 +100,6 @@ function cylinder(radius: number, depth: number, segments = 24): MeshGeometrySpe
   });
 }
 
-function cabinGeometry(identity: VehicleIdentityRecipe): MeshGeometrySpec {
-  const profile = createVehicleCabinSideProfile(identity).outline;
-  const section = createVehicleCabinCrossSection(identity);
-  const vertices: Point3[] = [
-    ...profile.map(([x, y]): Point3 => Object.freeze([
-      x,
-      y,
-      vehicleCabinHalfWidthAt(section, y),
-    ] as const)),
-    ...profile.map(([x, y]): Point3 => Object.freeze([
-      x,
-      y,
-      -vehicleCabinHalfWidthAt(section, y),
-    ] as const)),
-  ];
-  const count = profile.length;
-  const faces: number[][] = [
-    Array.from({ length: count }, (_, index) => count - 1 - index),
-    Array.from({ length: count }, (_, index) => count + index),
-  ];
-  for (let index = 0; index < count; index += 1) {
-    // The roof owns this carrier surface. Keeping the cabin's horizontal top
-    // underneath it creates two coplanar faces and visible depth flicker.
-    if (index === 2) continue;
-    const next = (index + 1) % count;
-    faces.push([index, next, count + next, count + index]);
-  }
-  return Object.freeze({
-    type: 'mesh',
-    vertices: Object.freeze(vertices.map((vertex) => Object.freeze(vertex))),
-    faces: Object.freeze(faces.map((face) => Object.freeze(face))),
-    smooth: false,
-  });
-}
-
-function roofGeometry(
-  identity: VehicleIdentityRecipe,
-  layout: SolidVehicleLayout,
-): MeshGeometrySpec {
-  const thickness = Math.max(0.055, layout.height * 0.045);
-  const section = createVehicleCabinCrossSection(identity);
-  const outer = createVehicleCabinSideProfile(identity).outline.slice(1, 5);
-  const inner = outer.map(([x, y]) => Object.freeze([x, y - thickness] as const));
-  const proud = Math.max(0.004, layout.height * 0.003);
-  const halfWidth = (y: number): number => (
-    vehicleCabinHalfWidthAt(section, y) + section.roofOverhang
-  );
-  const vertices: Point3[] = [
-    ...outer.map(([x, y]): Point3 => Object.freeze([x, y + proud, halfWidth(y)] as const)),
-    ...outer.map(([x, y]): Point3 => Object.freeze([x, y + proud, -halfWidth(y)] as const)),
-    ...inner.map(([x, y]): Point3 => Object.freeze([x, y + proud, halfWidth(y)] as const)),
-    ...inner.map(([x, y]): Point3 => Object.freeze([x, y + proud, -halfWidth(y)] as const)),
-  ];
-  const count = outer.length;
-  const positiveOuter = 0;
-  const negativeOuter = count;
-  const positiveInner = count * 2;
-  const negativeInner = count * 3;
-  const faces: number[][] = [];
-  for (let index = 0; index < count - 1; index += 1) {
-    const next = index + 1;
-    faces.push(
-      [positiveOuter + index, positiveOuter + next, positiveInner + next, positiveInner + index],
-      [negativeOuter + next, negativeOuter + index, negativeInner + index, negativeInner + next],
-      [positiveOuter + index, negativeOuter + index, negativeOuter + next, positiveOuter + next],
-      [positiveInner + next, negativeInner + next, negativeInner + index, positiveInner + index],
-    );
-  }
-  faces.push(
-    [positiveOuter, positiveInner, negativeInner, negativeOuter],
-    [positiveOuter + count - 1, negativeOuter + count - 1,
-      negativeInner + count - 1, positiveInner + count - 1],
-  );
-  return Object.freeze({
-    type: 'mesh',
-    vertices: Object.freeze(vertices),
-    faces: Object.freeze(faces.map((face) => Object.freeze(face))),
-    smooth: false,
-  });
-}
-
 function materialSpecs(recipe: SolidVehicleRecipe): readonly SolidMaterialSpec[] {
   const drawing = createVehicleDrawingStyle(recipe.identity);
   return Object.freeze([
@@ -242,10 +158,10 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   });
   add({
     id: 'cabin', node: 'chassis', order: 1,
-    geometry: cabinGeometry(identity), materialId: 'glass',
+    geometry: createVehicleCabinGeometry(identity, layout), materialId: 'glass',
     placement: placement([0, 0, 0]), castShadow: true, receiveShadow: true,
   });
-  const roofPartGeometry = roofGeometry(identity, layout);
+  const roofPartGeometry = createVehicleRoofGeometry(identity, layout);
   add({
     id: 'roof', node: 'chassis', order: 2,
     geometry: roofPartGeometry,

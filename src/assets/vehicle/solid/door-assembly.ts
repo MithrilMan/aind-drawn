@@ -194,20 +194,6 @@ export function createSolidVehicleDoorParts(
       castShadow: false, receiveShadow: false,
     }),
     part({
-      id: `door:${side}:window-opening`, node: 'chassis', order: 7,
-      geometry: warpedCabinProfileGeometry(
-        identity,
-        layout,
-        layout.doorWindowOutline,
-        side,
-        apertureProud,
-        apertureDepth,
-      ),
-      materialId: 'interior',
-      placement: Object.freeze({ position: openingPlacement }),
-      castShadow: false, receiveShadow: false,
-    }),
-    part({
       id: `door:${side}`, node: `door:${side}`, order: 8,
       geometry: warpedPanelGeometry(identity, layout, side, skinProud, panelDepth),
       materialId: 'body', placement: Object.freeze({ position: [0, 0, 0] as const }),

@@ -90,9 +90,7 @@ describe('vehicle asset family', () => {
     expect(solid.parts.find(({ id }) => id === 'door:left:opening')).toMatchObject({
       node: 'chassis', materialId: 'interior',
     });
-    expect(solid.parts.find(({ id }) => id === 'door:left:window-opening')).toMatchObject({
-      node: 'chassis', materialId: 'interior',
-    });
+    expect(solid.parts.some(({ id }) => id === 'door:left:window-opening')).toBe(false);
     expect(solid.parts.find(({ id }) => id === 'hood:opening')).toMatchObject({
       node: 'chassis', materialId: 'interior',
     });
@@ -379,7 +377,9 @@ describe('vehicle asset family', () => {
     const layout = buildSolidVehicleLayout(identity);
     const solid = createSolidVehicleBlueprint(identity);
     const body = solid.parts.find(({ id }) => id === 'body');
+    const cabin = solid.parts.find(({ id }) => id === 'cabin');
     expect(body?.geometry.type).toBe('mesh');
+    expect(cabin?.geometry.type).toBe('mesh');
     const beltRidge = body?.geometry.type === 'mesh'
       ? Math.max(...body.geometry.vertices
         .filter(([, y]) => Math.abs(y - layout.beltHeight) <= 1e-6)
@@ -390,13 +390,45 @@ describe('vehicle asset family', () => {
       const node = layout.nodes.find(({ id }) => id === `door:${side}`);
       const panel = solid.parts.find(({ id }) => id === `door:${side}`);
       const opening = solid.parts.find(({ id }) => id === `door:${side}:opening`);
-      const windowOpening = solid.parts.find(({ id }) => id === `door:${side}:window-opening`);
       const window = solid.parts.find(({ id }) => id === `door:${side}:window`);
       expect(node?.restPose.position[2]).toBeCloseTo(sign * layout.doorSurfaceHalfWidth);
       expect(panel).toMatchObject({ node: `door:${side}`, geometry: { type: 'mesh' } });
       expect(opening).toMatchObject({ node: 'chassis', geometry: { type: 'mesh' } });
-      expect(windowOpening).toMatchObject({ node: 'chassis', geometry: { type: 'mesh' } });
+      expect(solid.parts.some(({ id }) => id === `door:${side}:window-opening`)).toBe(false);
       expect(window).toMatchObject({ node: `door:${side}`, geometry: { type: 'mesh' } });
+      if (cabin?.geometry.type === 'mesh') {
+        const cabinGeometry = cabin.geometry;
+        const frame = layout.doorWindowOutline.map(([x, y]) => [
+          x + layout.doorHingeX,
+          y + layout.bodyBottom,
+        ] as const);
+        const point = [
+          frame.reduce((total, [x]) => total + x, 0) / frame.length,
+          frame.reduce((total, [, y]) => total + y, 0) / frame.length,
+        ] as const;
+        const containsPoint = (polygon: readonly (readonly [number, number])[]): boolean => {
+          let inside = false;
+          for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+            const [x, y] = polygon[index] ?? [0, 0];
+            const [previousX, previousY] = polygon[previous] ?? [0, 0];
+            if (
+              (y > point[1]) !== (previousY > point[1])
+              && point[0] < (previousX - x) * (point[1] - y)
+                / (previousY - y) + x
+            ) inside = !inside;
+          }
+          return inside;
+        };
+        const coveredByFixedSideGlass = cabinGeometry.faces.some((face) => {
+          const faceVertices = face.map((index) => cabinGeometry.vertices[index]);
+          if (!faceVertices.every((vertex) => sign * (vertex?.[2] ?? 0) > 0)) return false;
+          return containsPoint(faceVertices.map((vertex) => [
+            vertex?.[0] ?? Number.NaN,
+            vertex?.[1] ?? Number.NaN,
+          ] as const));
+        });
+        expect(coveredByFixedSideGlass).toBe(false);
+      }
       if (panel?.geometry.type !== 'mesh' || node === undefined) continue;
       const panelGeometry = panel.geometry;
       const exteriorZ = panelGeometry.vertices.map(([, , z]) => node.restPose.position[2] + z);

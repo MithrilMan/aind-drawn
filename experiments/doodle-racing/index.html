@@ -1,13 +1,108 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="is-app-loading">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="A fast quasi-isometric Doodle 3D drift racing experiment powered by AIND Drawn." />
     <title>AIND DRAWN — Paper Circuit</title>
+    <style>
+      html.is-app-loading {
+        color-scheme: dark;
+        background: #171918;
+      }
+
+      html.is-app-loading body {
+        margin: 0;
+        overflow: hidden;
+        background: #171918;
+      }
+
+      html.is-app-loading body > main {
+        visibility: hidden;
+      }
+
+      .app-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 50% 46%, rgb(189 77 49 / 18%), transparent 17rem),
+          #171918;
+        color: #f1e5c8;
+        font-family: Consolas, "Courier New", monospace;
+        opacity: 1;
+        transition: opacity 180ms ease-out, visibility 180ms step-end;
+      }
+
+      html:not(.is-app-loading) .app-loader {
+        visibility: hidden;
+        opacity: 0;
+      }
+
+      .app-loader__content {
+        display: grid;
+        justify-items: center;
+        gap: 10px;
+        padding: 28px;
+        text-align: center;
+      }
+
+      .app-loader__mark {
+        position: relative;
+        inline-size: 72px;
+        block-size: 46px;
+      }
+
+      .app-loader__mark i {
+        position: absolute;
+        inset-inline-start: 0;
+        display: block;
+        inline-size: 100%;
+        block-size: 4px;
+        border-radius: 999px;
+        background: #bd4d31;
+        transform: scaleX(.08) rotate(-2deg);
+        transform-origin: left center;
+        animation: app-loader-draw 1.15s ease-in-out infinite alternate;
+      }
+
+      .app-loader__mark i:nth-child(1) { inset-block-start: 7px; }
+      .app-loader__mark i:nth-child(2) { inset-block-start: 21px; animation-delay: 120ms; }
+      .app-loader__mark i:nth-child(3) { inset-block-start: 35px; animation-delay: 240ms; }
+
+      .app-loader strong {
+        font-size: 13px;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+      }
+
+      .app-loader small {
+        color: #c7bda5;
+        font-size: 11px;
+        letter-spacing: .04em;
+      }
+
+      @keyframes app-loader-draw {
+        45%, 100% { transform: scaleX(1) rotate(-2deg); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .app-loader { transition: none; }
+        .app-loader__mark i { animation: none; transform: scaleX(1) rotate(-2deg); }
+      }
+    </style>
   </head>
   <body>
-    <main class="race-shell" data-race-shell>
+    <div class="app-loader" data-app-loader role="status" aria-live="polite">
+      <div class="app-loader__content">
+        <span class="app-loader__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <strong>Preparing Paper Circuit</strong>
+        <small>Drawing the first frame…</small>
+      </div>
+    </div>
+    <main class="race-shell" data-race-shell aria-busy="true">
       <section class="race-viewport" aria-label="Paper Circuit race" data-viewport>
         <canvas
           tabindex="0"

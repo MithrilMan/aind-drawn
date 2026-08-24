@@ -19,6 +19,7 @@ import {
 } from './family-catalog.js';
 import { FamilyCustomizer } from './family-customizer.js';
 import { RasterStage } from './raster-stage.js';
+import { revealApplication } from '../../shared/app-boot.js';
 
 const root = document.querySelector<HTMLElement>('[data-studio]');
 if (root === null) throw new Error('Projection Studio root is missing');
@@ -455,3 +456,6 @@ createThreeStage();
 renderFamilyControls();
 rebuildProjection();
 animationFrame = requestAnimationFrame(animate);
+requestAnimationFrame(() => {
+  revealApplication(root);
+});

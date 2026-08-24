@@ -5,6 +5,7 @@ import { RaceHud } from './game/race-hud.js';
 import { RaceSimulation } from './game/race-model.js';
 import { RaceStage, type RaceCameraMode } from './game/race-stage.js';
 import { createRaceWorldLayout } from './game/race-world.js';
+import { revealApplication } from '../../shared/app-boot.js';
 import './style.css';
 
 function requireElement<T extends Element>(selector: string, constructor: abstract new () => T): T {
@@ -127,3 +128,6 @@ if (import.meta.hot !== undefined) import.meta.hot.dispose(dispose);
 startRenderer();
 hud.render(simulation.snapshot());
 animationFrame = requestAnimationFrame(frame);
+requestAnimationFrame(() => {
+  revealApplication(shell);
+});

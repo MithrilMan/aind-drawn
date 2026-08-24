@@ -3,24 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="A small quasi-isometric Doodle 3D racing experiment powered by AIND Drawn."
-    />
+    <meta name="description" content="A fast quasi-isometric Doodle 3D drift racing experiment powered by AIND Drawn." />
     <title>AIND DRAWN — Paper Circuit</title>
   </head>
   <body>
     <main class="race-shell" data-race-shell>
-      <header class="race-header">
-        <div class="brand-block">
-          <p class="eyebrow">AIND DRAWN / EXPERIMENT 02</p>
-          <h1>Paper Circuit</h1>
-          <p>Four tiny machines. Three oil-painted laps. Very little dignity.</p>
-        </div>
+      <section class="race-viewport" aria-label="Paper Circuit race" data-viewport>
+        <canvas
+          tabindex="0"
+          aria-label="Quasi-isometric racing game. Use W A S D or arrow keys to drive, and Space or Shift to handbrake and drift."
+          data-race-canvas
+        ></canvas>
 
-        <div class="race-controls" aria-label="Race settings">
-          <label class="field-control">
-            <span>Medium</span>
+        <header class="game-brand" aria-label="Paper Circuit">
+          <h1>Paper Circuit</h1>
+          <p>AIND DRAWN / ARCADE TEST</p>
+        </header>
+
+        <section class="race-telemetry" aria-label="Race telemetry">
+          <div class="position-plate">
+            <span>Position</span>
+            <strong><span data-position-number>1</span><small>/4</small></strong>
+          </div>
+          <div class="lap-plate">
+            <span>Lap</span>
+            <strong><span data-lap>1</span><small>/3</small></strong>
+          </div>
+          <time class="race-time" data-time>00:00.0</time>
+        </section>
+
+        <form class="game-settings" aria-label="Race settings">
+          <label class="medium-control">
+            <span class="visually-hidden">Drawing medium</span>
             <select name="medium" data-medium>
               <option value="graphite">Graphite</option>
               <option value="ink">Ink</option>
@@ -30,98 +44,65 @@
               <option value="marker">Marker</option>
             </select>
           </label>
-
-          <div class="camera-control">
-            <span>Camera</span>
-            <div class="segmented-control" role="group" aria-label="Camera mode">
-              <button type="button" aria-pressed="true" data-camera="follow">Follow</button>
-              <button type="button" aria-pressed="false" data-camera="full">Full course</button>
-            </div>
+          <div class="camera-control" role="group" aria-label="Camera mode">
+            <button type="button" aria-pressed="true" data-camera="follow">Follow</button>
+            <button type="button" aria-pressed="false" data-camera="full">Map</button>
           </div>
+          <button class="pause-button" type="button" aria-pressed="false" data-pause>Pause</button>
+          <button class="restart-button" type="button" data-new-race aria-label="Start a new race">↻</button>
+        </form>
 
-          <button class="new-race-button" type="button" data-new-race>
-            <span aria-hidden="true">↻</span> New race
-          </button>
-        </div>
-      </header>
+        <section class="running-order" aria-labelledby="running-order-title">
+          <h2 id="running-order-title">Running order</h2>
+          <ol data-running-order></ol>
+        </section>
 
-      <section class="race-board" aria-label="Paper Circuit race">
-        <div class="race-viewport" data-viewport>
-          <canvas
-            tabindex="0"
-            aria-label="Quasi-isometric racing game. Use arrow keys or W A S D to drive."
-            data-race-canvas
-          ></canvas>
-
-          <div class="race-hud" aria-label="Race status">
-            <div class="hud-card">
-              <span>Lap</span>
-              <strong><span data-lap>1</span><small>/3</small></strong>
-            </div>
-            <div class="hud-card position-card">
-              <span>Position</span>
-              <strong data-position>1st</strong>
-            </div>
-            <div class="hud-card time-card">
-              <span>Time</span>
-              <strong data-time>00:00.0</strong>
-            </div>
+        <section class="drift-hud" aria-label="Drift score">
+          <div class="drift-copy">
+            <span>Drift chain</span>
+            <strong><span data-drift-multiplier>x1.0</span> <span data-drift-chain>+0000</span></strong>
           </div>
+          <div class="drift-meter" aria-hidden="true"><i data-drift-meter></i></div>
+          <small>Total <span data-drift-score>00000</span></small>
+        </section>
 
-          <div class="countdown" aria-hidden="true" data-countdown>3</div>
+        <section class="speedometer" aria-label="Vehicle speed">
+          <div class="speed-arc" aria-hidden="true"><i data-speed-arc></i></div>
+          <strong data-speed>0</strong>
+          <span>km/h</span>
+        </section>
 
-          <section class="renderer-error" hidden data-renderer-error>
-            <p class="eyebrow">THE PAINT DRIED</p>
-            <h2>The Doodle 3D track could not start</h2>
-            <p>Your settings are safe. Try rebuilding the WebGL scene.</p>
-            <button type="button" data-retry>Try again</button>
-          </section>
+        <div class="event-callout" aria-hidden="true" data-event-callout>
+          <strong data-event-title>Sideways!</strong>
+          <span data-event-detail>Keep it loose</span>
         </div>
 
-        <aside class="race-sidebar">
-          <section class="running-order" aria-labelledby="running-order-title">
-            <div class="section-heading">
-              <p class="eyebrow">LIVE SHEET</p>
-              <h2 id="running-order-title">Running order</h2>
-            </div>
-            <ol data-running-order></ol>
-          </section>
+        <div class="countdown" aria-hidden="true" data-countdown>3</div>
 
-          <section class="drive-card" aria-labelledby="drive-title">
-            <div class="section-heading">
-              <p class="eyebrow">HOW TO DRIVE</p>
-              <h2 id="drive-title">Keep it on the ink</h2>
-            </div>
-            <dl class="key-map">
-              <div><dt><kbd>W</kbd><kbd>↑</kbd></dt><dd>Accelerate</dd></div>
-              <div><dt><kbd>S</kbd><kbd>↓</kbd></dt><dd>Brake / reverse</dd></div>
-              <div><dt><kbd>A</kbd><kbd>D</kbd></dt><dd>Steer</dd></div>
-              <div><dt><kbd>P</kbd></dt><dd>Pause</dd></div>
-            </dl>
-            <button class="pause-button" type="button" aria-pressed="false" data-pause>
-              Pause race
-            </button>
-          </section>
-        </aside>
+        <div class="keyboard-hint" aria-hidden="true">
+          <span>WASD / arrows</span> drive <b>·</b> <span>Space</span> drift <b>·</b> <span>P</span> pause
+        </div>
+
+        <section class="touch-controls" aria-label="Touch driving controls">
+          <button class="touch-left" type="button" data-drive="left" aria-label="Steer left">Left</button>
+          <button class="touch-right" type="button" data-drive="right" aria-label="Steer right">Right</button>
+          <button class="touch-brake" type="button" data-drive="brake">Brake</button>
+          <button class="touch-drift" type="button" data-drive="handbrake">Drift</button>
+          <button class="touch-go" type="button" data-drive="accelerate">Go</button>
+        </section>
+
+        <section class="renderer-error" hidden data-renderer-error>
+          <p>The paint dried</p>
+          <h2>The Doodle 3D track could not start</h2>
+          <p>Your settings are safe. Try rebuilding the WebGL scene.</p>
+          <button type="button" data-retry>Try again</button>
+        </section>
+
+        <p class="visually-hidden" aria-live="polite" data-live-status>
+          Race ready. Accelerate when the countdown clears.
+        </p>
       </section>
-
-      <section class="touch-controls" aria-label="Touch driving controls">
-        <div class="touch-steering">
-          <button type="button" data-drive="left" aria-label="Steer left">←</button>
-          <button type="button" data-drive="right" aria-label="Steer right">→</button>
-        </div>
-        <div class="touch-pedals">
-          <button type="button" data-drive="brake">Brake</button>
-          <button class="accelerator" type="button" data-drive="accelerate">Go</button>
-        </div>
-      </section>
-
-      <footer class="race-footer">
-        <p aria-live="polite" data-live-status>Race ready. Press accelerate when the count clears.</p>
-        <p>Procedural vehicles · one shared Doodle scene · no painted stand-ins</p>
-      </footer>
     </main>
-
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

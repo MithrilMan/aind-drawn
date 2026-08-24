@@ -1,29 +1,37 @@
 {
-  "fixtureId": "oil-race-4107",
-  "provenance": "User requirements combined with the repository vehicle, medium, motion, and inked-solid public contracts.",
+  "fixtureId": "oil-arcade-race-4115",
+  "provenance": "User requirements combined with the repository vehicle, character, tree, medium, motion, and inked-solid public contracts.",
   "product": {
-    "eyebrow": "AIND DRAWN / EXPERIMENT 06",
+    "eyebrow": "AIND DRAWN / ARCADE TEST",
     "title": "Paper Circuit",
-    "summary": "A tiny racing game redrawn every frame."
+    "summary": "A loud little drift race redrawn every frame."
   },
   "race": {
-    "seed": 4107,
+    "seed": 4115,
     "medium": "Oil",
     "availableMedia": ["Graphite", "Ink", "Watercolour", "Oil", "Charcoal", "Marker"],
     "camera": "Follow",
-    "availableCameras": ["Follow", "Full course"],
+    "availableCameras": ["Follow", "Full course", "Automatic grandstand cinematics"],
     "laps": 3,
     "racers": ["You", "Mica", "Rook", "Pip"],
-    "position": "1 / 4",
+    "position": "2 / 4",
     "lap": "1 / 3",
-    "time": "00:00.000",
-    "controls": ["Accelerate", "Brake / reverse", "Steer left", "Steer right", "Pause", "New race"]
+    "speed": "142 km/h",
+    "drift": "Drift chain x2.4, 860 points",
+    "time": "00:18.4",
+    "world": ["wide technical circuit", "visible barriers", "tyre stacks", "cones", "procedural trees", "grandstand", "twenty procedural character spectators"],
+    "controls": ["Accelerate", "Brake / reverse", "Steer left", "Steer right", "Handbrake / drift", "Pause", "New race"]
   },
   "states": {
+    "intro": "Close drone pass across the animated grandstand before the grid",
     "countdown": "Ready",
     "running": "Race in progress",
+    "drifting": "Sideways! Keep it loose.",
+    "collision": "Visible barrier impact",
+    "offRoad": "Loose ground. Grip reduced.",
+    "respawning": "Resetting to the last safe track point.",
     "paused": "Race paused",
-    "finished": "Finished",
+    "finished": "Finished with a close crowd celebration and final pull-back",
     "rendererError": "The Doodle track could not start. Your race settings are still here."
   }
 }

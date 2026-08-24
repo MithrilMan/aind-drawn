@@ -493,6 +493,41 @@ exact public API snapshot, and both experiment production builds pass. Browser Q
 Circuit also exercised four independently animated vehicle rigs in one Doodle scene without
 runtime or shader errors.
 
+### 2026-08-24 - Tree stress-family foundation and populated-scene proof completed
+
+The first new stress-family slice is now real rather than a placeholder catalog entry. It is
+deliberately solid-first: branching topology and spatial semantics are complete enough for a
+consumer, while raster projection, wind motion, and LOD remain explicit later work.
+
+Completed work:
+
+- added a deterministic `TreeIdentityRecipe` with broadleaf, pine, and windswept archetypes,
+  summer and autumn palettes, ordered parent-before-child branches, branch-owned canopy
+  clusters, proportions, and namespaced generation;
+- added the strict `decodeTreeIdentity` boundary, including resolved-topology references,
+  duplicate IDs, dimensions, radii, lobe parameters, palettes, and trunk invariants;
+- added one shared tree semantic manifest with trunk, branch, and canopy ownership, plus stable
+  base, crown, and branch-tip sockets and a trunk capsule collider;
+- added a renderer-free solid recipe and layout that derive complete branch endpoints, canopy
+  placement, bounds, nodes, and spatial definitions before runtime allocation;
+- added a valid solid blueprint with faceted tapered bark and volumetric deformed canopy
+  clusters, all carrying generic material drawing intent for the shared Doodle renderer;
+- exported the reviewed tree surface from the package, extended the exact public API snapshot,
+  compiled-artifact checks, family-boundary checks, and multi-seed topology validation;
+- exercised the family in Paper Circuit alongside four moving vehicle rigs, sixteen trees,
+  visible race fixtures, and twenty animated character spectators in one registered Doodle scene;
+- corrected the experiment course's upward face winding and added a minimum-turn-radius invariant,
+  preventing offset ribbons from folding into long triangles that occluded vehicle bodies while
+  leaving their wheels visible.
+
+Not included in this slice: a raster tree projection, a wind motion sampler, distance LOD, or a
+generic tapered-branch geometry primitive. The family-local mesh is evidence for the focused
+geometry initiative, not an excuse to declare that initiative complete after its first consumer.
+
+The next recommended library slice remains the renderer-neutral revolved-profile primitive from
+Initiative 8. Tree wind and LOD should follow as the next stress-family slice once their runtime
+contract can be demonstrated without smuggling renderer state into identity.
+
 ## Current strengths to preserve
 
 ### Semantic families are the primary ownership boundary
@@ -540,7 +575,7 @@ collapsed into a single style identifier.
 The current tests cover deterministic generation, namespace isolation, cross-representation
 parity, topology, interactions, material ownership, runtime idempotence, composition, registered
 scene rendering, and resource disposal. The baseline is healthy: the current library suite passes
-all 118 tests, and the compiled artifact verification enforces an exact snapshot of 164 public
+all 137 tests, and the compiled artifact verification enforces an exact snapshot of 173 public
 exports.
 
 The recommended work adds new kinds of verification; it does not replace these tests with visual
@@ -607,7 +642,7 @@ render targets.
 | P2 | Focused solid geometry primitives | In progress | Less duplicated topology and better LOD | Geometry validation |
 | P2 | Semantic inspection and parity reports | Planned | Better authoring and integration tooling | Shared semantic manifest |
 | P2 | Selective reroll and locks | Planned | Controlled procedural iteration | Stable identity codecs |
-| P3 | New stress-test family | Planned | Validate branching, repetition, wind, and LOD | Earlier foundations |
+| P3 | New stress-test family | In progress | Validate branching, repetition, wind, and LOD | Earlier foundations |
 
 ## Initiative 1: unified recipe and blueprint envelopes - completed 2026-08-23
 

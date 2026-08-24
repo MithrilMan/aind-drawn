@@ -38,6 +38,10 @@ const requiredExports = [
   'validateAssetBlueprintParity',
   'validateAssetSemanticManifest',
   'createVehicleIdentity',
+  'createTreeIdentity',
+  'decodeTreeIdentity',
+  'createSolidTreeRecipe',
+  'createSolidTreeBlueprint',
   'createRasterVehicleBlueprint',
   'createRasterVehicleRecipe',
   'createSolidVehicleBlueprint',
@@ -282,6 +286,30 @@ library.validateAssetBlueprintParity(vehicle, solidVehicle);
 assert.ok(
   solidVehicle.parts.some(({ id }) => id === 'wheel:front:left:tyre'),
   'Compiled solid vehicle is missing its front tyre volume',
+);
+
+const treeIdentity = library.createTreeIdentity(6102, {
+  archetype: 'windswept',
+  season: 'autumn',
+});
+const decodedTreeIdentity = library.decodeTreeIdentity(
+  JSON.parse(JSON.stringify(library.encodeAssetIdentity(treeIdentity))),
+);
+assert.deepEqual(
+  decodedTreeIdentity,
+  treeIdentity,
+  'Compiled tree identity codec must preserve resolved branching topology',
+);
+const solidTree = library.createSolidTreeBlueprint(treeIdentity);
+assert.equal(
+  library.validateSolidAssetBlueprint(solidTree),
+  solidTree,
+  'Compiled tree solid blueprint must pass pure validation',
+);
+assert.equal(solidTree.manifest.family, 'tree');
+assert.ok(
+  solidTree.sockets.some(({ id }) => id.endsWith(':tip')),
+  'Compiled tree is missing branch-tip sockets',
 );
 
 console.log(`Compiled library verified: ${Object.keys(library).length} public exports`);

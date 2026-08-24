@@ -31,7 +31,7 @@ function ribbonGeometry(
   }
   const faces = layout.samples.map((_, index) => {
     const next = (index + 1) % layout.samples.length;
-    return Object.freeze([index * 2, next * 2, next * 2 + 1, index * 2 + 1]);
+    return Object.freeze([index * 2, index * 2 + 1, next * 2 + 1, next * 2]);
   });
   return Object.freeze({
     type: 'mesh',

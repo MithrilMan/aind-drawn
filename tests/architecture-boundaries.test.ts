@@ -6,7 +6,9 @@ import {
   createCharacterIdentity,
   createSolidBuildingBlueprint,
   createSolidCharacterBlueprint,
+  createSolidTreeBlueprint,
   createSolidVehicleBlueprint,
+  createTreeIdentity,
   createVehicleIdentity,
 } from '../src/index.js';
 
@@ -30,7 +32,7 @@ describe('architectural boundaries', () => {
       'src/projections/inked-solid/projection-providers/chalk.ts',
       'src/projections/inked-solid/projection-providers/marker.ts',
     ];
-    const familyVocabulary = /\b(character|building|vehicle|face|hair|eye|mouth|roof|wall|door|window|wheel|tyre)\b/i;
+    const familyVocabulary = /\b(character|building|vehicle|tree|face|hair|eye|mouth|roof|wall|door|window|wheel|tyre|trunk|branch|canopy)\b/i;
     for (const file of files) expect(source(file), file).not.toMatch(familyVocabulary);
   });
 
@@ -53,7 +55,7 @@ describe('architectural boundaries', () => {
       'src/runtime/solid-rig.ts',
       'src/projections/inked-solid/runtime/pass.ts',
     ];
-    const familyImport = /from ['"][^'"]*(character|building|vehicle|solid-face)[^'"]*['"]/i;
+    const familyImport = /from ['"][^'"]*(character|building|vehicle|tree|solid-face)[^'"]*['"]/i;
     for (const file of files) expect(source(file), file).not.toMatch(familyImport);
   });
 
@@ -101,6 +103,8 @@ describe('architectural boundaries', () => {
       'src/assets/vehicle/raster',
       'src/assets/vehicle/solid',
       'src/assets/vehicle/runtime',
+      'src/assets/tree/identity',
+      'src/assets/tree/solid',
       'src/contracts',
       'src/projections/inked-solid',
     ];
@@ -138,6 +142,7 @@ describe('architectural boundaries', () => {
       createSolidCharacterBlueprint(createCharacterIdentity(4104)),
       createSolidBuildingBlueprint(createBuildingIdentity(4104)),
       createSolidVehicleBlueprint(createVehicleIdentity(5101)),
+      createSolidTreeBlueprint(createTreeIdentity(6102)),
     ];
     for (const blueprint of blueprints) {
       expect(blueprint.materials.length).toBeGreaterThan(0);

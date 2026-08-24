@@ -6,6 +6,7 @@
 src/assets/
 |-- building/{identity,raster,solid}
 |-- character/{identity,raster,solid,runtime}
+|-- tree/{identity,solid}
 `-- vehicle/{identity,raster,solid,runtime}
 
 src/contracts/                      shared raster, solid, and capability contracts
@@ -72,6 +73,13 @@ For characters, `CharacterIdentityRecipe` owns semantic identity once. Raster
 and solid recipes reference that same immutable object and add only
 representation style. Changing graphite to watercolour or skin to ceramic must
 not reroll eyes, palette, proportions, hair, or species.
+
+Trees are the first intentionally solid-first stress family. `TreeIdentityRecipe`
+owns archetype, season, dimensions, branching topology, canopy ownership, and
+palette; its strict codec persists those resolved choices. The solid adapter owns
+faceted tapered bark, volumetric canopy clusters, branch-tip sockets, and the
+trunk collider. A raster adapter and wind sampler are separate future slices,
+not omissions to be papered over inside the current solid blueprint.
 
 Pixel-identical output across browser rasterizers is not promised. Equivalent
 recipes do promise equivalent geometry, layer structure, sockets, and colliders.

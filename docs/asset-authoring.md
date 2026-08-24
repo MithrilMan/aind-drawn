@@ -152,6 +152,16 @@ the term is deliberately not `species`. Raster and solid building recipes
 reference the same identity. Balconies, roof volume, door hinge, colliders, and
 entry sockets therefore remain structurally aligned across projections.
 
+`src/assets/tree` is the solid-first branching reference. Its identity owns the
+ordered parent-before-child branch graph and each canopy cluster's branch owner;
+the codec validates both references without regenerating either. The solid
+layout derives tapered branch endpoints, canopy volumes, bounds, the base and
+crown sockets, branch-tip sockets, and the trunk collider from that identity.
+Use this pattern for a family that genuinely needs branching topology. Do not
+flatten it into a generic `prop` bag, and do not invent a raster silhouette until
+a raster consumer exists. A solid-first family is honest; an adapter-shaped
+placeholder is not.
+
 Identity-derived feature profiles must also preserve spatial topology. Use an
 honest intent such as `surface`, `head-shell`, `surface-cluster`, `wrap`,
 `volume`, or `articulated` where a front silhouette would discard meaning.

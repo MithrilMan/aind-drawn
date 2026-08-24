@@ -80,6 +80,14 @@ export { sampleVehicleMotion } from './assets/vehicle/runtime/motion-sampler.js'
 export { applyRasterVehicleMotion } from './assets/vehicle/runtime/raster-motion-applicator.js';
 export { applySolidVehicleMotion } from './assets/vehicle/runtime/solid-motion-applicator.js';
 
+// Tree family
+export * from './assets/tree/identity/codec.js';
+export * from './assets/tree/identity/recipe.js';
+export * from './assets/tree/identity/semantics.js';
+export * from './assets/tree/solid/blueprint.js';
+export * from './assets/tree/solid/layout.js';
+export * from './assets/tree/solid/recipe.js';
+
 // Cross-family projections
 export * from './projections/inked-solid/contracts.js';
 export * from './projections/inked-solid/blueprint.js';

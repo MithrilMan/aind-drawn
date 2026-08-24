@@ -15,6 +15,8 @@ const KEY_ACTIONS: Readonly<Record<string, DriveAction>> = Object.freeze({
   ArrowRight: 'right',
   d: 'right',
   D: 'right',
+  ' ': 'handbrake',
+  Shift: 'handbrake',
 });
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -30,6 +32,7 @@ export class InputController {
     brake: false,
     left: false,
     right: false,
+    handbrake: false,
   };
   private readonly touchButtons: readonly HTMLButtonElement[];
 

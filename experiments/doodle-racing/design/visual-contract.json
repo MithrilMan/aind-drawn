@@ -2,60 +2,60 @@
   "$schema": "../../../../C:/Users/redan/.codex/skills/frontend-product-design/assets/visual-contract.schema.json",
   "contractVersion": 4,
   "product": "AIND DRAWN Paper Circuit",
-  "implementationRevision": "working-tree-2026-08-24.paper-circuit-v1",
-  "directionId": "paper-track-broadcast",
-  "mode": "greenfield",
-  "status": "implementation-ready-for-review",
+  "directionId": "paper-drift-arcade",
+  "mode": "reimagine",
+  "status": "direction-selected",
   "preserve": [
-    "All vehicles and Doodle rendering use the public library pipeline and one selected MediumId.",
-    "The race remains playable with keyboard and touch, and camera mode changes never reset race state.",
-    "The Projection Studio charcoal, paper, oxide, green, serif, and monospaced visual vocabulary remains recognizable."
+    "Every vehicle, tree, and spectator is live output from the public library pipeline under one selected MediumId.",
+    "Oil remains the default medium; Follow and Full course remain explicit camera modes that preserve race state.",
+    "Keyboard, touch, visible focus, reduced-motion, and renderer recovery remain first-class behavior."
   ],
   "change": [
-    "Turn the comparison instrument into an immersive racing surface with compact broadcast telemetry.",
-    "Provide a follow camera by default and an optional full-course camera.",
-    "Transform the narrow layout into a portrait playfield with large touch controls below the track."
+    "Make the live race consume the viewport and move telemetry into terse angular overlays.",
+    "Replace the broad loop with a technical course, visible collision fixtures, scenery, grandstand, and character crowd.",
+    "Make speed, slip angle, drift chain, impact, and recovery legible as game events rather than background state."
   ],
   "discard": [
-    "Twin projection stages, asset customization workbench, physical-solid rendering controls, and desktop-only minimum width.",
-    "Generic game HUD chrome, skeuomorphic steering wheels, and decorative controls without behavior."
+    "The header-plus-sidebar dashboard composition and its large settings form.",
+    "The oval-looking course, hidden centre-line recovery force, slow scalar handling, and quiet spreadsheet-like running order.",
+    "The previous v1 implementation renders and comparison boards as active visual authority."
   ],
   "productTruth": {
-    "user": "A desktop or touch user who wants a short, immediately playable arcade race rendered as Doodle 3D.",
-    "primaryTask": "Start a three-lap race, steer the player car against three opponents, inspect lap and position, switch camera or drawing medium without losing the race, and restart when desired.",
+    "user": "A keyboard or touch player seeking a short, immediately legible, exaggerated arcade drift race in Doodle 3D.",
+    "primaryTask": "Launch into a three-lap technical race, drift through visible corners and barriers, read speed and race position at a glance, and restart without leaving the playfield.",
     "coreCapabilities": [
-      { "id": "capability.drive", "description": "Accelerate, brake or reverse, and steer through keyboard or touch controls." },
-      { "id": "capability.race", "description": "Run a complete countdown, multi-lap race, opponent order, finish, pause, and restart loop." },
-      { "id": "capability.camera", "description": "Switch between a near-isometric follow camera and a full-course overview without resetting race state." },
-      { "id": "capability.medium", "description": "Render the same live course and vehicles with any public medium, using Oil by default." },
-      { "id": "capability.recovery", "description": "Expose a retry path when WebGL cannot start while preserving selected settings." }
+      { "id": "capability.arcade-drive", "description": "Accelerate hard, brake or reverse, steer, handbrake, drift, collide with visible barriers, and recover explicitly." },
+      { "id": "capability.race", "description": "Run a grandstand intro, countdown, deterministic opponents, lap order, finish celebration, pause, and restart." },
+      { "id": "capability.world", "description": "Render a wide technical track with procedural trees, race fixtures, a grandstand, and twenty animated character spectators." },
+      { "id": "capability.camera", "description": "Use automatic close drone shots of the crowd before and after racing, a speed-reactive quasi-isometric follow camera, or a complete circuit map without resetting play." },
+      { "id": "capability.medium", "description": "Reproject the same live world through any public drawing medium, with Oil selected initially." },
+      { "id": "capability.recovery", "description": "Expose renderer retry and explicit vehicle respawn without hidden physics corrections." }
     ],
     "acceptanceCriteria": [
-      "Oil is selected by default and every public medium can rebuild the same live race presentation.",
-      "The follow camera keeps the player readable in a near-isometric view and Full course frames the complete circuit.",
-      "The race includes three deterministic opponents, three laps, position, timer, pause, finish, and new-race behavior.",
-      "Keyboard and touch controls operate the same driving commands with visible focus and no pointer-only action.",
-      "The responsive layout remains usable from 320 CSS pixels through the primary desktop viewport.",
-      "Every procedural vehicle and course carrier is rendered through SolidRig plus InkedSolidScenePass."
+      "The race surface dominates wide and narrow viewports; settings never read as the primary product.",
+      "The player reaches materially higher speed and can sustain a scored drift through steering or the handbrake.",
+      "Every gameplay collision corresponds to visible authored geometry and no force silently drags the player to the centre line.",
+      "The world contains deterministic procedural trees and character spectators rendered by the shared Doodle scene pass.",
+      "Automatic opening and finish cinematics frame recognisable animated character faces at close range before pulling back to the grid or circuit.",
+      "Keyboard and touch expose equivalent driving actions with at least 44 CSS pixel primary touch targets.",
+      "The layout remains operable at 320 CSS pixels and preserves an accessible textual race summary."
     ],
     "outOfScope": [
-      "Network multiplayer, persistent leaderboards, audio, vehicle customization, track editor, and simulation-grade physics."
+      "Network multiplayer, audio, persistent leaderboards, track editing, vehicle upgrades, and simulation-grade tyre modelling."
     ]
   },
   "assetInventory": [
-    { "kind": "logo", "status": "not-applicable", "usageConstraint": "Use the live-text AIND DRAWN name without inventing a mark." },
-    { "kind": "font", "status": "not-found", "usageConstraint": "Reuse the licensed Projection Studio Cormorant Garamond and IBM Plex Mono provider families without treating them as repository masters." },
-    { "kind": "palette", "status": "not-found", "usageConstraint": "The inherited visual direction establishes charcoal framing, bone paper, oxide accents, and oxidized-green state cues." },
-    { "kind": "illustration", "status": "not-applicable", "usageConstraint": "All game imagery is live output from the public procedural library pipeline." }
+    { "kind": "logo", "status": "not-applicable", "usageConstraint": "Use the live-text Paper Circuit name without inventing a brand mark." },
+    { "kind": "font", "status": "not-found", "usageConstraint": "Use provider-loaded Barlow Condensed for arcade display and IBM Plex Mono for telemetry with system fallbacks." },
+    { "kind": "illustration", "status": "not-applicable", "usageConstraint": "The track, racers, trees, fixtures, grandstand, and spectators are live procedural geometry, never shipped illustrative stand-ins." }
   ],
   "typography": {
-    "family": "Cormorant Garamond and IBM Plex Mono",
-    "fallbacks": ["Georgia", "Consolas", "monospace", "serif"],
-    "weights": [400, 500, 600],
-    "loading": "Load both provider fonts through the same Google Fonts declaration used by Projection Studio, with explicit local fallbacks.",
-    "roles": ["Cormorant Garamond for title and race milestones", "IBM Plex Mono for telemetry, controls, timing, and status"],
-    "density": "Compact 9–12 px telemetry and 27–32 px editorial titles, with 44 px minimum touch controls on narrow layouts.",
-    "evidenceReferenceId": "paper-circuit-font-evidence"
+    "family": "Barlow Condensed and IBM Plex Mono",
+    "fallbacks": ["Arial Narrow", "Arial", "Consolas", "monospace", "sans-serif"],
+    "weights": [400, 600, 800],
+    "loading": "Load Barlow Condensed 800/800 italic and IBM Plex Mono 400/600 from the same Google Fonts provider pattern already used by the experiments, with explicit system fallbacks.",
+    "roles": ["Barlow Condensed for the game title, position, speed, countdown, and drift calls", "IBM Plex Mono for controls, running order, lap, time, settings, and live status"],
+    "density": "Oversized 29–68 px arcade events, compact 8–13 px telemetry, and 44–108 px coarse-pointer drive targets."
   },
   "references": [
     {
@@ -65,96 +65,51 @@
       "source": "repository",
       "path": "experiments/projection-studio/design/references/style-anchor-dark-light-table.png",
       "digest": "sha256:d50e6707523e1da3625a6a9b2f5426b3ebbdcf70457f5e5bc7383794f57cc85a",
-      "instruction": "Govern the charcoal instrument frame, luminous paper, editorial and technical typography, oxide registration marks, and green active states; ignore its specimen subject and twin-stage composition."
+      "instruction": "Retain bone paper, charcoal ink, oxide accents, oxidized green, technical monospace, and registration-line character; ignore its workbench composition and quiet instrument pacing."
     },
     {
-      "id": "paper-circuit-wide-target",
+      "id": "paper-drift-wide-target",
       "role": "target-mock",
       "use": "governing-composition",
       "source": "deterministic",
-      "path": "experiments/doodle-racing/design/evidence/target-wide-1440x900.png",
-      "digest": "sha256:5a1c4824e51a099af7d95f2a8e9431607e236eaf5fa71ccac64b8073b935a914",
-      "instruction": "Govern the desktop header controls, dominant race field, inset telemetry, running order, keyboard legend, and quiet footer status at 1440 by 900. Live procedural output replaces the structural track gesture."
+      "path": "experiments/doodle-racing/design/references/target-wide.svg",
+      "digest": "sha256:5687522704081f6592f11c15cd0212eb3ee8a0772adc7ed01b63441a0e2d83ec",
+      "instruction": "Govern the 1440 by 900 full-field composition, angular edge HUD, technical track gesture, scenery distribution, crowd silhouette, drift callout, and large speed gauge. Live procedural output replaces the structural world gesture."
     },
     {
-      "id": "paper-circuit-wide-structure",
+      "id": "paper-drift-narrow-target",
+      "role": "target-mock",
+      "use": "governing-composition",
+      "source": "deterministic",
+      "path": "experiments/doodle-racing/design/references/target-narrow.svg",
+      "digest": "sha256:93dd3c1ea3fc4060ac874e1ffcc8a44100cf66ca198033a43c2c4afcb4bcbd28",
+      "instruction": "Govern the 390 by 844 full-height playfield, terse top HUD, bottom-corner speed and drift, and large overlapping touch cluster rather than stacking dashboard panels below the world."
+    },
+    {
+      "id": "paper-drift-wide-structure",
       "role": "target-context",
       "use": "structure",
       "source": "deterministic",
       "path": "experiments/doodle-racing/design/references/target-wide.svg",
-      "digest": "sha256:b52543ba3c676cbace1592ca8d2e4946b58f1492280df1f22291926cc6bde619",
-      "instruction": "Govern the wide region order, control inventory, race-field allocation, overlay bounds, and footer anatomy; its visible finish is governed separately by the target reference."
+      "digest": "sha256:5687522704081f6592f11c15cd0212eb3ee8a0772adc7ed01b63441a0e2d83ec",
+      "instruction": "Govern wide region allocation, overlay anchors, track-and-scenery distribution, and usable playfield space; visual finish remains governed by the corresponding target mock."
     },
     {
-      "id": "paper-circuit-narrow-target",
-      "role": "target-mock",
-      "use": "governing-composition",
-      "source": "deterministic",
-      "path": "experiments/doodle-racing/design/evidence/target-narrow-390x844.png",
-      "digest": "sha256:5aa810506b943db1ebc13e0b73331aded012b4df90d51b52fa24b2c46b350dbb",
-      "instruction": "Govern the portrait transformation: compact recipe controls, square-biased follow view, terse HUD, large touch driving controls, and document scrolling at 390 by 844."
-    },
-    {
-      "id": "paper-circuit-narrow-structure",
+      "id": "paper-drift-narrow-structure",
       "role": "target-context",
       "use": "structure",
       "source": "deterministic",
       "path": "experiments/doodle-racing/design/references/target-narrow.svg",
-      "digest": "sha256:bc740f3b735a7d45591311a86a11f97db24b44a8af79104facbd4b72dff90b0d",
-      "instruction": "Govern narrow source order, playfield size, touch-target allocation, and document-flow controls; its visible finish is governed separately by the target reference."
-    },
-    {
-      "id": "paper-circuit-wide-render",
-      "role": "render",
-      "use": "evidence",
-      "source": "browser",
-      "path": "experiments/doodle-racing/design/evidence/implementation-wide-1440x900.png",
-      "digest": "sha256:430d403c458fa7babb624f4a12149e13e01730058a695bc4b4b01acf82e8f69b",
-      "instruction": "Exact 1440 by 900 in-browser Oil and Follow implementation crop used for pending semantic review."
-    },
-    {
-      "id": "paper-circuit-narrow-render",
-      "role": "render",
-      "use": "evidence",
-      "source": "browser",
-      "path": "experiments/doodle-racing/design/evidence/implementation-narrow-390x844.png",
-      "digest": "sha256:6a18d7fdd17c0ac134c38e38a71d6b0d77acda61f2684fb5bace94dfc0986d08",
-      "instruction": "Exact 390 by 844 in-browser Oil and Follow implementation crop used for pending semantic review."
-    },
-    {
-      "id": "paper-circuit-wide-comparison",
-      "role": "comparison-board",
-      "use": "evidence",
-      "source": "deterministic",
-      "path": "experiments/doodle-racing/design/evidence/comparison-wide.png",
-      "digest": "sha256:c6c3883283e21822c18f315ab38abcf27490a9386eca8ac71fcb5c9545afade0",
-      "instruction": "Pending wide semantic comparison board; no approval or reviewer verdict is implied."
-    },
-    {
-      "id": "paper-circuit-narrow-comparison",
-      "role": "comparison-board",
-      "use": "evidence",
-      "source": "deterministic",
-      "path": "experiments/doodle-racing/design/evidence/comparison-narrow.png",
-      "digest": "sha256:41246c29a0e76d4eb06575f37ebf1ec5657b51006274c858e6356e807f1ccd27",
-      "instruction": "Pending narrow semantic comparison board; no approval or reviewer verdict is implied."
-    },
-    {
-      "id": "paper-circuit-font-evidence",
-      "role": "font-evidence",
-      "use": "evidence",
-      "source": "browser",
-      "path": "experiments/doodle-racing/design/evidence/font-evidence.json",
-      "digest": "sha256:2e3c617d99df6402520c6785b3289b3c5c19feed8609bacfd68d4b5040d31922",
-      "instruction": "Browser-computed font families and FontFaceSet checks for the exact implementation revision."
+      "digest": "sha256:93dd3c1ea3fc4060ac874e1ffcc8a44100cf66ca198033a43c2c4afcb4bcbd28",
+      "instruction": "Govern narrow full-height field allocation, compact top controls, telemetry anchors, and touch-control footprint; visual finish remains governed by the corresponding target mock."
     }
   ],
   "traits": [
-    { "id": "composition.track-dominant", "priority": "critical", "instruction": "The live paper circuit occupies most of the viewport; telemetry hugs its edges and never turns the game into a dashboard." },
-    { "id": "surface.doodle-broadcast", "priority": "critical", "instruction": "Pair luminous Doodle 3D paper with a near-black broadcast frame, thin rules, and opaque compact HUD slabs rather than floating rounded cards." },
-    { "id": "control.dual-camera", "priority": "critical", "instruction": "Follow and Full course remain adjacent, explicit modes with persistent race state and a non-color pressed cue." },
-    { "id": "type.editorial-telemetry", "priority": "supporting", "instruction": "Use editorial serif only for identity and milestones; all live race values and controls use tabular monospaced typography." },
-    { "id": "responsive.touch-pit", "priority": "critical", "instruction": "At narrow widths, move controls below the track in four generous drive targets plus pause and restart; never shrink desktop telemetry over the car." }
+    { "id": "composition.game-first", "priority": "critical", "instruction": "The live world is the background and primary surface at every viewport; opaque UI exists only in clipped edge plates and never forms a page header, sidebar, or card grid." },
+    { "id": "world.technical-spectacle", "priority": "critical", "instruction": "The wide course visibly changes direction and hazard rhythm; trees and a twenty-character grandstand frame the action without hiding the racing line." },
+    { "id": "feedback.sideways", "priority": "critical", "instruction": "Speed, slip, drift chain, collision, and countdown appear as strong arcade events with non-colour text cues and immediate motion response." },
+    { "id": "surface.paper-ink", "priority": "critical", "instruction": "Pair luminous procedural paper and imperfect pigment with angular near-black plates, oxide danger accents, and no glossy generic game chrome." },
+    { "id": "responsive.touch-rig", "priority": "critical", "instruction": "On narrow coarse pointers, five large drive targets overlay the lower field while telemetry compresses to essentials; the page does not become a vertical settings form." }
   ],
   "targets": [
     {
@@ -166,17 +121,17 @@
       "proofSlice": true,
       "content": {
         "path": "experiments/doodle-racing/design/content-fixture.json",
-        "digest": "sha256:849fb19588d9f58978b06733108cb4ba470ab94804bd950e29cc735be270d702",
-        "provenance": "User requirements and repository-backed vehicle, medium, motion, and runtime contracts; racer names are local fictional fixture labels.",
+        "digest": "sha256:8b12aa733e4ce70481c2210f9931201bed7b1b1d3433007ad45e0321ff3408b0",
+        "provenance": "User requirements and repository-backed vehicle, character, tree, medium, motion, and runtime contracts; racer names are local fictional fixture labels.",
         "fixtureClass": "source-derived",
-        "useCases": ["Complete a three-lap race", "Change medium during play", "Switch between follow and full-course cameras", "Pause and restart", "Recover from WebGL startup failure"],
+        "useCases": ["Complete a fast three-lap drift race", "Collide only with visible fixtures", "Change medium or camera during play", "Pause, restart, and recover"],
         "cardinality": { "typical": 4, "dense": 6 },
-        "essentialFields": ["lap", "position", "time", "race state", "medium", "camera mode", "running order"],
-        "actions": ["accelerate", "brake or reverse", "steer left", "steer right", "pause", "resume", "switch camera", "change medium", "start new race", "retry renderer"],
-        "states": ["countdown", "running", "paused", "finished", "off-road", "renderer error"],
-        "permissions": ["anonymous local user may operate every control"],
-        "errorAndFreshness": ["All state is local and current; renderer failure preserves selected medium and camera mode and exposes Retry."],
-        "coreCapabilityIds": ["capability.drive", "capability.race", "capability.camera", "capability.medium", "capability.recovery"]
+        "essentialFields": ["lap", "position", "speed", "drift chain", "time", "race state", "medium", "camera mode", "running order"],
+        "actions": ["accelerate", "brake or reverse", "steer left", "steer right", "handbrake", "pause", "resume", "switch camera", "change medium", "start new race", "retry renderer"],
+        "states": ["intro cinematic", "countdown", "running", "drifting", "collision", "off-road", "respawning", "paused", "finish cinematic", "renderer error"],
+        "permissions": ["anonymous local player may operate every control"],
+        "errorAndFreshness": ["All state is local and current; renderer failure preserves settings and exposes Retry; leaving the world triggers an announced explicit respawn."],
+        "coreCapabilityIds": ["capability.arcade-drive", "capability.race", "capability.world", "capability.camera", "capability.medium", "capability.recovery"]
       },
       "placeholders": [],
       "controls": [
@@ -186,107 +141,69 @@
         { "id": "control.pause", "status": "functioning" },
         { "id": "control.keyboard-drive", "status": "functioning" },
         { "id": "control.touch-drive", "status": "functioning" },
+        { "id": "control.handbrake", "status": "functioning" },
         { "id": "control.retry", "status": "functioning" }
       ],
       "representativeBecause": {
-        "realTask": "Seed 4107 Oil runs the requested arcade race from countdown through finish against three deterministic opponents.",
-        "typicalAndDense": "Four racers exercise ordinary ordering while the layout and model permit six without changing the HUD contract.",
-        "adverseState": "The proof covers off-road slowdown and a recoverable WebGL startup failure without discarding settings.",
-        "coreCapabilitiesWork": "Every declared drive, race, camera, medium, and recovery capability is connected to a live control.",
+        "realTask": "Oil race seed 4115 covers crowd intro, countdown, high-speed driving, drifting, visible collision, lap progression, finish, and crowd celebration against three opponents.",
+        "typicalAndDense": "Four racers, multiple tree instances, race fixtures, and a twenty-character crowd exercise a materially populated shared Doodle scene.",
+        "adverseState": "Off-road grip, impact, explicit respawn, pause, and recoverable WebGL startup failure are represented without hidden correction.",
+        "coreCapabilitiesWork": "Every declared arcade, race, world, camera, medium, and recovery capability connects to live state or a live control.",
         "noPlaceholders": true
       },
       "designRoute": "mock",
-      "traitIds": ["composition.track-dominant", "surface.doodle-broadcast", "control.dual-camera", "type.editorial-telemetry", "responsive.touch-pit"],
-      "layerIds": ["race.live-structure", "race.instrument-surface", "race.procedural-field"],
+      "traitIds": ["composition.game-first", "world.technical-spectacle", "feedback.sideways", "surface.paper-ink", "responsive.touch-rig"],
+      "layerIds": ["race.live-hud", "race.arcade-surface", "race.procedural-world"],
       "contexts": [
         {
           "id": "race-wide",
           "role": "primary",
           "viewport": { "width": 1440, "height": 900 },
-          "stateId": "running",
-          "fixtureId": "oil-race-4107",
+          "stateId": "drifting",
+          "fixtureId": "oil-arcade-race-4115",
           "cropScale": 1,
           "inputReferenceIds": ["paper-circuit-style-anchor"],
-          "mockReferenceId": "paper-circuit-wide-target",
-          "structureReferenceId": "paper-circuit-wide-structure",
+          "mockReferenceId": "paper-drift-wide-target",
+          "structureReferenceId": "paper-drift-wide-structure",
           "structureConstraints": [
-            "Keep medium, camera, and New race in the header without reducing the race field below 70 percent of viewport height.",
-            "Keep lap and position visible while the running order and keyboard legend remain secondary edge overlays.",
-            "Keep the field as the only intentional two-dimensional fixed surface and the page free of horizontal document overflow."
-          ],
-          "structureCompliance": {
-            "verdict": "pass",
-            "summary": "The desktop browser crop preserves the governed header, dominant field, edge telemetry, control inventory, and quiet status footer without horizontal overflow."
-          }
+            "Keep the procedural world full-bleed and reserve no desktop sidebar or document footer.",
+            "Keep position and lap at the upper-left edge, settings at the upper-right edge, drift at the lower centre, and speed at the lower-right edge.",
+            "Keep every overlay clear of the player's expected follow-camera focus region."
+          ]
         },
         {
           "id": "race-narrow",
           "role": "narrow",
           "viewport": { "width": 390, "height": 844 },
-          "stateId": "running",
-          "fixtureId": "oil-race-4107",
+          "stateId": "drifting",
+          "fixtureId": "oil-arcade-race-4115",
           "cropScale": 1,
           "inputReferenceIds": ["paper-circuit-style-anchor"],
-          "mockReferenceId": "paper-circuit-narrow-target",
-          "structureReferenceId": "paper-circuit-narrow-structure",
+          "mockReferenceId": "paper-drift-narrow-target",
+          "structureReferenceId": "paper-drift-narrow-structure",
           "structureConstraints": [
-            "Stack recipe controls above a square-biased race view, then place touch driving controls in document flow below it.",
-            "Use at least 44 CSS pixel touch targets and preserve pause plus New race without horizontal scrolling.",
-            "Reduce the running order to the current position in the field HUD while keeping the complete order accessible below or after the playfield."
-          ],
-          "structureCompliance": {
-            "verdict": "pass",
-            "summary": "The 390 pixel browser crop keeps recipe controls, field, full running order, pause, and four touch targets in document flow; 320 pixel inspection reports no overflow."
-          }
+            "Keep the canvas full-height and compact medium plus pause into the top edge without introducing a settings section.",
+            "Use five at-least-44-pixel touch controls over the lower playfield and preserve keyboard equivalence.",
+            "Keep position, lap, speed, drift, and current order legible without covering the player focus region."
+          ]
         }
       ]
     }
   ],
   "layers": [
-    { "id": "race.live-structure", "medium": "semantic-html", "owners": [{ "type": "directory", "path": "experiments/doodle-racing" }], "instruction": "Own landmarks, live telemetry, recipe controls, drive controls, error recovery, and status announcements as semantic HTML and TypeScript." },
-    { "id": "race.instrument-surface", "medium": "css", "owners": [{ "type": "file", "path": "experiments/doodle-racing/src/style.css" }], "instruction": "Own charcoal framing, paper containment, compact overlays, responsive transformation, focus, forced-color, and reduced-motion behavior." },
-    { "id": "race.procedural-field", "medium": "svg", "owners": [{ "type": "directory", "path": "experiments/doodle-racing/src/game" }], "instruction": "Own no static illustration: build every visible course and vehicle carrier through public solid and inked-solid runtime contracts." }
+    { "id": "race.live-hud", "medium": "semantic-html", "owners": [{ "type": "directory", "path": "experiments/doodle-racing" }], "instruction": "Own live telemetry, native settings, drive controls, error recovery, and status announcements over the field." },
+    { "id": "race.arcade-surface", "medium": "css", "owners": [{ "type": "file", "path": "experiments/doodle-racing/src/style.css" }], "instruction": "Own full-viewport containment, angular edge plates, responsive touch composition, focus, forced-colour, and reduced-motion behavior." },
+    { "id": "race.procedural-world", "medium": "svg", "owners": [{ "type": "directory", "path": "experiments/doodle-racing/src/game" }, { "type": "directory", "path": "src/assets/tree" }], "instruction": "Own the live solid and inked-solid course, visible fixtures, vehicles, trees, grandstand, and character spectators; no static target artwork ships in the playfield." }
   ],
-  "comparisons": [
-    {
-      "id": "paper-circuit-wide-comparison-v1",
-      "targetId": "paper-circuit-race",
-      "contextId": "race-wide",
-      "authorityReferenceId": "paper-circuit-wide-target",
-      "renderReferenceId": "paper-circuit-wide-render",
-      "boardReferenceId": "paper-circuit-wide-comparison",
-      "implementationRevision": "working-tree-2026-08-24.paper-circuit-v1",
-      "contentDigest": "sha256:849fb19588d9f58978b06733108cb4ba470ab94804bd950e29cc735be270d702",
-      "viewport": { "width": 1440, "height": 900 },
-      "stateId": "running",
-      "fixtureId": "oil-race-4107",
-      "cropScale": 1,
-      "timestamp": "2026-08-24T01:45:00+02:00"
-    },
-    {
-      "id": "paper-circuit-narrow-comparison-v1",
-      "targetId": "paper-circuit-race",
-      "contextId": "race-narrow",
-      "authorityReferenceId": "paper-circuit-narrow-target",
-      "renderReferenceId": "paper-circuit-narrow-render",
-      "boardReferenceId": "paper-circuit-narrow-comparison",
-      "implementationRevision": "working-tree-2026-08-24.paper-circuit-v1",
-      "contentDigest": "sha256:849fb19588d9f58978b06733108cb4ba470ab94804bd950e29cc735be270d702",
-      "viewport": { "width": 390, "height": 844 },
-      "stateId": "running",
-      "fixtureId": "oil-race-4107",
-      "cropScale": 1,
-      "timestamp": "2026-08-24T01:45:00+02:00"
-    }
-  ],
+  "comparisons": [],
   "reviews": [],
   "approvals": [],
   "gates": {
-    "engineering": "pass",
-    "productTask": "pass",
+    "engineering": "unverified",
+    "productTask": "unverified",
     "contentAdequacy": "pass",
     "visualFidelity": "unverified",
-    "accessibility": "pass",
+    "accessibility": "unverified",
     "userApproval": "pending"
   }
 }

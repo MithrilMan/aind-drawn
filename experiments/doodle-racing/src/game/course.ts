@@ -7,6 +7,7 @@ export type CourseSample = Readonly<{
   tangentZ: number;
   normalX: number;
   normalZ: number;
+  curvature: number;
   distance: number;
 }>;
 
@@ -21,28 +22,46 @@ export type CourseLayout = Readonly<{
   samples: readonly CourseSample[];
   totalLength: number;
   trackWidth: number;
+  minimumTurnRadius: number;
   bounds: CourseBounds;
 }>;
 
 export type CourseProjection = CourseSample & Readonly<{
   progress: number;
   distanceFromCentre: number;
+  lateralOffset: number;
 }>;
 
-const SAMPLE_COUNT = 192;
-const TRACK_WIDTH = 7.4;
+const SAMPLE_COUNT = 256;
+const TRACK_WIDTH = 9.6;
 
 const CONTROL_POINTS = Object.freeze([
-  [-18, -2],
-  [-13, -12],
-  [-2, -14],
-  [10, -12],
-  [18, -4],
-  [17, 7],
-  [8, 13],
-  [-4, 12],
-  [-15, 8],
+  [-53, -4],
+  [-46, -31],
+  [-22, -44],
+  [11, -42],
+  [40, -31],
+  [55, -9],
+  [51, 18],
+  [35, 40],
+  [15, 46],
+  [0, 35],
+  [-20, 44],
+  [-44, 35],
+  [-57, 15],
 ] as const);
+
+function circumradius(first: THREE.Vector3, middle: THREE.Vector3, last: THREE.Vector3): number {
+  const a = first.distanceTo(middle);
+  const b = middle.distanceTo(last);
+  const c = last.distanceTo(first);
+  const twiceArea = Math.abs(
+    (middle.x - first.x) * (last.z - first.z)
+      - (middle.z - first.z) * (last.x - first.x),
+  );
+  if (twiceArea < 1e-7) return Number.POSITIVE_INFINITY;
+  return a * b * c / (twiceArea * 2);
+}
 
 function wrapProgress(progress: number): number {
   return THREE.MathUtils.euclideanModulo(progress, 1);
@@ -65,6 +84,7 @@ function interpolateSample(
     tangentZ: tangent.y,
     normalX: -tangent.y,
     normalZ: tangent.x,
+    curvature: THREE.MathUtils.lerp(first.curvature, second.curvature, amount),
     distance,
   });
 }
@@ -76,7 +96,7 @@ export function createCourseLayout(): CourseLayout {
     'centripetal',
   );
   const points = curve.getSpacedPoints(SAMPLE_COUNT).slice(0, SAMPLE_COUNT);
-  const samples: CourseSample[] = [];
+  const preliminary: Omit<CourseSample, 'curvature'>[] = [];
   let distance = 0;
   for (let index = 0; index < points.length; index += 1) {
     const point = points[index] as THREE.Vector3;
@@ -84,7 +104,7 @@ export function createCourseLayout(): CourseLayout {
     const next = points[(index + 1) % points.length] as THREE.Vector3;
     if (index > 0) distance += point.distanceTo(previous);
     const tangent = next.clone().sub(previous).normalize();
-    samples.push(Object.freeze({
+    preliminary.push(Object.freeze({
       x: point.x,
       z: point.z,
       tangentX: tangent.x,
@@ -97,11 +117,36 @@ export function createCourseLayout(): CourseLayout {
   const first = points[0] as THREE.Vector3;
   const last = points[points.length - 1] as THREE.Vector3;
   const totalLength = distance + last.distanceTo(first);
-  const margin = TRACK_WIDTH * 0.72;
+  const minimumTurnRadius = Math.min(...points.map((point, index) => circumradius(
+    points[(index - 2 + points.length) % points.length] as THREE.Vector3,
+    point,
+    points[(index + 2) % points.length] as THREE.Vector3,
+  )));
+  const requiredTurnRadius = TRACK_WIDTH * 0.5 + 0.65;
+  if (minimumTurnRadius < requiredTurnRadius) {
+    throw new RangeError(
+      `Course turn radius ${minimumTurnRadius.toFixed(2)} is narrower than the ${requiredTurnRadius.toFixed(2)} track extrusion limit`,
+    );
+  }
+  const samples: CourseSample[] = preliminary.map((sample, index) => {
+    const previous = preliminary[(index - 2 + preliminary.length) % preliminary.length];
+    const next = preliminary[(index + 2) % preliminary.length];
+    if (previous === undefined || next === undefined) throw new RangeError('Course sampling failed');
+    return Object.freeze({
+      ...sample,
+      curvature: THREE.MathUtils.clamp(
+        previous.tangentX * next.tangentZ - previous.tangentZ * next.tangentX,
+        -1,
+        1,
+      ),
+    });
+  });
+  const margin = 13;
   return Object.freeze({
     samples: Object.freeze(samples),
     totalLength,
     trackWidth: TRACK_WIDTH,
+    minimumTurnRadius,
     bounds: Object.freeze({
       minimumX: Math.min(...samples.map(({ x }) => x)) - margin,
       maximumX: Math.max(...samples.map(({ x }) => x)) + margin,
@@ -143,9 +188,12 @@ export function nearestCoursePoint(
     nearestDistanceSquared = distanceSquared;
   }
   const sample = layout.samples[nearestIndex] as CourseSample;
+  const offsetX = x - sample.x;
+  const offsetZ = z - sample.z;
   return Object.freeze({
     ...sample,
     progress: sample.distance / layout.totalLength,
     distanceFromCentre: Math.sqrt(nearestDistanceSquared),
+    lateralOffset: offsetX * sample.normalX + offsetZ * sample.normalZ,
   });
 }

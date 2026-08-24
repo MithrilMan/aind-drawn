@@ -1,0 +1,265 @@
+import type {
+  MeshGeometrySpec,
+  Point3,
+  SolidAssetBlueprint,
+  SolidMaterialSpec,
+  SolidPartDefinition,
+} from '../../../../src/index.js';
+import type { CourseLayout } from './course.js';
+import type { RaceWorldLayout } from './race-world.js';
+
+function material(
+  id: string,
+  color: readonly [number, number, number],
+  application: SolidMaterialSpec['drawing']['application'],
+  tone: SolidMaterialSpec['drawing']['tone'],
+): SolidMaterialSpec {
+  return Object.freeze({
+    id,
+    color: Object.freeze(color),
+    finish: 'matte',
+    roughness: 0.95,
+    metalness: 0,
+    drawing: Object.freeze({ application, tone }),
+  });
+}
+
+function coneGeometry(radius: number, height: number, sides = 8): MeshGeometrySpec {
+  const vertices: Point3[] = [];
+  for (let index = 0; index < sides; index += 1) {
+    const angle = index / sides * Math.PI * 2;
+    vertices.push(Object.freeze([Math.cos(angle) * radius, 0, Math.sin(angle) * radius] as const));
+  }
+  vertices.push(Object.freeze([0, height, 0] as const));
+  const faces: (readonly number[])[] = [
+    Object.freeze(Array.from({ length: sides }, (_, index) => sides - 1 - index)),
+  ];
+  for (let index = 0; index < sides; index += 1) {
+    faces.push(Object.freeze([index, (index + 1) % sides, sides]));
+  }
+  return Object.freeze({
+    type: 'mesh',
+    vertices: Object.freeze(vertices),
+    faces: Object.freeze(faces),
+    smooth: false,
+  });
+}
+
+function semanticPartId(id: string): 'barriers' | 'tyres' | 'markers' | 'grandstand' {
+  if (id.startsWith('barrier:')) return 'barriers';
+  if (id.startsWith('tyres:')) return 'tyres';
+  if (id.startsWith('cone:')) return 'markers';
+  return 'grandstand';
+}
+
+function standPoint(
+  world: RaceWorldLayout,
+  along: number,
+  away: number,
+  y: number,
+): Point3 {
+  const { x, z, heading } = world.grandstand;
+  return Object.freeze([
+    x + Math.cos(heading) * along + Math.sin(heading) * away,
+    y,
+    z - Math.sin(heading) * along + Math.cos(heading) * away,
+  ] as const);
+}
+
+function yawQuaternion(yaw: number): readonly [number, number, number, number] {
+  return Object.freeze([0, Math.sin(yaw * 0.5), 0, Math.cos(yaw * 0.5)] as const);
+}
+
+export function createRaceSceneryBlueprint(
+  course: CourseLayout,
+  world: RaceWorldLayout,
+): SolidAssetBlueprint<'race-scenery'> {
+  const parts: SolidPartDefinition[] = [];
+  const add = (definition: Omit<SolidPartDefinition, 'semanticPartId'>): void => {
+    parts.push(Object.freeze({ ...definition, semanticPartId: semanticPartId(definition.id) }));
+  };
+
+  for (const [index, barrier] of world.barriers.entries()) {
+    const deltaX = barrier.endX - barrier.startX;
+    const deltaZ = barrier.endZ - barrier.startZ;
+    const length = Math.hypot(deltaX, deltaZ);
+    const heading = Math.atan2(-deltaZ, deltaX);
+    add({
+      id: barrier.id,
+      node: 'root',
+      order: 1,
+      geometry: Object.freeze({ type: 'box', size: [length + 0.04, 0.56, barrier.radius * 2] as const }),
+      materialId: index % 2 === 0 ? 'barrier:red' : 'barrier:paper',
+      placement: Object.freeze({
+        position: Object.freeze([
+          (barrier.startX + barrier.endX) * 0.5,
+          0.29,
+          (barrier.startZ + barrier.endZ) * 0.5,
+        ] as const),
+        rotation: Object.freeze([0, heading, 0] as const),
+      }),
+      castShadow: true,
+      receiveShadow: true,
+    });
+  }
+
+  for (const stack of world.tyreStacks) {
+    for (let tyre = 0; tyre < 3; tyre += 1) {
+      add({
+        id: `${stack.id}:${tyre}`,
+        node: 'root',
+        order: 2,
+        geometry: Object.freeze({
+          type: 'superellipsoid',
+          radii: [stack.radius * 0.72, 0.18, stack.radius * 0.72] as const,
+          exponent: 2.8,
+          deformation: Object.freeze({
+            verticalTaper: 0,
+            equatorBulge: 0.12,
+            lobeAmplitude: 0.025,
+            lobeCount: 8,
+            lobePhase: tyre * 0.7,
+          }),
+          widthSegments: 14,
+          heightSegments: 7,
+        }),
+        materialId: 'tyre',
+        placement: Object.freeze({ position: [stack.x, 0.2 + tyre * 0.3, stack.z] as const }),
+        castShadow: true,
+        receiveShadow: true,
+      });
+    }
+  }
+
+  for (const cone of world.cones) {
+    add({
+      id: cone.id,
+      node: 'root',
+      order: 3,
+      geometry: coneGeometry(0.23, 0.72),
+      materialId: 'cone',
+      placement: Object.freeze({ position: [cone.x, 0.02, cone.z] as const }),
+      castShadow: true,
+      receiveShadow: true,
+    });
+  }
+
+  const stand = world.grandstand;
+  for (let row = 0; row < stand.rows; row += 1) {
+    add({
+      id: `grandstand:step:${row}`,
+      node: 'root',
+      order: 0,
+      geometry: Object.freeze({
+        type: 'box',
+        size: [stand.length, 0.34 + row * 0.25, 1.15] as const,
+      }),
+      materialId: row % 2 === 0 ? 'stand:paper' : 'stand:dark',
+      placement: Object.freeze({
+        position: standPoint(world, 0, row * 0.72, 0.17 + row * 0.125),
+        rotation: Object.freeze([0, stand.heading, 0] as const),
+      }),
+      castShadow: true,
+      receiveShadow: true,
+    });
+  }
+  const roofHeight = 2.1 + stand.rows * 0.45;
+  const roofAway = (stand.rows - 1) * 0.36;
+  add({
+    id: 'grandstand:roof', node: 'root', order: 4,
+    geometry: Object.freeze({ type: 'box', size: [stand.length + 0.7, 0.16, 2.7] as const }),
+    materialId: 'stand:roof',
+    placement: Object.freeze({
+      position: standPoint(world, 0, roofAway, roofHeight),
+      rotation: Object.freeze([0, stand.heading, -0.05] as const),
+    }),
+    castShadow: true, receiveShadow: true,
+  });
+  for (const along of [-stand.length * 0.46, stand.length * 0.46]) {
+    const postHeight = roofHeight - 0.1;
+    add({
+      id: `grandstand:post:${along < 0 ? 'left' : 'right'}`, node: 'root', order: 3,
+      geometry: Object.freeze({ type: 'box', size: [0.16, postHeight, 0.16] as const }),
+      materialId: 'stand:dark',
+      placement: Object.freeze({ position: standPoint(world, along, roofAway, postHeight * 0.5) }),
+      castShadow: true, receiveShadow: true,
+    });
+  }
+
+  const sceneryColliderIds = Object.freeze([
+    ...world.barriers.map(({ id }) => id),
+    ...world.tyreStacks.map(({ id }) => id),
+  ]);
+  return Object.freeze({
+    blueprintVersion: 1,
+    family: 'race-scenery',
+    representation: 'solid',
+    assetId: 'race-scenery:technical-circuit:1',
+    seed: 7391,
+    bounds: Object.freeze({
+      minimum: [course.bounds.minimumX - 3, 0, course.bounds.minimumZ - 3] as const,
+      maximum: [course.bounds.maximumX + 3, 3.8, course.bounds.maximumZ + 3] as const,
+    }),
+    manifest: Object.freeze({
+      family: 'race-scenery',
+      parts: Object.freeze([
+        Object.freeze({ id: 'barriers', spatial: 'volume' as const }),
+        Object.freeze({ id: 'tyres', spatial: 'cluster' as const }),
+        Object.freeze({ id: 'markers', spatial: 'volume' as const }),
+        Object.freeze({ id: 'grandstand', spatial: 'volume' as const }),
+      ]),
+      socketIds: Object.freeze([]),
+      colliderIds: sceneryColliderIds,
+      interactions: Object.freeze([]),
+    }),
+    nodes: Object.freeze([Object.freeze({
+      id: 'root',
+      restPose: Object.freeze({ position: [0, 0, 0] as const, rotation: [0, 0, 0, 1] as const }),
+    })]),
+    parts: Object.freeze(parts),
+    materials: Object.freeze([
+      material('barrier:red', [181, 64, 43], 'pigment', 'scribble'),
+      material('barrier:paper', [231, 219, 190], 'paper', 'light'),
+      material('tyre', [45, 45, 40], 'pigment', 'black'),
+      material('cone', [207, 108, 42], 'pigment', 'hatch'),
+      material('stand:paper', [191, 180, 151], 'paper', 'light'),
+      material('stand:dark', [68, 70, 63], 'pigment', 'black'),
+      material('stand:roof', [135, 61, 43], 'pigment', 'hatch'),
+    ]),
+    colliders: Object.freeze([
+      ...world.barriers.map((barrier) => {
+        const deltaX = barrier.endX - barrier.startX;
+        const deltaZ = barrier.endZ - barrier.startZ;
+        const heading = Math.atan2(-deltaZ, deltaX);
+        return Object.freeze({
+          id: barrier.id,
+          kind: 'solid' as const,
+          shape: 'box' as const,
+          node: 'root',
+          localPose: Object.freeze({
+            position: Object.freeze([
+              (barrier.startX + barrier.endX) * 0.5,
+              0.29,
+              (barrier.startZ + barrier.endZ) * 0.5,
+            ] as const),
+            rotation: yawQuaternion(heading),
+          }),
+          size: Object.freeze([Math.hypot(deltaX, deltaZ), 0.56, barrier.radius * 2] as const),
+        });
+      }),
+      ...world.tyreStacks.map((stack) => Object.freeze({
+        id: stack.id,
+        kind: 'solid' as const,
+        shape: 'sphere' as const,
+        node: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze([stack.x, 0.55, stack.z] as const),
+          rotation: Object.freeze([0, 0, 0, 1] as const),
+        }),
+        radius: stack.radius,
+      })),
+    ]),
+    sockets: Object.freeze([]),
+    interactionBindings: Object.freeze([]),
+  });
+}

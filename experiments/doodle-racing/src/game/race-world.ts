@@ -9,6 +9,7 @@ export type SegmentObstacle = Readonly<{
   endX: number;
   endZ: number;
   radius: number;
+  height: number;
 }>;
 
 export type CircleObstacle = Readonly<{
@@ -64,6 +65,73 @@ export type RaceWorldLayout = Readonly<{
   obstacles: readonly RaceObstacle[];
 }>;
 
+export const GRANDSTAND_ROW_SPACING = 0.72;
+export const GRANDSTAND_STEP_DEPTH = 1.15;
+export const GRANDSTAND_STEP_BASE_HEIGHT = 0.34;
+export const GRANDSTAND_STEP_HEIGHT_RISE = 0.25;
+export const TRACK_BARRIER_HEIGHT = 0.56;
+
+export type GrandstandSurface = Readonly<{
+  height: number;
+  row: number;
+}>;
+
+export type GrandstandStepSpan = Readonly<{
+  minimumAway: number;
+  maximumAway: number;
+  centreAway: number;
+  depth: number;
+}>;
+
+export function grandstandStepHeight(row: number): number {
+  return GRANDSTAND_STEP_BASE_HEIGHT + row * GRANDSTAND_STEP_HEIGHT_RISE;
+}
+
+export function grandstandStepTop(row: number): number {
+  return grandstandStepHeight(row);
+}
+
+/**
+ * Resolves the visible, non-overlapping volume owned by one grandstand row.
+ * The original overlapping boxes form the same stair profile from the front,
+ * but leave coplanar end faces fighting in the depth buffer.
+ */
+export function grandstandStepSpan(row: number, rows: number): GrandstandStepSpan {
+  const minimumAway = row * GRANDSTAND_ROW_SPACING - GRANDSTAND_STEP_DEPTH * 0.5;
+  const maximumAway = row === rows - 1
+    ? row * GRANDSTAND_ROW_SPACING + GRANDSTAND_STEP_DEPTH * 0.5
+    : (row + 1) * GRANDSTAND_ROW_SPACING - GRANDSTAND_STEP_DEPTH * 0.5;
+  return Object.freeze({
+    minimumAway,
+    maximumAway,
+    centreAway: (minimumAway + maximumAway) * 0.5,
+    depth: maximumAway - minimumAway,
+  });
+}
+
+export function grandstandSurfaceAt(
+  stand: GrandstandLayout,
+  away: number,
+  along = 0,
+): GrandstandSurface {
+  if (Math.abs(along) > stand.length * 0.5) {
+    return Object.freeze({ height: 0, row: -1 });
+  }
+  let highestRow = -1;
+  let height = 0;
+  for (let row = 0; row < stand.rows; row += 1) {
+    const span = grandstandStepSpan(row, stand.rows);
+    if (away < span.minimumAway || away > span.maximumAway) continue;
+    if (grandstandStepTop(row) <= height) continue;
+    highestRow = row;
+    height = grandstandStepTop(row);
+  }
+  return Object.freeze({
+    height,
+    row: highestRow,
+  });
+}
+
 const BARRIER_RUNS = Object.freeze([
   Object.freeze({ start: 0.055, end: 0.13, side: 1 }),
   Object.freeze({ start: 0.235, end: 0.31, side: 1 }),
@@ -88,6 +156,7 @@ function createBarriers(course: CourseLayout): readonly SegmentObstacle[] {
         endX: second.x + second.normalX * offset * run.side,
         endZ: second.z + second.normalZ * offset * run.side,
         radius: 0.28,
+        height: TRACK_BARRIER_HEIGHT,
       }));
     }
   }
@@ -154,12 +223,12 @@ function createGrandstand(course: CourseLayout): GrandstandLayout {
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < 5; column += 1) {
       const along = -length * 0.4 + column * length * 0.2 + (row % 2) * 0.16;
-      const away = row * 0.72;
+      const away = row * GRANDSTAND_ROW_SPACING;
       spectators.push(Object.freeze({
         id: `spectator:${row}:${column}`,
         seed: 8200 + row * 17 + column * 31,
         x: x + Math.cos(heading) * along + Math.sin(heading) * away,
-        y: 0.55 + row * 0.48,
+        y: grandstandStepTop(row),
         z: z - Math.sin(heading) * along + Math.cos(heading) * away,
         // Character solids face local +Z. A yaw equal to the stand's along-axis
         // heading rotates that front toward the track-side normal.

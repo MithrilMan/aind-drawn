@@ -12,6 +12,10 @@ export type ArcadeVehicleState = Readonly<{
   slipAngle: number;
   drifting: boolean;
   impact: number;
+  elevation: number;
+  pitch: number;
+  curbImpact: number;
+  curbPenalty: number;
 }>;
 
 export type ArcadeDriveInput = Readonly<{
@@ -49,6 +53,10 @@ export function createArcadeVehicleState(
     slipAngle: 0,
     drifting: false,
     impact: 0,
+    elevation: 0,
+    pitch: 0,
+    curbImpact: 0,
+    curbPenalty: 0,
   });
 }
 
@@ -66,9 +74,10 @@ export function stepArcadeVehicle(
   let longitudinal = state.velocityX * forwardX + state.velocityZ * forwardZ;
   const lateral = state.velocityX * rightX + state.velocityZ * rightZ;
 
-  if (input.accelerate) longitudinal += (longitudinal < -1 ? 40 : 28) * delta;
+  const curbControl = 1 - state.curbPenalty * 0.78;
+  if (input.accelerate) longitudinal += (longitudinal < -1 ? 40 : 28) * curbControl * delta;
   if (input.brake) longitudinal -= (longitudinal > 1 ? 36 : 13) * delta;
-  const rollingDrag = surface === 'road' ? 1.1 : 5.4;
+  const rollingDrag = (surface === 'road' ? 1.1 : 5.4) + state.curbPenalty * 11;
   if (!input.accelerate && !input.brake) longitudinal = approach(longitudinal, 0, rollingDrag * delta);
 
   const steeringTarget = Number(input.left) - Number(input.right);
@@ -106,7 +115,8 @@ export function stepArcadeVehicle(
   let nextLateral = freeVelocityX * nextRightX + freeVelocityZ * nextRightZ;
   nextLateral *= Math.exp(-lateralGrip * delta);
   if (input.handbrake) nextLongitudinal *= Math.exp(-1.75 * delta);
-  const maximumSpeed = surface === 'road' ? ROAD_MAX_SPEED : OFF_ROAD_MAX_SPEED;
+  const surfaceMaximumSpeed = surface === 'road' ? ROAD_MAX_SPEED : OFF_ROAD_MAX_SPEED;
+  const maximumSpeed = surfaceMaximumSpeed * (1 - state.curbPenalty * 0.48);
   nextLongitudinal = THREE.MathUtils.clamp(nextLongitudinal, -8.5, maximumSpeed);
   const velocityX = nextForwardX * nextLongitudinal + nextRightX * nextLateral;
   const velocityZ = nextForwardZ * nextLongitudinal + nextRightZ * nextLateral;
@@ -125,6 +135,10 @@ export function stepArcadeVehicle(
     slipAngle,
     drifting,
     impact: state.impact * Math.exp(-5.5 * delta),
+    elevation: Math.max(0, state.elevation - 1.55 * delta),
+    pitch: approach(state.pitch, 0, 2.4 * delta),
+    curbImpact: state.curbImpact * Math.exp(-9 * delta),
+    curbPenalty: Math.max(0, state.curbPenalty - 1.35 * delta),
   });
 }
 

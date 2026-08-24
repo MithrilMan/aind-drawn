@@ -138,6 +138,7 @@
   "encodeAssetIdentity",
   "hashString",
   "inkedSolidMediumDefaults",
+  "isolateSolidRigParts",
   "lerp",
   "mediumById",
   "moveOnSurface",

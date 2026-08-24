@@ -106,7 +106,7 @@
       <section class="race-viewport" aria-label="Paper Circuit race" data-viewport>
         <canvas
           tabindex="0"
-          aria-label="Quasi-isometric racing game. Use W A S D or arrow keys to drive, and Space or Shift to handbrake and drift."
+          aria-label="Quasi-isometric racing game. Use W A S D or arrow keys to drive. In Explore, hold Shift to run and press Space to jump."
           data-race-canvas
         ></canvas>
 
@@ -115,6 +115,64 @@
           <p>AIND DRAWN / ARCADE TEST</p>
         </header>
 
+        <section class="game-menu" aria-label="Race setup" data-game-menu>
+          <div class="menu-panel">
+            <div class="menu-topline">
+              <p class="menu-kicker">Paper Circuit / Race control</p>
+              <button class="sound-toggle menu-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
+            </div>
+            <h2>Draw your <em>line.</em></h2>
+            <p class="menu-copy">Tune the medium, pick the distance, then put the pencil down. The driver on the circuit is procedurally redrawn every session.</p>
+            <div class="menu-options">
+              <label>
+                <span>Drawing medium</span>
+                <select name="menu-medium" data-menu-medium>
+                  <option value="graphite">Graphite</option>
+                  <option value="ink">Ink</option>
+                  <option value="watercolor">Watercolour</option>
+                  <option value="oil" selected>Oil</option>
+                  <option value="chalk">Charcoal</option>
+                  <option value="marker">Marker</option>
+                </select>
+              </label>
+              <label>
+                <span>Race laps</span>
+                <select name="laps" data-laps>
+                  <option value="3">3 laps</option>
+                  <option value="5" selected>5 laps</option>
+                  <option value="10">10 laps</option>
+                  <option value="20">20 laps</option>
+                </select>
+              </label>
+            </div>
+            <div class="menu-actions">
+              <button class="menu-primary" type="button" data-start-race>Start race</button>
+              <button class="menu-secondary" type="button" data-explore-grandstand>Explore grandstand</button>
+            </div>
+            <p class="menu-help">WASD / arrows drive · Space or Shift drift · P pause</p>
+          </div>
+          <aside class="menu-preview-bay" aria-label="Live procedural driver">
+            <div class="menu-preview-viewport" data-menu-preview-viewport>
+              <canvas
+                role="img"
+                aria-label="Animated procedural driver preview"
+                data-menu-preview-canvas
+              ></canvas>
+            </div>
+            <div class="menu-preview-header">
+              <span class="menu-live"><i aria-hidden="true"></i> Live procedural driver</span>
+              <small>Render 01 / Doodle 3D</small>
+            </div>
+            <div class="menu-character-card" aria-live="polite">
+              <span data-menu-character>Random character</span>
+              <small data-menu-character-status>In motion</small>
+            </div>
+            <button class="menu-reroll" type="button" data-reroll-menu>
+              New driver <kbd>N</kbd>
+            </button>
+          </aside>
+        </section>
+
         <section class="race-telemetry" aria-label="Race telemetry">
           <div class="position-plate">
             <span>Position</span>
@@ -122,7 +180,7 @@
           </div>
           <div class="lap-plate">
             <span>Lap</span>
-            <strong><span data-lap>1</span><small>/3</small></strong>
+            <strong><span data-lap>1</span><small>/<span data-total-laps>5</span></small></strong>
           </div>
           <time class="race-time" data-time>00:00.0</time>
         </section>
@@ -143,9 +201,37 @@
             <button type="button" aria-pressed="true" data-camera="follow">Follow</button>
             <button type="button" aria-pressed="false" data-camera="full">Map</button>
           </div>
+          <button class="sound-toggle game-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
           <button class="pause-button" type="button" aria-pressed="false" data-pause>Pause</button>
-          <button class="restart-button" type="button" data-new-race aria-label="Start a new race">↻</button>
+          <button class="restart-button" type="button" data-new-race aria-label="Open race menu">↻</button>
         </form>
+
+        <section class="explore-hud" aria-label="Grandstand exploration" data-explore-hud hidden>
+          <div class="explore-status-card">
+            <span class="explore-kicker">Explore</span>
+            <strong data-explore-character>Random character</strong>
+            <span data-explore-status>Idle</span>
+          </div>
+          <div class="explore-actions">
+            <button type="button" data-reset-explore-camera>Camera <kbd>R</kbd></button>
+            <button type="button" data-reroll-explore>Driver <kbd>N</kbd></button>
+            <button type="button" data-exit-explore>Menu <kbd>Esc</kbd></button>
+          </div>
+        </section>
+
+        <section class="vehicle-interaction-callout" aria-live="polite" data-vehicle-interaction hidden>
+          <div class="vehicle-interaction-preview" data-vehicle-interaction-viewport>
+            <canvas
+              aria-label="Interactive vehicle part"
+              data-vehicle-interaction-canvas
+              role="img"
+            ></canvas>
+          </div>
+          <div class="vehicle-interaction-copy">
+            <span>Vehicle interaction</span>
+            <strong><kbd>E</kbd><span data-vehicle-interaction-action>Interact</span></strong>
+          </div>
+        </section>
 
         <section class="running-order" aria-labelledby="running-order-title">
           <h2 id="running-order-title">Running order</h2>
@@ -192,6 +278,43 @@
           <p>Your settings are safe. Try rebuilding the WebGL scene.</p>
           <button type="button" data-retry>Try again</button>
         </section>
+
+        <dialog class="vehicle-selector" data-vehicle-selector aria-labelledby="vehicle-selector-title">
+          <form method="dialog">
+            <div class="vehicle-selector-topline">
+              <p>Under-hood configurator</p>
+              <button class="vehicle-selector-close" value="close" aria-label="Close car configurator">×</button>
+            </div>
+            <div class="vehicle-selector-layout">
+              <div class="vehicle-selector-preview" data-vehicle-selector-preview-viewport>
+                <canvas
+                  aria-label="Selected procedural car preview"
+                  data-vehicle-selector-preview-canvas
+                  role="img"
+                ></canvas>
+                <span>Live procedural build</span>
+                <small>Public vehicle pipeline · hood open</small>
+              </div>
+              <div class="vehicle-selector-content">
+                <h2 id="vehicle-selector-title">Tune <em data-vehicle-name>your car</em></h2>
+                <p class="vehicle-selector-copy">
+                  Browse procedural builds while the hood is up. The one you keep will line up for the next race.
+                </p>
+                <div class="vehicle-selector-readout" aria-live="polite">
+                  <strong data-vehicle-archetype>Coupe</strong>
+                  <span data-vehicle-spec>2 doors · sport wheels</span>
+                  <small data-vehicle-features>No extra hardware</small>
+                </div>
+                <div class="vehicle-selector-browse" role="group" aria-label="Browse procedural car builds">
+                  <button type="button" data-vehicle-previous>← Previous</button>
+                  <button class="vehicle-selector-surprise" type="button" data-vehicle-surprise>Surprise me</button>
+                  <button type="button" data-vehicle-next>Next →</button>
+                </div>
+                <button class="vehicle-selector-keep" value="keep">Keep this car</button>
+              </div>
+            </div>
+          </form>
+        </dialog>
 
         <p class="visually-hidden" aria-live="polite" data-live-status>
           Race ready. Accelerate when the countdown clears.

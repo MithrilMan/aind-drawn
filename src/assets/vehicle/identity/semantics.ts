@@ -30,7 +30,7 @@ export const VEHICLE_SEMANTIC_MANIFEST: AssetSemanticManifest<'vehicle'> = Objec
   parts: PARTS,
   socketIds: Object.freeze([
     'door:left:handle', 'door:right:handle',
-    'entry:left', 'entry:right', 'driver', 'passenger', 'cargo', 'tow',
+    'entry:left', 'entry:right', 'hood:service', 'driver', 'passenger', 'cargo', 'tow',
   ]),
   colliderIds: Object.freeze([
     'vehicle:body', 'door:left:leaf', 'door:right:leaf',
@@ -50,7 +50,7 @@ export const VEHICLE_SEMANTIC_MANIFEST: AssetSemanticManifest<'vehicle'> = Objec
     Object.freeze({
       id: 'hood', kind: 'toggle', initialState: 'closed',
       states: Object.freeze(['closed', 'open']),
-      sensorId: 'hood:sensor', activationSocketId: 'driver',
+      sensorId: 'hood:sensor', activationSocketId: 'hood:service',
     }),
     Object.freeze({
       id: 'cargo', kind: 'toggle', initialState: 'closed',

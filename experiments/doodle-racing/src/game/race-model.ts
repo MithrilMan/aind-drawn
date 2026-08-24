@@ -13,11 +13,33 @@ import {
   type CourseLayout,
   type CourseProjection,
 } from './course.js';
-import { resolveObstacleCollisions } from './obstacle-collision.js';
+import {
+  createVehicleCollisionProfile,
+  resolveObstacleCollisions,
+  type VehicleCollisionProfile,
+} from './obstacle-collision.js';
 import type { RaceWorldLayout } from './race-world.js';
+import {
+  PAPER_CIRCUIT_VEHICLES,
+  createPaperCircuitVehicleIdentity,
+} from './vehicle-field.js';
 
-export type RacePhase = 'intro' | 'countdown' | 'running' | 'paused' | 'finished';
+export const RACE_LAP_OPTIONS = Object.freeze([3, 5, 10, 20] as const);
+export type RaceLapCount = (typeof RACE_LAP_OPTIONS)[number];
+export const DEFAULT_RACE_LAPS: RaceLapCount = 5;
+
+export type RaceStartOptions = Readonly<{
+  laps?: RaceLapCount;
+}>;
+
+export type RacePhase = 'menu' | 'intro' | 'countdown' | 'running' | 'paused' | 'finished';
 export type DriveInput = ArcadeDriveInput;
+/** Optional actions consumed by the free-roam character, ignored by vehicles. */
+export type ExploreInput = Readonly<DriveInput & {
+  run?: boolean;
+  jump?: boolean;
+  interact?: boolean;
+}>;
 
 export type RacerSnapshot = Readonly<{
   id: string;
@@ -35,6 +57,10 @@ export type RacerSnapshot = Readonly<{
   slipAngle: number;
   drifting: boolean;
   impact: number;
+  elevation: number;
+  pitch: number;
+  curbImpact: number;
+  curbPenalty: number;
 }>;
 
 export type RaceSnapshot = Readonly<{
@@ -72,7 +98,6 @@ type MutableRacer = {
   pace: number;
 };
 
-const TOTAL_LAPS = 3;
 const INTRO_SECONDS = 6;
 const FINISH_CINEMATIC_SECONDS = 8;
 const COUNTDOWN_SECONDS = 3;
@@ -99,18 +124,24 @@ function snapshotOf(racer: MutableRacer): RacerSnapshot {
     slipAngle: racer.vehicle.slipAngle,
     drifting: racer.vehicle.drifting,
     impact: racer.vehicle.impact,
+    elevation: racer.vehicle.elevation,
+    pitch: racer.vehicle.pitch,
+    curbImpact: racer.vehicle.curbImpact,
+    curbPenalty: racer.vehicle.curbPenalty,
   });
 }
 
 export class RaceSimulation {
   private racers: MutableRacer[] = [];
-  private phase: RacePhase = 'intro';
+  private readonly collisionProfiles = new Map<string, VehicleCollisionProfile>();
+  private phase: RacePhase = 'menu';
   private phaseBeforePause: 'intro' | 'countdown' | 'running' = 'intro';
   private introElapsed = 0;
   private presentationTime = 0;
   private finishElapsed = 0;
   private countdown = COUNTDOWN_SECONDS;
   private elapsed = 0;
+  private totalLaps: RaceLapCount = DEFAULT_RACE_LAPS;
   private offRoad = false;
   private lastSafeProgress = 0;
   private lostTime = 0;
@@ -124,10 +155,36 @@ export class RaceSimulation {
     private readonly course: CourseLayout,
     private readonly world: RaceWorldLayout,
   ) {
-    this.reset();
+    for (const vehicle of PAPER_CIRCUIT_VEHICLES) {
+      this.collisionProfiles.set(vehicle.id, createVehicleCollisionProfile(
+        createPaperCircuitVehicleIdentity(vehicle.id, vehicle.seed),
+      ));
+    }
+    this.openMenu();
+  }
+
+  public setCollisionProfile(vehicleId: string, profile: VehicleCollisionProfile): void {
+    if (!this.collisionProfiles.has(vehicleId)) throw new Error(`Unknown race vehicle: ${vehicleId}`);
+    this.collisionProfiles.set(vehicleId, profile);
+  }
+
+  public start(options: RaceStartOptions = {}): void {
+    this.totalLaps = options.laps ?? DEFAULT_RACE_LAPS;
+    this.resetRaceState();
+    this.phase = 'intro';
+  }
+
+  public openMenu(): void {
+    this.totalLaps = DEFAULT_RACE_LAPS;
+    this.resetRaceState();
+    this.phase = 'menu';
   }
 
   public reset(): void {
+    this.openMenu();
+  }
+
+  private resetRaceState(): void {
     this.phase = 'intro';
     this.phaseBeforePause = 'intro';
     this.introElapsed = 0;
@@ -152,7 +209,7 @@ export class RaceSimulation {
   }
 
   public togglePause(): RacePhase {
-    if (this.phase === 'finished') return this.phase;
+    if (this.phase === 'menu' || this.phase === 'finished') return this.phase;
     if (this.phase === 'paused') this.phase = this.phaseBeforePause;
     else {
       this.phaseBeforePause = this.phase;
@@ -180,7 +237,7 @@ export class RaceSimulation {
       this.elapsed += delta;
       this.updatePlayer(delta, input);
       this.updateOpponents(delta);
-      if (this.player().lap >= TOTAL_LAPS) this.phase = 'finished';
+      if (this.player().lap >= this.totalLaps) this.phase = 'finished';
     } else if (this.phase === 'finished') {
       this.finishElapsed = Math.min(
         FINISH_CINEMATIC_SECONDS,
@@ -201,8 +258,8 @@ export class RaceSimulation {
       presentationTime: this.presentationTime,
       countdown: this.countdown,
       elapsed: this.elapsed,
-      totalLaps: TOTAL_LAPS,
-      playerLap: Math.min(TOTAL_LAPS, player.lap + 1),
+      totalLaps: this.totalLaps,
+      playerLap: Math.min(this.totalLaps, player.lap + 1),
       playerPosition: ordered.findIndex(({ id }) => id === PLAYER_ID) + 1,
       playerSpeedKph: player.speed * 6.2,
       offRoad: this.offRoad,
@@ -255,7 +312,13 @@ export class RaceSimulation {
       ? 'road'
       : 'off-road';
     const stepped = stepArcadeVehicle(player.vehicle, input, surface, delta);
-    const collision = resolveObstacleCollisions(stepped, this.world.obstacles);
+    const collisionProfile = this.collisionProfile(player.id);
+    const collision = resolveObstacleCollisions(
+      player.vehicle,
+      stepped,
+      this.world.obstacles,
+      collisionProfile,
+    );
     player.vehicle = collision.state;
     this.impactObstacleId = collision.obstacleId;
 
@@ -344,7 +407,12 @@ export class RaceSimulation {
         ? 'road'
         : 'off-road';
       const stepped = stepArcadeVehicle(racer.vehicle, input, surface, delta);
-      racer.vehicle = resolveObstacleCollisions(stepped, this.world.obstacles).state;
+      racer.vehicle = resolveObstacleCollisions(
+        racer.vehicle,
+        stepped,
+        this.world.obstacles,
+        this.collisionProfile(racer.id),
+      ).state;
       const nextProjection = nearestCoursePoint(this.course, racer.vehicle.x, racer.vehicle.z);
       const forwardSpeed = racer.vehicle.velocityX * nextProjection.tangentX
         + racer.vehicle.velocityZ * nextProjection.tangentZ;
@@ -365,5 +433,11 @@ export class RaceSimulation {
 
   private player(): MutableRacer {
     return this.racers[0] as MutableRacer;
+  }
+
+  private collisionProfile(vehicleId: string): VehicleCollisionProfile {
+    const profile = this.collisionProfiles.get(vehicleId);
+    if (profile === undefined) throw new Error(`Missing collision profile for race vehicle: ${vehicleId}`);
+    return profile;
   }
 }

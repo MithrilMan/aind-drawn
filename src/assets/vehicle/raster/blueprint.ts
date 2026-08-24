@@ -472,6 +472,13 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
         }),
       }),
       Object.freeze({
+        id: 'hood:service', bone: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze({ x: projectedX(length + 0.78), y: 0 }),
+          rotation: 0,
+        }),
+      }),
+      Object.freeze({
         id: 'driver', bone: 'root',
         localPose: Object.freeze({
           position: Object.freeze({

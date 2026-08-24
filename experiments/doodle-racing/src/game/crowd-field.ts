@@ -21,11 +21,13 @@ type SpectatorAsset = {
   identity: CharacterIdentityRecipe;
   solid: SolidAssetBlueprint<'character'>;
   rig: SolidRig;
+  strokes: ReturnType<typeof createSolidCharacterInkStrokes>;
   motion: CharacterMotionState;
   cues: readonly CrowdCue[];
   cueDuration: number;
   phaseOffset: number;
   activeCue: number;
+  celebrationCue: number;
   scale: number;
 };
 
@@ -37,7 +39,7 @@ type CrowdCue = Readonly<{
 }>;
 
 const CROWD_POSES = Object.freeze<CharacterPose[]>([
-  'play', 'play', 'airborne', 'idle', 'play', 'sit',
+  'play', 'dance', 'airborne', 'idle', 'dance', 'sit',
 ]);
 const CROWD_EXPRESSIONS = Object.freeze<CharacterExpression[]>([
   'happy', 'happy', 'surprised', 'happy', 'idle',
@@ -65,7 +67,9 @@ export class CrowdField {
         return Object.freeze({
           pose,
           expression: random.pick(CROWD_EXPRESSIONS),
-          speed: pose === 'airborne' ? 0.98 : pose === 'play' ? 0.88 : 0.34,
+          speed: pose === 'airborne' ? 0.98
+            : pose === 'play' ? 0.88
+              : pose === 'dance' ? 0.8 : 0.34,
           talking: random.chance(0.46),
         });
       }));
@@ -73,37 +77,71 @@ export class CrowdField {
         identity,
         solid,
         rig,
+        strokes: createSolidCharacterInkStrokes(solid),
         motion: createCharacterMotionState(),
         cues,
         cueDuration: random.float(0.72, 1.34),
         phaseOffset: random.float(0, 2.4) + index * 0.037,
         activeCue: -1,
+        celebrationCue: -1,
         scale,
       };
     }));
   }
 
   public doodleAssets(): readonly DoodleSceneAsset[] {
-    return Object.freeze(this.spectators.map(({ solid, rig }) => Object.freeze({
+    return Object.freeze(this.spectators.map(({ solid, rig, strokes }) => Object.freeze({
       solid,
       rig,
-      strokes: createSolidCharacterInkStrokes(solid),
+      strokes,
     })));
+  }
+
+  public setCelebrating(active: boolean, elapsedSeconds: number): void {
+    if (this.celebrationActive === active) return;
+    this.celebrationActive = active;
+    this.celebrationStartedAt = elapsedSeconds;
+    for (const spectator of this.spectators) {
+      spectator.activeCue = -1;
+      spectator.celebrationCue = -1;
+    }
   }
 
   public update(elapsedSeconds: number): void {
     for (const spectator of this.spectators) {
-      const cueIndex = Math.floor(
-        (elapsedSeconds + spectator.phaseOffset) / spectator.cueDuration,
-      );
-      if (cueIndex !== spectator.activeCue) {
-        spectator.activeCue = cueIndex;
-        const cue = spectator.cues[cueIndex % spectator.cues.length] as CrowdCue;
-        const cueStartedAt = Math.max(
-          0,
-          cueIndex * spectator.cueDuration - spectator.phaseOffset,
+      if (this.celebrationActive) {
+        const cueIndex = Math.floor(
+          (elapsedSeconds - this.celebrationStartedAt + spectator.phaseOffset)
+            / spectator.cueDuration,
         );
-        spectator.motion = setCharacterMotion(spectator.motion, cue, cueStartedAt);
+        if (cueIndex !== spectator.celebrationCue) {
+          spectator.celebrationCue = cueIndex;
+          const cue = spectator.cues[cueIndex % spectator.cues.length] as CrowdCue;
+          const cueStartedAt = Math.max(
+            0,
+            this.celebrationStartedAt - spectator.phaseOffset
+              + cueIndex * spectator.cueDuration,
+          );
+          spectator.motion = setCharacterMotion(spectator.motion, {
+            pose: 'dance',
+            expression: cue.expression,
+            speed: 0.82,
+            talking: cue.talking,
+          }, cueStartedAt);
+        }
+      } else {
+        const cueIndex = Math.floor(
+          (elapsedSeconds + spectator.phaseOffset) / spectator.cueDuration,
+        );
+        if (cueIndex !== spectator.activeCue) {
+          spectator.activeCue = cueIndex;
+          const cue = spectator.cues[cueIndex % spectator.cues.length] as CrowdCue;
+          const cueStartedAt = Math.max(
+            0,
+            cueIndex * spectator.cueDuration - spectator.phaseOffset,
+          );
+          spectator.motion = setCharacterMotion(spectator.motion, cue, cueStartedAt);
+        }
       }
       applySolidCharacterMotion(
         spectator.rig,
@@ -115,6 +153,13 @@ export class CrowdField {
       );
       spectator.rig.root.scale.setScalar(spectator.scale);
     }
+  }
+
+  private celebrationActive = false;
+  private celebrationStartedAt = 0;
+
+  public setVisible(visible: boolean): void {
+    for (const { rig } of this.spectators) rig.root.visible = visible;
   }
 
   public dispose(): void {

@@ -9,6 +9,7 @@ export const CHARACTER_POSES = [
   'sit',
   'sleep',
   'play',
+  'dance',
 ] as const;
 
 export type CharacterPose = typeof CHARACTER_POSES[number];

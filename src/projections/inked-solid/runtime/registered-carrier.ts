@@ -89,6 +89,7 @@ export class RegisteredInkedSolidCarrier {
   private readonly strokes: StrokeRecord[] = [];
   private readonly projectedAnchor = new THREE.Vector3();
   private readonly proxies: THREE.Mesh[] = [];
+  private proxiesVisible = true;
   private disposed = false;
 
   public constructor(
@@ -161,6 +162,15 @@ export class RegisteredInkedSolidCarrier {
 
   public sync(camera: THREE.Camera): void {
     this.assertAlive();
+    if (!this.rig.root.visible) {
+      if (this.proxiesVisible) {
+        for (const record of this.parts) syncProxySet(record.source, record.proxies, false);
+        for (const record of this.strokes) syncProxySet(record.source, record.proxies, false);
+        this.proxiesVisible = false;
+      }
+      return;
+    }
+    this.proxiesVisible = true;
     this.rig.root.updateWorldMatrix(true, true);
     for (const record of this.parts) {
       const visible = visibleInHierarchy(record.source);

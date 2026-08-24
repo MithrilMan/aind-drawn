@@ -21,6 +21,7 @@ import {
   createCharacterIdentity,
   createCharacterTearProfile,
   createInkedSolidBlueprint,
+  isolateSolidRigParts,
   createSolidGeometry,
   createSolidCharacterInkStrokes,
   createSolidCharacterBlueprint,
@@ -645,6 +646,32 @@ describe('solid rig runtime', () => {
     expect(rig.getInteractionState('door')).toBe('open');
     expect(Math.abs(door?.rotation.y ?? 0)).toBeGreaterThan(1);
     expect(() => { rig.setInteractionState('door', 'missing'); }).toThrow(RangeError);
+    rig.dispose();
+  });
+
+  it('isolates semantic solid parts and reports their world-space focus', () => {
+    const blueprint = createSolidVehicleBlueprint(createVehicleIdentity(4_115, {
+      archetype: 'coupe',
+    }));
+    const rig = new SolidRig(blueprint);
+    const doorPartIds = blueprint.parts
+      .filter(({ node }) => node === 'door:left')
+      .map(({ id }) => id);
+    rig.setWorldPose(Object.freeze({
+      position: Object.freeze([8, 1, -3] as const),
+      rotation: Object.freeze([0, 0, 0, 1] as const),
+    }));
+    rig.setInteractionState('door:left', 'open');
+
+    const focus = isolateSolidRigParts(rig, doorPartIds);
+
+    expect(focus.partIds).toEqual(doorPartIds);
+    expect(focus.center[0]).toBeGreaterThan(8);
+    expect(focus.center[2]).toBeLessThan(-3);
+    expect(focus.size.every((extent) => extent > 0)).toBe(true);
+    expect(rig.partIds.filter((partId) => rig.getPart(partId)?.visible)).toEqual(doorPartIds);
+    expect(() => isolateSolidRigParts(rig, [])).toThrow(RangeError);
+    expect(() => isolateSolidRigParts(rig, ['missing'])).toThrow(/Unknown solid focus part/);
     rig.dispose();
   });
 

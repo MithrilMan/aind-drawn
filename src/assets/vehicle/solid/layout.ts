@@ -160,6 +160,11 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
         0,
         vehicleSideSign('right') * (width * 0.5 + 0.72),
       ] as const) }),
+      Object.freeze({ id: 'hood:service', node: 'root', localPose: pose([
+        length * 0.5 + 0.78,
+        0,
+        0,
+      ] as const) }),
       Object.freeze({ id: 'driver', node: 'chassis', localPose: pose([
         doorHingeX - doorLength * 0.45,
         beltHeight * 0.88,

@@ -89,6 +89,30 @@ describe('pure motion sampling', () => {
     expect(settled.poseWeights.walk).toBeCloseTo(0);
   });
 
+  it('samples a deterministic clownish Macarena with sequential arm gestures', () => {
+    const identity = createCharacterIdentity(6210, { species: 'cat' });
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = setCharacterMotion(state, {
+      pose: 'dance', speed: 0.9, expression: 'happy',
+    }, 0);
+    const firstTime = 1.2;
+    const first = sampleCharacterMotion(identity, state, firstTime);
+    const samples = Array.from({ length: 64 }, (_, index) => (
+      sampleCharacterMotion(identity, state, firstTime + index * 0.08)
+    ));
+    const leftArmRolls = samples.map((sample) => sample.parts['arm:left'].roll);
+    const rightArmRolls = samples.map((sample) => sample.parts['arm:right'].roll);
+
+    expect(first.poseWeights.dance).toBeCloseTo(1);
+    expect(Math.max(...leftArmRolls) - Math.min(...leftArmRolls)).toBeGreaterThan(1.2);
+    expect(Math.max(...rightArmRolls) - Math.min(...rightArmRolls)).toBeGreaterThan(1.2);
+    expect(samples.some((sample) => sample.parts['leg:left'].y > 0.07)).toBe(true);
+    expect(samples.some((sample) => sample.parts['leg:right'].y > 0.07)).toBe(true);
+    expect(samples.some((sample) => sample.parts.torso.x > 0.08)).toBe(true);
+    expect(samples.some((sample) => sample.parts.torso.x < -0.08)).toBe(true);
+    expect(first).toEqual(sampleCharacterMotion(identity, state, firstTime));
+  });
+
   it('makes autonomic schedules seekable and explicitly disableable', () => {
     const identity = createCharacterIdentity(6203);
     const disabled = createCharacterMotionState({ autoBlink: false, autoGaze: false });
@@ -110,7 +134,7 @@ describe('pure motion sampling', () => {
     const identity = createCharacterIdentity(6204, { species: 'cat' });
     let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
     state = setCharacterMotion(state, {
-      pose: 'play', speed: 0.8, expression: 'crying',
+      pose: 'dance', speed: 0.8, expression: 'crying',
     }, 0);
     const sample = sampleCharacterMotion(identity, state, 0.47);
     const raster = new SpriteRig(inertRasterCharacter(identity), {

@@ -19,6 +19,7 @@ function formatTime(seconds: number): string {
 export class RaceHud {
   private readonly position = requireElement(document, '[data-position-number]', HTMLElement);
   private readonly lap = requireElement(document, '[data-lap]', HTMLElement);
+  private readonly totalLaps = requireElement(document, '[data-total-laps]', HTMLElement);
   private readonly time = requireElement(document, '[data-time]', HTMLElement);
   private readonly speed = requireElement(document, '[data-speed]', HTMLElement);
   private readonly speedometer = requireElement(document, '.speedometer', HTMLElement);
@@ -50,6 +51,7 @@ export class RaceHud {
   public render(snapshot: RaceSnapshot): void {
     this.position.textContent = snapshot.playerPosition.toString();
     this.lap.textContent = snapshot.playerLap.toString();
+    this.totalLaps.textContent = snapshot.totalLaps.toString();
     this.time.textContent = formatTime(snapshot.elapsed);
     this.speed.textContent = Math.round(snapshot.playerSpeedKph).toString();
     this.speedometer.style.setProperty(
@@ -92,7 +94,7 @@ export class RaceHud {
 
   private renderRaceState(snapshot: RaceSnapshot): void {
     const count = Math.ceil(snapshot.countdown);
-    if (snapshot.phase === 'intro') {
+    if (snapshot.phase === 'menu' || snapshot.phase === 'intro') {
       this.countdown.hidden = true;
     } else if (snapshot.phase === 'countdown') {
       this.countdown.hidden = false;
@@ -107,7 +109,8 @@ export class RaceHud {
     }
 
     if (snapshot.phase !== this.previousPhase) {
-      if (snapshot.phase === 'intro') this.announce('Broadcast intro. Meet the Paper Circuit crowd.');
+      if (snapshot.phase === 'menu') this.announce('Race setup ready. Choose your medium and lap count.');
+      else if (snapshot.phase === 'intro') this.announce('Broadcast intro. Meet the Paper Circuit crowd.');
       else if (snapshot.phase === 'countdown') this.announce('Cars are on the grid. Countdown started.');
       else if (snapshot.phase === 'running') this.announce('Go. The race is running.');
       else if (snapshot.phase === 'paused') this.announce('Race paused.');
@@ -123,7 +126,10 @@ export class RaceHud {
   private renderEvent(snapshot: RaceSnapshot): void {
     let title = '';
     let detail = '';
-    if (snapshot.phase === 'intro') {
+    if (snapshot.phase === 'menu') {
+      title = '';
+      detail = '';
+    } else if (snapshot.phase === 'intro') {
       title = 'Make some noise!';
       detail = 'Live from the Paper Circuit grandstand';
     } else if (snapshot.phase === 'finished') {

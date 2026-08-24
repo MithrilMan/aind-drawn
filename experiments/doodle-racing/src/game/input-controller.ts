@@ -1,22 +1,26 @@
-import type { DriveInput } from './race-model.js';
+import type { ExploreInput } from './race-model.js';
 
-type DriveAction = keyof DriveInput;
+type InputAction = keyof ExploreInput;
 
-const KEY_ACTIONS: Readonly<Record<string, DriveAction>> = Object.freeze({
-  ArrowUp: 'accelerate',
-  w: 'accelerate',
-  W: 'accelerate',
-  ArrowDown: 'brake',
-  s: 'brake',
-  S: 'brake',
-  ArrowLeft: 'left',
-  a: 'left',
-  A: 'left',
-  ArrowRight: 'right',
-  d: 'right',
-  D: 'right',
-  ' ': 'handbrake',
-  Shift: 'handbrake',
+const KEY_ACTIONS: Readonly<Record<string, readonly InputAction[]>> = Object.freeze({
+  ArrowUp: ['accelerate'],
+  w: ['accelerate'],
+  W: ['accelerate'],
+  ArrowDown: ['brake'],
+  s: ['brake'],
+  S: ['brake'],
+  ArrowLeft: ['left'],
+  a: ['left'],
+  A: ['left'],
+  ArrowRight: ['right'],
+  d: ['right'],
+  D: ['right'],
+  // Keep these as dual actions: vehicles retain their drift control while
+  // the Explore actor gets the controls players expect from a character.
+  ' ': ['handbrake', 'jump'],
+  Shift: ['handbrake', 'run'],
+  e: ['interact'],
+  E: ['interact'],
 });
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -27,12 +31,15 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export class InputController {
-  private readonly state: Record<DriveAction, boolean> = {
+  private readonly state: Record<InputAction, boolean> = {
     accelerate: false,
     brake: false,
     left: false,
     right: false,
     handbrake: false,
+    run: false,
+    jump: false,
+    interact: false,
   };
   private readonly touchButtons: readonly HTMLButtonElement[];
 
@@ -49,7 +56,7 @@ export class InputController {
     }
   }
 
-  public snapshot(): DriveInput {
+  public snapshot(): ExploreInput {
     return Object.freeze({ ...this.state });
   }
 
@@ -66,22 +73,22 @@ export class InputController {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    const action = KEY_ACTIONS[event.key];
-    if (action === undefined || isEditableTarget(event.target)) return;
-    this.state[action] = true;
+    const actions = KEY_ACTIONS[event.key];
+    if (actions === undefined || isEditableTarget(event.target)) return;
+    for (const action of actions) this.state[action] = true;
     event.preventDefault();
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
-    const action = KEY_ACTIONS[event.key];
-    if (action === undefined) return;
-    this.state[action] = false;
+    const actions = KEY_ACTIONS[event.key];
+    if (actions === undefined) return;
+    for (const action of actions) this.state[action] = false;
     event.preventDefault();
   };
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
     const button = event.currentTarget as HTMLButtonElement;
-    const action = button.dataset.drive as DriveAction | undefined;
+    const action = button.dataset.drive as InputAction | undefined;
     if (action === undefined) return;
     this.state[action] = true;
     button.classList.add('pressed');
@@ -91,14 +98,14 @@ export class InputController {
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
     const button = event.currentTarget as HTMLButtonElement;
-    const action = button.dataset.drive as DriveAction | undefined;
+    const action = button.dataset.drive as InputAction | undefined;
     if (action !== undefined) this.state[action] = false;
     button.classList.remove('pressed');
     if (button.hasPointerCapture(event.pointerId)) button.releasePointerCapture(event.pointerId);
   };
 
   private readonly releaseAll = (): void => {
-    for (const action of Object.keys(this.state) as DriveAction[]) this.state[action] = false;
+    for (const action of Object.keys(this.state) as InputAction[]) this.state[action] = false;
     for (const button of this.touchButtons) button.classList.remove('pressed');
   };
 }

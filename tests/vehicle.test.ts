@@ -75,6 +75,14 @@ describe('vehicle asset family', () => {
       (solid.sockets.find(({ id }) => id === 'entry:left')?.localPose.position[0] ?? 0)
         + identity.dimensions.length * 0.5,
     );
+    expect(solid.manifest.interactions.find(({ id }) => id === 'hood')).toMatchObject({
+      sensorId: 'hood:sensor',
+      activationSocketId: 'hood:service',
+    });
+    expect(solid.sockets.find(({ id }) => id === 'hood:service')?.localPose.position[0])
+      .toBeGreaterThan(identity.dimensions.length * 0.5);
+    expect(raster.sockets.find(({ id }) => id === 'hood:service')?.localPose.position.x)
+      .toBeCloseTo(identity.dimensions.length + 0.78);
     expect(identity.doors.frontStartRatio).toBeGreaterThan(identity.cabin.startRatio);
     expect(identity.doors.frontEndRatio).toBeLessThan(identity.cabin.endRatio);
     expect(identity.doors.frontEndRatio - identity.doors.frontStartRatio).toBeLessThanOrEqual(0.3);

@@ -46,6 +46,7 @@ const AUTONOMIC_BY_POSE: Readonly<Record<CharacterPose, AutonomicProfile>> = {
   sit: { sway: 0.6, breath: 1, blink: 1, gaze: 0.8, arms: 0.4, tail: 0.6 },
   sleep: { sway: 0, breath: 2.2, blink: 0, gaze: 0, arms: 0, tail: 0 },
   play: { sway: 0.3, breath: 0.5, blink: 1, gaze: 0.5, arms: 0, tail: 1.3 },
+  dance: { sway: 0.2, breath: 0.7, blink: 1, gaze: 0.35, arms: 0.15, tail: 2.1 },
 };
 
 function validateTime(time: number): void {
@@ -181,6 +182,116 @@ function applyPlay(
   addPart(parts, 'leg:right', { y: Math.max(0, -wave) * 0.08, roll: -wave * 0.18 }, weight);
 }
 
+/** A deliberately overcommitted disco loop: one hand up, one knee up, dignity down. */
+type MacarenaArmTarget = Readonly<{
+  leftRoll: number;
+  rightRoll: number;
+  leftSwing: number;
+  rightSwing: number;
+  leftForeground: number;
+  rightForeground: number;
+}>;
+
+const MACARENA_COUNTS_PER_SECOND = 4.4;
+const MACARENA_STEPS: readonly MacarenaArmTarget[] = Object.freeze([
+  Object.freeze({ leftRoll: -0.26, rightRoll: 1.2, leftSwing: 0, rightSwing: -0.08, leftForeground: 0.42, rightForeground: 0.55 }),
+  Object.freeze({ leftRoll: -1.2, rightRoll: 1.2, leftSwing: 0.08, rightSwing: -0.08, leftForeground: 0.55, rightForeground: 0.55 }),
+  Object.freeze({ leftRoll: -1.2, rightRoll: 1.65, leftSwing: 0.08, rightSwing: -0.18, leftForeground: 0.55, rightForeground: 0.68 }),
+  Object.freeze({ leftRoll: -1.65, rightRoll: 1.65, leftSwing: 0.18, rightSwing: -0.18, leftForeground: 0.68, rightForeground: 0.68 }),
+  Object.freeze({ leftRoll: -1.65, rightRoll: -1.05, leftSwing: 0.18, rightSwing: 0.22, leftForeground: 0.68, rightForeground: 0.72 }),
+  Object.freeze({ leftRoll: 1.05, rightRoll: -1.05, leftSwing: -0.22, rightSwing: 0.22, leftForeground: 0.72, rightForeground: 0.72 }),
+  Object.freeze({ leftRoll: 1.05, rightRoll: 1.8, leftSwing: -0.22, rightSwing: -0.28, leftForeground: 0.72, rightForeground: 0.8 }),
+  Object.freeze({ leftRoll: -1.8, rightRoll: 1.8, leftSwing: 0.28, rightSwing: -0.28, leftForeground: 0.8, rightForeground: 0.8 }),
+  Object.freeze({ leftRoll: -1.8, rightRoll: 0.34, leftSwing: 0.28, rightSwing: -0.22, leftForeground: 0.8, rightForeground: 0.46 }),
+  Object.freeze({ leftRoll: -0.34, rightRoll: 0.34, leftSwing: 0.18, rightSwing: -0.22, leftForeground: 0.46, rightForeground: 0.46 }),
+  Object.freeze({ leftRoll: -0.34, rightRoll: 0.82, leftSwing: 0.18, rightSwing: -0.52, leftForeground: 0.36, rightForeground: 0.22 }),
+  Object.freeze({ leftRoll: -0.82, rightRoll: 0.82, leftSwing: 0.52, rightSwing: -0.52, leftForeground: 0.22, rightForeground: 0.22 }),
+  Object.freeze({ leftRoll: -0.82, rightRoll: 0.82, leftSwing: 0.52, rightSwing: -0.52, leftForeground: 0.22, rightForeground: 0.22 }),
+  Object.freeze({ leftRoll: -0.82, rightRoll: 0.82, leftSwing: 0.52, rightSwing: -0.52, leftForeground: 0.22, rightForeground: 0.22 }),
+  Object.freeze({ leftRoll: -0.82, rightRoll: 0.82, leftSwing: 0.52, rightSwing: -0.52, leftForeground: 0.22, rightForeground: 0.22 }),
+  Object.freeze({ leftRoll: -0.82, rightRoll: 0.82, leftSwing: 0.52, rightSwing: -0.52, leftForeground: 0.22, rightForeground: 0.22 }),
+]);
+
+function smoothStep(value: number): number {
+  return value * value * (3 - 2 * value);
+}
+
+function interpolateMacarenaTarget(
+  current: MacarenaArmTarget,
+  next: MacarenaArmTarget,
+  amount: number,
+): MacarenaArmTarget {
+  const mix = (left: number, right: number): number => left + (right - left) * amount;
+  return {
+    leftRoll: mix(current.leftRoll, next.leftRoll),
+    rightRoll: mix(current.rightRoll, next.rightRoll),
+    leftSwing: mix(current.leftSwing, next.leftSwing),
+    rightSwing: mix(current.rightSwing, next.rightSwing),
+    leftForeground: mix(current.leftForeground, next.leftForeground),
+    rightForeground: mix(current.rightForeground, next.rightForeground),
+  };
+}
+
+/** A cheeky Macarena-style sixteen-count loop with deliberately loose elbows. */
+function applyDance(
+  parts: Record<CharacterMotionPartId, MutablePart>,
+  weight: number,
+  time: number,
+): void {
+  if (weight <= 0.001) return;
+  const stepCount = time * MACARENA_COUNTS_PER_SECOND;
+  const cyclePosition = ((stepCount % MACARENA_STEPS.length) + MACARENA_STEPS.length)
+    % MACARENA_STEPS.length;
+  const stepIndex = Math.floor(cyclePosition);
+  const stepProgress = smoothStep(cyclePosition - stepIndex);
+  const current = MACARENA_STEPS[stepIndex] as MacarenaArmTarget;
+  const next = MACARENA_STEPS[(stepIndex + 1) % MACARENA_STEPS.length] as MacarenaArmTarget;
+  const target = interpolateMacarenaTarget(current, next, stepProgress);
+  const beat = Math.sin(stepCount * Math.PI);
+  const leftTap = Math.max(0, beat);
+  const rightTap = Math.max(0, -beat);
+  const hip = cyclePosition >= 12
+    ? Math.sin((cyclePosition - 12) * Math.PI)
+    : Math.sin(stepCount * Math.PI) * 0.28;
+  const hop = Math.abs(beat);
+
+  addPart(parts, 'torso', {
+    x: hip * 0.12,
+    y: hop * 0.045 + Math.abs(hip) * 0.035,
+    roll: -hip * 0.25,
+    scaleX: 1 - hop * 0.025,
+    scaleY: 1 + hop * 0.055 + Math.abs(hip) * 0.035,
+  }, weight);
+  addPart(parts, 'head', {
+    x: -hip * 0.05,
+    y: hop * 0.04,
+    roll: hip * 0.18 + Math.sin(stepCount * Math.PI * 0.5) * 0.06,
+  }, weight);
+  addPart(parts, 'arm:left', {
+    swing: target.leftSwing,
+    roll: target.leftRoll,
+    foreground: target.leftForeground,
+  }, weight);
+  addPart(parts, 'arm:right', {
+    swing: target.rightSwing,
+    roll: target.rightRoll,
+    foreground: target.rightForeground,
+  }, weight);
+  addPart(parts, 'leg:left', {
+    y: leftTap * 0.085,
+    swing: beat * 0.2 + leftTap * 0.14,
+    roll: -hip * 0.2,
+  }, weight);
+  addPart(parts, 'leg:right', {
+    y: rightTap * 0.085,
+    swing: -beat * 0.2 - rightTap * 0.14,
+    roll: hip * 0.2,
+  }, weight);
+  addPart(parts, 'tail', {
+    roll: Math.sin(stepCount * Math.PI * 0.7 + 0.8) * 0.4 + hip * 0.35,
+  }, weight);
+}
+
 function blendedAutonomicProfile(weights: CharacterPoseWeights): AutonomicProfile {
   const result = { sway: 0, breath: 0, blink: 0, gaze: 0, arms: 0, tail: 0 };
   for (const pose of CHARACTER_POSES) {
@@ -268,6 +379,7 @@ export function sampleCharacterMotion(
   applySit(parts, weights.sit);
   applySleep(parts, weights.sleep, time);
   applyPlay(parts, weights.play, time);
+  applyDance(parts, weights.dance, time);
   applyAutonomicMotion(parts, autonomic, expression, time);
 
   return Object.freeze({

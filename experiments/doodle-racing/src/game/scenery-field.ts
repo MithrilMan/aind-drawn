@@ -52,6 +52,19 @@ export class SceneryField {
     ]);
   }
 
+  public collisionRigs(): readonly SolidRig[] {
+    return Object.freeze([
+      this.sceneryRig,
+      ...this.trees.map(({ rig }) => rig),
+    ]);
+  }
+
+  public setVisible(visible: boolean): void {
+    this.courseRig.root.visible = visible;
+    this.sceneryRig.root.visible = visible;
+    for (const { rig } of this.trees) rig.root.visible = visible;
+  }
+
   public dispose(): void {
     this.courseRig.dispose();
     this.sceneryRig.dispose();

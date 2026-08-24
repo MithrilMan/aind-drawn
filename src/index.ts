@@ -107,5 +107,6 @@ export * from './runtime/asset-composition.js';
 export { createAssetInstanceId } from './runtime/instance-id.js';
 export * from './runtime/solid-geometry.js';
 export * from './runtime/solid-materials.js';
+export * from './runtime/solid-part-focus.js';
 export * from './runtime/solid-rig.js';
 export * from './runtime/sprite-rig.js';

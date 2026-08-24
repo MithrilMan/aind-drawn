@@ -41,7 +41,7 @@
       "The 3D view supports pointer orbit, explicit yaw control, reset, and turntable in either rendering style.",
       "The right view switches between Doodle and Solid rendering while preserving the same live rig, camera, animation, expression, and interaction state.",
       "Doodle always renders the selected medium's intrinsic pigment and marks; Solid alone exposes the physical finish selector.",
-      "Character controls expose all seven public poses and eight public expressions.",
+      "Character controls expose all eight public poses and eight public expressions.",
       "Building mode replaces character-only controls with real architectural and door controls.",
       "The experiment builds as an independent static Vite entry suitable for GitHub Pages.",
       "A generic Customize workspace renders family-authored choices through the public library pipeline without hard-coding the shell per family.",
@@ -220,7 +220,7 @@
           "structureConstraints": [
             "Preserve the top recipe strip with Character selected by default, Building available, seed 4104, Graphite, New seed, and synchronization status.",
             "Preserve two equal live-render regions labelled Drawn 2D / Front reference and 3D / Current view, with a compact Doodle or Solid switch in the right stage header.",
-            "Preserve the horizontal lower deck with playback, all seven poses, all eight expressions, and 3D orbit plus turntable controls visible without a sidebar.",
+            "Preserve the horizontal lower deck with playback, all eight poses, all eight expressions, and 3D orbit plus turntable controls visible without a sidebar.",
             "Preserve concise canvas footer actions without adding a duplicated bottom recipe or renderer readout.",
             "Keep the interface fully visible at 1536 by 1024 with each live canvas receiving at least 560 by 460 CSS pixels."
           ]

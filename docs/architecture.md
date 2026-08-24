@@ -420,6 +420,6 @@ G-buffer resource.
 
 Raster and solid character animators consume the same transient
 `CharacterMotion` vocabulary (`idle`, `walk`, `run`, `airborne`, `sit`, `sleep`,
-and `play`). Motion is not part of the immutable identity or blueprint. Each
+`play`, and `dance`). Motion is not part of the immutable identity or blueprint. Each
 runtime adapter is free to interpolate according to its medium while preserving
 the same semantic pose.

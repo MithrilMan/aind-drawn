@@ -6,7 +6,12 @@ import type {
   SolidPartDefinition,
 } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
-import type { RaceWorldLayout } from './race-world.js';
+import {
+  GRANDSTAND_ROW_SPACING,
+  grandstandStepHeight,
+  grandstandStepSpan,
+  type RaceWorldLayout,
+} from './race-world.js';
 
 function material(
   id: string,
@@ -88,12 +93,15 @@ export function createRaceSceneryBlueprint(
       id: barrier.id,
       node: 'root',
       order: 1,
-      geometry: Object.freeze({ type: 'box', size: [length + 0.04, 0.56, barrier.radius * 2] as const }),
+      geometry: Object.freeze({
+        type: 'box',
+        size: [length + 0.04, barrier.height, barrier.radius * 2] as const,
+      }),
       materialId: index % 2 === 0 ? 'barrier:red' : 'barrier:paper',
       placement: Object.freeze({
         position: Object.freeze([
           (barrier.startX + barrier.endX) * 0.5,
-          0.29,
+          barrier.height * 0.5,
           (barrier.startZ + barrier.endZ) * 0.5,
         ] as const),
         rotation: Object.freeze([0, heading, 0] as const),
@@ -146,17 +154,19 @@ export function createRaceSceneryBlueprint(
 
   const stand = world.grandstand;
   for (let row = 0; row < stand.rows; row += 1) {
+    const stepHeight = grandstandStepHeight(row);
+    const stepSpan = grandstandStepSpan(row, stand.rows);
     add({
       id: `grandstand:step:${row}`,
       node: 'root',
       order: 0,
       geometry: Object.freeze({
         type: 'box',
-        size: [stand.length, 0.34 + row * 0.25, 1.15] as const,
+        size: [stand.length, stepHeight, stepSpan.depth] as const,
       }),
       materialId: row % 2 === 0 ? 'stand:paper' : 'stand:dark',
       placement: Object.freeze({
-        position: standPoint(world, 0, row * 0.72, 0.17 + row * 0.125),
+        position: standPoint(world, 0, stepSpan.centreAway, stepHeight * 0.5),
         rotation: Object.freeze([0, stand.heading, 0] as const),
       }),
       castShadow: true,
@@ -164,7 +174,7 @@ export function createRaceSceneryBlueprint(
     });
   }
   const roofHeight = 2.1 + stand.rows * 0.45;
-  const roofAway = (stand.rows - 1) * 0.36;
+  const roofAway = (stand.rows - 1) * GRANDSTAND_ROW_SPACING * 0.5;
   add({
     id: 'grandstand:roof', node: 'root', order: 4,
     geometry: Object.freeze({ type: 'box', size: [stand.length + 0.7, 0.16, 2.7] as const }),
@@ -175,7 +185,8 @@ export function createRaceSceneryBlueprint(
     }),
     castShadow: true, receiveShadow: true,
   });
-  for (const along of [-stand.length * 0.46, stand.length * 0.46]) {
+  const standPostAlong = Object.freeze([-stand.length * 0.46, stand.length * 0.46]);
+  for (const along of standPostAlong) {
     const postHeight = roofHeight - 0.1;
     add({
       id: `grandstand:post:${along < 0 ? 'left' : 'right'}`, node: 'root', order: 3,
@@ -189,6 +200,8 @@ export function createRaceSceneryBlueprint(
   const sceneryColliderIds = Object.freeze([
     ...world.barriers.map(({ id }) => id),
     ...world.tyreStacks.map(({ id }) => id),
+    ...world.cones.map(({ id }) => id),
+    ...standPostAlong.map((along) => `grandstand:post:${along < 0 ? 'left' : 'right'}`),
   ]);
   return Object.freeze({
     blueprintVersion: 1,
@@ -239,12 +252,16 @@ export function createRaceSceneryBlueprint(
           localPose: Object.freeze({
             position: Object.freeze([
               (barrier.startX + barrier.endX) * 0.5,
-              0.29,
+              barrier.height * 0.5,
               (barrier.startZ + barrier.endZ) * 0.5,
             ] as const),
             rotation: yawQuaternion(heading),
           }),
-          size: Object.freeze([Math.hypot(deltaX, deltaZ), 0.56, barrier.radius * 2] as const),
+          size: Object.freeze([
+            Math.hypot(deltaX, deltaZ),
+            barrier.height,
+            barrier.radius * 2,
+          ] as const),
         });
       }),
       ...world.tyreStacks.map((stack) => Object.freeze({
@@ -258,6 +275,33 @@ export function createRaceSceneryBlueprint(
         }),
         radius: stack.radius,
       })),
+      ...world.cones.map((cone) => Object.freeze({
+        id: cone.id,
+        kind: 'solid' as const,
+        shape: 'capsule' as const,
+        node: 'root',
+        localPose: Object.freeze({
+          position: Object.freeze([cone.x, 0.36, cone.z] as const),
+          rotation: Object.freeze([0, 0, 0, 1] as const),
+        }),
+        radius: 0.23,
+        length: 0.26,
+        axis: 'y' as const,
+      })),
+      ...standPostAlong.map((along) => {
+        const postHeight = roofHeight - 0.1;
+        return Object.freeze({
+          id: `grandstand:post:${along < 0 ? 'left' : 'right'}`,
+          kind: 'solid' as const,
+          shape: 'box' as const,
+          node: 'root',
+          localPose: Object.freeze({
+            position: standPoint(world, along, roofAway, postHeight * 0.5),
+            rotation: yawQuaternion(stand.heading),
+          }),
+          size: Object.freeze([0.16, postHeight, 0.16] as const),
+        });
+      }),
     ]),
     sockets: Object.freeze([]),
     interactionBindings: Object.freeze([]),

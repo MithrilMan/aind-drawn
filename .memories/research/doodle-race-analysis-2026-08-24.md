@@ -139,7 +139,17 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   selected part bounds, so the callout shows only the real authored hood or door. The library makes
   this cheap because identity, topology, interactions, and projection are already shared. The public
   family-agnostic `isolateSolidRigParts(...)` runtime helper now owns carrier isolation, ID validation,
-  and immutable world-space focus bounds; the experiment owns only callout camera composition.
+  and immutable world-space focus bounds; the experiment owns only callout camera composition. The
+  callout derives its camera offset from the Explore camera's world-forward vector transformed by
+  the inverse vehicle world rotation, preserving the visible side while retaining independent fit.
+- The hood configurator owns another isolated `DoodleScene` and reuses the same focused-preview
+  adapter with every authored vehicle part selected. It opens the hood on its private rig and fits
+  the complete resulting bounds, so the edited build remains visible regardless of the parked
+  vehicle's occlusion or Explore camera. Reseeding replaces the preview source immediately while
+  retaining the preview viewport's camera orbit; only focus bounds and fit change with the rig.
+  Ordinary interaction callouts render authored parts closed, matching the visible parked vehicle,
+  while the configurator explicitly requests an open hood. Dialog close, medium changes, renderer
+  recovery, and application disposal update or release that scene.
 - Free-drive Explore framing adds an orthographic zoom-out baseline on entry and a further monotonic
   speed term capped at the 24-world-unit reference speed. Walking keeps the existing orbit framing;
   the transition remains smoothed by the camera controller.

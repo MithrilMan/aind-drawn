@@ -1,4 +1,10 @@
-import type { InkedSolidSceneDiagnostics, MediumId } from '../../../../src/index.js';
+import * as THREE from 'three';
+
+import type {
+  InkedSolidSceneDiagnostics,
+  MediumId,
+  Point3,
+} from '../../../../src/index.js';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
 import { CrowdField } from './crowd-field.js';
 import { DoodleScene } from './doodle-scene.js';
@@ -7,6 +13,7 @@ import { ExploreDriveController } from './explore-drive.js';
 import { GrandstandExplorer, type GrandstandExplorerSnapshot } from './grandstand-explorer.js';
 import { RaceCameraController, type RaceCameraMode } from './race-camera.js';
 import { RaceMapMarkers } from './race-map-markers.js';
+import { localPreviewCameraOffsetDirection } from './preview-camera.js';
 import type { ExploreInput, RaceSnapshot } from './race-model.js';
 import { GRANDSTAND_ROW_SPACING, type RaceWorldLayout } from './race-world.js';
 import { SceneryField } from './scenery-field.js';
@@ -35,6 +42,7 @@ const EXPLORE_IDLE_INPUT: ExploreInput = Object.freeze({
   right: false,
   handbrake: false,
 });
+const interactionCameraForward = new THREE.Vector3();
 
 export type ExploreStageSnapshot = Readonly<{
   explorer: GrandstandExplorerSnapshot;
@@ -46,6 +54,7 @@ export type ExploreStageSnapshot = Readonly<{
 export type ExploreStageInteraction = Readonly<{
   action: string;
   preview: VehicleInteractionPreviewSource;
+  cameraOffsetDirection: Point3;
 }>;
 
 type PendingExplorerChange = Readonly<{
@@ -457,6 +466,7 @@ export class RaceStage {
           drive.activeVehicleId,
           `door:${drive.activeSide}`,
         ),
+        cameraOffsetDirection: this.interactionCameraOffsetDirection(drive.activeVehicleId),
       });
     }
     if (drive.activeVehicleId !== null || nearby === null) return null;
@@ -466,11 +476,25 @@ export class RaceStage {
           ? 'Customize your car'
           : `Customize ${nearby.name}'s car`,
         preview: nearby.preview,
+        cameraOffsetDirection: this.interactionCameraOffsetDirection(nearby.vehicleId),
       });
     }
     return Object.freeze({
       action: nearby.name === 'You' ? 'Drive your car' : `Steal ${nearby.name}'s car`,
       preview: nearby.preview,
+      cameraOffsetDirection: this.interactionCameraOffsetDirection(nearby.vehicleId),
     });
+  }
+
+  private interactionCameraOffsetDirection(vehicleId: string): Point3 {
+    this.doodle.camera.getWorldDirection(interactionCameraForward);
+    return localPreviewCameraOffsetDirection(
+      Object.freeze([
+        interactionCameraForward.x,
+        interactionCameraForward.y,
+        interactionCameraForward.z,
+      ] as const),
+      this.vehicles.worldRotation(vehicleId),
+    );
   }
 }

@@ -27,6 +27,7 @@ import {
 import { ExploreDriveController } from '../experiments/doodle-racing/src/game/explore-drive.js';
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
+import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
 import {
   createVehicleCollisionProfile,
   resolveObstacleCollisions,
@@ -344,6 +345,30 @@ describe('Paper Circuit experiment', () => {
     expect(exploreDrivingViewSize(7.4, 240)).toBe(flatOut);
   });
 
+  it('expresses the gameplay camera direction in the vehicle local frame', () => {
+    const expectedLocalOffset = new THREE.Vector3(0.28, 0.52, 0.81).normalize();
+    const vehicleRotation = new THREE.Quaternion().setFromAxisAngle(
+      new THREE.Vector3(0, 1, 0),
+      Math.PI * 0.5,
+    );
+    const worldCameraOffset = expectedLocalOffset.clone().applyQuaternion(vehicleRotation);
+    const actual = localPreviewCameraOffsetDirection(
+      Object.freeze([
+        -worldCameraOffset.x,
+        -worldCameraOffset.y,
+        -worldCameraOffset.z,
+      ] as const),
+      Object.freeze([
+        vehicleRotation.x,
+        vehicleRotation.y,
+        vehicleRotation.z,
+        vehicleRotation.w,
+      ] as const),
+    );
+
+    expect(new THREE.Vector3(...actual).distanceTo(expectedLocalOffset)).toBeLessThan(1e-8);
+  });
+
   it('steers opponents through the shared bounded vehicle dynamics', () => {
     const layout = createCourseLayout();
     const simulation = new RaceSimulation(layout, createRaceWorldLayout(layout));
@@ -460,7 +485,16 @@ describe('Paper Circuit experiment', () => {
     const explorer = new GrandstandExplorer(world.grandstand, layout, 18_402);
     explorer.setPreviewMode(true);
 
-    expect(explorer.updatePreview(0.05).pose).toBe('dance');
+    const opening = explorer.updatePreview(0.05);
+    expect(opening.pose).toBe('dance');
+    expect(opening.expression).toBe('happy');
+
+    const expressions = new Set([opening.expression]);
+    for (let frame = 0; frame < 140; frame += 1) {
+      expressions.add(explorer.updatePreview(0.05).expression);
+    }
+    expect(expressions.has('surprised')).toBe(true);
+    expect(expressions.size).toBeGreaterThan(1);
     explorer.dispose();
   });
 
@@ -799,6 +833,7 @@ describe('Paper Circuit experiment', () => {
     const previous = field.doodleAssets().find(({ rig }) => rig.instanceId.endsWith(':you'));
     if (previous === undefined) throw new Error('Player vehicle was not registered');
     const previousTransform = previous.rig.getInstanceState().transform;
+    const previousConfiguratorKey = field.configuratorPreview('you').key;
 
     const nextSeed = seed + 1;
     const replacement = field.replaceVehicle('you', nextSeed);
@@ -809,6 +844,7 @@ describe('Paper Circuit experiment', () => {
     expect(next.rig).not.toBe(previous.rig);
     expect(next.rig.getInstanceState().transform).toEqual(previousTransform);
     expect(replacement.previousRig).toBe(previous.rig);
+    expect(field.configuratorPreview('you').key).not.toBe(previousConfiguratorKey);
     expect(replacement.selection).toMatchObject({
       vehicleId: 'you',
       name: 'You',
@@ -838,12 +874,15 @@ describe('Paper Circuit experiment', () => {
 
     expect(interaction).toMatchObject({ kind: 'hood', vehicleId: 'you' });
     expect(interaction?.preview.interactionId).toBe('hood');
+    expect(interaction?.preview.interactionState).toBe('closed');
     expect(interaction?.preview.partIds).toEqual(['hood']);
     const leftDoor = field.interactionPreview('you', 'door:left');
+    expect(leftDoor.interactionState).toBe('closed');
     expect(leftDoor.partIds.length).toBeGreaterThan(1);
     expect(leftDoor.partIds.every((partId) => (
       player.solid.parts.find(({ id }) => id === partId)?.node === 'door:left'
     ))).toBe(true);
+    expect(field.configuratorPreview('you').interactionState).toBe('open');
     const configurator = field.configuratorPreview('you');
     expect(configurator.key).not.toBe(interaction?.preview.key);
     expect(configurator.interactionId).toBe('hood');

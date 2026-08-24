@@ -113,6 +113,16 @@ function randomSpecies(seed: number): CharacterIdentitySpecies {
   ] as const);
 }
 
+function previewExpression(pose: CharacterPose, beat: number): CharacterExpression {
+  if (beat === 0) return 'happy';
+  if (beat === 1) return 'surprised';
+  if (pose === 'airborne') return 'scared';
+  if (pose === 'run') return 'angry';
+  if (pose === 'idle') return beat % 2 === 0 ? 'sad' : 'happy';
+  if (pose === 'play' || pose === 'dance') return 'happy';
+  return beat % 2 === 0 ? 'happy' : 'idle';
+}
+
 export class GrandstandExplorer {
   public readonly identity: CharacterIdentityRecipe;
   public readonly solid: SolidAssetBlueprint<'character'>;
@@ -133,6 +143,7 @@ export class GrandstandExplorer {
   private readonly collisionHeight: number;
   private readonly mapBounds: LocalBounds;
   private readonly previewSequence: readonly CharacterPose[];
+  private readonly previewExpressions: readonly CharacterExpression[];
   private readonly previewDurations: readonly number[];
   private readonly previewLoopDuration: number;
   private heading: number;
@@ -170,6 +181,9 @@ export class GrandstandExplorer {
       'dance',
       ...Array.from({ length: 3 }, () => previewRandom.pick(previewPoses)),
     ]);
+    this.previewExpressions = Object.freeze(
+      this.previewSequence.map((pose, index) => previewExpression(pose, index)),
+    );
     this.previewDurations = Object.freeze(this.previewSequence.map((_, index) => (
       index === 0 ? previewRandom.float(1.15, 1.7) : previewRandom.float(0.8, 1.65)
     )));
@@ -413,16 +427,18 @@ export class GrandstandExplorer {
     this.elapsed += delta;
     let cycle = this.elapsed % this.previewLoopDuration;
     let pose = this.previewSequence[this.previewSequence.length - 1] as CharacterPose;
+    let expression = this.previewExpressions[
+      this.previewExpressions.length - 1
+    ] as CharacterExpression;
     for (let index = 0; index < this.previewSequence.length; index += 1) {
       const duration = this.previewDurations[index] as number;
       if (cycle <= duration) {
         pose = this.previewSequence[index] as CharacterPose;
+        expression = this.previewExpressions[index] as CharacterExpression;
         break;
       }
       cycle -= duration;
     }
-    const expression: CharacterExpression = pose === 'play' || pose === 'airborne'
-      ? 'happy' : 'idle';
     if (pose !== this.activePose || expression !== this.activeExpression) {
       this.activePose = pose;
       this.activeExpression = expression;

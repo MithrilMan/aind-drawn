@@ -121,33 +121,66 @@
               <p class="menu-kicker">Paper Circuit / Race control</p>
               <button class="sound-toggle menu-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
             </div>
-            <h2>Draw your <em>line.</em></h2>
-            <p class="menu-copy">Tune the medium, pick the distance, then put the pencil down. The driver on the circuit is procedurally redrawn every session.</p>
             <div class="menu-options">
-              <label>
-                <span>Drawing medium</span>
-                <select name="menu-medium" data-menu-medium>
-                  <option value="graphite">Graphite</option>
-                  <option value="ink">Ink</option>
-                  <option value="watercolor">Watercolour</option>
-                  <option value="oil" selected>Oil</option>
-                  <option value="chalk">Charcoal</option>
-                  <option value="marker">Marker</option>
-                </select>
-              </label>
-              <label>
-                <span>Race laps</span>
-                <select name="laps" data-laps>
-                  <option value="3">3 laps</option>
-                  <option value="5" selected>5 laps</option>
-                  <option value="10">10 laps</option>
-                  <option value="20">20 laps</option>
-                </select>
-              </label>
+              <fieldset class="menu-option-group menu-medium-group">
+                <legend>Drawing medium</legend>
+                <div class="medium-gallery" aria-label="Choose a drawing medium">
+                  <label class="medium-card">
+                    <input type="radio" name="menu-medium" value="graphite" data-menu-medium>
+                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="graphite"><i>Rendering</i></span>
+                    <span>Graphite</span>
+                  </label>
+                  <label class="medium-card">
+                    <input type="radio" name="menu-medium" value="ink" data-menu-medium>
+                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="ink"><i>Rendering</i></span>
+                    <span>Ink</span>
+                  </label>
+                  <label class="medium-card">
+                    <input type="radio" name="menu-medium" value="watercolor" data-menu-medium>
+                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="watercolor"><i>Rendering</i></span>
+                    <span>Watercolour</span>
+                  </label>
+                  <label class="medium-card">
+                    <input type="radio" name="menu-medium" value="oil" data-menu-medium checked>
+                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="oil"><i>Rendering</i></span>
+                    <span>Oil</span>
+                  </label>
+                  <label class="medium-card">
+                    <input type="radio" name="menu-medium" value="chalk" data-menu-medium>
+                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="chalk"><i>Rendering</i></span>
+                    <span>Charcoal</span>
+                  </label>
+                  <label class="medium-card">
+                    <input type="radio" name="menu-medium" value="marker" data-menu-medium>
+                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="marker"><i>Rendering</i></span>
+                    <span>Marker</span>
+                  </label>
+                </div>
+                <div class="medium-thumbnail-renderer" data-medium-thumbnail-viewport aria-hidden="true">
+                  <canvas data-medium-thumbnail-canvas></canvas>
+                </div>
+              </fieldset>
+              <fieldset class="menu-option-group menu-laps-group">
+                <legend>Race laps</legend>
+                <div class="lap-toggles" aria-label="Choose race distance">
+                  <label><input type="radio" name="laps" value="3" data-laps><span><strong>3</strong><small>laps</small></span></label>
+                  <label><input type="radio" name="laps" value="5" data-laps checked><span><strong>5</strong><small>laps</small></span></label>
+                  <label><input type="radio" name="laps" value="10" data-laps><span><strong>10</strong><small>laps</small></span></label>
+                  <label><input type="radio" name="laps" value="20" data-laps><span><strong>20</strong><small>laps</small></span></label>
+                </div>
+              </fieldset>
             </div>
             <div class="menu-actions">
-              <button class="menu-primary" type="button" data-start-race>Start race</button>
-              <button class="menu-secondary" type="button" data-explore-grandstand>Explore grandstand</button>
+              <button class="menu-action menu-primary" type="button" data-start-race>
+                <span class="menu-action-glyph menu-action-glyph--race" aria-hidden="true"></span>
+                <span class="menu-action-copy"><strong>Start race</strong><small data-start-race-detail>Lights out / 5 laps</small></span>
+                <span class="menu-action-arrow" aria-hidden="true">↗</span>
+              </button>
+              <button class="menu-action menu-secondary" type="button" data-explore-grandstand>
+                <span class="menu-action-glyph menu-action-glyph--explore" aria-hidden="true"></span>
+                <span class="menu-action-copy"><strong>Explore grandstand</strong><small>Walk the paddock / drive</small></span>
+                <span class="menu-action-arrow" aria-hidden="true">→</span>
+              </button>
             </div>
             <p class="menu-help">WASD / arrows drive · Space or Shift drift · P pause</p>
           </div>

@@ -48,7 +48,11 @@ it, transfers control to the car, and enables free arcade driving with engine au
 skid marks, smoke, and dust. The Explore camera pulls farther back as vehicle speed increases. Press
 `E` again near standstill to exit at the door's authored entry socket. Standing at the authored
 service socket in front of the hood exposes the hood-only callout; pressing `E` opens it and launches
-an accessible under-hood configurator. `Previous`, `Next`, and
+an accessible under-hood configurator. The dialog owns a separate Doodle 3D viewport showing the
+complete selected vehicle with its hood open, so scenery and the Explore camera cannot occlude the
+build being edited. The focused interaction callout converts the gameplay camera direction into the
+vehicle's local frame, so orbiting Explore shows the isolated part from the same side while keeping
+its own bounds-fitted zoom. `Previous`, `Next`, and
 `Surprise me` browse deterministic procedural builds without exposing their internal seed; each
 replacement preserves the parked vehicle's pose and updates the registered Doodle asset in place.
 The kept build remains assigned to that racer when Explore ends, when the next race begins, and if
@@ -58,6 +62,9 @@ The intro menu uses a dedicated Doodle 3D viewport for the procedural driver and
 backdrop; the character is not composited into the race canvas behind the menu. On desktop the
 live circuit remains visible around the centered setup composition. At narrow viewports the menu
 becomes a full-screen vertical selection surface and hides the race scene completely. The preview
+gallery rasterizes one procedural race car through all six public drawing media using a single
+short-lived Doodle renderer, then releases its WebGL context; native radio groups provide exclusive
+medium and lap selection without keeping six thumbnail renderers alive on mobile. The preview
 always opens its seed-specific animation script with the shared `dance` pose, then mixes in other
 actions before automatically swapping to a fresh character with the same smoke-burst transition.
 `N` and the visible `New driver` control reroll the preview, and entering Explore materializes the

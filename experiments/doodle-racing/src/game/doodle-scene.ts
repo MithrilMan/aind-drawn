@@ -14,6 +14,10 @@ import {
 
 export type { DoodleSceneAsset } from './doodle-asset-registry.js';
 
+export type DoodleSceneOptions = Readonly<{
+  preserveDrawingBuffer?: boolean;
+}>;
+
 export class DoodleScene {
   public readonly scene = new THREE.Scene();
   // Keep the near plane deliberately close: the Explore camera is allowed to
@@ -32,9 +36,15 @@ export class DoodleScene {
     canvas: HTMLCanvasElement,
     private readonly viewport: HTMLElement,
     medium: MediumId,
+    options: DoodleSceneOptions = {},
   ) {
     this.medium = medium;
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: false,
+      preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
+    });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0xe9ddbd, 1);
@@ -74,6 +84,10 @@ export class DoodleScene {
 
   public render(elapsedSeconds: number): void {
     this.pass?.render(this.scene, this.camera, elapsedSeconds);
+  }
+
+  public captureDataUrl(type = 'image/png', quality?: number): string {
+    return this.renderer.domElement.toDataURL(type, quality);
   }
 
   public diagnostics(): InkedSolidSceneDiagnostics | null {

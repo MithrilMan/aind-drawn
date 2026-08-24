@@ -10,6 +10,7 @@ import {
   sampleVehicleMotion,
   setVehicleMotion,
   type SolidAssetBlueprint,
+  type Quaternion,
   type VehicleIdentityRecipe,
   type VehicleMotionState,
 } from '../../../../src/index.js';
@@ -30,6 +31,7 @@ const DOOR_ACTIVATION_RADIUS = 1.02;
 export type VehicleInteractionPreviewSource = Readonly<{
   key: string;
   interactionId: 'hood' | 'door:left' | 'door:right';
+  interactionState: 'closed' | 'open';
   solid: SolidAssetBlueprint<'vehicle'>;
   strokes: ReturnType<typeof createSolidVehicleInkStrokes>;
   partIds: readonly string[];
@@ -208,6 +210,14 @@ export class VehicleField {
     return createVehicleCollisionProfile(asset.identity);
   }
 
+  public worldRotation(vehicleId: string): Quaternion {
+    const asset = this.vehicles.get(vehicleId as PaperCircuitVehicleId);
+    if (asset === undefined) throw new Error(`Unknown Paper Circuit vehicle: ${vehicleId}`);
+    asset.rig.root.updateWorldMatrix(true, false);
+    const rotation = asset.rig.root.getWorldQuaternion(new THREE.Quaternion());
+    return Object.freeze([rotation.x, rotation.y, rotation.z, rotation.w] as const);
+  }
+
   public nearestEntry(x: number, z: number): ExploreVehicleEntry | null {
     const interaction = this.nearestInteraction(x, z);
     if (interaction?.kind !== 'door') return null;
@@ -345,10 +355,12 @@ export class VehicleField {
     const preview = (
       key: string,
       interactionId: VehicleInteractionPreviewSource['interactionId'],
+      interactionState: VehicleInteractionPreviewSource['interactionState'],
       partIds: readonly string[],
     ): VehicleInteractionPreviewSource => Object.freeze({
       key: `${solid.assetId}:${key}`,
       interactionId,
+      interactionState,
       solid,
       strokes,
       partIds: Object.freeze([...partIds]),
@@ -360,20 +372,23 @@ export class VehicleField {
       strokes,
       motion: createVehicleMotionState(),
       previews: Object.freeze({
-        hood: preview('hood', 'hood', ['hood']),
+        hood: preview('hood', 'hood', 'closed', ['hood']),
         'door:left': preview(
           'door:left',
           'door:left',
+          'closed',
           solid.parts.filter(({ node }) => node === 'door:left').map(({ id }) => id),
         ),
         'door:right': preview(
           'door:right',
           'door:right',
+          'closed',
           solid.parts.filter(({ node }) => node === 'door:right').map(({ id }) => id),
         ),
         configurator: preview(
           'configurator',
           'hood',
+          'open',
           solid.parts.map(({ id }) => id),
         ),
       }),

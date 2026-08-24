@@ -2,6 +2,7 @@ import { MEDIUM_IDS, type MediumId } from '../../../src/index.js';
 import { createCourseLayout } from './game/course.js';
 import { InputController } from './game/input-controller.js';
 import { MenuCharacterPreview } from './game/menu-character-preview.js';
+import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
 import { createVehicleCollisionProfile } from './game/obstacle-collision.js';
 import { RaceHud } from './game/race-hud.js';
 import {
@@ -41,11 +42,23 @@ const viewport = requireElement('[data-viewport]', HTMLElement);
 const canvas = requireElement('[data-race-canvas]', HTMLCanvasElement);
 const menuPreviewViewport = requireElement('[data-menu-preview-viewport]', HTMLElement);
 const menuPreviewCanvas = requireElement('[data-menu-preview-canvas]', HTMLCanvasElement);
+const mediumThumbnailViewport = requireElement('[data-medium-thumbnail-viewport]', HTMLElement);
+const mediumThumbnailCanvas = requireElement('[data-medium-thumbnail-canvas]', HTMLCanvasElement);
 const mediumSelect = requireElement('[data-medium]', HTMLSelectElement);
-const menuMediumSelect = requireElement('[data-menu-medium]', HTMLSelectElement);
-const lapsSelect = requireElement('[data-laps]', HTMLSelectElement);
+const menuMediumInputs = [...document.querySelectorAll<HTMLInputElement>('[data-menu-medium]')];
+const mediumThumbnailImages = new Map<MediumId, HTMLImageElement>(
+  [...document.querySelectorAll<HTMLImageElement>('[data-medium-thumbnail]')].map((image) => {
+    const candidate = image.dataset.mediumThumbnail;
+    if (!MEDIUM_IDS.includes(candidate as MediumId)) {
+      throw new Error(`Unknown medium thumbnail target: ${candidate ?? 'missing'}`);
+    }
+    return [candidate as MediumId, image];
+  }),
+);
+const lapInputs = [...document.querySelectorAll<HTMLInputElement>('[data-laps]')];
 const gameMenu = requireElement('[data-game-menu]', HTMLElement);
 const startRaceButton = requireElement('[data-start-race]', HTMLButtonElement);
+const startRaceDetail = requireElement('[data-start-race-detail]', HTMLElement);
 const exploreGrandstandButton = requireElement('[data-explore-grandstand]', HTMLButtonElement);
 const menuCharacter = requireElement('[data-menu-character]', HTMLElement);
 const menuCharacterStatus = requireElement('[data-menu-character-status]', HTMLElement);
@@ -105,6 +118,7 @@ const IDLE_INPUT: DriveInput = Object.freeze({
 });
 let stage: RaceStage | null = null;
 let menuPreview: MenuCharacterPreview | null = null;
+let mediumGallery: MediumVehicleGallery | null = null;
 let vehicleInteractionPreview: VehicleInteractionPreview | null = null;
 let vehicleConfiguratorPreview: VehicleInteractionPreview | null = null;
 let medium: MediumId = 'oil';
@@ -161,6 +175,17 @@ function startRenderer(): void {
       medium,
       explorerSeed,
     );
+    if (mediumGallery === null) {
+      mediumGallery = new MediumVehicleGallery(
+        mediumThumbnailCanvas,
+        mediumThumbnailViewport,
+        mediumThumbnailImages,
+      );
+      void mediumGallery.render().catch((error: unknown) => {
+        mediumGallery = null;
+        console.error('Paper Circuit medium gallery failed to render', error);
+      });
+    }
     vehicleInteractionPreview = new VehicleInteractionPreview(
       vehicleInteractionCanvas,
       vehicleInteractionViewport,
@@ -261,10 +286,13 @@ function renderVehicleInteraction(
   deltaSeconds: number,
 ): void {
   vehicleInteractionCallout.hidden = interaction === null;
-  vehicleInteractionPreview?.show(interaction?.preview ?? null);
+  vehicleInteractionPreview?.show(
+    interaction?.preview ?? null,
+    interaction?.cameraOffsetDirection,
+  );
   if (interaction === null) return;
   vehicleInteractionAction.textContent = interaction.action;
-  vehicleInteractionPreview?.render(deltaSeconds);
+  vehicleInteractionPreview?.render(deltaSeconds, interaction.cameraOffsetDirection);
 }
 
 function frame(now: number): void {
@@ -365,17 +393,22 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
 }
 
 function selectedLapCount(): RaceLapCount {
-  const laps = Number(lapsSelect.value);
+  const laps = Number(lapInputs.find(({ checked }) => checked)?.value);
   return RACE_LAP_OPTIONS.includes(laps as RaceLapCount)
     ? laps as RaceLapCount
     : DEFAULT_RACE_LAPS;
+}
+
+function renderLapSelection(): void {
+  startRaceDetail.textContent = `Lights out / ${selectedLapCount()} laps`;
 }
 
 function openMenu(): void {
   playMenuClick();
   simulation.openMenu();
   engineSound.stopRace();
-  lapsSelect.value = DEFAULT_RACE_LAPS.toString();
+  for (const input of lapInputs) input.checked = input.value === DEFAULT_RACE_LAPS.toString();
+  renderLapSelection();
   setAppMode('menu');
   hud.announce('Race setup ready. Choose your medium and lap count.');
 }
@@ -433,6 +466,8 @@ function dispose(): void {
   stage = null;
   menuPreview?.dispose();
   menuPreview = null;
+  mediumGallery?.dispose();
+  mediumGallery = null;
   vehicleInteractionPreview?.dispose();
   vehicleInteractionPreview = null;
   vehicleConfiguratorPreview?.dispose();
@@ -446,7 +481,7 @@ function applyMedium(selected: string, label: string): void {
   medium = selected as MediumId;
   playMenuClick();
   mediumSelect.value = medium;
-  menuMediumSelect.value = medium;
+  for (const input of menuMediumInputs) input.checked = input.value === medium;
   try {
     stage?.setMedium(medium);
     menuPreview?.setMedium(medium);
@@ -460,16 +495,30 @@ function applyMedium(selected: string, label: string): void {
     return;
   }
   hud.announce(`${label} medium applied.`);
-  canvas.focus({ preventScroll: true });
+  if (appMode !== 'menu') canvas.focus({ preventScroll: true });
 }
 
 mediumSelect.addEventListener('change', () => {
   applyMedium(mediumSelect.value, mediumSelect.selectedOptions[0]?.textContent ?? 'Drawing');
 });
 
-menuMediumSelect.addEventListener('change', () => {
-  applyMedium(menuMediumSelect.value, menuMediumSelect.selectedOptions[0]?.textContent ?? 'Drawing');
-});
+for (const input of menuMediumInputs) {
+  input.addEventListener('change', () => {
+    if (!input.checked) return;
+    const label = input.closest('label')?.querySelector(':scope > span:last-child')?.textContent
+      ?? 'Drawing';
+    applyMedium(input.value, label);
+  });
+}
+
+for (const input of lapInputs) {
+  input.addEventListener('change', () => {
+    if (!input.checked) return;
+    playMenuClick();
+    renderLapSelection();
+    hud.announce(`${selectedLapCount()} lap race selected.`);
+  });
+}
 
 startRaceButton.addEventListener('click', startRace);
 exploreGrandstandButton.addEventListener('click', startExplorer);
@@ -528,8 +577,9 @@ renderSoundState();
  * medium switch for an already-running session. */
 if (mediumSelect.value !== medium) {
   mediumSelect.value = medium;
-  menuMediumSelect.value = medium;
 }
+for (const input of menuMediumInputs) input.checked = input.value === medium;
+renderLapSelection();
 
 /* Camera and pause controls only affect an active race. */
 for (const button of cameraButtons) {

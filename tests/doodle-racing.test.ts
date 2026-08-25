@@ -26,6 +26,10 @@ import {
 } from '../experiments/doodle-racing/src/game/drift-effects.js';
 import { ExploreDriveController } from '../experiments/doodle-racing/src/game/explore-drive.js';
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
+import {
+  applyGamepadDeadzone,
+  mergeStandardGamepadInput,
+} from '../experiments/doodle-racing/src/game/input-controller.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
 import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
 import {
@@ -642,9 +646,17 @@ describe('Paper Circuit experiment', () => {
       pitch: 0,
     });
     const throttle = engineParametersFor(racer, { ...IDLE, accelerate: true }, 0, 0);
+    const partialThrottle = engineParametersFor(
+      racer,
+      { ...IDLE, accelerate: true, throttle: 0.35 },
+      0,
+      0,
+    );
     const braking = engineParametersFor(racer, { ...IDLE, brake: true }, 0, 0);
 
     expect(throttle.playbackRate).toBeGreaterThan(braking.playbackRate);
+    expect(partialThrottle.playbackRate).toBeLessThan(throttle.playbackRate);
+    expect(partialThrottle.playbackRate).toBeGreaterThan(braking.playbackRate);
     expect(throttle.gain).toBeGreaterThan(braking.gain);
     expect(throttle.filterFrequency).toBeGreaterThan(braking.filterFrequency);
   });
@@ -982,6 +994,9 @@ describe('Paper Circuit experiment', () => {
     const before = Object.freeze({
       ...createArcadeVehicleState(-5, 0, 0),
       velocityX: 24,
+      velocityZ: 4,
+      slipAngle: 0.18,
+      drifting: true,
     });
     const proposed = Object.freeze({
       ...before,
@@ -994,6 +1009,8 @@ describe('Paper Circuit experiment', () => {
     expect(collision.severity).toBeCloseTo(24, 6);
     expect(collision.state.x + profile.halfLength).toBeLessThan(-barrier.radius);
     expect(collision.state.elevation).toBe(0);
+    expect(collision.state.slipAngle).toBe(0);
+    expect(collision.state.drifting).toBe(false);
   });
 
   it('climbs a low barrier only with enough normal impact speed', () => {
@@ -1158,27 +1175,177 @@ describe('Paper Circuit experiment', () => {
     field.dispose();
   });
 
-  it('builds speed quickly and sustains an exaggerated handbrake drift', () => {
+  it('builds speed quickly and supports grip, power-oversteer, and handbrake drift entry', () => {
     let vehicle = createArcadeVehicleState(0, 0, 0);
     for (let index = 0; index < 80; index += 1) {
       vehicle = stepArcadeVehicle(vehicle, ACCELERATE_STRAIGHT, 'road', 0.05);
     }
     expect(vehicleSpeed(vehicle)).toBeGreaterThan(16);
 
-    let maximumNormalSlip = 0;
+    const cornerEntry = vehicle;
+    let observedPowerDrift = false;
     for (let index = 0; index < 24; index += 1) {
       vehicle = stepArcadeVehicle(vehicle, ACCELERATE_LEFT, 'road', 0.05);
-      maximumNormalSlip = Math.max(maximumNormalSlip, Math.abs(vehicle.slipAngle));
-      expect(vehicle.drifting).toBe(false);
+      observedPowerDrift ||= vehicle.drifting;
     }
-    expect(maximumNormalSlip).toBeLessThan(0.1);
+    expect(observedPowerDrift).toBe(true);
+    const powerDriftExitSpeed = vehicleSpeed(vehicle);
+    expect(powerDriftExitSpeed).toBeLessThan(vehicleSpeed(cornerEntry) * 0.96);
 
+    vehicle = cornerEntry;
     let observedDrift = false;
-    for (let index = 0; index < 35; index += 1) {
+    for (let index = 0; index < 12; index += 1) {
       vehicle = stepArcadeVehicle(vehicle, DRIFT_LEFT, 'road', 0.05);
       observedDrift ||= vehicle.drifting;
     }
     expect(observedDrift).toBe(true);
-    expect(Math.abs(vehicle.slipAngle)).toBeGreaterThan(0.1);
+    expect(vehicleSpeed(vehicle)).toBeLessThan(powerDriftExitSpeed);
+    const handbrakeSlip = Math.abs(vehicle.slipAngle);
+    expect(handbrakeSlip).toBeGreaterThan(0.1);
+
+    const carried = stepArcadeVehicle(vehicle, ACCELERATE_LEFT, 'road', 0.05);
+    expect(carried.drifting).toBe(true);
+
+    let counterSteered = vehicle;
+    let steeredDeeper = vehicle;
+    const accelerateRight: DriveInput = Object.freeze({
+      ...ACCELERATE_STRAIGHT,
+      right: true,
+    });
+    for (let index = 0; index < 8; index += 1) {
+      counterSteered = stepArcadeVehicle(counterSteered, accelerateRight, 'road', 0.05);
+      steeredDeeper = stepArcadeVehicle(steeredDeeper, ACCELERATE_LEFT, 'road', 0.05);
+    }
+    expect(Math.abs(counterSteered.slipAngle)).toBeLessThan(Math.abs(steeredDeeper.slipAngle));
+  });
+
+  it('keeps a partial-throttle racing line planted instead of forcing every corner into drift', () => {
+    let vehicle = createArcadeVehicleState(0, 0, 0);
+    for (let index = 0; index < 70; index += 1) {
+      vehicle = stepArcadeVehicle(vehicle, ACCELERATE_STRAIGHT, 'road', 0.05);
+    }
+    let maximumSlip = 0;
+    for (let index = 0; index < 24; index += 1) {
+      vehicle = stepArcadeVehicle(vehicle, Object.freeze({
+        ...IDLE,
+        accelerate: true,
+        steeringAxis: 0.52,
+        throttle: 0.58,
+      }), 'road', 0.05);
+      maximumSlip = Math.max(maximumSlip, Math.abs(vehicle.slipAngle));
+      expect(vehicle.drifting).toBe(false);
+    }
+    expect(maximumSlip).toBeLessThan(0.08);
+  });
+
+  it('gives analogue throttle distinct sustainable road speeds', () => {
+    const steadySpeed = (throttle: number): number => {
+      let vehicle = createArcadeVehicleState(0, 0, 0);
+      for (let index = 0; index < 200; index += 1) {
+        vehicle = stepArcadeVehicle(vehicle, Object.freeze({
+          ...IDLE,
+          accelerate: true,
+          throttle,
+        }), 'road', 0.05);
+      }
+      return vehicleSpeed(vehicle);
+    };
+
+    const low = steadySpeed(0.35);
+    const medium = steadySpeed(0.7);
+    const full = steadySpeed(1);
+    expect(low).toBeLessThan(medium - 4);
+    expect(medium).toBeLessThan(full - 1.5);
+    expect(full).toBeLessThanOrEqual(31);
+  });
+
+  it('preserves analogue steering range and filters gamepad stick noise', () => {
+    expect(applyGamepadDeadzone(0.1)).toBe(0);
+    expect(applyGamepadDeadzone(-0.14)).toBe(0);
+    expect(applyGamepadDeadzone(1)).toBe(1);
+
+    let fullSteering = createArcadeVehicleState(0, 0, 0);
+    let partialSteering = createArcadeVehicleState(0, 0, 0);
+    for (let index = 0; index < 60; index += 1) {
+      fullSteering = stepArcadeVehicle(fullSteering, ACCELERATE_STRAIGHT, 'road', 0.05);
+      partialSteering = stepArcadeVehicle(partialSteering, ACCELERATE_STRAIGHT, 'road', 0.05);
+    }
+    for (let index = 0; index < 8; index += 1) {
+      fullSteering = stepArcadeVehicle(fullSteering, ACCELERATE_LEFT, 'road', 0.05);
+      partialSteering = stepArcadeVehicle(partialSteering, Object.freeze({
+        ...ACCELERATE_STRAIGHT,
+        steeringAxis: 0.35,
+      }), 'road', 0.05);
+    }
+    expect(Math.abs(partialSteering.heading)).toBeGreaterThan(0.03);
+    expect(Math.abs(partialSteering.heading)).toBeLessThan(Math.abs(fullSteering.heading) * 0.7);
+  });
+
+  it('maps a standard gamepad without leaking stick or trigger noise into vehicle motion', () => {
+    const idleButtons: Readonly<{ pressed: boolean; value: number }>[] = Array.from(
+      { length: 8 },
+      () => Object.freeze({ pressed: false, value: 0 }),
+    );
+    const noisy = mergeStandardGamepadInput(IDLE, Object.freeze({
+      axes: Object.freeze([0.1]),
+      buttons: Object.freeze(idleButtons.map((button, index) => (
+        index === 7 ? Object.freeze({ pressed: false, value: 0.04 }) : button
+      ))),
+    }));
+    expect(noisy).toMatchObject({
+      accelerate: false,
+      brake: false,
+      left: false,
+      right: false,
+      steeringAxis: 0,
+      throttle: 0,
+      brakePressure: 0,
+    });
+
+    const analogueButtons = [...idleButtons];
+    analogueButtons[0] = Object.freeze({ pressed: true, value: 1 });
+    analogueButtons[6] = Object.freeze({ pressed: false, value: 0.31 });
+    analogueButtons[7] = Object.freeze({ pressed: false, value: 0.54 });
+    const analogue = mergeStandardGamepadInput(IDLE, Object.freeze({
+      axes: Object.freeze([-0.57]),
+      buttons: Object.freeze(analogueButtons),
+    }));
+    expect(analogue.left).toBe(true);
+    expect(analogue.right).toBe(false);
+    expect(analogue.handbrake).toBe(true);
+    expect(analogue.steeringAxis).toBeGreaterThan(0.45);
+    expect(analogue.throttle).toBeGreaterThan(analogue.brakePressure ?? 0);
+    expect(analogue.throttle).toBeLessThan(0.54);
+  });
+
+  it('keeps the same handling outcome across common simulation frame rates', () => {
+    const simulate = (delta: number) => {
+      let vehicle = createArcadeVehicleState(0, 0, 0);
+      const stepFor = (seconds: number, input: DriveInput): void => {
+        const steps = Math.round(seconds / delta);
+        for (let index = 0; index < steps; index += 1) {
+          vehicle = stepArcadeVehicle(vehicle, input, 'road', delta);
+        }
+      };
+      stepFor(2.4, ACCELERATE_STRAIGHT);
+      stepFor(1.1, DRIFT_LEFT);
+      stepFor(0.65, Object.freeze({ ...ACCELERATE_STRAIGHT, right: true }));
+      return vehicle;
+    };
+
+    const thirtyFps = simulate(1 / 30);
+    const oneTwentyFps = simulate(1 / 120);
+    const headingDifference = Math.abs(Math.atan2(
+      Math.sin(thirtyFps.heading - oneTwentyFps.heading),
+      Math.cos(thirtyFps.heading - oneTwentyFps.heading),
+    ));
+
+    expect(Math.abs(vehicleSpeed(thirtyFps) - vehicleSpeed(oneTwentyFps))).toBeLessThan(0.8);
+    expect(Math.hypot(
+      thirtyFps.x - oneTwentyFps.x,
+      thirtyFps.z - oneTwentyFps.z,
+    )).toBeLessThan(1.8);
+    expect(headingDifference).toBeLessThan(0.09);
+    expect(Math.abs(thirtyFps.slipAngle - oneTwentyFps.slipAngle)).toBeLessThan(0.06);
   });
 });

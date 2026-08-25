@@ -12,6 +12,7 @@ Purpose: Reusable findings from project investigations and experiment reviews.
 - [Doodle race review](doodle-race-analysis-2026-08-24.md): architecture, gameplay, menu viewport, and measured renderer costs.
 - [Experiment boot screen](ui-boot-screen.md): shared reveal contract and critical inline loading shell for Vite experiments.
 - [GitHub Pages landing](github-pages-landing.md): multi-app Pages packaging, graphite landing direction, and live public-pipeline specimens.
+- [Paper Circuit handling](paper-circuit-handling-2026-08-25.md): arcade handling research, drift lifecycle, analogue input, and verification notes.
 
 ## Navigation hints
 

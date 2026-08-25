@@ -1,6 +1,15 @@
 import type { ExploreInput } from './race-model.js';
 
-type InputAction = keyof ExploreInput;
+type InputAction = 'accelerate' | 'brake' | 'left' | 'right' | 'handbrake'
+  | 'run' | 'jump' | 'interact';
+
+const GAMEPAD_AXIS_DEADZONE = 0.14;
+const GAMEPAD_TRIGGER_DEADZONE = 0.08;
+
+export type StandardGamepadSample = Readonly<{
+  axes: readonly number[];
+  buttons: readonly (Readonly<{ pressed: boolean; value: number }> | undefined)[];
+}>;
 
 const KEY_ACTIONS: Readonly<Record<string, readonly InputAction[]>> = Object.freeze({
   ArrowUp: ['accelerate'],
@@ -30,6 +39,56 @@ function isEditableTarget(target: EventTarget | null): boolean {
     || target instanceof HTMLButtonElement;
 }
 
+export function applyGamepadDeadzone(value: number, deadzone = GAMEPAD_AXIS_DEADZONE): number {
+  if (!Number.isFinite(value)) return 0;
+  const boundedDeadzone = Math.max(0, Math.min(0.99, deadzone));
+  const magnitude = Math.abs(value);
+  if (magnitude <= boundedDeadzone) return 0;
+  return Math.sign(value) * Math.min(1, (magnitude - boundedDeadzone) / (1 - boundedDeadzone));
+}
+
+function standardGamepad(): Gamepad | null {
+  const gamepadNavigator = navigator as unknown as Readonly<{
+    getGamepads?: () => readonly (Gamepad | null)[];
+  }>;
+  const gamepads = gamepadNavigator.getGamepads?.();
+  if (gamepads === undefined) return null;
+  return [...gamepads].find((gamepad) => gamepad?.connected && gamepad.mapping === 'standard') ?? null;
+}
+
+export function mergeStandardGamepadInput(
+  digital: ExploreInput,
+  gamepad: StandardGamepadSample,
+): ExploreInput {
+  const gamepadSteering = applyGamepadDeadzone(gamepad.axes[0] ?? 0);
+  const gamepadThrottle = Math.max(0, applyGamepadDeadzone(
+    gamepad.buttons[7]?.value ?? 0,
+    GAMEPAD_TRIGGER_DEADZONE,
+  ));
+  const gamepadBrake = Math.max(0, applyGamepadDeadzone(
+    gamepad.buttons[6]?.value ?? 0,
+    GAMEPAD_TRIGGER_DEADZONE,
+  ));
+  const throttle = Math.max(digital.accelerate ? 1 : 0, gamepadThrottle);
+  const brakePressure = Math.max(digital.brake ? 1 : 0, gamepadBrake);
+  const digitalSteering = Number(digital.left) - Number(digital.right);
+  const steering = digitalSteering === 0
+    ? gamepadSteering === 0 ? 0 : -gamepadSteering
+    : digitalSteering;
+
+  return Object.freeze({
+    ...digital,
+    accelerate: throttle > 0,
+    brake: brakePressure > 0,
+    left: digital.left || steering > 0,
+    right: digital.right || steering < 0,
+    handbrake: digital.handbrake || gamepad.buttons[0]?.pressed === true,
+    steeringAxis: Math.max(-1, Math.min(1, steering)),
+    throttle,
+    brakePressure,
+  });
+}
+
 export class InputController {
   private readonly state: Record<InputAction, boolean> = {
     accelerate: false,
@@ -57,7 +116,9 @@ export class InputController {
   }
 
   public snapshot(): ExploreInput {
-    return Object.freeze({ ...this.state });
+    const gamepad = standardGamepad();
+    if (gamepad === null) return Object.freeze({ ...this.state });
+    return mergeStandardGamepadInput(this.state, gamepad);
   }
 
   public dispose(): void {

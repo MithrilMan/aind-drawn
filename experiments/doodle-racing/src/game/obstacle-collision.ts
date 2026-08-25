@@ -412,6 +412,8 @@ export function resolveObstacleCollisions(
       velocityZ: (current.velocityZ + contact.normalZ * bounce) * 0.72,
       angularVelocity: current.angularVelocity
         + (current.velocityX * contact.normalZ - current.velocityZ * contact.normalX) * 0.045,
+      slipAngle: 0,
+      drifting: false,
       impact: Math.max(current.impact, THREE.MathUtils.clamp(severity / 18, 0, 1)),
       elevation: 0,
       pitch: 0,

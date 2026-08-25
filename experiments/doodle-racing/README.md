@@ -19,8 +19,9 @@ pnpm dev:doodle-racing
 
 Open `http://127.0.0.1:4176`. The intro menu defaults to the Oil medium and five laps, with
 three, five, ten, and twenty laps available. A selected race begins with a six-second seeded
-grandstand camera pass, then a three-second starting countdown. Drive with the arrow keys or WASD,
-use `Space` or `Shift` for the handbrake drift, and press `P` to pause. `Esc` or `M` returns to the
+grandstand camera pass, then a three-second starting countdown. Drive with the arrow keys, WASD, or
+a standard gamepad (left stick, triggers, and `A` for the handbrake). Use `Space` or `Shift` for the
+keyboard handbrake drift, and press `P` to pause. `Esc` or `M` returns to the
 menu.
 
 The default camera follows the player with speed lead; `Map` frames the complete circuit. Oil is
@@ -57,6 +58,29 @@ its own bounds-fitted zoom. `Previous`, `Next`, and
 replacement preserves the parked vehicle's pose and updates the registered Doodle asset in place.
 The kept build remains assigned to that racer when Explore ends, when the next race begins, and if
 the renderer is rebuilt during the session.
+
+## Handling model
+
+The driving model deliberately starts from bounded arcade kinematics rather than exposing a full
+vehicle simulation as a tuning surface. Steering lock reduces with speed, but opposite lock responds
+quickly so a slide can be caught. A fast car can enter power oversteer through committed steering and
+throttle, while the handbrake remains the more immediate route into a tighter slide. Releasing the
+handbrake no longer cancels the state on that frame: throttle and steering can carry the drift, and
+countersteering restores lateral grip. The follow camera looks down the actual velocity trajectory
+and adds a small handling roll, so the car can rotate inside a readable frame instead of dragging the
+camera wherever its nose points. A falling torque curve and continuous speed-dependent drag give
+analogue throttle positions distinct sustainable speeds. Drift slip consumes part of the total
+velocity budget, keeping the faster grip line and the tighter drift line as meaningful alternatives.
+
+This direction follows Criterion's
+[Vehicle Feel Masterclass](https://www.gdcvault.com/play/1025295/Vehicle-Feel-Masterclass-Balancing-Arcade),
+which treats assists, camera, and exaggeration as layers over a coherent physical base; Ghost Games'
+[NFS handling notes](https://www.ea.com/games/battlefield/news/under-the-hood-the-handling-model),
+which use multiple drift-entry techniques and throttle to add mastery; and the practical
+[arcade-racing implementation survey](https://www.gamedeveloper.com/design/implementing-racing-games-an-intro-to-different-approaches-and-their-game-design-trade-offs),
+which recommends speed-sensitive steering and mechanic-by-mechanic iteration. Steve Swink's
+[game-feel framework](https://www.gamedeveloper.com/design/game-feel-the-secret-ingredient) is the
+broader test: input, response, context, and feedback have to agree moment by moment.
 
 The intro menu uses a dedicated Doodle 3D viewport for the procedural driver and its graphic
 backdrop; the character is not composited into the race canvas behind the menu. On desktop the

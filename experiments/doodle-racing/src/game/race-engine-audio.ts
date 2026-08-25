@@ -98,8 +98,12 @@ export function engineParametersFor(
   voiceIndex: number,
 ): EngineParameters {
   const speedRatio = clamp(racer.speed / ENGINE_MAX_SPEED, 0, 1);
-  const accelerating = racer.isPlayer ? Number(input.accelerate) : clamp(acceleration / 8, 0, 1);
-  const braking = racer.isPlayer ? Number(input.brake) : clamp(-acceleration / 10, 0, 1);
+  const accelerating = racer.isPlayer
+    ? input.throttle ?? Number(input.accelerate)
+    : clamp(acceleration / 8, 0, 1);
+  const braking = racer.isPlayer
+    ? input.brakePressure ?? Number(input.brake)
+    : clamp(-acceleration / 10, 0, 1);
   const individuality = 0.965 + voiceIndex * 0.022;
   const playbackRate = individuality * (
     0.72 + speedRatio * 0.76 + accelerating * 0.16 - braking * 0.13

@@ -83,6 +83,8 @@ export class RaceCameraController {
   private explorerActive = false;
   private menuInitialized = false;
   private menuActive = false;
+  private readonly reducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   private explorerCanvas: HTMLCanvasElement | null = null;
   private readonly explorerPointers = new Map<number, ExplorerPointer>();
   private explorerPrimaryPointerId: number | null = null;
@@ -240,6 +242,9 @@ export class RaceCameraController {
     const fullCourse = this.mode === 'full';
     const speedRatio = THREE.MathUtils.clamp(player.speed / 29, 0, 1);
     const velocityLead = player.speed * 0.085;
+    // Slip is the angle between the authored nose and the actual velocity. Looking down the
+    // trajectory keeps the road readable while the car rotates expressively inside the frame.
+    const trajectoryHeading = player.heading - player.slipAngle;
     const desiredTarget = fullCourse
       ? new THREE.Vector3(
         (this.course.bounds.minimumX + this.course.bounds.maximumX) * 0.5,
@@ -247,9 +252,9 @@ export class RaceCameraController {
         (this.course.bounds.minimumZ + this.course.bounds.maximumZ) * 0.5,
       )
       : new THREE.Vector3(
-        player.x + Math.cos(player.heading) * velocityLead,
+        player.x + Math.cos(trajectoryHeading) * velocityLead,
         0.25,
-        player.z - Math.sin(player.heading) * velocityLead,
+        player.z - Math.sin(trajectoryHeading) * velocityLead,
       );
     this.target.lerp(desiredTarget, fullCourse ? 1 : 1 - Math.exp(-7.2 * deltaSeconds));
     this.viewSize = fullCourse
@@ -263,7 +268,10 @@ export class RaceCameraController {
       ? new THREE.Vector3(-31, 44, 36)
       : new THREE.Vector3(-10.8 + shakeX, 17.5, 13.6 + shakeZ);
     this.camera.position.copy(this.target).add(offset);
-    this.orientCamera(0);
+    const handlingRoll = fullCourse || this.reducedMotion
+      ? 0
+      : THREE.MathUtils.clamp(player.steering * 0.014 + player.slipAngle * 0.052, -0.04, 0.04);
+    this.orientCamera(handlingRoll);
     this.updateProjection();
   }
 

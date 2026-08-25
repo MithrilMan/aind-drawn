@@ -12,6 +12,7 @@ import { MenuCharacterPreview } from './game/menu-character-preview.js';
 import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
 import { createVehicleCollisionProfile } from './game/obstacle-collision.js';
 import { RaceHud } from './game/race-hud.js';
+import { RaceMinimap } from './game/race-minimap.js';
 import {
   DEFAULT_RACE_LAPS,
   RACE_LAP_OPTIONS,
@@ -47,6 +48,7 @@ function requireElement<T extends Element>(selector: string, constructor: abstra
 const shell = requireElement('[data-race-shell]', HTMLElement);
 const viewport = requireElement('[data-viewport]', HTMLElement);
 const canvas = requireElement('[data-race-canvas]', HTMLCanvasElement);
+const minimapCanvas = requireElement('[data-race-minimap]', HTMLCanvasElement);
 const menuPreviewViewport = requireElement('[data-menu-preview-viewport]', HTMLElement);
 const menuPreviewCanvas = requireElement('[data-menu-preview-canvas]', HTMLCanvasElement);
 const mediumThumbnailViewport = requireElement('[data-medium-thumbnail-viewport]', HTMLElement);
@@ -118,6 +120,7 @@ const world = createRaceWorldLayout(course);
 const simulation = new RaceSimulation(course, world);
 const input = new InputController(shell, canvas);
 const hud = new RaceHud(shell);
+const minimap = new RaceMinimap(course, minimapCanvas);
 const sound = new SoundController();
 const engineSound = new RaceEngineAudioController();
 const IDLE_INPUT: DriveInput = Object.freeze({
@@ -413,6 +416,7 @@ function frame(now: number): void {
       );
       engineSound.sync(snapshot, driveInput, delta);
       hud.render(snapshot);
+      minimap.render(snapshot);
       stage?.render(snapshot, delta);
       const preview = appMode === 'menu' ? menuPreview?.render(delta) : null;
       if (appMode === 'menu' && preview !== null && preview !== undefined) {
@@ -731,6 +735,7 @@ if (import.meta.hot !== undefined) import.meta.hot.dispose(dispose);
 startRenderer();
 setAppMode('menu');
 hud.render(simulation.snapshot());
+minimap.render(simulation.snapshot());
 animationFrame = requestAnimationFrame(frame);
 requestAnimationFrame(() => {
   revealApplication(shell);

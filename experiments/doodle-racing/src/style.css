@@ -128,6 +128,7 @@ canvas {
 .game-menu,
 .explore-hud,
 .vehicle-interaction-callout,
+.race-minimap,
 .running-order,
 .drift-hud,
 .speedometer,
@@ -828,6 +829,7 @@ canvas {
 .is-menu .race-telemetry,
 .is-menu .route-validation,
 .is-menu .game-settings,
+.is-menu .race-minimap,
 .is-menu .running-order,
 .is-menu .drift-hud,
 .is-menu .speedometer,
@@ -838,6 +840,7 @@ canvas {
 .is-exploring .race-telemetry,
 .is-exploring .route-validation,
 .is-exploring .game-settings,
+.is-exploring .race-minimap,
 .is-exploring .running-order,
 .is-exploring .drift-hud,
 .is-exploring .speedometer,
@@ -1132,6 +1135,45 @@ canvas {
 .game-settings select:hover {
   border-color: var(--paper-muted);
   background-color: #363a35;
+}
+
+.race-minimap {
+  inset-block-start: 84px;
+  inset-inline-end: 20px;
+  inline-size: 228px;
+  padding: 10px 12px 12px;
+  background: rgb(23 25 24 / 92%);
+  clip-path: polygon(7% 0, 100% 0, 100% 100%, 0 100%, 0 13%);
+  pointer-events: none;
+}
+
+.race-minimap header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 7px;
+  text-transform: uppercase;
+}
+
+.race-minimap header strong {
+  color: var(--paper);
+  font-size: .64rem;
+  letter-spacing: .12em;
+}
+
+.race-minimap header span {
+  color: var(--moss);
+  font-size: .5rem;
+  letter-spacing: .08em;
+}
+
+.race-minimap canvas {
+  inline-size: 100%;
+  block-size: 154px;
+  border: 1px solid rgb(199 189 165 / 28%);
+  background:
+    radial-gradient(circle at 50% 45%, rgb(59 64 57 / 74%), rgb(27 30 27 / 92%));
 }
 
 .running-order {
@@ -1858,6 +1900,30 @@ canvas {
     clip-path: none;
   }
 
+  .race-minimap {
+    inset-block-start: 82px;
+    inset-inline-end: 8px;
+    inline-size: 148px;
+    padding: 7px 8px 8px;
+    clip-path: none;
+  }
+
+  .race-minimap header {
+    margin-block-end: 5px;
+  }
+
+  .race-minimap header strong {
+    font-size: .54rem;
+  }
+
+  .race-minimap header span {
+    font-size: .42rem;
+  }
+
+  .race-minimap canvas {
+    block-size: 105px;
+  }
+
   .game-settings select,
   .game-settings button {
     min-block-size: 30px;
@@ -2097,6 +2163,14 @@ canvas {
   .game-settings {
     inline-size: 126px;
   }
+
+  .race-minimap {
+    inline-size: 126px;
+  }
+
+  .race-minimap canvas {
+    block-size: 92px;
+  }
 }
 
 @media (max-width: 350px) {
@@ -2227,6 +2301,7 @@ canvas {
   .route-validation,
   .route-debug-toggle,
   .game-settings,
+  .race-minimap,
   .running-order,
   .drift-hud,
   .speedometer,

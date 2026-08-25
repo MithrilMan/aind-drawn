@@ -60,6 +60,10 @@ import {
   groundedOrthographicVerticalOffset,
 } from '../experiments/doodle-racing/src/game/race-camera.js';
 import {
+  createMinimapViewport,
+  projectMinimapPoint,
+} from '../experiments/doodle-racing/src/game/race-minimap.js';
+import {
   engineParametersFor,
   selectEngineLoopWindow,
 } from '../experiments/doodle-racing/src/game/race-engine-audio.js';
@@ -253,6 +257,20 @@ describe('Paper Circuit experiment', () => {
     expect(wrapped.x).toBeCloseTo(start.x, 6);
     expect(wrapped.z).toBeCloseTo(start.z, 6);
     expect(nearestCoursePoint(layout, start.x, start.z).distanceFromCentre).toBeCloseTo(0, 6);
+  });
+
+  it('fits every authoritative course sample inside a fixed-world minimap viewport', () => {
+    const layout = createCourseLayout();
+    const viewport = createMinimapViewport(layout.bounds, 220, 154);
+    const points = layout.samples.map(({ x, z }) => projectMinimapPoint(viewport, x, z));
+
+    expect(Math.min(...points.map(({ x }) => x))).toBeGreaterThanOrEqual(10);
+    expect(Math.max(...points.map(({ x }) => x))).toBeLessThanOrEqual(210);
+    expect(Math.min(...points.map(({ y }) => y))).toBeGreaterThanOrEqual(10);
+    expect(Math.max(...points.map(({ y }) => y))).toBeLessThanOrEqual(144);
+    const northern = projectMinimapPoint(viewport, 0, layout.bounds.minimumZ);
+    const southern = projectMinimapPoint(viewport, 0, layout.bounds.maximumZ);
+    expect(northern.y).toBeLessThan(southern.y);
   });
 
   it('authors route debug coverage from the exact course segments', () => {

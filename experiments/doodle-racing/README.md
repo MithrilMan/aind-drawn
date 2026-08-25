@@ -50,7 +50,9 @@ The default camera follows the player with speed lead; `Aerial` tracks the playe
 above with a wider, fixed-world view of the surrounding circuit. Oil is
 the default medium, and changing medium rebuilds only the shared drawing policy while preserving
 race state. Aerial deliberately omits racer labels so the road and nearby vehicles remain readable
-while driving. Vehicle drift lean is applied to the chassis' local longitudinal axis while the
+while driving. A separate fixed-world minimap uses the authoritative `CourseLayout` to show the
+complete road, start line, player heading, and unobtrusive opponent positions without racer labels.
+Vehicle drift lean is applied to the chassis' local longitudinal axis while the
 wheel-bearing root stays level with the road.
 
 The menu also opens `Explore grandstand`. This is a separate presentation mode: a seeded random

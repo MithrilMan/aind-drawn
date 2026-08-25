@@ -1,6 +1,6 @@
 # Doodle Race Review
 
-Last updated: 2026-08-25
+Last updated: 2026-08-26
 
 ## Summary
 
@@ -8,11 +8,11 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 
 ## Evidence
 
-- The verification suites pass: 17 test files and 205 tests after the course compiler, continuous
+- The verification suites pass: 17 test files and 206 tests after the course compiler, continuous
   route-coverage, race-menu, explorer, vehicle-pose,
   hidden-carrier, Explore-camera, character-axis, and grandstand-grounding regressions were added.
-  The focused Doodle Race suite passes 50 tests, including pencil-path validation, shortcut
-  rejection, queued reroll, and smoke-tail animation.
+  The focused Doodle Race suite passes 51 tests, including pencil-path validation, shortcut
+  rejection, queued reroll, smoke-tail animation, and fixed-world minimap projection.
 - Live browser QA at the desktop viewport confirms the initial `Oil`/`5 laps` menu, a 10-lap
   start, the fixed-world Aerial camera, and a random-character grandstand walk with `idle`/`walk` state.
 - At 320px, the brand/settings plates overlap and the fixed-size touch controls overlap adjacent targets. At 390px, the running-order plate overlaps the drift HUD.
@@ -22,6 +22,12 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 
 ## Reusable findings
 
+- Runtime HUD buttons must explicitly return focus to the race canvas after activation. `InputController`
+  intentionally ignores keyboard events targeting buttons, inputs, selects, and textareas; the SFX
+  toggle originally omitted the canvas refocus used by camera, pause, route-debug, and medium controls.
+  A focused SFX button therefore swallowed WASD/arrows and keyboard-emulated controller input. The
+  published GitHub Pages source map matched local source exactly, and same-browser QA reproduced the
+  issue on both origins, so this is not a Pages build/cache difference.
 - `RaceSimulation` combines phase flow, ranking, lap detection, drift scoring, respawn, player physics, and opponent steering. Split rules into focused modules before adding more race systems.
 - `nearestCoursePoint` projects continuously onto the 256 sampled course segments. Generated path
   validation keeps non-adjacent centre-line sections far enough apart to avoid ambiguous projection.
@@ -69,6 +75,10 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   world orientation, leads slightly with speed, and widens from 52 to 60 world units. A heading-up
   version was rejected during live QA because rotating the entire scene caused immediate nausea.
   The stable view preserves useful upcoming road without obscuring nearby cars or becoming a minimap.
+- Race HUD now owns a separate fixed-world canvas minimap derived directly from the authoritative
+  `CourseLayout`. It shows the full road, start stripe, a heading-aware player arrow, and small
+  label-free opponent dots. Static course paths are rebuilt only when the canvas size or pixel ratio
+  changes; each frame updates only the four racer markers. Keep it independent from camera mode.
 - Hidden inked-solid carrier roots now skip repeated matrix/anchor synchronisation after their
   proxies have been hidden. This reduces exploration-mode CPU work for parked race assets.
 - Explore now uses a persistent third-person orthographic orbit camera. Mouse drag and one-finger

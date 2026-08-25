@@ -1,4 +1,4 @@
-name: Deploy Projection Studio to GitHub Pages
+name: Deploy experiments to GitHub Pages
 
 on:
   push:
@@ -31,14 +31,16 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Verify library and Studio
+      - name: Verify library and experiments
         run: pnpm verify
+      - name: Assemble Pages site
+        run: node scripts/assemble-pages.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
-      - name: Upload Projection Studio
+      - name: Upload experiments
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist/experiments/projection-studio
+          path: dist/pages
 
   deploy:
     environment:

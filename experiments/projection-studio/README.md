@@ -29,5 +29,5 @@ path without rebuilding.
 
 Pushes to the default branch deploy this directory through
 `.github/workflows/pages.yml`. The expected project URL is
-`https://mithrilman.github.io/aind-drawn/` once GitHub Pages is enabled for the
+`https://mithrilman.github.io/aind-drawn/projection-studio/` once GitHub Pages is enabled for the
 repository.

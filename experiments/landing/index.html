@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="AIND Drawn is an experimental TypeScript library for deterministic procedural assets across 2D, Doodle 3D, and solid projections."
+    />
+    <meta name="theme-color" content="#0c0e0d" />
+    <title>AIND Drawn — One identity, every projection</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header">
+      <a class="wordmark" href="./" aria-label="AIND Drawn home">
+        <span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>AIND <b>DRAWN</b></span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#experiments">Experiments</a>
+        <a href="#system">The system</a>
+        <a href="https://github.com/MithrilMan/aind-drawn">GitHub <span aria-hidden="true">↗</span></a>
+      </nav>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span>Experimental TypeScript library</span><em>v0.1 / Greenfield</em></p>
+          <h1 id="hero-title">One identity.<br /><i>Every way of drawing it.</i></h1>
+          <p class="hero-summary">
+            AIND Drawn builds deterministic procedural assets that stay recognisable while changing
+            medium, material, pose, interaction state, and point of view.
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="./projection-studio/">Open Projection Studio <span aria-hidden="true">→</span></a>
+            <a class="button button-secondary" href="./doodle-racing/">Play Paper Circuit <span aria-hidden="true">↗</span></a>
+          </div>
+          <p class="hero-note">Same seed. Same semantics. Different projections.</p>
+        </div>
+
+        <div
+          class="graphite-showcase"
+          data-specimen-comparison
+          data-family="character"
+          data-medium="graphite"
+          aria-label="Compare the same procedural identity in Drawn 2D and Doodle 3D"
+          aria-busy="true"
+        >
+          <div class="showcase-heading">
+            <span>Projection comparator</span>
+            <small>PUBLIC PIPELINE / SAME IDENTITY</small>
+          </div>
+          <div class="showcase-toolbar">
+            <div class="showcase-toggle" role="group" aria-label="Choose specimen family">
+              <button type="button" data-comparison-control data-specimen-family="character" aria-pressed="true">Character</button>
+              <button type="button" data-comparison-control data-specimen-family="vehicle" aria-pressed="false">Vehicle</button>
+            </div>
+            <div class="showcase-toggle showcase-medium-toggle" role="group" aria-label="Choose drawing medium">
+              <button type="button" data-comparison-control data-specimen-medium="graphite" aria-pressed="true">Graphite</button>
+              <button type="button" data-comparison-control data-specimen-medium="oil" aria-pressed="false">Oil</button>
+            </div>
+          </div>
+          <div class="comparison-viewport" data-specimen-viewport>
+            <div class="comparison-layer comparison-raster">
+              <canvas data-raster-canvas role="img" aria-label="Procedural asset rendered as a layered 2D drawing"></canvas>
+            </div>
+            <div class="comparison-layer comparison-doodle">
+              <canvas data-doodle-canvas role="img" aria-label="The same procedural asset rendered as Doodle 3D"></canvas>
+            </div>
+            <span class="comparison-label comparison-label-left" data-raster-label>Graphite 2D</span>
+            <span class="comparison-label comparison-label-right" data-doodle-label>Graphite Doodle 3D</span>
+            <div class="comparison-divider" aria-hidden="true"><i>↔</i></div>
+            <input
+              class="comparison-range"
+              type="range"
+              min="10"
+              max="90"
+              value="52"
+              step="1"
+              data-comparison-control
+              data-comparison-range
+              aria-label="Reveal Drawn 2D or Doodle 3D"
+              aria-valuetext="52% Drawn 2D, 48% Doodle 3D"
+            />
+          </div>
+          <p class="specimen-fallback" data-specimen-fallback hidden>The live projection comparison is unavailable. The experiments remain accessible below.</p>
+          <div class="showcase-footer">
+            <span data-specimen-medium-readout>MEDIUM / GRAPHITE</span>
+            <span data-specimen-family-readout>CHR / 4104</span>
+            <span>IDENTITY / LOCKED</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="proof-strip" aria-label="Core library properties">
+        <div><span>01</span><strong>Deterministic</strong><small>Namespaced seeds, serialisable recipes</small></div>
+        <div><span>02</span><strong>Semantic</strong><small>Parts, sockets, colliders, interactions</small></div>
+        <div><span>03</span><strong>Projection-neutral</strong><small>Identity survives representation changes</small></div>
+        <div><span>04</span><strong>Runtime-ready</strong><small>Motion, state, composition, disposal</small></div>
+      </section>
+
+      <section class="experiments-section" id="experiments" aria-labelledby="experiments-title">
+        <div class="section-heading">
+          <p class="eyebrow"><span>Public experiments</span><em>Built on the library barrel only</em></p>
+          <h2 id="experiments-title">The theory has to survive contact with a product.</h2>
+          <p>Two very different consumers exercise the same public contracts: an inspection instrument and an arcade world.</p>
+        </div>
+
+        <div class="experiment-grid">
+          <article class="experiment-card studio-card">
+            <div class="card-topline"><span>Experiment 01</span><span>Desktop workbench</span></div>
+            <figure class="experiment-preview">
+              <picture>
+                <source
+                  media="(max-width: 760px)"
+                  srcset="./assets/projection-studio/projection-studio-graphite-mobile-640x400.webp"
+                  width="640"
+                  height="400"
+                />
+                <img
+                  src="./assets/projection-studio/projection-studio-graphite-desktop-960x600.webp"
+                  width="960"
+                  height="600"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Projection Studio comparing an animated Graphite character in Drawn 2D and Doodle 3D"
+                />
+              </picture>
+              <figcaption><span>LIVE PRODUCT CAPTURE</span><span>GRAPHITE / SAME IDENTITY</span></figcaption>
+            </figure>
+            <div class="card-copy">
+              <p>Projection Studio</p>
+              <h3>Compare one identity across drawing systems.</h3>
+              <ul>
+                <li>Raster, Doodle 3D, and physically shaded solid</li>
+                <li>Live medium, finish, pose, expression, and camera controls</li>
+                <li>Character, building, and vehicle authoring</li>
+              </ul>
+            </div>
+            <a href="./projection-studio/">Open the studio <span aria-hidden="true">→</span></a>
+          </article>
+
+          <article class="experiment-card race-card">
+            <div class="card-topline"><span>Experiment 02</span><span>Playable world</span></div>
+            <figure class="experiment-preview">
+              <picture>
+                <source
+                  media="(max-width: 760px)"
+                  srcset="./assets/paper-circuit/paper-circuit-oil-follow-mobile-640x400.webp"
+                  width="640"
+                  height="400"
+                />
+                <img
+                  src="./assets/paper-circuit/paper-circuit-oil-follow-desktop-960x600.webp"
+                  width="960"
+                  height="600"
+                  loading="lazy"
+                  decoding="async"
+                  alt="Paper Circuit race rendered in Oil and shown from the Follow camera"
+                />
+              </picture>
+              <figcaption><span>LIVE PRODUCT CAPTURE</span><span>OIL / FOLLOW CAMERA</span></figcaption>
+            </figure>
+            <div class="card-copy">
+              <p>Paper Circuit</p>
+              <h3>Race, drift, explore, and inspect procedural machines.</h3>
+              <ul>
+                <li>Four procedural racers and a populated Doodle 3D circuit</li>
+                <li>Arcade driving, race effects, audio, and full-course camera</li>
+                <li>On-foot exploration and interactive vehicle parts</li>
+              </ul>
+            </div>
+            <a href="./doodle-racing/">Play Paper Circuit <span aria-hidden="true">↗</span></a>
+          </article>
+        </div>
+      </section>
+
+      <section class="system-section" id="system" aria-labelledby="system-title">
+        <div class="system-intro">
+          <p class="eyebrow"><span>The system</span><em>Architecture before spectacle</em></p>
+          <h2 id="system-title">An asset is not a sprite.<br />It is a durable identity with ways to appear.</h2>
+          <p>
+            Semantic families own their vocabulary. Representation adapters own how that vocabulary is drawn.
+            Generic runtimes own rendering and lifecycle. Nobody teaches the core what a wheel is just because a car exists.
+          </p>
+          <a class="text-link" href="https://github.com/MithrilMan/aind-drawn/blob/master/docs/architecture.md">Read the architecture <span aria-hidden="true">↗</span></a>
+        </div>
+
+        <ol class="system-steps">
+          <li>
+            <span>01 / Identity</span>
+            <h3>Generate meaning once.</h3>
+            <p>Archetype, proportions, palette roles, parts, topology, sockets, and interaction intent are resolved from namespaced deterministic streams.</p>
+          </li>
+          <li>
+            <span>02 / Blueprint</span>
+            <h3>Preserve spatial truth.</h3>
+            <p>Representation-neutral manifests keep semantic parts, colliders, pivots, and attachments aligned across adapters.</p>
+          </li>
+          <li>
+            <span>03 / Projection</span>
+            <h3>Change the medium, not the subject.</h3>
+            <p>Raster, smooth-solid, and inked-solid projections consume the same identity without rerolling its recognisable traits.</p>
+          </li>
+          <li>
+            <span>04 / Runtime</span>
+            <h3>Let the asset participate.</h3>
+            <p>Motion, expressions, articulated state, collisions, interactions, and scene composition target semantic parts instead of pixels.</p>
+          </li>
+        </ol>
+      </section>
+
+      <section class="code-section" aria-labelledby="code-title">
+        <div class="code-copy">
+          <p class="eyebrow"><span>Public API</span><em>Small example / actual contract</em></p>
+          <h2 id="code-title">The identity is the hand-off.</h2>
+          <p>Create it once, then choose how the same resolved subject enters the world.</p>
+          <div class="code-links">
+            <a class="text-link" href="https://github.com/MithrilMan/aind-drawn/blob/master/docs/asset-authoring.md">Author an asset family <span aria-hidden="true">↗</span></a>
+            <a class="text-link" href="https://github.com/MithrilMan/aind-drawn/blob/master/docs/3d-stroke-rendering.md">Study Doodle 3D <span aria-hidden="true">↗</span></a>
+          </div>
+        </div>
+        <pre aria-label="TypeScript example"><code><span class="code-muted">// One semantic source, two projections.</span>
+<span class="code-keyword">const</span> identity = <span class="code-call">createCharacterIdentity</span>(<span class="code-number">4107</span>, {
+  species: <span class="code-string">'human'</span>,
+});
+
+<span class="code-keyword">const</span> drawing = <span class="code-keyword">new</span> <span class="code-call">SpriteRig</span>(
+  <span class="code-call">createRasterCharacterBlueprint</span>(identity, {
+    medium: <span class="code-string">'graphite'</span>,
+  }),
+);
+
+<span class="code-keyword">const</span> solid = <span class="code-keyword">new</span> <span class="code-call">SolidRig</span>(
+  <span class="code-call">createSolidCharacterBlueprint</span>(identity, {
+    finish: <span class="code-string">'ceramic'</span>,
+  }),
+);</code></pre>
+      </section>
+
+      <section class="final-cta" aria-labelledby="cta-title">
+        <span class="registration-mark" aria-hidden="true"></span>
+        <p>AIND DRAWN / OPEN EXPERIMENT</p>
+        <h2 id="cta-title">Inspect the system.<br /><i>Then take it sideways.</i></h2>
+        <div>
+          <a class="button button-light" href="./projection-studio/">Open Projection Studio <span aria-hidden="true">→</span></a>
+          <a class="button button-ghost" href="./doodle-racing/">Play Paper Circuit <span aria-hidden="true">↗</span></a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div>
+        <a class="wordmark footer-wordmark" href="./"><span class="wordmark-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>AIND <b>DRAWN</b></span></a>
+        <p>Procedural assets with identity, topology, and something to do.</p>
+      </div>
+      <nav aria-label="Project links">
+        <a href="https://github.com/MithrilMan/aind-drawn">Source</a>
+        <a href="https://github.com/MithrilMan/aind-drawn/blob/master/docs/architecture.md">Architecture</a>
+        <a href="https://github.com/MithrilMan/aind-drawn/blob/master/docs/library-evolution-roadmap.md">Roadmap</a>
+        <a href="https://x.com/FabioAngela79">Fabio Angela</a>
+      </nav>
+      <p class="copyright">MIT License · <span data-current-year>2026</span></p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

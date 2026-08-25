@@ -50,9 +50,11 @@ describe('architectural boundaries', () => {
       'src/contracts/blueprint-validation/solid.ts',
       'src/runtime/interaction-state-controller.ts',
       'src/runtime/raster-skeleton.ts',
+      'src/runtime/raster-frame-baker.ts',
       'src/runtime/sprite-layer-renderer.ts',
       'src/runtime/sprite-rig.ts',
       'src/runtime/solid-rig.ts',
+      'src/authoring/raster-visual-audit.ts',
       'src/projections/inked-solid/runtime/pass.ts',
     ];
     const familyImport = /from ['"][^'"]*(character|building|vehicle|tree|solid-face)[^'"]*['"]/i;

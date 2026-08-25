@@ -2,9 +2,9 @@ import * as THREE from 'three';
 
 import type { AssetBlueprint, LayerDefinition } from '../contracts/raster-asset.js';
 import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
-import { combineSeed, hashString } from '../core/random.js';
-import { Sketch } from '../core/sketch.js';
+import { hashString } from '../core/random.js';
 import type { AssetInstanceId } from '../contracts/asset-instance.js';
+import { bakeRasterLayerFrame } from './raster-frame-baker.js';
 import type { RasterSkeleton } from './raster-skeleton.js';
 
 export type SpriteLayerRendererOptions = Readonly<{
@@ -181,19 +181,15 @@ export class SpriteLayerRenderer {
     layer.frames.set(state, textures);
     try {
       for (let frame = 0; frame < this.boilFrames; frame += 1) {
-        const seed = combineSeed(
+        const baked = bakeRasterLayerFrame(
           this.blueprint.seed,
-          `asset:boil:${layer.definition.id}:${state}:${frame}`,
-        );
-        const sketch = new Sketch(
-          layer.definition.canvas.width,
-          layer.definition.canvas.height,
-          seed,
+          layer.definition,
+          state,
+          frame,
           this.canvasFactory,
         );
-        layer.definition.draw({ sketch, state, frame });
-        canvases.push(sketch.canvas);
-        textures.push(createTexture(sketch.canvas, this.textureAnisotropy));
+        canvases.push(baked.canvas);
+        textures.push(createTexture(baked.canvas, this.textureAnisotropy));
       }
     } catch (error) {
       for (const texture of textures) texture.dispose();

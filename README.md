@@ -104,6 +104,7 @@ and exposes:
 
 - synchronised Drawn 2D, Doodle 3D, and physically shaded solid views;
 - seeded customisation and drawing-medium selection;
+- a deterministic all-medium contact sheet with structural boil-frame auditing;
 - character playback, pose, expression, gaze, and line-motion controls;
 - vehicle articulation and semantic interaction controls;
 - finish selection, camera rotation, and turntable inspection;

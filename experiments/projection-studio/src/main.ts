@@ -1,7 +1,10 @@
 import './style.css';
 
 import {
+  MEDIUM_IDS,
   SOLID_FINISH_CATALOG,
+  auditRasterBoil,
+  mediumById,
   type AssetAuthoringValue,
   type MediumId,
   type SolidFinishId,
@@ -14,6 +17,7 @@ import {
   updateCustomization,
   type FamilyCustomization,
   type FamilyDynamicState,
+  type FamilyProjection,
   type StudioFamilyDefinition,
   type StudioFamilyId,
 } from './family-catalog.js';
@@ -59,6 +63,8 @@ const familyTriggerDescription = required('[data-family-trigger-description]', H
 const rendererError = required('[data-renderer-error]', HTMLElement);
 const playbackControls = required('[data-playback-controls]', HTMLElement);
 const familyDynamics = required('[data-family-dynamics]', HTMLElement);
+const comparisonGrid = required('[data-comparison-grid]', HTMLElement);
+const comparisonStatus = required('[data-comparison-status]', HTMLElement);
 const customizer = new FamilyCustomizer(
   required('[data-parameter-tabs]', HTMLElement),
   required('[data-parameter-editor]', HTMLElement),
@@ -80,8 +86,11 @@ let pitch = initialFamily.initialPitch;
 let elapsedSeconds = 0;
 let lastFrameTime = performance.now();
 let animationFrame = 0;
-let activeWorkspace: 'animate' | 'customize' = 'animate';
+let activeWorkspace: 'animate' | 'compare' | 'customize' = 'animate';
 let customizerDirty = true;
+let comparisonDirty = true;
+let comparisonRenderToken = 0;
+let activeProjection: FamilyProjection | null = null;
 let renderMode: ThreeRenderMode = 'doodle';
 let threeStage: ThreeStage | null = null;
 const customizationByFamily = new Map<StudioFamilyId, FamilyCustomization>(
@@ -162,6 +171,7 @@ function createThreeStage(): void {
 function rebuildProjection(): void {
   const family = currentFamily();
   const projection = family.createProjection(seed, medium, currentCustomization(), currentFinish());
+  activeProjection = projection;
   rasterStage.setBlueprint(
     projection.raster,
     projection.identity,
@@ -185,7 +195,9 @@ function rebuildProjection(): void {
   }
   applyInteractionStates();
   customizerDirty = true;
+  comparisonDirty = true;
   if (activeWorkspace === 'customize') renderCustomizer();
+  if (activeWorkspace === 'compare') void renderComparison();
   renderFamilyPicker();
   updateSummary();
 }
@@ -204,6 +216,85 @@ function applyInteractionStates(): void {
 function renderCustomizer(): void {
   customizer.render(currentFamily(), seed, medium, currentCustomization());
   customizerDirty = false;
+}
+
+function nextPaint(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => {
+    resolve();
+  }));
+}
+
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function auditErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function renderComparison(): Promise<void> {
+  const projection = activeProjection;
+  if (projection === null) return;
+  const family = currentFamily();
+  const token = ++comparisonRenderToken;
+  comparisonDirty = false;
+  comparisonStatus.textContent = 'Preparing deterministic previews…';
+
+  const specimens = MEDIUM_IDS.map((candidateMedium) => {
+    const blueprint = family.createRasterProjection(projection.identity, candidateMedium);
+    if (blueprint.assetId !== projection.raster.assetId) {
+      throw new Error(`Medium ${candidateMedium} rerolled asset identity`);
+    }
+    const card = document.createElement('article');
+    card.className = 'comparison-card';
+    card.classList.toggle('selected', candidateMedium === medium);
+
+    const heading = document.createElement('header');
+    const label = document.createElement('strong');
+    label.textContent = titleCase(mediumById(candidateMedium).label);
+    const badge = document.createElement('span');
+    badge.className = 'audit-badge pending';
+    badge.textContent = 'Pending';
+    heading.append(label, badge);
+
+    const image = document.createElement('img');
+    image.alt = `${family.label} rendered in ${mediumById(candidateMedium).label}`;
+    image.src = familyPreviewRenderer.render(blueprint);
+
+    const metric = document.createElement('p');
+    metric.className = 'audit-metric';
+    metric.textContent = 'Measuring three boil frames…';
+    card.append(heading, image, metric);
+    return { badge, blueprint, card, metric };
+  });
+  comparisonGrid.replaceChildren(...specimens.map(({ card }) => card));
+
+  let stableCount = 0;
+  for (let index = 0; index < specimens.length; index += 1) {
+    await nextPaint();
+    if (token !== comparisonRenderToken || activeWorkspace !== 'compare') return;
+    const specimen = specimens[index];
+    if (specimen === undefined) continue;
+    try {
+      const report = auditRasterBoil(specimen.blueprint, { states: 'initial' });
+      specimen.badge.className = `audit-badge ${report.passed ? 'stable' : 'unstable'}`;
+      specimen.badge.textContent = report.passed ? 'Stable' : 'Review';
+      specimen.card.dataset.audit = report.passed ? 'stable' : 'unstable';
+      specimen.metric.textContent = report.passed
+        ? `${(report.maximumDifference * 100).toFixed(1)}% max structural drift`
+        : `${report.unstableLayerStates} unstable layer state${report.unstableLayerStates === 1 ? '' : 's'} · ${(report.maximumDifference * 100).toFixed(1)}% max`;
+      if (report.passed) stableCount += 1;
+    } catch (error: unknown) {
+      specimen.badge.className = 'audit-badge error';
+      specimen.badge.textContent = 'Error';
+      specimen.card.dataset.audit = 'error';
+      specimen.metric.textContent = auditErrorMessage(error);
+    }
+    comparisonStatus.textContent = `Audited ${index + 1} of ${specimens.length} media`;
+  }
+  if (token === comparisonRenderToken) {
+    comparisonStatus.textContent = `${stableCount}/${specimens.length} media structurally stable across three rest-state boil frames`;
+  }
 }
 
 function familyPreview(family: StudioFamilyDefinition): string {
@@ -295,9 +386,15 @@ function renderFamilyControls(): void {
   required('[data-lively-gaze-control]', HTMLElement).hidden = !family.livelyGaze;
   required('[data-raster-view-title]', HTMLElement).textContent = family.rasterViewTitle;
   rasterCanvas.setAttribute('aria-label', family.rasterAriaLabel);
-  required('[data-workspace-note]', HTMLElement).textContent = family.workspaceNote;
+  updateWorkspaceNote();
   renderThreeModeControls();
   renderDynamicControls();
+}
+
+function updateWorkspaceNote(): void {
+  required('[data-workspace-note]', HTMLElement).textContent = activeWorkspace === 'compare'
+    ? 'One identity, six media, three independently redrawn frames per layer.'
+    : currentFamily().workspaceNote;
 }
 
 function renderDynamicControls(): void {
@@ -342,7 +439,7 @@ function setPlaying(next: boolean): void {
   pauseButton.setAttribute('aria-pressed', String(!playing));
 }
 
-function switchWorkspace(next: 'animate' | 'customize'): void {
+function switchWorkspace(next: 'animate' | 'compare' | 'customize'): void {
   activeWorkspace = next;
   for (const tab of root?.querySelectorAll<HTMLButtonElement>('[data-workspace-tab]') ?? []) {
     tab.setAttribute('aria-selected', String(tab.dataset.workspaceTab === next));
@@ -351,11 +448,14 @@ function switchWorkspace(next: 'animate' | 'customize'): void {
     panel.hidden = panel.dataset.workspacePanel !== next;
   }
   if (next === 'customize' && customizerDirty) renderCustomizer();
+  if (next === 'compare' && comparisonDirty) void renderComparison();
+  updateWorkspaceNote();
 }
 
 for (const tab of root.querySelectorAll<HTMLButtonElement>('[data-workspace-tab]')) {
   tab.addEventListener('click', () => {
-    switchWorkspace(tab.dataset.workspaceTab === 'customize' ? 'customize' : 'animate');
+    const next = tab.dataset.workspaceTab;
+    switchWorkspace(next === 'customize' ? 'customize' : next === 'compare' ? 'compare' : 'animate');
   });
 }
 
@@ -443,6 +543,7 @@ function animate(now: number): void {
 
 function dispose(): void {
   cancelAnimationFrame(animationFrame);
+  comparisonRenderToken += 1;
   customizer.dispose();
   familyPreviewRenderer.dispose();
   rasterStage.dispose();

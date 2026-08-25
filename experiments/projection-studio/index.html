@@ -231,6 +231,9 @@
             <button type="button" role="tab" aria-selected="false" aria-controls="customize-panel" id="customize-tab" data-workspace-tab="customize">
               Customize
             </button>
+            <button type="button" role="tab" aria-selected="false" aria-controls="compare-panel" id="compare-tab" data-workspace-tab="compare">
+              Compare
+            </button>
           </div>
           <p data-workspace-note>Pose it, add expression, then inspect every angle.</p>
         </header>
@@ -286,6 +289,17 @@
             </header>
             <div class="variant-options" data-variant-options></div>
           </section>
+        </div>
+
+        <div class="workspace-panel compare-panel" role="tabpanel" id="compare-panel" aria-labelledby="compare-tab" hidden data-workspace-panel="compare">
+          <header class="compare-intro">
+            <div>
+              <p class="field-label">Deterministic contact sheet</p>
+              <h3>Same identity, one variable</h3>
+            </div>
+            <p data-comparison-status aria-live="polite">Open Compare to audit the current asset.</p>
+          </header>
+          <div class="comparison-grid" data-comparison-grid></div>
         </div>
       </section>
 

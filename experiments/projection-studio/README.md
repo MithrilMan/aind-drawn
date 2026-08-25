@@ -11,6 +11,13 @@ Playback, expressions, steering, and articulated-part interactions are declared
 by the family catalog, while the workbench, variant picker, controls, and
 focused previews remain family-agnostic.
 
+The Compare workspace builds a deterministic contact sheet for every public
+raster medium from the currently selected identity. Each preview uses the same
+public blueprint and `SpriteRig` pipeline as the main raster stage. A boil audit
+compares three deterministic frames for every layer's initial state and reports
+the maximum structural drift; the complete public API can audit all declared
+states for automated authoring checks.
+
 ## Run locally
 
 ```sh

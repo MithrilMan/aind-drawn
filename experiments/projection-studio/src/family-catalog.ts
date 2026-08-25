@@ -139,6 +139,7 @@ export type StudioFamilyDefinition = Readonly<{
     customization: FamilyCustomization,
     finish: SolidFinishId,
   ) => FamilyProjection;
+  createRasterProjection: (identity: FamilyIdentity, medium: MediumId) => AssetBlueprint;
   createRasterRuntime: StudioRasterRuntimeFactory;
   createSolidRuntime: StudioSolidRuntimeFactory;
 }>;
@@ -163,6 +164,30 @@ function choices(values: readonly string[]): readonly StudioChoice[] {
 }
 
 const binaryChoices = choices(['closed', 'open']);
+
+function characterRasterProjection(identity: FamilyIdentity, medium: MediumId): AssetBlueprint {
+  if (identity.family !== 'character') {
+    throw new TypeError('Character raster projection requires character identity');
+  }
+  return createRasterCharacterBlueprint(identity, { medium });
+}
+
+function buildingRasterProjection(identity: FamilyIdentity, medium: MediumId): AssetBlueprint {
+  if (identity.family !== 'building') {
+    throw new TypeError('Building raster projection requires building identity');
+  }
+  return createRasterBuildingBlueprint(createRasterBuildingRecipe(identity, { medium }));
+}
+
+function vehicleRasterProjection(identity: FamilyIdentity, medium: MediumId): AssetBlueprint {
+  if (identity.family !== 'vehicle') {
+    throw new TypeError('Vehicle raster projection requires vehicle identity');
+  }
+  return createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, {
+    medium,
+    side: 'right',
+  }));
+}
 
 function characterProjection(
   seed: number,
@@ -198,7 +223,7 @@ function characterProjection(
     ...(outfitStyle === undefined ? {} : { outfitStyle }),
   };
   const identity = createCharacterIdentity(seed, options);
-  const raster = createRasterCharacterBlueprint(identity, { medium });
+  const raster = characterRasterProjection(identity, medium);
   const solid = createSolidCharacterBlueprint(identity, { finish });
   return Object.freeze({
     identity,
@@ -227,7 +252,7 @@ function buildingProjection(
     ...(chimney === undefined ? {} : { chimney }),
   };
   const identity = createBuildingIdentity(seed, options);
-  const raster = createRasterBuildingBlueprint(createRasterBuildingRecipe(identity, { medium }));
+  const raster = buildingRasterProjection(identity, medium);
   const solid = createSolidBuildingBlueprint(identity, { finish });
   return Object.freeze({
     identity,
@@ -259,10 +284,7 @@ function vehicleProjection(
     ...(spoiler === undefined ? {} : { spoiler }),
   };
   const identity = createVehicleIdentity(seed, options);
-  const raster = createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, {
-    medium,
-    side: 'right',
-  }));
+  const raster = vehicleRasterProjection(identity, medium);
   const solid = createSolidVehicleBlueprint(identity, { finish });
   return Object.freeze({
     identity,
@@ -354,6 +376,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: CHARACTER_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(CHARACTER_AUTHORING_SCHEMA),
     createProjection: characterProjection,
+    createRasterProjection: characterRasterProjection,
     createRasterRuntime: (
       rig: SpriteRig,
       identity: FamilyIdentity,
@@ -394,6 +417,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: BUILDING_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(BUILDING_AUTHORING_SCHEMA),
     createProjection: buildingProjection,
+    createRasterProjection: buildingRasterProjection,
     createRasterRuntime: staticRasterRuntime,
     createSolidRuntime: staticSolidRuntime,
   }),
@@ -426,6 +450,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     authoring: VEHICLE_AUTHORING_SCHEMA,
     defaultCustomization: createDefaultAssetAuthoringValues(VEHICLE_AUTHORING_SCHEMA),
     createProjection: vehicleProjection,
+    createRasterProjection: vehicleRasterProjection,
     createRasterRuntime: (rig: SpriteRig, identity: FamilyIdentity) => {
       if (identity.family !== 'vehicle') throw new TypeError('Vehicle runtime requires vehicle identity');
       return vehicleRuntime(identity, (sample) => { applyRasterVehicleMotion(rig, sample); });

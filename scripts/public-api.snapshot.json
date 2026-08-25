@@ -48,6 +48,7 @@
   "applyRasterVehicleMotion",
   "applySolidCharacterMotion",
   "applySolidVehicleMotion",
+  "auditRasterBoil",
   "automaticCanvasFactory",
   "boundsOf",
   "boundsOfSuperellipsoid",

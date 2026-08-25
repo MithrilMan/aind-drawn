@@ -260,6 +260,22 @@ baked as composites; interactive layers remain independent.
 The canvas factory is injected. Browser canvases are the default adapter, while
 the drawing core remains compatible with `OffscreenCanvas` and test doubles.
 
+### Raster visual audit
+
+Runtime texture creation and authoring diagnostics share the same raster-frame
+baker. `auditRasterBoil` renders every requested layer state through that baker,
+samples deterministic boil frames, composites transparent pixels over the
+library paper colour, and compares pairwise 16-by-16 colour-and-alpha grids.
+This catches structural movement while suppressing the high-frequency variation
+that gives a hand-drawn medium its texture.
+
+The audit checks every declared layer state by default; callers may restrict it
+to each layer's initial state for interactive previews. Its structural threshold
+is an authoring diagnostic, not a promise of pixel-identical output across
+browser rasterizers. Projection Studio's Compare workspace complements the
+numeric report with a deterministic contact sheet: all public drawing media are
+rendered from one exact identity through the public blueprint and rig pipeline.
+
 ## Solid geometry and runtime
 
 `SolidAssetBlueprint` is JSON-compatible data. It publishes a node hierarchy,

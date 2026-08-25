@@ -8,6 +8,7 @@ export * from './contracts/json.js';
 export * from './contracts/raster-asset.js';
 export * from './contracts/solid-asset.js';
 export * from './authoring/family-schema.js';
+export * from './authoring/raster-visual-audit.js';
 export * from './codecs/asset-identity.js';
 
 // Building family

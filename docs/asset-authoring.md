@@ -189,6 +189,17 @@ identity recipe. Adapters may translate normalized intent into different
 coordinate systems, but must not reroll eyes, palette, proportions, or other
 identity data.
 
+Run `auditRasterBoil` against representative blueprints when adding a raster
+family, medium, layer state, or substantial drawing operation. Use the default
+all-state audit for automated checks; `states: 'initial'` is appropriate only
+for responsive authoring previews. A failing layer means successive boil frames
+move structural mass, not merely texture, and should be fixed at the drawing
+operation or layout boundary rather than hidden behind a looser global threshold.
+
+Use Projection Studio's Compare workspace as the visual companion to the audit.
+Its contact sheet projects one exact identity through every public raster medium,
+so semantic drift cannot masquerade as an attractive variant.
+
 ## Blueprint rules
 
 - Give layers stable semantic IDs such as `body`, `wheel:front`, and `door:left`.
@@ -385,12 +396,14 @@ remain visible when the door opens and violates articulated ownership.
 9. Test state validation and animation in the runtime when applicable.
 10. Test every public medium through both raster and inked-solid projections;
    both outputs must retain the same `MediumId` and distinct deterministic policy.
-11. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
+11. Audit representative raster blueprints with `auditRasterBoil` and inspect
+    the deterministic multi-medium contact sheet in Projection Studio.
+12. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
    inked-solid representation, dispose its scene registration before the owner solid rig, then
    dispose `InkedSolidScenePass` when the drawing surface is torn down. Direct lower-level
    `InkedSolidStrokeRig` consumers still dispose strokes before their owner solid rig.
-11. Run `pnpm verify`.
-12. Inspect representative seeds in the internal browser at every width the
+13. Run `pnpm verify`.
+14. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under

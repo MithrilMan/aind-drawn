@@ -66,6 +66,7 @@ import {
   type VehicleArchetype,
   type VehicleDoorCount,
   type VehicleIdentityOptions,
+  type VehicleHeadlightStyle,
   type VehicleIdentityRecipe,
   type VehicleMotionSample,
   type VehicleWheelStyle,
@@ -277,6 +278,9 @@ function vehicleProjection(
     ...(optionalString(customization.wheelStyle) === undefined ? {} : {
       wheelStyle: optionalString(customization.wheelStyle) as VehicleWheelStyle,
     }),
+    ...(optionalString(customization.headlight) === undefined ? {} : {
+      headlight: optionalString(customization.headlight) as VehicleHeadlightStyle,
+    }),
     ...(optionalNumber(customization.doorCount) === undefined ? {} : {
       doorCount: optionalNumber(customization.doorCount) as VehicleDoorCount,
     }),
@@ -424,7 +428,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
   Object.freeze({
     id: 'vehicle',
     label: 'Vehicle',
-    description: 'City cars, coupés, saloons, vans, and pickups',
+    description: 'City cars, roadsters, fastbacks, wagons, SUVs, vans, and pickups',
     defaultSeed: 5101,
     initialYaw: 0,
     initialPitch: 0,

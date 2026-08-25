@@ -134,6 +134,10 @@ function materialSpecs(recipe: SolidVehicleRecipe): readonly SolidMaterialSpec[]
       finish: 'glossy', drawing: Object.freeze({ application: 'pigment', tone: 'light' }), clearcoat: 1,
     }),
     Object.freeze({
+      id: 'rear-light', color: recipe.identity.palette.rearLight,
+      finish: 'glossy', drawing: Object.freeze({ application: 'pigment', tone: 'scribble' }), clearcoat: 1,
+    }),
+    Object.freeze({
       id: 'interior', color: recipe.identity.palette.interior,
       finish: 'matte', drawing: Object.freeze({ application: 'pigment', tone: 'black' }), roughness: 1,
     }),
@@ -226,18 +230,60 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     castShadow: true, receiveShadow: true,
   });
 
+  const headlightVolumes = identity.details.headlight === 'stacked'
+    ? Object.freeze([
+      Object.freeze({ id: 'lower', y: -0.075, radii: [0.075, 0.065, 0.15] as const, exponent: 2.2 }),
+      Object.freeze({ id: 'upper', y: 0.075, radii: [0.075, 0.065, 0.15] as const, exponent: 2.2 }),
+    ])
+    : Object.freeze([Object.freeze({
+      id: identity.details.headlight,
+      y: 0,
+      radii: identity.details.headlight === 'round'
+        ? [0.09, 0.105, 0.105] as const
+        : identity.details.headlight === 'pill'
+          ? [0.085, 0.075, 0.19] as const
+          : identity.details.headlight === 'slit'
+            ? [0.07, 0.045, 0.22] as const
+            : [0.08, 0.105, 0.16] as const,
+      exponent: identity.details.headlight === 'square' ? 4.2 : 2.2,
+    })]);
   for (const side of identity.doors.sides) {
     const sideSign = vehicleSideSign(side);
+    for (const light of headlightVolumes) {
+      add({
+        id: headlightVolumes.length === 1
+          ? `headlight:${side}`
+          : `headlight:${side}:${light.id}`,
+        node: 'chassis', order: 10,
+        geometry: roundedVolume(light.radii, light.exponent), materialId: 'light',
+        placement: placement([
+          layout.length * 0.488,
+          layout.bodyBottom + bodyHeight * 0.58 + light.y,
+          sideSign * layout.width * 0.29,
+        ]), castShadow: false, receiveShadow: false,
+      });
+    }
     add({
-      id: `headlight:${side}`, node: 'chassis', order: 10,
-      geometry: roundedVolume([0.09, 0.13, 0.18], 2.2), materialId: 'light',
+      id: `taillight:${side}`, node: 'chassis', order: 10,
+      geometry: roundedVolume([0.065, 0.15, 0.105], 2.8), materialId: 'rear-light',
       placement: placement([
-        layout.length * 0.485,
-        layout.bodyBottom + bodyHeight * 0.58,
-        sideSign * layout.width * 0.29,
+        -layout.length * 0.49,
+        layout.bodyBottom + bodyHeight * 0.62,
+        sideSign * layout.width * 0.34,
       ]), castShadow: false, receiveShadow: false,
     });
   }
+  add({
+    id: 'grille:front', node: 'chassis', order: 9,
+    geometry: roundedVolume([0.045, bodyHeight * 0.2, layout.width * 0.25], 3.6),
+    materialId: 'accent',
+    placement: placement([
+      layout.length * 0.505,
+      layout.bodyBottom + bodyHeight * 0.34,
+      0,
+    ]),
+    castShadow: false, receiveShadow: false,
+  });
   add({
     id: 'bumper:front', node: 'chassis', order: 10,
     geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), materialId: 'accent',

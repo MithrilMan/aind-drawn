@@ -8,6 +8,7 @@ import {
 } from '../../../codecs/identity-validation.js';
 import {
   VEHICLE_ARCHETYPES,
+  VEHICLE_HEADLIGHT_STYLES,
   VEHICLE_SIDES,
   VEHICLE_WHEEL_STYLES,
   type VehicleIdentityRecipe,
@@ -15,7 +16,6 @@ import {
 
 const DOOR_COUNTS = [2, 4] as const;
 const WINDOW_FRAMES = ['framed', 'frameless'] as const;
-const HEADLIGHTS = ['round', 'pill', 'square'] as const;
 
 /** Decodes an untrusted JSON value into a detached, deeply immutable vehicle identity. */
 export function decodeVehicleIdentity(input: unknown): VehicleIdentityRecipe {
@@ -98,10 +98,10 @@ export function decodeVehicleIdentity(input: unknown): VehicleIdentityRecipe {
   for (const field of ['roofRack', 'spoiler', 'towHitch', 'spareWheel'] as const) {
     collector.boolean(details[field], ['details', field]);
   }
-  collector.oneOf(details.headlight, ['details', 'headlight'], HEADLIGHTS);
+  collector.oneOf(details.headlight, ['details', 'headlight'], VEHICLE_HEADLIGHT_STYLES);
 
   colorRecord(root.palette, ['palette'], [
-    'body', 'accent', 'glass', 'tyre', 'hub', 'light', 'interior',
+    'body', 'accent', 'glass', 'tyre', 'hub', 'light', 'rearLight', 'interior',
   ], collector);
   return finishIdentity(input, collector) as unknown as VehicleIdentityRecipe;
 }

@@ -38,8 +38,13 @@ export const VEHICLE_AUTHORING_SCHEMA: AssetFamilyAuthoringSchema =
     parameters: Object.freeze([
       choice('archetype', 'Vehicle type', [
         generated, ['city', 'City car'], ['coupe', 'Coupé'], ['sedan', 'Sedan'],
-        ['van', 'Van'], ['pickup', 'Pickup'],
+        ['fastback', 'Fastback'], ['roadster', 'Roadster'], ['wagon', 'Wagon'],
+        ['suv', 'SUV'], ['offroad', 'Off-road'], ['van', 'Van'], ['pickup', 'Pickup'],
       ], undefined, 'The body type changes proportions, cabin, carrying space, and useful defaults.'),
+      choice('headlight', 'Front lights', [
+        generated, ['round', 'Round'], ['pill', 'Pill'], ['square', 'Square'],
+        ['slit', 'Slit'], ['stacked', 'Stacked'],
+      ], ['detail:lights'], 'A distinct front-light signature makes vehicle direction readable at a glance.'),
       choice('wheelStyle', 'Wheels', [
         generated, ['steel', 'Steel'], ['hubcap', 'Hubcap'], ['sport', 'Sport'],
       ], ['wheel:rear', 'wheel:front'], 'Wheels remain separately articulated in every projection.'),

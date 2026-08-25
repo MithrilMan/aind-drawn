@@ -65,8 +65,12 @@ export function vehicleSemanticPartId(concreteId: string): VehicleSemanticPartId
   if (concreteId.startsWith('door:')) return 'doors';
   if (concreteId.startsWith('hood')) return 'hood';
   if (concreteId.startsWith('cargo')) return 'cargo';
-  if (concreteId.startsWith('headlight:') || concreteId === 'detail:lights') return 'lights';
-  if (concreteId.startsWith('bumper:')) return 'bumpers';
+  if (
+    concreteId.startsWith('headlight:')
+    || concreteId.startsWith('taillight:')
+    || concreteId === 'detail:lights'
+  ) return 'lights';
+  if (concreteId.startsWith('bumper:') || concreteId.startsWith('grille:')) return 'bumpers';
   if (
     concreteId.startsWith('roof-rack:')
     || concreteId.startsWith('detail:roof-rack')

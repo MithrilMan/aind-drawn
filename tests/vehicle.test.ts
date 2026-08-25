@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MEDIUM_IDS,
   VEHICLE_ARCHETYPES,
+  VEHICLE_HEADLIGHT_STYLES,
   VEHICLE_AUTHORING_SCHEMA,
   SolidRig,
   applySolidVehicleMotion,
@@ -52,6 +53,50 @@ describe('vehicle asset family', () => {
       .toBeGreaterThan(identities.find(({ archetype }) => archetype === 'coupe')?.dimensions.height ?? 0);
     expect(identities.find(({ archetype }) => archetype === 'pickup')?.body.cargoRatio)
       .toBeGreaterThan(identities.find(({ archetype }) => archetype === 'city')?.body.cargoRatio ?? 1);
+    expect(VEHICLE_ARCHETYPES).toHaveLength(10);
+    expect(identities.find(({ archetype }) => archetype === 'roadster')?.body.bonnetRatio)
+      .toBeGreaterThan(identities.find(({ archetype }) => archetype === 'city')?.body.bonnetRatio ?? 1);
+    expect(identities.find(({ archetype }) => archetype === 'offroad')?.dimensions.groundClearance)
+      .toBeGreaterThan(identities.find(({ archetype }) => archetype === 'sedan')?.dimensions.groundClearance ?? 1);
+    for (const identity of identities) {
+      const rig = new SolidRig(createSolidVehicleBlueprint(identity));
+      rig.dispose();
+    }
+  });
+
+  it('makes bonnet and cargo balance authoritative for cabin placement', () => {
+    for (const archetype of VEHICLE_ARCHETYPES) {
+      for (let seed = 1; seed <= 32; seed += 1) {
+        const identity = createVehicleIdentity(seed, { archetype });
+        const layout = buildSolidVehicleLayout(identity);
+        expect(identity.cabin.startRatio).toBeCloseTo(identity.body.cargoRatio);
+        expect(1 - identity.cabin.endRatio).toBeCloseTo(identity.body.bonnetRatio);
+        expect(layout.hoodLength / identity.dimensions.length)
+          .toBeCloseTo(identity.body.bonnetRatio - 0.01);
+        expect(layout.cargoLength / identity.dimensions.length)
+          .toBeCloseTo(identity.body.cargoRatio - 0.01);
+        if (archetype !== 'pickup') {
+          expect(layout.hoodLength).toBeGreaterThan(layout.cargoLength);
+        }
+      }
+    }
+  });
+
+  it('uses asymmetric front signatures across every headlight variant', () => {
+    for (const headlight of VEHICLE_HEADLIGHT_STYLES) {
+      const identity = createVehicleIdentity(5114, { archetype: 'sedan', headlight });
+      const solid = createSolidVehicleBlueprint(identity);
+      const headlights = solid.parts.filter(({ id }) => id.startsWith('headlight:'));
+      const taillights = solid.parts.filter(({ id }) => id.startsWith('taillight:'));
+      expect(headlights).toHaveLength(headlight === 'stacked' ? 4 : 2);
+      expect(taillights).toHaveLength(2);
+      expect(headlights.every(({ placement }) => placement.position[0] > 0)).toBe(true);
+      expect(taillights.every(({ placement }) => placement.position[0] < 0)).toBe(true);
+      expect(solid.parts.find(({ id }) => id === 'grille:front')?.placement.position[0])
+        .toBeGreaterThan(identity.dimensions.length * 0.5);
+      const rig = new SolidRig(solid);
+      rig.dispose();
+    }
   });
 
   it('projects one identity into aligned raster, solid, and doodle contracts', () => {
@@ -263,7 +308,7 @@ describe('vehicle asset family', () => {
   });
 
   it('keeps the shared cabin and roof profiles monotonic across body archetypes', () => {
-    for (const archetype of ['city', 'coupe', 'sedan', 'van', 'pickup'] as const) {
+    for (const archetype of VEHICLE_ARCHETYPES) {
       for (let seed = 1; seed <= 48; seed += 1) {
         const identity = createVehicleIdentity(seed, { archetype });
         const profile = createVehicleCabinSideProfile(identity);
@@ -529,7 +574,7 @@ describe('vehicle asset family', () => {
     expect(validateAssetFamilyAuthoringSchema(VEHICLE_AUTHORING_SCHEMA))
       .toBe(VEHICLE_AUTHORING_SCHEMA);
     expect(VEHICLE_AUTHORING_SCHEMA.parameters.map(({ id }) => id)).toEqual([
-      'archetype', 'wheelStyle', 'doorCount', 'roofRack', 'spoiler',
+      'archetype', 'headlight', 'wheelStyle', 'doorCount', 'roofRack', 'spoiler',
     ]);
   });
 });

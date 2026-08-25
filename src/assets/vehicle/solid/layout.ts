@@ -75,9 +75,9 @@ export function buildSolidVehicleLayout(identity: VehicleIdentityRecipe): SolidV
     doorProfile.handle[1] - bodyBottom,
   ] as const);
   const hoodHingeX = -length * 0.5 + Math.max(identity.cabin.endRatio, 1 - identity.body.bonnetRatio) * length;
-  const hoodLength = Math.max(0.42, length * 0.99 - (hoodHingeX + length * 0.5));
+  const hoodLength = Math.max(0.24, length * 0.99 - (hoodHingeX + length * 0.5));
   const cargoHingeX = -length * 0.5 + identity.cabin.startRatio * length;
-  const cargoLength = Math.max(0.42, cargoHingeX - (-length * 0.49));
+  const cargoLength = Math.max(0.24, cargoHingeX - (-length * 0.49));
   const doorZ = bodySection.sideHalfWidth;
   const wheelZ = width * 0.5 + identity.wheels.width * 0.32;
   const nodes: readonly SolidNodeDefinition[] = Object.freeze([

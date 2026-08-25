@@ -198,14 +198,55 @@ function drawDetails(
 ): void {
   const { length } = recipe.identity.dimensions;
   const headlight = canvasPoint(layout, [length * 0.955, layout.beltHeight * 0.82]);
-  const lightRadius = recipe.identity.details.headlight === 'round' ? 10 : 8;
-  const light = sketch.blobPoints(headlight[0], headlight[1], lightRadius * 1.35, lightRadius, 14);
-  medium.tone(sketch, light, { style: 'light', color: recipe.identity.palette.light });
-  medium.edge(sketch, closePath(light), 2.4, { ghost: true });
+  const drawLight = (centerX: number, centerY: number, radiusX: number, radiusY: number): void => {
+    const light = sketch.blobPoints(centerX, centerY, radiusX, radiusY, 14);
+    medium.tone(sketch, light, { style: 'light', color: recipe.identity.palette.light });
+    medium.edge(sketch, closePath(light), 2.4, { ghost: true });
+  };
+  switch (recipe.identity.details.headlight) {
+    case 'round':
+      drawLight(headlight[0], headlight[1], 10.5, 10.5);
+      break;
+    case 'pill':
+      drawLight(headlight[0] - 2, headlight[1], 14, 7.5);
+      break;
+    case 'square': {
+      const light = [
+        [headlight[0] - 10, headlight[1] - 9], [headlight[0] + 8, headlight[1] - 8],
+        [headlight[0] + 9, headlight[1] + 8], [headlight[0] - 9, headlight[1] + 9],
+      ] as const;
+      medium.tone(sketch, light, { style: 'light', color: recipe.identity.palette.light });
+      medium.edge(sketch, closePath(light), 2.4, { ghost: true });
+      break;
+    }
+    case 'slit':
+      drawLight(headlight[0] - 4, headlight[1] - 1, 16, 4.5);
+      break;
+    case 'stacked':
+      drawLight(headlight[0], headlight[1] - 7, 8, 5.5);
+      drawLight(headlight[0] - 1, headlight[1] + 7, 8, 5.5);
+      break;
+  }
+
+  const tail = canvasPoint(layout, [length * 0.035, layout.beltHeight * 0.79]);
+  const tailLight = sketch.blobPoints(tail[0], tail[1], 5.5, 12, -10);
+  medium.tone(sketch, tailLight, { style: 'scribble', color: recipe.identity.palette.rearLight });
+  medium.edge(sketch, closePath(tailLight), 2.1, { ghost: true });
+
+  for (let index = -1; index <= 1; index += 1) {
+    sketch.stroke([
+      canvasPoint(layout, [length * 0.988, layout.bodyBottom + 0.17 + index * 0.075]),
+      canvasPoint(layout, [length * 0.952, layout.bodyBottom + 0.18 + index * 0.075]),
+    ], 2.1, { alpha: 0.7, ghost: true });
+  }
   sketch.stroke([
     canvasPoint(layout, [length * 0.9, layout.bodyBottom + 0.12]),
     [canvasPoint(layout, [length, layout.bodyBottom + 0.12])[0] + 4, canvasPoint(layout, [0, layout.bodyBottom + 0.12])[1]],
   ], 5, { alpha: 0.75, ghost: true });
+  sketch.stroke([
+    canvasPoint(layout, [length * 0.1, layout.bodyBottom + 0.1]),
+    [canvasPoint(layout, [0, layout.bodyBottom + 0.1])[0] - 2, canvasPoint(layout, [0, layout.bodyBottom + 0.1])[1]],
+  ], 3.2, { alpha: 0.58, ghost: true });
 }
 
 function drawRoofRack(sketch: Sketch, recipe: RasterVehicleRecipe, layout: VehicleLayout): void {

@@ -14,6 +14,11 @@ const ROOF_TAPER_BY_ARCHETYPE = Object.freeze({
   city: 0.92,
   coupe: 0.9,
   sedan: 0.92,
+  fastback: 0.9,
+  roadster: 0.88,
+  wagon: 0.94,
+  suv: 0.93,
+  offroad: 0.91,
   van: 0.96,
   pickup: 0.92,
 } as const);

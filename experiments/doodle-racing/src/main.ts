@@ -667,6 +667,7 @@ for (const button of soundToggleButtons) {
     const enabled = sound.toggle();
     engineSound.setEnabled(enabled);
     renderSoundState();
+    if (appMode !== 'menu') canvas.focus({ preventScroll: true });
   });
 }
 renderSoundState();

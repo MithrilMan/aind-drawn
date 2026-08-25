@@ -1,6 +1,13 @@
 import { MEDIUM_IDS, type MediumId } from '../../../src/index.js';
+import {
+  toDriveInput,
+  toExploreCameraInput,
+  toExploreInput,
+  type ControlSnapshot,
+} from './game/controls.js';
 import { createCourseLayout } from './game/course.js';
 import { InputController } from './game/input-controller.js';
+import type { ExploreEntrancePhase } from './game/explore-entrance.js';
 import { MenuCharacterPreview } from './game/menu-character-preview.js';
 import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
 import { createVehicleCollisionProfile } from './game/obstacle-collision.js';
@@ -101,11 +108,15 @@ const vehicleFeatures = requireElement('[data-vehicle-features]', HTMLElement);
 const previousVehicleButton = requireElement('[data-vehicle-previous]', HTMLButtonElement);
 const surpriseVehicleButton = requireElement('[data-vehicle-surprise]', HTMLButtonElement);
 const nextVehicleButton = requireElement('[data-vehicle-next]', HTMLButtonElement);
+const touchBackButton = requireElement('[data-touch-back]', HTMLButtonElement);
+const touchPrimaryButton = requireElement('[data-touch-primary]', HTMLButtonElement);
+const routeDebugButton = requireElement('[data-route-debug]', HTMLButtonElement);
+const routeDebugLegend = requireElement('[data-route-debug-legend]', HTMLElement);
 
 const course = createCourseLayout();
 const world = createRaceWorldLayout(course);
 const simulation = new RaceSimulation(course, world);
-const input = new InputController(shell);
+const input = new InputController(shell, canvas);
 const hud = new RaceHud(shell);
 const sound = new SoundController();
 const engineSound = new RaceEngineAudioController();
@@ -132,8 +143,10 @@ let animationFrame = 0;
 let active = true;
 let previousRacePhase = simulation.snapshot().phase;
 let exploreEngineVehicleId: string | null = null;
+let exploreControlsEnabled = false;
 let vehicleSeeds: VehicleSeedSelection = Object.freeze({ ...DEFAULT_VEHICLE_SEEDS });
 let selectedVehicleId: PaperCircuitVehicleId | null = null;
+let routeDebugEnabled = false;
 
 function playMenuClick(): void {
   sound.play('menu-click');
@@ -148,6 +161,12 @@ function renderSoundState(): void {
       sound.isEnabled ? 'Mute sound effects' : 'Enable sound effects',
     );
   }
+}
+
+function renderRouteDebugState(): void {
+  routeDebugButton.setAttribute('aria-pressed', String(routeDebugEnabled));
+  routeDebugButton.textContent = routeDebugEnabled ? 'Hide debug' : 'Debug path';
+  routeDebugLegend.hidden = !routeDebugEnabled;
 }
 
 function startRenderer(): void {
@@ -199,6 +218,7 @@ function startRenderer(): void {
     );
     stage.setCameraMode(cameraMode);
     stage.setMode(appMode);
+    stage.setRouteDebugVisible(routeDebugEnabled);
     if (import.meta.env.DEV) {
       console.info('Paper Circuit render diagnostics', stage.diagnostics());
       console.info('Paper Circuit menu preview diagnostics', menuPreview.diagnostics());
@@ -295,25 +315,68 @@ function renderVehicleInteraction(
   vehicleInteractionPreview?.render(deltaSeconds, interaction.cameraOffsetDirection);
 }
 
+function exploreEntranceStatus(phase: ExploreEntrancePhase): string {
+  switch (phase) {
+    case 'materializing': return 'appearing in smoke';
+    case 'coughing': return 'coughing through the smoke';
+    case 'discovering': return 'taking in the circuit';
+    case 'celebrating': return 'excited to explore';
+    case 'approaching': return 'running to the grandstand';
+    case 'complete': return 'ready';
+  }
+}
+
+function handleControlActions(controls: ControlSnapshot): void {
+  if (controls.actions.menu.pressed && appMode !== 'menu') {
+    openMenu();
+    return;
+  }
+  if (controls.actions.pause.pressed && appMode === 'race') simulation.togglePause();
+  if (controls.actions['reset-camera'].pressed && appMode === 'explore') resetExploreCamera();
+  if (controls.actions.reroll.pressed && (appMode === 'explore' || appMode === 'menu')) {
+    rerollExplorer();
+  }
+}
+
 function frame(now: number): void {
   if (!active) return;
   const delta = Math.min(0.05, Math.max(0, (now - previousTime) / 1000));
   previousTime = now;
   try {
+    const controls = input.snapshot();
+    handleControlActions(controls);
     if (appMode === 'explore') {
-      const exploreFrame = stage?.renderExplorer(input.snapshot(), delta);
+      const exploreInput = toExploreInput(controls);
+      const exploreFrame = stage?.renderExplorer(
+        exploreInput,
+        toExploreCameraInput(controls),
+        delta,
+      );
       sound.syncDrift(exploreFrame?.drivingRacer?.drifting === true);
       sound.syncOffRoad(exploreFrame?.drivingOffRoad === true && (exploreFrame.drivingRacer?.speed ?? 0) > 3);
       sound.syncCurbImpact(exploreFrame?.drivingRacer?.curbImpact ?? 0);
       if (exploreFrame !== undefined) {
-        const { explorer, drivingRacer, interaction } = exploreFrame;
+        const {
+          explorer,
+          drivingRacer,
+          interaction,
+          entrancePhase,
+          controlsEnabled,
+        } = exploreFrame;
+        resetExploreCameraButton.disabled = !controlsEnabled;
+        rerollExploreButton.disabled = !controlsEnabled;
+        if (controlsEnabled && !exploreControlsEnabled) {
+          hud.announce('You have control. Explore the grandstand or approach a car.');
+          canvas.focus({ preventScroll: true });
+        }
+        exploreControlsEnabled = controlsEnabled;
         renderVehicleInteraction(interaction, delta);
         if (drivingRacer !== null) {
           if (exploreEngineVehicleId !== drivingRacer.id) {
             exploreEngineVehicleId = drivingRacer.id;
             engineSound.startFreeDrive(drivingRacer.id);
           }
-          engineSound.syncFreeDrive(drivingRacer, input.snapshot(), delta);
+          engineSound.syncFreeDrive(drivingRacer, exploreInput, delta);
           exploreCharacter.textContent = `Stolen ${drivingRacer.name}`;
           exploreStatus.textContent = `driving · ${Math.round(drivingRacer.speed * 6.2)} km/h`;
         } else {
@@ -321,14 +384,19 @@ function frame(now: number): void {
             exploreEngineVehicleId = null;
             engineSound.stopRace();
           }
-          exploreCharacter.textContent = 'Random person';
-          const surface = explorer.row < 0 ? 'ground' : `row ${explorer.row + 1}`;
-          const action = explorer.pose === 'run' ? 'running' : explorer.pose;
-          exploreStatus.textContent = `${action} · ${surface}`;
+          if (!controlsEnabled && entrancePhase !== null) {
+            exploreCharacter.textContent = 'New arrival';
+            exploreStatus.textContent = exploreEntranceStatus(entrancePhase);
+          } else {
+            exploreCharacter.textContent = 'Random person';
+            const surface = explorer.row < 0 ? 'ground' : `row ${explorer.row + 1}`;
+            const action = explorer.pose === 'run' ? 'running' : explorer.pose;
+            exploreStatus.textContent = `${action} · ${surface}`;
+          }
         }
       }
     } else {
-      const driveInput = appMode === 'race' ? input.snapshot() : IDLE_INPUT;
+      const driveInput = appMode === 'race' ? toDriveInput(controls) : IDLE_INPUT;
       renderVehicleInteraction(null, delta);
       const snapshot = simulation.update(delta, driveInput);
       if (snapshot.phase !== previousRacePhase) {
@@ -386,8 +454,15 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   shell.classList.toggle('is-menu', mode === 'menu');
   shell.classList.toggle('is-race', mode === 'race');
   shell.classList.toggle('is-exploring', mode === 'explore');
+  touchBackButton.textContent = mode === 'explore' ? 'Back' : 'Brake';
+  touchBackButton.setAttribute('aria-label', mode === 'explore' ? 'Move backward' : 'Brake');
+  touchPrimaryButton.textContent = mode === 'explore' ? 'Jump' : 'Drift';
+  touchPrimaryButton.setAttribute('aria-label', mode === 'explore' ? 'Jump' : 'Drift');
   gameMenu.hidden = mode !== 'menu';
   exploreHud.hidden = mode !== 'explore';
+  exploreControlsEnabled = false;
+  resetExploreCameraButton.disabled = mode === 'explore';
+  rerollExploreButton.disabled = mode === 'explore';
   if (mode !== 'explore') renderVehicleInteraction(null, 0);
   stage?.setMode(mode);
 }
@@ -440,7 +515,8 @@ function startExplorer(): void {
     stage?.setExplorerSeed(explorerSeed);
   }
   setAppMode('explore');
-  hud.announce('Grandstand exploration started. Press E at a door to drive, or in front of a hood to customize.');
+  sound.play('character-poof');
+  hud.announce('A new explorer is arriving at the circuit.');
   canvas.focus({ preventScroll: true });
 }
 
@@ -448,9 +524,17 @@ function rerollExplorer(playSound = true): void {
   if (stage === null) return;
   if (playSound) playMenuClick();
   if (appMode === 'menu') menuPreviewElapsed = 0;
-  explorerSeed = createRandomSeed();
-  if (appMode === 'menu') menuPreview?.reroll(explorerSeed);
-  else stage.rerollExplorer(explorerSeed);
+  const nextSeed = createRandomSeed();
+  if (appMode === 'menu') {
+    explorerSeed = nextSeed;
+    menuPreview?.reroll(explorerSeed);
+  } else if (appMode === 'explore') {
+    if (!stage.rerollExplorer(nextSeed)) {
+      hud.announce('Wait until the explorer has arrived before changing character.');
+      return;
+    }
+    explorerSeed = nextSeed;
+  }
   sound.play('character-poof');
   hud.announce('A new random character is ready.');
   if (appMode === 'explore') canvas.focus({ preventScroll: true });
@@ -458,8 +542,11 @@ function rerollExplorer(playSound = true): void {
 
 function resetExploreCamera(): void {
   if (appMode !== 'explore') return;
+  if (stage?.resetExplorerCamera() !== true) {
+    hud.announce('Camera control unlocks when the entrance is complete.');
+    return;
+  }
   playMenuClick();
-  stage?.resetExplorerCamera();
   hud.announce('Explore camera reset.');
   canvas.focus({ preventScroll: true });
 }
@@ -580,6 +667,21 @@ for (const button of soundToggleButtons) {
 }
 renderSoundState();
 
+routeDebugButton.addEventListener('click', () => {
+  if (appMode !== 'race') return;
+  playMenuClick();
+  routeDebugEnabled = !routeDebugEnabled;
+  stage?.setRouteDebugVisible(routeDebugEnabled);
+  renderRouteDebugState();
+  hud.announce(
+    routeDebugEnabled
+      ? 'Route debug enabled. Amber is valid road; green is covered this lap.'
+      : 'Route debug hidden.',
+  );
+  canvas.focus({ preventScroll: true });
+});
+renderRouteDebugState();
+
 /* Keep the old direct selector out of the state machine: the menu is the
  * authoritative start surface, while the in-race selector remains a quick
  * medium switch for an already-running session. */
@@ -594,12 +696,14 @@ for (const button of cameraButtons) {
   button.addEventListener('click', () => {
     if (appMode !== 'race') return;
     playMenuClick();
-    cameraMode = button.dataset.camera === 'full' ? 'full' : 'follow';
+    cameraMode = button.dataset.camera === 'aerial' ? 'aerial' : 'follow';
     for (const candidate of cameraButtons) {
       candidate.setAttribute('aria-pressed', String(candidate === button));
     }
     stage?.setCameraMode(cameraMode);
-    hud.announce(cameraMode === 'follow' ? 'Follow camera selected.' : 'Full course map selected.');
+    hud.announce(cameraMode === 'follow'
+      ? 'Follow camera selected.'
+      : 'Aerial driving camera selected.');
     canvas.focus({ preventScroll: true });
   });
 }
@@ -611,32 +715,6 @@ pauseButton.addEventListener('click', () => {
   playMenuClick();
   simulation.togglePause();
   canvas.focus({ preventScroll: true });
-});
-
-window.addEventListener('keydown', (event) => {
-  const editable = event.target instanceof HTMLInputElement
-    || event.target instanceof HTMLSelectElement
-    || event.target instanceof HTMLTextAreaElement;
-  if (editable) return;
-  const key = event.key.toLowerCase();
-  if ((key === 'escape' || key === 'm') && appMode !== 'menu') {
-    openMenu();
-    event.preventDefault();
-    return;
-  }
-  if (key === 'r' && appMode === 'explore') {
-    resetExploreCamera();
-    event.preventDefault();
-    return;
-  }
-  if (key === 'n' && (appMode === 'explore' || appMode === 'menu')) {
-    rerollExplorer();
-    event.preventDefault();
-    return;
-  }
-  if (key !== 'p' || appMode !== 'race') return;
-  simulation.togglePause();
-  event.preventDefault();
 });
 
 document.addEventListener('visibilitychange', () => {

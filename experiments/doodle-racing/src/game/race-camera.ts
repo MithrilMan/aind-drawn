@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 
+import type { ExploreCameraInput } from './controls.js';
 import type { CourseLayout } from './course.js';
+import type { ExploreEntranceFrame } from './explore-entrance.js';
 import type { GrandstandExplorerSnapshot } from './grandstand-explorer.js';
 import type { RaceSnapshot } from './race-model.js';
 import { grandstandSurfaceAt, type RaceWorldLayout } from './race-world.js';
 
-export type RaceCameraMode = 'follow' | 'full';
+export type RaceCameraMode = 'follow' | 'aerial';
 
 const EXPLORER_DEFAULT_PITCH = 0.52;
 const EXPLORER_MIN_PITCH = 0.06;
@@ -13,17 +15,19 @@ const EXPLORER_MAX_PITCH = 1.16;
 const EXPLORER_DEFAULT_DISTANCE = 7.4;
 const EXPLORER_MIN_DISTANCE = 4.8;
 const EXPLORER_MAX_DISTANCE = 12.4;
-const EXPLORER_MOUSE_ROTATE_SENSITIVITY = 0.0055;
-const EXPLORER_MOUSE_PITCH_SENSITIVITY = 0.0032;
-const EXPLORER_TOUCH_ROTATE_SENSITIVITY = 0.011;
-const EXPLORER_TOUCH_PITCH_SENSITIVITY = 0.006;
-const EXPLORER_ZOOM_SENSITIVITY = 0.006;
+const EXPLORER_ANALOG_YAW_SPEED = 2.2;
+const EXPLORER_ANALOG_PITCH_SPEED = 1.5;
+const EXPLORER_ANALOG_ZOOM_SPEED = 4.8;
 const MENU_CHARACTER_SCREEN_OFFSET = 1.12;
 const CINEMATIC_CLOSE_VIEW_SIZE = 7.2;
 const EXPLORE_MINIMUM_VISIBLE_GROUND_Y = 0.04;
 const EXPLORE_DRIVING_BASE_ZOOM_OUT = 2.8;
 const EXPLORE_DRIVING_SPEED_ZOOM_OUT = 8.2;
 const EXPLORE_DRIVING_REFERENCE_SPEED = 24;
+const AERIAL_MINIMUM_VIEW_SIZE = 52;
+const AERIAL_SPEED_VIEW_SIZE = 8;
+const AERIAL_REFERENCE_SPEED = 29;
+const AERIAL_CAMERA_HEIGHT = 70;
 
 export type GroundedOrthographicFraming = Readonly<{
   cameraY: number;
@@ -63,10 +67,10 @@ export function exploreDrivingViewSize(
     + speedRatio * EXPLORE_DRIVING_SPEED_ZOOM_OUT;
 }
 
-type ExplorerPointer = {
-  x: number;
-  y: number;
-};
+export function aerialRaceViewSize(speed: number): number {
+  const speedRatio = THREE.MathUtils.clamp(speed / AERIAL_REFERENCE_SPEED, 0, 1);
+  return AERIAL_MINIMUM_VIEW_SIZE + speedRatio * AERIAL_SPEED_VIEW_SIZE;
+}
 
 export class RaceCameraController {
   private readonly target = new THREE.Vector3();
@@ -76,6 +80,7 @@ export class RaceCameraController {
   private readonly cameraForwardDirection = new THREE.Vector3();
   private viewSize = 18;
   private mode: RaceCameraMode = 'follow';
+  private aerialInitialized = false;
   private explorerYaw = 0;
   private explorerPitch = EXPLORER_DEFAULT_PITCH;
   private explorerDistance = EXPLORER_DEFAULT_DISTANCE;
@@ -85,89 +90,6 @@ export class RaceCameraController {
   private menuActive = false;
   private readonly reducedMotion = typeof window !== 'undefined'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  private explorerCanvas: HTMLCanvasElement | null = null;
-  private readonly explorerPointers = new Map<number, ExplorerPointer>();
-  private explorerPrimaryPointerId: number | null = null;
-  private explorerPinchDistance = 0;
-  private explorerDragging = false;
-
-  private readonly handleExplorerPointerDown = (event: PointerEvent): void => {
-    if (!this.explorerActive || (event.pointerType === 'mouse' && event.button !== 0)) return;
-
-    this.explorerPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    this.explorerPrimaryPointerId ??= event.pointerId;
-    this.explorerPinchDistance = this.explorerPointerDistance();
-    this.explorerDragging = true;
-    this.explorerCanvas?.setPointerCapture(event.pointerId);
-    event.preventDefault();
-  };
-
-  private readonly handleExplorerPointerMove = (event: PointerEvent): void => {
-    if (!this.explorerActive) return;
-    const pointer = this.explorerPointers.get(event.pointerId);
-    if (pointer === undefined) return;
-
-    const deltaX = event.clientX - pointer.x;
-    const deltaY = event.clientY - pointer.y;
-    pointer.x = event.clientX;
-    pointer.y = event.clientY;
-
-    if (this.explorerPointers.size === 1 && event.pointerId === this.explorerPrimaryPointerId) {
-      const rotateSensitivity = event.pointerType === 'mouse'
-        ? EXPLORER_MOUSE_ROTATE_SENSITIVITY
-        : EXPLORER_TOUCH_ROTATE_SENSITIVITY;
-      const pitchSensitivity = event.pointerType === 'mouse'
-        ? EXPLORER_MOUSE_PITCH_SENSITIVITY
-        : EXPLORER_TOUCH_PITCH_SENSITIVITY;
-      this.explorerYaw -= deltaX * rotateSensitivity;
-      this.explorerPitch = THREE.MathUtils.clamp(
-        this.explorerPitch + deltaY * pitchSensitivity,
-        EXPLORER_MIN_PITCH,
-        EXPLORER_MAX_PITCH,
-      );
-    } else if (this.explorerPointers.size >= 2) {
-      const pinchDistance = this.explorerPointerDistance();
-      if (this.explorerPinchDistance > 0) {
-        this.explorerDistance = THREE.MathUtils.clamp(
-          this.explorerDistance + (this.explorerPinchDistance - pinchDistance) * 0.018,
-          EXPLORER_MIN_DISTANCE,
-          EXPLORER_MAX_DISTANCE,
-        );
-      }
-      this.explorerPinchDistance = pinchDistance;
-    }
-
-    event.preventDefault();
-  };
-
-  private readonly handleExplorerPointerUp = (event: PointerEvent): void => {
-    this.explorerPointers.delete(event.pointerId);
-    if (this.explorerPrimaryPointerId === event.pointerId) {
-      this.explorerPrimaryPointerId = this.explorerPointers.keys().next().value ?? null;
-    }
-    this.explorerPinchDistance = this.explorerPointerDistance();
-    if (this.explorerPointers.size === 0) {
-      this.explorerPrimaryPointerId = null;
-      this.explorerDragging = false;
-    }
-    try {
-      this.explorerCanvas?.releasePointerCapture(event.pointerId);
-    } catch {
-      // The browser may have released the pointer before the cleanup event.
-    }
-    event.preventDefault();
-  };
-
-  private readonly handleExplorerWheel = (event: WheelEvent): void => {
-    if (!this.explorerActive) return;
-    this.explorerDistance = THREE.MathUtils.clamp(
-      this.explorerDistance + event.deltaY * EXPLORER_ZOOM_SENSITIVITY,
-      EXPLORER_MIN_DISTANCE,
-      EXPLORER_MAX_DISTANCE,
-    );
-    event.preventDefault();
-  };
-
   public constructor(
     private readonly camera: THREE.OrthographicCamera,
     private readonly course: CourseLayout,
@@ -176,38 +98,37 @@ export class RaceCameraController {
   ) {}
 
   public setMode(mode: RaceCameraMode): void {
+    if (mode === 'aerial' && this.mode !== 'aerial') this.aerialInitialized = false;
     this.mode = mode;
-  }
-
-  public attachExplorerInput(canvas: HTMLCanvasElement): void {
-    if (this.explorerCanvas === canvas) return;
-    this.detachExplorerInput();
-    this.explorerCanvas = canvas;
-    canvas.addEventListener('pointerdown', this.handleExplorerPointerDown);
-    canvas.addEventListener('pointermove', this.handleExplorerPointerMove);
-    canvas.addEventListener('pointerup', this.handleExplorerPointerUp);
-    canvas.addEventListener('pointercancel', this.handleExplorerPointerUp);
-    canvas.addEventListener('lostpointercapture', this.handleExplorerPointerUp);
-    canvas.addEventListener('wheel', this.handleExplorerWheel, { passive: false });
-  }
-
-  public detachExplorerInput(): void {
-    const canvas = this.explorerCanvas;
-    if (canvas === null) return;
-    canvas.removeEventListener('pointerdown', this.handleExplorerPointerDown);
-    canvas.removeEventListener('pointermove', this.handleExplorerPointerMove);
-    canvas.removeEventListener('pointerup', this.handleExplorerPointerUp);
-    canvas.removeEventListener('pointercancel', this.handleExplorerPointerUp);
-    canvas.removeEventListener('lostpointercapture', this.handleExplorerPointerUp);
-    canvas.removeEventListener('wheel', this.handleExplorerWheel);
-    this.explorerCanvas = null;
-    this.clearExplorerPointers();
   }
 
   public setExplorerActive(active: boolean): void {
     this.explorerActive = active;
-    if (!active) this.clearExplorerPointers();
-    this.explorerCanvas?.classList.toggle('is-explore-camera-dragging', active && this.explorerDragging);
+  }
+
+  public applyExplorerInput(input: ExploreCameraInput, deltaSeconds: number): void {
+    if (!this.explorerActive) return;
+    const delta = THREE.MathUtils.clamp(deltaSeconds, 0, 0.05);
+    const orbitX = input.orbitX.behavior === 'delta'
+      ? input.orbitX.value
+      : input.orbitX.value * EXPLORER_ANALOG_YAW_SPEED * delta;
+    const orbitY = input.orbitY.behavior === 'delta'
+      ? input.orbitY.value
+      : input.orbitY.value * EXPLORER_ANALOG_PITCH_SPEED * delta;
+    const zoom = input.zoom.behavior === 'delta'
+      ? input.zoom.value
+      : input.zoom.value * EXPLORER_ANALOG_ZOOM_SPEED * delta;
+    this.explorerYaw -= orbitX;
+    this.explorerPitch = THREE.MathUtils.clamp(
+      this.explorerPitch + orbitY,
+      EXPLORER_MIN_PITCH,
+      EXPLORER_MAX_PITCH,
+    );
+    this.explorerDistance = THREE.MathUtils.clamp(
+      this.explorerDistance + zoom,
+      EXPLORER_MIN_DISTANCE,
+      EXPLORER_MAX_DISTANCE,
+    );
   }
 
   public setMenuActive(active: boolean): void {
@@ -224,7 +145,8 @@ export class RaceCameraController {
   }
 
   public dispose(): void {
-    this.detachExplorerInput();
+    this.explorerActive = false;
+    this.menuActive = false;
   }
 
   public update(snapshot: RaceSnapshot, deltaSeconds: number, elapsedSeconds: number): void {
@@ -238,36 +160,33 @@ export class RaceCameraController {
       this.updateFinish(snapshot);
       return;
     }
-    const fullCourse = this.mode === 'full';
     const speedRatio = THREE.MathUtils.clamp(player.speed / 29, 0, 1);
     const velocityLead = player.speed * 0.085;
     // Slip is the angle between the authored nose and the actual velocity. Looking down the
     // trajectory keeps the road readable while the car rotates expressively inside the frame.
     const trajectoryHeading = player.heading - player.slipAngle;
-    const desiredTarget = fullCourse
-      ? new THREE.Vector3(
-        (this.course.bounds.minimumX + this.course.bounds.maximumX) * 0.5,
-        0,
-        (this.course.bounds.minimumZ + this.course.bounds.maximumZ) * 0.5,
-      )
-      : new THREE.Vector3(
-        player.x + Math.cos(trajectoryHeading) * velocityLead,
-        0.25,
-        player.z - Math.sin(trajectoryHeading) * velocityLead,
-      );
-    this.target.lerp(desiredTarget, fullCourse ? 1 : 1 - Math.exp(-7.2 * deltaSeconds));
-    this.viewSize = fullCourse
-      ? this.fullCourseViewSize()
-      : THREE.MathUtils.lerp(this.viewSize, 16.5 + speedRatio * 6.2, 1 - Math.exp(-4 * deltaSeconds));
+    if (this.mode === 'aerial') {
+      this.updateAerial(player, trajectoryHeading, deltaSeconds);
+      return;
+    }
+    const desiredTarget = new THREE.Vector3(
+      player.x + Math.cos(trajectoryHeading) * velocityLead,
+      0.25,
+      player.z - Math.sin(trajectoryHeading) * velocityLead,
+    );
+    this.target.lerp(desiredTarget, 1 - Math.exp(-7.2 * deltaSeconds));
+    this.viewSize = THREE.MathUtils.lerp(
+      this.viewSize,
+      16.5 + speedRatio * 6.2,
+      1 - Math.exp(-4 * deltaSeconds),
+    );
 
-    const shake = fullCourse ? 0 : snapshot.impact * 0.6;
+    const shake = snapshot.impact * 0.6;
     const shakeX = Math.sin(elapsedSeconds * 47) * shake;
     const shakeZ = Math.cos(elapsedSeconds * 53) * shake;
-    const offset = fullCourse
-      ? new THREE.Vector3(-31, 44, 36)
-      : new THREE.Vector3(-10.8 + shakeX, 17.5, 13.6 + shakeZ);
+    const offset = new THREE.Vector3(-10.8 + shakeX, 17.5, 13.6 + shakeZ);
     this.camera.position.copy(this.target).add(offset);
-    const handlingRoll = fullCourse || this.reducedMotion
+    const handlingRoll = this.reducedMotion
       ? 0
       : THREE.MathUtils.clamp(player.steering * 0.014 + player.slipAngle * 0.052, -0.04, 0.04);
     this.orientCamera(handlingRoll);
@@ -309,6 +228,96 @@ export class RaceCameraController {
     this.updateProjection(this.explorerGroundProjectionOffset());
   }
 
+  public updateExplorerEntrance(
+    snapshot: GrandstandExplorerSnapshot,
+    frame: ExploreEntranceFrame,
+  ): void {
+    const spawn = this.world.explorerSpawn;
+    const destination = spawn.approach[spawn.approach.length - 1];
+    if (destination === undefined) {
+      throw new Error(`Explore spawn ${spawn.id} has no approach destination`);
+    }
+    const forward = new THREE.Vector3(
+      destination.x - spawn.x,
+      0,
+      destination.z - spawn.z,
+    );
+    if (forward.lengthSq() <= 1e-8) {
+      forward.set(Math.sin(spawn.heading), 0, Math.cos(spawn.heading));
+    } else {
+      forward.normalize();
+    }
+    const side = new THREE.Vector3(forward.z, 0, -forward.x);
+    const actorTarget = new THREE.Vector3(snapshot.x, snapshot.y + 1.02, snapshot.z);
+    const destinationTarget = new THREE.Vector3(
+      destination.x,
+      destination.y + 1.02,
+      destination.z,
+    );
+    const compositionTarget = actorTarget.clone().lerp(
+      destinationTarget,
+      0.32 * (1 - frame.approachProgress),
+    );
+    const courseCentre = new THREE.Vector3(
+      (this.course.bounds.minimumX + this.course.bounds.maximumX) * 0.5,
+      0,
+      (this.course.bounds.minimumZ + this.course.bounds.maximumZ) * 0.5,
+    );
+    const towardCourse = courseCentre.sub(compositionTarget).setY(0);
+    if (side.dot(towardCourse) > 0) side.negate();
+    const closeSweep = frame.phase === 'coughing'
+      ? THREE.MathUtils.lerp(0.62, -0.35, frame.phaseProgress)
+      : frame.phase === 'discovering'
+        ? Math.sin(frame.phaseProgress * Math.PI * 1.5) * 0.9
+        : 0.62;
+    const closeCamera = actorTarget.clone()
+      .addScaledVector(forward, -3.9)
+      .addScaledVector(side, closeSweep)
+      .add(new THREE.Vector3(0, 2.25, 0));
+    const openingCamera = actorTarget.clone()
+      .addScaledVector(forward, -7.4)
+      .addScaledVector(side, 4.6)
+      .add(new THREE.Vector3(0, 8.2, 0));
+    const descent = frame.phase === 'materializing'
+      ? THREE.MathUtils.smoothstep(frame.phaseProgress, 0.08, 1)
+      : 1;
+    const performingCamera = openingCamera.lerp(closeCamera, descent);
+    const trackingCamera = compositionTarget.clone()
+      .addScaledVector(forward, -2.1)
+      .addScaledVector(side, 5.4)
+      .add(new THREE.Vector3(0, 5.1, 0));
+    const actionBlend = frame.phase === 'celebrating'
+      ? THREE.MathUtils.smoothstep(frame.phaseProgress, 0.48, 1)
+      : frame.phase === 'approaching' || frame.phase === 'complete' ? 1 : 0;
+    const cinematicCamera = performingCamera.lerp(trackingCamera, actionBlend);
+    const cinematicTarget = actorTarget.clone().lerp(compositionTarget, actionBlend);
+
+    this.explorerYaw = snapshot.heading + Math.PI - 0.42;
+    this.explorerPitch = EXPLORER_DEFAULT_PITCH;
+    this.explorerDistance = EXPLORER_DEFAULT_DISTANCE;
+    this.explorerTarget.copy(actorTarget);
+    const horizontalDistance = Math.cos(this.explorerPitch) * this.explorerDistance;
+    this.explorerDesiredPosition.set(
+      actorTarget.x + Math.sin(this.explorerYaw) * horizontalDistance,
+      actorTarget.y + Math.sin(this.explorerPitch) * this.explorerDistance,
+      actorTarget.z + Math.cos(this.explorerYaw) * horizontalDistance,
+    );
+    const handoff = THREE.MathUtils.smoothstep(frame.approachProgress, 0.68, 1);
+    this.target.copy(cinematicTarget).lerp(actorTarget, handoff);
+    this.camera.position.copy(cinematicCamera).lerp(this.explorerDesiredPosition, handoff);
+    this.viewSize = THREE.MathUtils.lerp(
+      THREE.MathUtils.lerp(THREE.MathUtils.lerp(11.5, 5.4, descent), 10.2, actionBlend),
+      exploreDrivingViewSize(this.explorerDistance, null),
+      handoff,
+    );
+    const roll = this.reducedMotion
+      ? 0
+      : Math.sin(frame.progress * Math.PI * 5) * 0.025 * (1 - handoff);
+    this.orientCamera(roll);
+    this.updateProjection(this.explorerGroundProjectionOffset());
+    if (frame.controlsEnabled) this.explorerInitialized = true;
+  }
+
   public updateMenu(snapshot: GrandstandExplorerSnapshot, deltaSeconds: number): void {
     const target = new THREE.Vector3(snapshot.x, snapshot.y + 1.02, snapshot.z);
     const frontX = Math.sin(snapshot.heading);
@@ -339,22 +348,6 @@ export class RaceCameraController {
     );
     this.orientCamera(0);
     this.updateProjection();
-  }
-
-  private explorerPointerDistance(): number {
-    const pointers = [...this.explorerPointers.values()];
-    if (pointers.length < 2) return 0;
-    const first = pointers[0] as ExplorerPointer;
-    const second = pointers[1] as ExplorerPointer;
-    return Math.hypot(second.x - first.x, second.y - first.y);
-  }
-
-  private clearExplorerPointers(): void {
-    this.explorerPointers.clear();
-    this.explorerPrimaryPointerId = null;
-    this.explorerPinchDistance = 0;
-    this.explorerDragging = false;
-    this.explorerCanvas?.classList.remove('is-explore-camera-dragging');
   }
 
   private updateIntro(snapshot: RaceSnapshot): void {
@@ -430,6 +423,40 @@ export class RaceCameraController {
     if (roll !== 0) this.camera.rotateZ(roll);
   }
 
+  private updateAerial(
+    player: RaceSnapshot['racers'][number],
+    trajectoryHeading: number,
+    deltaSeconds: number,
+  ): void {
+    const velocityLead = player.speed * 0.12;
+    const desiredTarget = new THREE.Vector3(
+      player.x + Math.cos(trajectoryHeading) * velocityLead,
+      0.25,
+      player.z - Math.sin(trajectoryHeading) * velocityLead,
+    );
+    const desiredViewSize = aerialRaceViewSize(player.speed);
+    if (!this.aerialInitialized) {
+      this.target.copy(desiredTarget);
+      this.viewSize = desiredViewSize;
+      this.aerialInitialized = true;
+    } else {
+      this.target.lerp(desiredTarget, 1 - Math.exp(-6.2 * deltaSeconds));
+      this.viewSize = THREE.MathUtils.lerp(
+        this.viewSize,
+        desiredViewSize,
+        1 - Math.exp(-3.5 * deltaSeconds),
+      );
+    }
+    this.camera.position.set(
+      this.target.x,
+      this.target.y + AERIAL_CAMERA_HEIGHT,
+      this.target.z,
+    );
+    this.camera.up.set(0, 0, -1);
+    this.camera.lookAt(this.target);
+    this.updateProjection();
+  }
+
   private keepExplorerCameraAboveStand(snapshot: GrandstandExplorerSnapshot): void {
     const stand = this.world.grandstand;
     const deltaX = this.explorerDesiredPosition.x - stand.x;
@@ -470,11 +497,4 @@ export class RaceCameraController {
     });
   }
 
-  private fullCourseViewSize(): number {
-    const width = this.course.bounds.maximumX - this.course.bounds.minimumX;
-    const depth = this.course.bounds.maximumZ - this.course.bounds.minimumZ;
-    const viewport = this.viewportSize();
-    const aspect = Math.max(0.4, viewport.width / viewport.height);
-    return Math.max(depth, width / aspect) * 1.05;
-  }
 }

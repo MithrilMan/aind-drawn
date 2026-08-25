@@ -70,6 +70,15 @@ export function applyRasterCharacterMotion(
       }, sample, unit));
     }
   }
+  if (rig.getBone('mouth') !== null) {
+    rig.setBonePose('mouth', {
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scaleX: 1,
+      scaleY: sample.face.mouthOpenness,
+    });
+  }
   setLayerStateIfPresent(rig, 'eye:left', sample.face.eyeState);
   setLayerStateIfPresent(rig, 'eye:right', sample.face.eyeState);
   setLayerStateIfPresent(rig, 'mouth', sample.face.mouth);

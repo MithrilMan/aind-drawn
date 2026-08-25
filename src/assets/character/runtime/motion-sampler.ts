@@ -45,6 +45,7 @@ const AUTONOMIC_BY_POSE: Readonly<Record<CharacterPose, AutonomicProfile>> = {
   airborne: { sway: 0, breath: 0.4, blink: 1, gaze: 0.3, arms: 0, tail: 1.4 },
   sit: { sway: 0.6, breath: 1, blink: 1, gaze: 0.8, arms: 0.4, tail: 0.6 },
   sleep: { sway: 0, breath: 2.2, blink: 0, gaze: 0, arms: 0, tail: 0 },
+  cough: { sway: 0.15, breath: 0.4, blink: 0.7, gaze: 0.2, arms: 0, tail: 0.35 },
   play: { sway: 0.3, breath: 0.5, blink: 1, gaze: 0.5, arms: 0, tail: 1.3 },
   dance: { sway: 0.2, breath: 0.7, blink: 1, gaze: 0.35, arms: 0.15, tail: 2.1 },
 };
@@ -180,6 +181,54 @@ function applyPlay(
   }, weight);
   addPart(parts, 'leg:left', { y: Math.max(0, wave) * 0.08, roll: wave * 0.18 }, weight);
   addPart(parts, 'leg:right', { y: Math.max(0, -wave) * 0.08, roll: -wave * 0.18 }, weight);
+}
+
+function applyCough(
+  parts: Record<CharacterMotionPartId, MutablePart>,
+  weight: number,
+  impulse: number,
+  poseTime: number,
+): void {
+  if (weight <= 0.001) return;
+  const recovery = Math.sin(Math.min(1, poseTime / 1.5) * Math.PI) * 0.025;
+  addPart(parts, 'torso', {
+    y: -impulse * 0.08,
+    swing: impulse * 0.2,
+    scaleX: 1 + impulse * 0.045,
+    scaleY: 1 - impulse * 0.08,
+  }, weight);
+  addPart(parts, 'head', {
+    x: impulse * 0.025,
+    y: -impulse * 0.12 + recovery,
+    swing: impulse * 0.34,
+    roll: -impulse * 0.07,
+  }, weight);
+  addPart(parts, 'arm:left', {
+    swing: -0.22 - impulse * 0.18,
+    roll: 0.52 + impulse * 0.2,
+    foreground: 0.82,
+  }, weight);
+  addPart(parts, 'arm:right', {
+    swing: 0.12 + impulse * 0.08,
+    roll: -0.18 - impulse * 0.12,
+    foreground: 0.42,
+  }, weight);
+  addPart(parts, 'leg:left', { swing: impulse * 0.06 }, weight);
+  addPart(parts, 'leg:right', { swing: -impulse * 0.04 }, weight);
+  addPart(parts, 'tail', { roll: -impulse * 0.16 }, weight);
+}
+
+function sampleCoughImpulse(poseTime: number): number {
+  const pulse = (centre: number, halfWidth: number): number => {
+    const distance = Math.abs(poseTime - centre) / halfWidth;
+    if (distance >= 1) return 0;
+    return Math.pow(1 - distance * distance, 3);
+  };
+  return Math.max(
+    pulse(0.34, 0.15),
+    pulse(0.74, 0.14),
+    pulse(1.12, 0.16),
+  );
 }
 
 /** A deliberately overcommitted disco loop: one hand up, one knee up, dignity down. */
@@ -373,11 +422,15 @@ export function sampleCharacterMotion(
   const expression = weights.sleep > 0.55 ? 'sleeping' : state.command.expression;
   const autonomic = blendedAutonomicProfile(weights);
   const parts = createParts();
+  const poseTime = Math.max(0, time - state.transition.startedAt);
+  const coughPulse = sampleCoughImpulse(poseTime);
+  const coughImpulse = coughPulse * weights.cough;
   applyGait(parts, weights.walk, state.command.speed, time, false);
   applyGait(parts, weights.run, state.command.speed, time, true);
   applyAirborne(parts, weights.airborne, time);
   applySit(parts, weights.sit);
   applySleep(parts, weights.sleep, time);
+  applyCough(parts, weights.cough, coughPulse, poseTime);
   applyPlay(parts, weights.play, time);
   applyDance(parts, weights.dance, time);
   applyAutonomicMotion(parts, autonomic, expression, time);
@@ -387,7 +440,7 @@ export function sampleCharacterMotion(
     command: state.command,
     poseWeights: weights,
     parts: freezeParts(parts),
-    face: sampleCharacterFaceMotion(identity, state, time, expression, autonomic),
+    face: sampleCharacterFaceMotion(identity, state, time, expression, autonomic, coughImpulse),
     flows: sampleCharacterFlows(identity, expression, time),
   });
 }

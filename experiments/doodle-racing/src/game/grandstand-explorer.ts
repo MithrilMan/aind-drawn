@@ -13,6 +13,7 @@ import {
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
+import type { ExploreEntranceFrame } from './explore-entrance.js';
 import {
   createPaperCircuitPersonIdentity,
   type PaperCircuitPersonIdentity,
@@ -249,12 +250,21 @@ export class GrandstandExplorer {
     if (this.previewMode) return this.updatePreview(deltaSeconds);
     const delta = clamp(deltaSeconds, 0, 0.05);
     this.elapsed += delta;
-    const turn = Number(input.left) - Number(input.right);
+    const turn = clamp(
+      input.steeringAxis ?? Number(input.left) - Number(input.right),
+      -1,
+      1,
+    );
     // Character solids face local +Z. Applying left-right directly to yaw
     // keeps visual rotation and the movement convention in sync.
     this.heading += turn * TURN_SPEED * delta;
 
-    const direction = Number(input.accelerate) - Number(input.brake);
+    const direction = clamp(
+      (input.throttle ?? Number(input.accelerate))
+        - (input.brakePressure ?? Number(input.brake)),
+      -1,
+      1,
+    );
     const isRunning = input.run === true;
     const movement = direction * (isRunning ? RUN_SPEED : WALK_SPEED) * delta;
     const jumpRequested = input.jump === true;
@@ -345,6 +355,46 @@ export class GrandstandExplorer {
           : pose === 'walk' ? 0.72
             : pose === 'play' ? 0.86 : pose === 'airborne' ? 0.9 : 0,
         expression,
+        facing: 1,
+      }, this.elapsed);
+    }
+    this.applyPose();
+    return this.snapshot();
+  }
+
+  public updateCinematic(
+    deltaSeconds: number,
+    frame: ExploreEntranceFrame,
+  ): GrandstandExplorerSnapshot {
+    this.previewMode = false;
+    this.elapsed += clamp(deltaSeconds, 0, 0.05);
+    const deltaX = frame.x - this.stand.x;
+    const deltaZ = frame.z - this.stand.z;
+    this.along = clamp(
+      deltaX * Math.cos(this.stand.heading) + deltaZ * -Math.sin(this.stand.heading),
+      this.mapBounds.minAlong + this.collisionRadius,
+      this.mapBounds.maxAlong - this.collisionRadius,
+    );
+    this.away = clamp(
+      deltaX * Math.sin(this.stand.heading) + deltaZ * Math.cos(this.stand.heading),
+      this.mapBounds.minAway + this.collisionRadius,
+      this.mapBounds.maxAway - this.collisionRadius,
+    );
+    const surface = grandstandSurfaceAt(this.stand, this.away, this.along);
+    this.y = Math.max(surface.height, frame.y);
+    this.verticalVelocity = 0;
+    this.surfaceRow = surface.row;
+    this.heading = frame.heading;
+    this.jumpLatch = false;
+    if (frame.pose !== this.activePose || frame.expression !== this.activeExpression) {
+      this.activePose = frame.pose;
+      this.activeExpression = frame.expression;
+      this.motion = setCharacterMotion(this.motion, {
+        pose: frame.pose,
+        speed: frame.pose === 'run' ? 0.98
+          : frame.pose === 'airborne' || frame.pose === 'play' ? 0.9 : 0,
+        expression: frame.expression,
+      talking: false,
         facing: 1,
       }, this.elapsed);
     }

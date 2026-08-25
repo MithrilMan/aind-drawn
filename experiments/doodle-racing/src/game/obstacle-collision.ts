@@ -10,6 +10,7 @@ export type VehicleCollisionProfile = Readonly<{
   frontAxle: number;
   rearAxle: number;
   wheelRadius: number;
+  wheelHalfWidth: number;
   groundClearance: number;
 }>;
 
@@ -43,6 +44,7 @@ export function createVehicleCollisionProfile(
     rearAxle: -halfLength + axleInset,
     frontAxle: halfLength - axleInset,
     wheelRadius: identity.wheels.radius,
+    wheelHalfWidth: identity.wheels.width * 0.5,
     groundClearance: identity.dimensions.groundClearance,
   });
 }

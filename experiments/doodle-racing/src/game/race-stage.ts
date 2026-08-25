@@ -5,16 +5,21 @@ import type {
   MediumId,
   Point3,
 } from '../../../../src/index.js';
+import type { ExploreCameraInput } from './controls.js';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
 import { CrowdField } from './crowd-field.js';
 import { DoodleScene } from './doodle-scene.js';
 import { DriftEffects } from './drift-effects.js';
 import { ExploreDriveController } from './explore-drive.js';
+import {
+  ExploreEntranceDirector,
+  type ExploreEntrancePhase,
+} from './explore-entrance.js';
 import { GrandstandExplorer, type GrandstandExplorerSnapshot } from './grandstand-explorer.js';
 import { RaceCameraController, type RaceCameraMode } from './race-camera.js';
-import { RaceMapMarkers } from './race-map-markers.js';
 import { localPreviewCameraOffsetDirection } from './preview-camera.js';
 import type { ExploreInput, RaceSnapshot } from './race-model.js';
+import { RouteDebugOverlay } from './route-debug-overlay.js';
 import { GRANDSTAND_ROW_SPACING, type RaceWorldLayout } from './race-world.js';
 import { SceneryField } from './scenery-field.js';
 import { SmokeBurst } from './smoke-burst.js';
@@ -49,6 +54,8 @@ export type ExploreStageSnapshot = Readonly<{
   drivingRacer: RaceSnapshot['racers'][number] | null;
   drivingOffRoad: boolean;
   interaction: ExploreStageInteraction | null;
+  entrancePhase: ExploreEntrancePhase | null;
+  controlsEnabled: boolean;
 }>;
 
 export type ExploreStageInteraction = Readonly<{
@@ -68,19 +75,20 @@ export class RaceStage {
   private readonly vehicles: VehicleField;
   private crowd: CrowdField;
   private readonly effects: DriftEffects;
+  private readonly routeDebug: RouteDebugOverlay;
   private readonly smoke: SmokeBurst;
   private readonly camera: RaceCameraController;
   private readonly exploreDrive: ExploreDriveController;
   private readonly staticExploreColliders: readonly GroundCollider[];
   private explorer: GrandstandExplorer;
-  private readonly mapMarkers: RaceMapMarkers;
   private readonly course: CourseLayout;
   private readonly world: RaceWorldLayout;
   private readonly onVehicleHoodSelected: (selection: VehicleSelectionSummary) => void;
-  private cameraMode: RaceCameraMode = 'follow';
   private mode: RaceStageMode = 'menu';
+  private routeDebugVisible = false;
   private customizingVehicleId: PaperCircuitVehicleId | null = null;
   private exploreInteractLatch = false;
+  private exploreEntrance: ExploreEntranceDirector | null = null;
   private pendingExplorerChange: PendingExplorerChange | null = null;
   private activeDoor: Readonly<{
     vehicleId: string;
@@ -106,6 +114,7 @@ export class RaceStage {
     this.vehicles = new VehicleField(vehicleSeeds);
     this.crowd = new CrowdField(world);
     this.effects = new DriftEffects(course);
+    this.routeDebug = new RouteDebugOverlay(course);
     this.smoke = new SmokeBurst();
     this.explorer = new GrandstandExplorer(world.grandstand, course, explorerSeed);
     this.exploreDrive = new ExploreDriveController(
@@ -116,7 +125,6 @@ export class RaceStage {
     this.vehicles.update(this.exploreDrive.frame().racers, 0);
     this.staticExploreColliders = groundCollidersFor(this.scenery.collisionRigs());
     this.configureExplorerPreview(this.explorer);
-    this.mapMarkers = new RaceMapMarkers(viewport);
     this.doodle.setAssets(this.sceneAssets());
     this.camera = new RaceCameraController(
       this.doodle.camera,
@@ -124,7 +132,6 @@ export class RaceStage {
       world,
       () => this.doodle.viewportSize(),
     );
-    this.camera.attachExplorerInput(canvas);
     this.setMode('menu');
   }
 
@@ -146,17 +153,25 @@ export class RaceStage {
   }
 
   public setCameraMode(mode: RaceCameraMode): void {
-    this.cameraMode = mode;
     this.camera.setMode(mode);
   }
 
+  public setRouteDebugVisible(visible: boolean): void {
+    if (visible === this.routeDebugVisible) return;
+    this.routeDebugVisible = visible;
+    this.doodle.setAssets(this.sceneAssets());
+  }
+
   public setMode(mode: RaceStageMode): void {
+    const routeDebugWasRegistered = this.routeDebugVisible && this.mode === 'race';
     const enteringRace = mode === 'race' && this.mode !== 'race';
     const enteringExplore = mode === 'explore' && this.mode !== 'explore';
     const leavingExplore = mode !== 'explore' && this.mode === 'explore';
     if (leavingExplore) {
       this.closeActiveDoor();
       this.closeVehicleCustomizer();
+      this.exploreEntrance = null;
+      this.smoke.cancel();
     }
     if (enteringExplore || leavingExplore) this.exploreInteractLatch = false;
     this.mode = mode;
@@ -173,20 +188,28 @@ export class RaceStage {
     this.scenery.setVisible(true);
     this.crowd.setVisible(mode !== 'menu');
     this.explorer.setPreviewMode(mode === 'menu');
-    this.explorer.setVisible(mode === 'explore');
     this.camera.setMenuActive(mode === 'menu');
-    this.camera.setExplorerActive(mode === 'explore');
     if (mode !== 'explore') this.explorer.reset();
     if (mode === 'menu') this.explorer.setPreviewMode(true);
+    if (enteringExplore) this.startExplorerEntrance();
+    this.explorer.setVisible(
+      mode === 'explore' && (this.exploreEntrance?.snapshot().actorVisible ?? true),
+    );
+    this.camera.setExplorerActive(mode === 'explore' && this.exploreEntrance === null);
+    const routeDebugIsRegistered = this.routeDebugVisible && this.mode === 'race';
+    if (routeDebugWasRegistered !== routeDebugIsRegistered) {
+      this.doodle.setAssets(this.sceneAssets());
+    }
   }
 
-  public rerollExplorer(seed: number): void {
+  public rerollExplorer(seed: number): boolean {
+    if (this.exploreEntrance !== null) return false;
     if (this.pendingExplorerChange !== null) {
       this.pendingExplorerChange = Object.freeze({
         ...this.pendingExplorerChange,
         seed,
       });
-      return;
+      return true;
     }
     const snapshot = this.explorer.snapshot();
     this.pendingExplorerChange = Object.freeze({
@@ -199,6 +222,7 @@ export class RaceStage {
       }),
     });
     this.smoke.trigger(snapshot, seed);
+    return true;
   }
 
   public setExplorerSeed(seed: number): void {
@@ -217,8 +241,10 @@ export class RaceStage {
     }));
   }
 
-  public resetExplorerCamera(): void {
+  public resetExplorerCamera(): boolean {
+    if (this.exploreEntrance !== null) return false;
     this.camera.resetExplorer();
+    return true;
   }
 
   public vehicleConfiguratorPreview(
@@ -254,7 +280,7 @@ export class RaceStage {
     if (vehicleId === null) return;
     this.vehicles.setHoodOpen(vehicleId, false);
     this.customizingVehicleId = null;
-    this.camera.setExplorerActive(this.mode === 'explore');
+    this.camera.setExplorerActive(this.mode === 'explore' && this.exploreEntrance === null);
   }
 
   public render(snapshot: RaceSnapshot, deltaSeconds: number): GrandstandExplorerSnapshot | null {
@@ -263,7 +289,6 @@ export class RaceStage {
     if (this.mode === 'menu') {
       const preview = this.explorer.updatePreview(deltaSeconds);
       this.camera.updateMenu(preview, deltaSeconds);
-      this.mapMarkers.hide();
       this.doodle.render(preview.elapsed);
       return preview;
     }
@@ -272,14 +297,23 @@ export class RaceStage {
     this.crowd.setCelebrating(snapshot.phase === 'finished', snapshot.presentationTime);
     this.crowd.update(snapshot.presentationTime);
     this.camera.update(snapshot, deltaSeconds, snapshot.presentationTime);
-    this.mapMarkers.update(snapshot, this.doodle.camera, this.mode === 'race' && this.cameraMode === 'full');
+    if (this.routeDebugVisible && this.mode === 'race') {
+      this.routeDebug.update(snapshot.routeCoverageWords);
+    }
     this.doodle.render(snapshot.presentationTime);
     return null;
   }
 
-  public renderExplorer(input: ExploreInput, deltaSeconds: number): ExploreStageSnapshot {
+  public renderExplorer(
+    input: ExploreInput,
+    cameraInput: ExploreCameraInput,
+    deltaSeconds: number,
+  ): ExploreStageSnapshot {
     this.smoke.update(deltaSeconds);
     this.completePendingExplorerChange();
+    if (this.exploreEntrance !== null) {
+      return this.renderExplorerEntrance(deltaSeconds);
+    }
     const interactRequested = input.interact === true;
     const interactPressed = interactRequested && !this.exploreInteractLatch;
     this.exploreInteractLatch = interactRequested;
@@ -348,13 +382,13 @@ export class RaceStage {
         speed: Math.min(1, drive.activeRacer.speed / 24),
         pose: 'sit' as const,
       });
+    this.camera.applyExplorerInput(cameraInput, deltaSeconds);
     this.camera.updateExplorer(
       cameraSubject,
       deltaSeconds,
       drive.activeRacer === null,
       drive.activeRacer?.speed ?? null,
     );
-    this.mapMarkers.hide();
     this.doodle.render(explorer.elapsed);
     const interaction = this.customizingVehicleId !== null
       ? null
@@ -368,17 +402,19 @@ export class RaceStage {
         drive.activeRacer.z,
       ).distanceFromCentre > this.course.trackWidth * 0.5 - 0.34,
       interaction,
+      entrancePhase: null,
+      controlsEnabled: true,
     });
   }
 
   public dispose(): void {
     this.closeVehicleCustomizer();
-    this.mapMarkers.dispose();
     this.camera.dispose();
     this.doodle.dispose();
     this.explorer.dispose();
     this.smoke.dispose();
     this.effects.dispose();
+    this.routeDebug.dispose();
     this.crowd.dispose();
     this.vehicles.dispose();
     this.scenery.dispose();
@@ -387,6 +423,9 @@ export class RaceStage {
   private sceneAssets() {
     return Object.freeze([
       ...this.scenery.doodleAssets(),
+      ...(this.routeDebugVisible && this.mode === 'race'
+        ? [this.routeDebug.doodleAsset()]
+        : []),
       this.effects.doodleAsset(),
       ...this.vehicles.doodleAssets(),
       ...this.crowd.doodleAssets(),
@@ -403,6 +442,44 @@ export class RaceStage {
       y: 0.04,
       z: stand.z + Math.cos(stand.heading) * previewAway,
     }), stand.heading);
+  }
+
+  private startExplorerEntrance(): void {
+    const entrance = new ExploreEntranceDirector(this.world.explorerSpawn);
+    const frame = entrance.snapshot();
+    this.exploreEntrance = entrance;
+    this.explorer.updateCinematic(0, frame);
+    this.explorer.setVisible(frame.actorVisible);
+    this.smoke.cancel();
+    this.smoke.trigger(frame, this.explorer.identity.seed);
+  }
+
+  private renderExplorerEntrance(deltaSeconds: number): ExploreStageSnapshot {
+    const entrance = this.exploreEntrance;
+    if (entrance === null) {
+      throw new Error('Explore entrance is not active');
+    }
+    const frame = entrance.update(deltaSeconds);
+    const explorer = this.explorer.updateCinematic(deltaSeconds, frame);
+    this.explorer.setVisible(frame.actorVisible);
+    const effectSources = this.vehicles.update(this.exploreDrive.frame().racers, explorer.elapsed);
+    this.effects.update(effectSources, deltaSeconds, false);
+    this.crowd.update(explorer.elapsed);
+    this.camera.updateExplorerEntrance(explorer, frame);
+    this.doodle.render(explorer.elapsed);
+    if (frame.controlsEnabled) {
+      this.exploreEntrance = null;
+      this.explorer.setVisible(true);
+      this.camera.setExplorerActive(this.customizingVehicleId === null);
+    }
+    return Object.freeze({
+      explorer,
+      drivingRacer: null,
+      drivingOffRoad: false,
+      interaction: null,
+      entrancePhase: frame.phase,
+      controlsEnabled: frame.controlsEnabled,
+    });
   }
 
   private completePendingExplorerChange(): void {

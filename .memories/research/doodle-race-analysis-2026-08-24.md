@@ -8,26 +8,29 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 
 ## Evidence
 
-- The verification suites pass: 12 test files and 170 tests after the course compiler, ordered route
-  checkpoint, race-menu, explorer, vehicle-pose,
+- The verification suites pass: 17 test files and 205 tests after the course compiler, continuous
+  route-coverage, race-menu, explorer, vehicle-pose,
   hidden-carrier, Explore-camera, character-axis, and grandstand-grounding regressions were added.
-  The focused Doodle Race suite passes 40 tests, including pencil-path validation, shortcut
+  The focused Doodle Race suite passes 50 tests, including pencil-path validation, shortcut
   rejection, queued reroll, and smoke-tail animation.
 - Live browser QA at the desktop viewport confirms the initial `Oil`/`5 laps` menu, a 10-lap
-  start, full-map racer markers, and a random-character grandstand walk with `idle`/`walk` state.
+  start, the fixed-world Aerial camera, and a random-character grandstand walk with `idle`/`walk` state.
 - At 320px, the brand/settings plates overlap and the fixed-size touch controls overlap adjacent targets. At 390px, the running-order plate overlaps the drift HUD.
-- Follow view is visually coherent but often shows only road plus the player; the full-course view communicates the world better but still reads mostly as a large loop with one technical kink.
+- Follow remains the close oblique camera. Aerial is a marker-free, perfectly vertical,
+  fixed-world driving view that follows the player across a 52-60 world-unit vertical field instead
+  of shrinking the complete circuit into one frame.
 
 ## Reusable findings
 
 - `RaceSimulation` combines phase flow, ranking, lap detection, drift scoring, respawn, player physics, and opponent steering. Split rules into focused modules before adding more race systems.
 - `nearestCoursePoint` projects continuously onto the 256 sampled course segments. Generated path
   validation keeps non-adjacent centre-line sections far enough apart to avoid ambiguous projection.
-- Course layouts own ordered arc-length checkpoints. Swept forward gate crossing advances one expected
-  gate at a time; ranking is clamped to the validated sector, and recovery uses the last validated gate.
-  Nearest-road projection is continuous over sample segments but no longer authorizes lap progress.
-  Every non-start gate is rendered as a yellow band using the exact gameplay half-width. A two-unit
-  off-road margin tolerates small excursions without weakening the ordered anti-shortcut rule.
+- Course layouts map route coverage over the same 256 segments used by rendering and nearest-road
+  projection. Road contact evaluates all four oriented tyre footprints from the authored collision
+  profile; one overlapping tyre is enough. Ranking freezes only when all tyres leave the road. A lap
+  needs 85% coverage and no contiguous gap longer than three track widths. Permanent route anchors
+  were removed; an optional public-pipeline debug overlay colors valid road amber and covered
+  segments green.
 - Opponents follow fixed lane offsets and pace targets and do not collide with each other, so the race currently behaves more like a player-versus-ghost contest than a tactical pack race.
 - Renderer failures now pause an active race before the stage is discarded; retry can resume from a
   safe paused state. Medium rebuild failures follow the same pause/error path.
@@ -39,10 +42,12 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   simplifies a closed gesture, then compiles it through the same layout consumed by the Doodle ribbon,
   physics, AI, camera, and scenery. It rejects open paths, self-intersections, unsafe turn radii,
   insufficient non-adjacent clearance, and tracks too short for their width.
-- Race progression is an independent pure route state. Every racer must cross generated checkpoints
-  in order and in the authored forward direction before the start line can increment a lap. A swept
-  gate test prevents high-speed tunnelling; skipped and reverse crossings do not advance state, and
-  respawn returns to the last validated checkpoint rather than the latest arbitrary on-road sample.
+- Race progression is an independent pure route-coverage state backed by an immutable eight-word
+  bitmap for the 256 course segments. Plausible forward motion marks contiguous road intervals;
+  off-route motion leaves a measurable gap and does not advance ranking. Small gaps below three track
+  widths are tolerated, total coverage must reach 85%, and respawn uses the last safe route projection.
+  `RouteDebugOverlay` projects the same bitset and course ribbon through Doodle 3D only when enabled,
+  avoiding a second diagnostic geometry model and its inevitable drift.
 - Vehicle roots now own only world position and yaw. Drift lean is applied to the authored
   chassis' local X axis, while wheel-bearing roots remain level with the road. This fixes the
   disappearing-car failure caused by mutating `root.rotation.z` after writing a world quaternion.
@@ -60,9 +65,10 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   mixes walking, running, play, airborne, and idle poses, and the menu automatically rerolls the
   character every few seconds with the same local smoke transition. Explore rerolls preserve the
   existing camera orbit as well as the actor's world position.
-- Full-course mode overlays four DOM markers projected from the actual racer transforms. This
-  makes the cars distinguishable from tyre stacks at map scale without family-specific changes to
-  the shared medium compositor.
+- The former full-course Map mode and its DOM racer labels were removed. `Aerial` keeps one stable
+  world orientation, leads slightly with speed, and widens from 52 to 60 world units. A heading-up
+  version was rejected during live QA because rotating the entire scene caused immediate nausea.
+  The stable view preserves useful upcoming road without obscuring nearby cars or becoming a minimap.
 - Hidden inked-solid carrier roots now skip repeated matrix/anchor synchronisation after their
   proxies have been hidden. This reduces exploration-mode CPU work for parked race assets.
 - Explore now uses a persistent third-person orthographic orbit camera. Mouse drag and one-finger
@@ -172,12 +178,27 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   while the configurator explicitly requests an open hood. Dialog close, medium changes, renderer
   recovery, and application disposal update or release that scene.
 - Suspending Explore camera input for the hood configurator must not reset the orbit. Camera
-  activation only gates pointer/wheel handling; `RaceStage` calls `resetExplorer()` explicitly when
+  activation only gates semantic camera axes; `RaceStage` calls `resetExplorer()` explicitly when
   entering Explore or when the user requests a camera reset. Re-enabling input after closing the
   configurator therefore preserves the exact pre-dialog yaw, pitch, and distance.
 - Free-drive Explore framing adds an orthographic zoom-out baseline on entry and a further monotonic
   speed term capped at the 24-world-unit reference speed. Walking keeps the existing orbit framing;
   the transition remains smoothed by the camera controller.
+- Explore now starts with a map-authored cinematic entrance. `RaceWorldLayout.explorerSpawn` owns
+  the smoke entrance, initial transform, and approach waypoints; the pure entrance director owns
+  materialization, a three-impulse cough, surprised discovery, two happy hops, the run, and the
+  explicit control handoff. The camera descends and rotates into a close-up during smoke, holds the
+  cough plus discovery acting for 4.6 seconds after the smoke clears, then blends into the exact
+  default Explore orbit without a cut. Character pose still flows through the public shared motion
+  runtime; the reusable `cough` pose coordinates three body accents with a slightly open mouth and
+  closed eyes at each peak. Orbit, reroll, and vehicle interaction remain
+  locked until handoff. A bicycle or scooter entrance is a promising future proprietary vehicle
+  family and integration example, but should not be faked before that articulated asset exists.
+- Input bindings remain an experiment concern rather than an asset-library concern. The local
+  action/axis snapshot records keyboard, mouse, standard gamepad, and touch provenance; axes also
+  retain digital/analogue kind and continuous/delta time semantics. Race and Explore adapt that one
+  snapshot into vehicle or character commands, and the Explore camera consumes the same abstraction.
+  Extract it into a sibling game-input package only after a second consumer validates the contract.
 
 ## Performance evidence
 

@@ -21,6 +21,11 @@ export class RaceHud {
   private readonly lap = requireElement(document, '[data-lap]', HTMLElement);
   private readonly totalLaps = requireElement(document, '[data-total-laps]', HTMLElement);
   private readonly time = requireElement(document, '[data-time]', HTMLElement);
+  private readonly routeCoverage = requireElement(document, '[data-route-coverage]', HTMLElement);
+  private readonly routeGap = requireElement(document, '[data-route-gap]', HTMLElement);
+  private readonly routeGapLimit = requireElement(document, '[data-route-gap-limit]', HTMLElement);
+  private readonly routeMeter = requireElement(document, '[data-route-meter]', HTMLElement);
+  private readonly routeMeterFill = requireElement(document, '[data-route-meter-fill]', HTMLElement);
   private readonly speed = requireElement(document, '[data-speed]', HTMLElement);
   private readonly speedometer = requireElement(document, '.speedometer', HTMLElement);
   private readonly driftMultiplier = requireElement(document, '[data-drift-multiplier]', HTMLElement);
@@ -53,6 +58,16 @@ export class RaceHud {
     this.lap.textContent = snapshot.playerLap.toString();
     this.totalLaps.textContent = snapshot.totalLaps.toString();
     this.time.textContent = formatTime(snapshot.elapsed);
+    const routeCoveragePercent = Math.floor(snapshot.routeCoverage * 100);
+    this.routeCoverage.textContent = `${routeCoveragePercent}%`;
+    this.routeGap.textContent = snapshot.largestRouteGap.toFixed(1);
+    this.routeGapLimit.textContent = snapshot.routeGapLimit.toFixed(0);
+    this.routeMeter.setAttribute('aria-valuenow', routeCoveragePercent.toString());
+    this.routeMeterFill.style.inlineSize = `${routeCoveragePercent}%`;
+    this.routeMeter.closest('.route-validation')?.classList.toggle(
+      'route-invalid',
+      snapshot.largestRouteGap > snapshot.routeGapLimit,
+    );
     this.speed.textContent = Math.round(snapshot.playerSpeedKph).toString();
     this.speedometer.style.setProperty(
       '--speed-progress',

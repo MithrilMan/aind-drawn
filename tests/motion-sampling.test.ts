@@ -113,6 +113,33 @@ describe('pure motion sampling', () => {
     expect(first).toEqual(sampleCharacterMotion(identity, state, firstTime));
   });
 
+  it('samples a projection-neutral cough with repeated body impulses and a covering arm', () => {
+    const identity = createCharacterIdentity(6211);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = setCharacterMotion(state, {
+      pose: 'cough', expression: 'scared', talking: false,
+    }, 0.4);
+    const samples = Array.from({ length: 40 }, (_, index) => (
+      sampleCharacterMotion(identity, state, 0.8 + index * 0.04)
+    ));
+    const impulses = samples.map((sample) => sample.parts.torso.swing);
+    const peakGroups = impulses.reduce((count, impulse, index) => (
+      impulse > 0.06 && (impulses[index - 1] ?? 0) <= 0.06 ? count + 1 : count
+    ), 0);
+    expect(samples.at(-1)?.poseWeights.cough).toBeCloseTo(1);
+    expect(Math.min(...samples.map((sample) => sample.parts.head.y))).toBeLessThan(-0.08);
+    expect(Math.max(...samples.map((sample) => sample.parts.torso.swing))).toBeGreaterThan(0.14);
+    expect(Math.min(...samples.map((sample) => sample.parts['arm:left'].foreground)))
+      .toBeGreaterThan(0.7);
+    expect(samples.some((sample) => sample.face.mouth === 'open')).toBe(true);
+    expect(samples.filter((sample) => sample.face.mouth === 'open').every(
+      (sample) => sample.face.eyeState === 'closed'
+        && sample.face.blink < 0.35
+        && sample.face.mouthOpenness < 0.8,
+    )).toBe(true);
+    expect(peakGroups).toBe(3);
+  });
+
   it('makes autonomic schedules seekable and explicitly disableable', () => {
     const identity = createCharacterIdentity(6203);
     const disabled = createCharacterMotionState({ autoBlink: false, autoGaze: false });

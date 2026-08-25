@@ -8,6 +8,7 @@ import {
   type InkedSolidSceneRegistrationOptions,
 } from '../src/index.js';
 import { createCourseBlueprint } from '../experiments/doodle-racing/src/game/course-blueprint.js';
+import { createRouteDebugBlueprint } from '../experiments/doodle-racing/src/game/route-debug-overlay.js';
 import {
   createArcadeVehicleState,
   stepArcadeVehicle,
@@ -19,7 +20,7 @@ import {
   createCourseLayout,
   nearestCoursePoint,
   sampleCourseAt,
-  type CourseCheckpoint,
+  type CourseLayout,
 } from '../experiments/doodle-racing/src/game/course.js';
 import {
   CrowdField,
@@ -33,8 +34,16 @@ import {
 import { ExploreDriveController } from '../experiments/doodle-racing/src/game/explore-drive.js';
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
 import {
+  CONTROL_ACTION_IDS,
+  controlAction,
+  toDriveInput,
+  toExploreInput,
+  type ControlSnapshot,
+} from '../experiments/doodle-racing/src/game/controls.js';
+import {
   applyGamepadDeadzone,
-  mergeStandardGamepadInput,
+  standardGamepadControls,
+  type StandardGamepadSample,
 } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
 import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
@@ -42,9 +51,11 @@ import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/
 import {
   createVehicleCollisionProfile,
   resolveObstacleCollisions,
+  type VehicleCollisionProfile,
 } from '../experiments/doodle-racing/src/game/obstacle-collision.js';
 import {
   RaceCameraController,
+  aerialRaceViewSize,
   exploreDrivingViewSize,
   groundedOrthographicVerticalOffset,
 } from '../experiments/doodle-racing/src/game/race-camera.js';
@@ -62,9 +73,12 @@ import {
 import {
   advanceRaceRouteProgress,
   createRaceRouteProgress,
-  crossesCheckpointForward,
-  lastValidatedCheckpointProgress,
+  lastSafeRouteProgress,
+  maximumRouteGapDistance,
+  routeCoverageStats,
+  type RaceRouteProgress,
 } from '../experiments/doodle-racing/src/game/race-progress.js';
+import { vehicleWheelsTouchRoute } from '../experiments/doodle-racing/src/game/route-contact.js';
 import { createRaceSceneryBlueprint } from '../experiments/doodle-racing/src/game/race-scenery-blueprint.js';
 import {
   createRaceWorldLayout,
@@ -93,6 +107,17 @@ const IDLE: DriveInput = Object.freeze({
   handbrake: false,
 });
 
+function mappedGamepad(sample: StandardGamepadSample): ControlSnapshot {
+  const mapped = standardGamepadControls(sample);
+  return Object.freeze({
+    axes: mapped.axes,
+    actions: Object.freeze(Object.fromEntries(CONTROL_ACTION_IDS.map((action) => [
+      action,
+      controlAction(mapped.actions[action], mapped.actions[action], 'gamepad'),
+    ])) as ControlSnapshot['actions']),
+  });
+}
+
 const ACCELERATE_LEFT: DriveInput = Object.freeze({
   accelerate: true,
   brake: false,
@@ -117,18 +142,57 @@ const DRIFT_LEFT: DriveInput = Object.freeze({
   handbrake: true,
 });
 
-function checkpointCrossing(
-  checkpoint: CourseCheckpoint,
-  direction: 1 | -1 = 1,
+const TEST_ROUTE_PROFILE: VehicleCollisionProfile = Object.freeze({
+  halfLength: 2.1,
+  halfWidth: 1.15,
+  frontAxle: 1.35,
+  rearAxle: -1.35,
+  wheelRadius: 0.46,
+  wheelHalfWidth: 0.18,
+  groundClearance: 0.22,
+});
+
+function routePosition(
+  course: CourseLayout,
+  progress: number,
   lateralOffset = 0,
-): readonly [previous: Readonly<{ x: number; z: number }>, current: Readonly<{ x: number; z: number }>] {
-  const before = -2.5 * direction;
-  const after = 2.5 * direction;
-  const pointAt = (along: number): Readonly<{ x: number; z: number }> => Object.freeze({
-    x: checkpoint.x + checkpoint.tangentX * along + checkpoint.normalX * lateralOffset,
-    z: checkpoint.z + checkpoint.tangentZ * along + checkpoint.normalZ * lateralOffset,
+): Readonly<{ x: number; z: number }> {
+  const sample = sampleCourseAt(course, progress);
+  return Object.freeze({
+    x: sample.x + sample.normalX * lateralOffset,
+    z: sample.z + sample.normalZ * lateralOffset,
   });
-  return Object.freeze([pointAt(before), pointAt(after)] as const);
+}
+
+function advanceRoute(
+  course: CourseLayout,
+  state: RaceRouteProgress,
+  previousProgress: number,
+  currentProgress: number,
+  previousLateralOffset = 0,
+  currentLateralOffset = 0,
+  profile: VehicleCollisionProfile = TEST_ROUTE_PROFILE,
+): RaceRouteProgress {
+  const previous = routePosition(course, previousProgress, previousLateralOffset);
+  const current = routePosition(course, currentProgress, currentLateralOffset);
+  const previousSample = sampleCourseAt(course, previousProgress);
+  const currentSample = sampleCourseAt(course, currentProgress);
+  const previousVehicle = Object.freeze({
+    ...previous,
+    heading: Math.atan2(-previousSample.tangentZ, previousSample.tangentX),
+  });
+  const currentVehicle = Object.freeze({
+    ...current,
+    heading: Math.atan2(-currentSample.tangentZ, currentSample.tangentX),
+  });
+  return advanceRaceRouteProgress(course, state, Object.freeze({
+    previous,
+    current,
+    previousProjection: nearestCoursePoint(course, previous.x, previous.z),
+    currentProjection: nearestCoursePoint(course, current.x, current.z),
+    previousTouchesRoute: vehicleWheelsTouchRoute(course, previousVehicle, profile),
+    currentTouchesRoute: vehicleWheelsTouchRoute(course, currentVehicle, profile),
+  }));
 }
 
 class FakeAudio {
@@ -164,24 +228,10 @@ describe('Paper Circuit experiment', () => {
     expect(layout.samples).toHaveLength(256);
     expect(layout.totalLength).toBeGreaterThan(260);
     expect(layout.trackWidth).toBeGreaterThanOrEqual(9);
-    expect(layout.checkpoints.length).toBeGreaterThanOrEqual(12);
-    expect(layout.checkpoints[0]?.id).toBe('start-finish');
     expect(layout.minimumTurnRadius).toBeGreaterThan(layout.trackWidth * 0.5 + 0.6);
     expect(validateSolidAssetBlueprint(blueprint)).toBe(blueprint);
     expect(blueprint.parts.filter(({ semanticPartId }) => semanticPartId === 'finish')).toHaveLength(8);
-    const checkpointParts = blueprint.parts.filter(
-      ({ semanticPartId }) => semanticPartId === 'checkpoint',
-    );
-    expect(checkpointParts).toHaveLength(layout.checkpoints.length - 1);
-    for (const checkpoint of layout.checkpoints.slice(1)) {
-      const checkpointPart = checkpointParts.find(({ id }) => id === `checkpoint:${checkpoint.index}`);
-      if (checkpointPart?.geometry.type !== 'box') {
-        throw new Error(`Checkpoint ${checkpoint.index} must use visible box geometry`);
-      }
-      expect(checkpointPart.geometry.size[2]).toBeCloseTo(checkpoint.halfWidth * 2, 8);
-      expect(checkpointPart.placement.position[0]).toBeCloseTo(checkpoint.x, 8);
-      expect(checkpointPart.placement.position[2]).toBeCloseTo(checkpoint.z, 8);
-    }
+    expect(blueprint.parts.some(({ semanticPartId }) => semanticPartId === 'route-anchor')).toBe(false);
     const road = blueprint.parts.find(({ id }) => id === 'road');
     expect(road?.geometry.type).toBe('mesh');
     if (road?.geometry.type !== 'mesh') throw new Error('Road must use mesh geometry');
@@ -205,6 +255,17 @@ describe('Paper Circuit experiment', () => {
     expect(nearestCoursePoint(layout, start.x, start.z).distanceFromCentre).toBeCloseTo(0, 6);
   });
 
+  it('authors route debug coverage from the exact course segments', () => {
+    const course = createCourseLayout();
+    const blueprint = createRouteDebugBlueprint(course);
+
+    expect(validateSolidAssetBlueprint(blueprint)).toBe(blueprint);
+    expect(blueprint.parts.filter(({ semanticPartId }) => semanticPartId === 'valid-route'))
+      .toHaveLength(1);
+    expect(blueprint.parts.filter(({ semanticPartId }) => semanticPartId === 'covered-route'))
+      .toHaveLength(course.samples.length);
+  });
+
   it('compiles a closed pencil stroke into one immutable deterministic course recipe and layout', () => {
     const stroke = Object.freeze(Array.from({ length: 97 }, (_, index) => {
       const angle = index / 96 * Math.PI * 2;
@@ -223,7 +284,6 @@ describe('Paper Circuit experiment', () => {
     expect(first.recipe.points.length).toBeLessThan(stroke.length - 1);
     expect(first.layout.recipe).toBe(first.recipe);
     expect(first.layout.samples).toHaveLength(256);
-    expect(first.layout.checkpoints.length).toBeGreaterThanOrEqual(12);
     expect(first.layout.minimumTurnRadius).toBeGreaterThan(first.layout.trackWidth * 0.5);
 
     const sample = sampleCourseAt(first.layout, 0.237);
@@ -263,99 +323,97 @@ describe('Paper Circuit experiment', () => {
     }
   });
 
-  it('requires ordered swept checkpoint crossings before counting a lap', () => {
+  it('counts a lap from continuous road coverage without requiring exact gate crossings', () => {
     const course = createCourseLayout();
-    let route = createRaceRouteProgress(course, 0.02);
-    const firstCheckpoint = course.checkpoints[1];
-    const skippedCheckpoint = course.checkpoints[2];
-    if (firstCheckpoint === undefined || skippedCheckpoint === undefined) {
-      throw new Error('Course requires ordered checkpoints');
-    }
-
-    const [skipFrom, skipTo] = checkpointCrossing(skippedCheckpoint);
-    route = advanceRaceRouteProgress(
-      course,
-      route,
-      skipFrom,
-      skipTo,
-      skippedCheckpoint.progress,
-    );
-    expect(route.nextCheckpointIndex).toBe(1);
-    expect(route.lap).toBe(0);
-    expect(route.raceScore).toBeCloseTo(0, 8);
-
-    const [reverseFrom, reverseTo] = checkpointCrossing(firstCheckpoint, -1);
-    expect(crossesCheckpointForward(firstCheckpoint, reverseFrom, reverseTo)).toBe(false);
-    expect(firstCheckpoint.halfWidth - course.trackWidth * 0.5).toBeCloseTo(2, 8);
-    const [toleratedFrom, toleratedTo] = checkpointCrossing(
-      firstCheckpoint,
-      1,
-      course.trackWidth * 0.5 + 1.9,
-    );
-    expect(crossesCheckpointForward(firstCheckpoint, toleratedFrom, toleratedTo)).toBe(true);
-    const [outsideFrom, outsideTo] = checkpointCrossing(
-      firstCheckpoint,
-      1,
-      firstCheckpoint.halfWidth + 0.1,
-    );
-    expect(crossesCheckpointForward(firstCheckpoint, outsideFrom, outsideTo)).toBe(false);
-    route = advanceRaceRouteProgress(
-      course,
-      route,
-      reverseFrom,
-      reverseTo,
-      firstCheckpoint.progress,
-    );
-    expect(route.nextCheckpointIndex).toBe(1);
-
-    for (let index = 1; index < course.checkpoints.length; index += 1) {
-      const checkpoint = course.checkpoints[index];
-      if (checkpoint === undefined) throw new Error(`Missing checkpoint ${index}`);
-      const [previous, current] = checkpointCrossing(checkpoint);
-      route = advanceRaceRouteProgress(
+    let route = createRaceRouteProgress(course);
+    for (let index = 1; index <= course.samples.length; index += 1) {
+      route = advanceRoute(
         course,
         route,
-        previous,
-        current,
-        checkpoint.progress,
+        (index - 1) / course.samples.length,
+        index / course.samples.length,
       );
     }
-    expect(route.nextCheckpointIndex).toBe(0);
-    expect(route.lap).toBe(0);
-    const start = course.checkpoints[0];
-    if (start === undefined) throw new Error('Course requires a start line');
-    const [startPrevious, startCurrent] = checkpointCrossing(start);
-    route = advanceRaceRouteProgress(course, route, startPrevious, startCurrent, 0);
+
     expect(route.lap).toBe(1);
-    expect(route.nextCheckpointIndex).toBe(1);
+    expect(route.raceScore).toBeCloseTo(1, 6);
+    expect(Object.isFrozen(route.coverageWords)).toBe(true);
   });
 
-  it('anchors recovery to the last validated checkpoint instead of the nearest road point', () => {
+  it('accepts a modest contiguous road gap and counts the vehicle footprint at the road edge', () => {
     const course = createCourseLayout();
-    let route = createRaceRouteProgress(course, 0.02);
-    const firstCheckpoint = course.checkpoints[1];
-    if (firstCheckpoint === undefined) throw new Error('Course requires a checkpoint');
-    const [previous, current] = checkpointCrossing(firstCheckpoint);
-    route = advanceRaceRouteProgress(
+    const segmentCount = course.samples.length;
+    const outsideCentre = course.trackWidth * 0.5
+      + TEST_ROUTE_PROFILE.halfWidth
+      + TEST_ROUTE_PROFILE.wheelHalfWidth
+      - 0.04;
+    let route = createRaceRouteProgress(course);
+    route = advanceRoute(
       course,
       route,
-      previous,
-      current,
-      firstCheckpoint.progress,
+      0,
+      1 / segmentCount,
+      0,
+      outsideCentre,
+      TEST_ROUTE_PROFILE,
     );
-    const farAhead = course.checkpoints[Math.min(6, course.checkpoints.length - 1)];
-    if (farAhead === undefined) throw new Error('Course requires a later checkpoint');
-    const [shortcutFrom, shortcutTo] = checkpointCrossing(farAhead);
-    route = advanceRaceRouteProgress(
-      course,
-      route,
-      shortcutFrom,
-      shortcutTo,
-      farAhead.progress,
-    );
+    expect(route.onRoute).toBe(true);
 
-    expect(lastValidatedCheckpointProgress(course, route)).toBe(firstCheckpoint.progress);
-    expect(route.raceScore).toBeCloseTo(firstCheckpoint.progress, 8);
+    let observedGap = 0;
+    const offRoute = course.trackWidth * 0.5
+      + TEST_ROUTE_PROFILE.halfWidth
+      + TEST_ROUTE_PROFILE.wheelHalfWidth
+      + 0.5;
+    for (let index = 2; index <= segmentCount; index += 1) {
+      const previousOffRoute = index - 1 >= 90 && index - 1 <= 102;
+      const currentOffRoute = index >= 90 && index <= 102;
+      route = advanceRoute(
+        course,
+        route,
+        (index - 1) / segmentCount,
+        index / segmentCount,
+        previousOffRoute ? offRoute : 0,
+        currentOffRoute ? offRoute : 0,
+        TEST_ROUTE_PROFILE,
+      );
+      observedGap = Math.max(observedGap, route.largestSkippedDistance);
+    }
+
+    expect(observedGap).toBeGreaterThan(0);
+    expect(observedGap).toBeLessThan(maximumRouteGapDistance(course));
+    expect(route.lap).toBe(1);
+  });
+
+  it('rejects a large shortcut, freezes its missing race distance, and preserves recovery', () => {
+    const course = createCourseLayout();
+    const segmentCount = course.samples.length;
+    const offRoute = course.trackWidth * 0.5
+      + TEST_ROUTE_PROFILE.halfWidth
+      + TEST_ROUTE_PROFILE.wheelHalfWidth
+      + 0.5;
+    let route = createRaceRouteProgress(course);
+    let safeBeforeShortcut = 0;
+    for (let index = 1; index <= segmentCount; index += 1) {
+      const previousOffRoute = index - 1 >= 70 && index - 1 <= 112;
+      const currentOffRoute = index >= 70 && index <= 112;
+      route = advanceRoute(
+        course,
+        route,
+        (index - 1) / segmentCount,
+        index / segmentCount,
+        previousOffRoute ? offRoute : 0,
+        currentOffRoute ? offRoute : 0,
+        TEST_ROUTE_PROFILE,
+      );
+      if (index === 90) safeBeforeShortcut = lastSafeRouteProgress(route);
+    }
+    const coverage = routeCoverageStats(course, route.coverageWords);
+
+    expect(safeBeforeShortcut).toBeCloseTo(69 / segmentCount, 2);
+    expect(route.lap).toBe(0);
+    expect(route.raceScore).toBeLessThan(0.9);
+    expect(route.coverageFraction).toBeLessThan(0.9);
+    expect(coverage.largestGapDistance).toBeGreaterThan(maximumRouteGapDistance(course));
   });
 
   it('opens in the race menu and accepts the supported lap counts', () => {
@@ -473,6 +531,52 @@ describe('Paper Circuit experiment', () => {
     expect(camera.position.distanceTo(finishClose)).toBeGreaterThan(6);
     expect(camera.quaternion.angleTo(closeQuaternion)).toBeGreaterThan(0.04);
     expect(camera.top).toBeGreaterThan(5.5);
+  });
+
+  it('keeps the Aerial driving camera vertical, local, and substantially wider than Follow', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const simulation = new RaceSimulation(layout, world);
+    simulation.start({ laps: 3 });
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 220);
+    const controller = new RaceCameraController(
+      camera,
+      layout,
+      world,
+      () => Object.freeze({ width: 1440, height: 900 }),
+    );
+    const snapshot = simulation.snapshot();
+    const player = snapshot.racers.find(({ isPlayer }) => isPlayer);
+    if (player === undefined) throw new Error('Aerial camera requires the player racer');
+
+    controller.setMode('aerial');
+    controller.update(Object.freeze({
+      ...snapshot,
+      phase: 'running' as const,
+      introProgress: 1,
+    }), 0.05, 8);
+
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    expect(direction.y).toBeLessThan(-0.999);
+    expect(camera.position.x).toBeCloseTo(player.x, 6);
+    expect(camera.position.z).toBeCloseTo(player.z, 6);
+    expect(camera.position.y).toBeGreaterThan(69);
+    expect(camera.top).toBeCloseTo(aerialRaceViewSize(player.speed) * 0.5, 6);
+    expect(aerialRaceViewSize(0)).toBe(52);
+    expect(aerialRaceViewSize(29)).toBe(60);
+    expect(camera.right - camera.left).toBeGreaterThan(camera.top - camera.bottom);
+    const stableOrientation = camera.quaternion.clone();
+    controller.update(Object.freeze({
+      ...snapshot,
+      phase: 'running' as const,
+      introProgress: 1,
+      racers: Object.freeze(snapshot.racers.map((racer) => racer.isPlayer
+        ? Object.freeze({ ...racer, heading: racer.heading + Math.PI * 0.5 })
+        : racer)),
+    }), 0.05, 8.05);
+    expect(camera.quaternion.angleTo(stableOrientation)).toBeLessThan(1e-8);
+    controller.dispose();
   });
 
   it('keeps the Explore camera orbit independent from the character heading', () => {
@@ -1563,15 +1667,15 @@ describe('Paper Circuit experiment', () => {
 
   it('maps a standard gamepad without leaking stick or trigger noise into vehicle motion', () => {
     const idleButtons: Readonly<{ pressed: boolean; value: number }>[] = Array.from(
-      { length: 8 },
+      { length: 16 },
       () => Object.freeze({ pressed: false, value: 0 }),
     );
-    const noisy = mergeStandardGamepadInput(IDLE, Object.freeze({
-      axes: Object.freeze([0.1]),
+    const noisy = toDriveInput(mappedGamepad(Object.freeze({
+      axes: Object.freeze([0.1, 0.08, -0.05, 0.09]),
       buttons: Object.freeze(idleButtons.map((button, index) => (
         index === 7 ? Object.freeze({ pressed: false, value: 0.04 }) : button
       ))),
-    }));
+    })));
     expect(noisy).toMatchObject({
       accelerate: false,
       brake: false,
@@ -1584,18 +1688,31 @@ describe('Paper Circuit experiment', () => {
 
     const analogueButtons = [...idleButtons];
     analogueButtons[0] = Object.freeze({ pressed: true, value: 1 });
+    analogueButtons[2] = Object.freeze({ pressed: true, value: 1 });
+    analogueButtons[10] = Object.freeze({ pressed: true, value: 1 });
     analogueButtons[6] = Object.freeze({ pressed: false, value: 0.31 });
     analogueButtons[7] = Object.freeze({ pressed: false, value: 0.54 });
-    const analogue = mergeStandardGamepadInput(IDLE, Object.freeze({
-      axes: Object.freeze([-0.57]),
+    const analogueControls = mappedGamepad(Object.freeze({
+      axes: Object.freeze([-0.57, -0.66, 0.42, -0.35]),
       buttons: Object.freeze(analogueButtons),
     }));
+    const analogue = toDriveInput(analogueControls);
     expect(analogue.left).toBe(true);
     expect(analogue.right).toBe(false);
     expect(analogue.handbrake).toBe(true);
     expect(analogue.steeringAxis).toBeGreaterThan(0.45);
     expect(analogue.throttle).toBeGreaterThan(analogue.brakePressure ?? 0);
-    expect(analogue.throttle).toBeLessThan(0.54);
+    expect(analogue.throttle).toBeGreaterThan(0.6);
+    const explore = toExploreInput(analogueControls);
+    expect(explore.jump).toBe(true);
+    expect(explore.run).toBe(true);
+    expect(explore.interact).toBe(true);
+    expect(explore.throttle).toBeGreaterThan(0.6);
+    expect(analogueControls.axes['look-x']).toMatchObject({
+      device: 'gamepad',
+      kind: 'analog',
+      behavior: 'continuous',
+    });
   });
 
   it('keeps the same handling outcome across common simulation frame rates', () => {

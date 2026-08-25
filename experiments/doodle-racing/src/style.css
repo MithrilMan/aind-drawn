@@ -123,6 +123,7 @@ canvas {
 
 .game-brand,
 .race-telemetry,
+.route-validation,
 .game-settings,
 .game-menu,
 .explore-hud,
@@ -824,54 +825,8 @@ canvas {
   box-shadow: 4px 4px 0 rgb(255 228 154 / 20%);
 }
 
-.race-map-markers {
-  position: absolute;
-  z-index: 5;
-  inset: 0;
-  pointer-events: none;
-}
-
-.race-map-marker {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  translate: -50% -50%;
-  padding: 3px 6px 3px 4px;
-  border: 1px solid rgb(241 229 200 / 80%);
-  background: rgb(23 25 24 / 94%);
-  color: var(--paper);
-  font-size: .55rem;
-  font-weight: 600;
-  letter-spacing: .05em;
-  line-height: 1;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.race-map-marker::before {
-  content: '';
-  inline-size: 8px;
-  block-size: 8px;
-  border-radius: 50%;
-  background: var(--paper-muted);
-}
-
-.race-map-marker b {
-  color: var(--paper-muted);
-  font-size: .5rem;
-}
-
-.race-map-marker.racer-you::before,
-.race-map-marker.is-player::before {
-  background: var(--oxide-hot);
-}
-
-.race-map-marker.racer-mica::before { background: #dfbd53; }
-.race-map-marker.racer-rook::before { background: #83a7b9; }
-.race-map-marker.racer-pip::before { background: #89a878; }
-
 .is-menu .race-telemetry,
+.is-menu .route-validation,
 .is-menu .game-settings,
 .is-menu .running-order,
 .is-menu .drift-hud,
@@ -881,14 +836,14 @@ canvas {
 .is-menu .keyboard-hint,
 .is-menu .touch-controls,
 .is-exploring .race-telemetry,
+.is-exploring .route-validation,
 .is-exploring .game-settings,
 .is-exploring .running-order,
 .is-exploring .drift-hud,
 .is-exploring .speedometer,
 .is-exploring .event-callout,
 .is-exploring .countdown,
-.is-exploring .keyboard-hint,
-.is-exploring .touch-controls {
+.is-exploring .keyboard-hint {
   display: none;
 }
 
@@ -985,6 +940,130 @@ canvas {
   color: var(--paper-muted);
   font-size: .72rem;
   font-variant-numeric: tabular-nums;
+}
+
+.route-validation {
+  inset-block-start: 270px;
+  inset-inline-start: 20px;
+  inline-size: 244px;
+  padding: 11px 22px 10px 16px;
+  background: rgb(23 25 24 / 88%);
+  clip-path: polygon(0 0, 100% 0, 91% 100%, 0 100%);
+  color: var(--paper-muted);
+  pointer-events: none;
+}
+
+.route-validation-copy {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  text-transform: uppercase;
+}
+
+.route-validation-copy span,
+.route-validation small {
+  font-size: .58rem;
+  letter-spacing: .08em;
+}
+
+.route-validation-copy strong {
+  color: var(--paper);
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-validation-meter {
+  block-size: 5px;
+  margin-block: 5px 5px;
+  overflow: hidden;
+  background: #444941;
+  transform: skewX(-15deg);
+}
+
+.route-validation-meter i {
+  display: block;
+  inline-size: 0;
+  block-size: 100%;
+  background: var(--moss);
+  transition: inline-size 100ms linear;
+}
+
+.route-validation small {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-validation small b {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+.route-debug-toggle {
+  inline-size: calc(100% - 8px);
+  min-block-size: 27px;
+  margin-block-start: 8px;
+  border: 1px solid #6f746b;
+  background: rgb(28 31 29 / 82%);
+  color: var(--paper-muted);
+  font-size: .56rem;
+  font-weight: 650;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  pointer-events: auto;
+}
+
+.route-debug-toggle:hover {
+  border-color: var(--paper-muted);
+  color: var(--paper);
+}
+
+.route-debug-toggle[aria-pressed='true'] {
+  border-color: #d39a45;
+  background: #495a43;
+  color: var(--paper);
+  box-shadow: inset 0 -3px #46a46f;
+}
+
+.route-debug-legend {
+  display: grid !important;
+  gap: 4px;
+  margin-block-start: 8px;
+  color: var(--paper);
+}
+
+.route-debug-legend[hidden] {
+  display: none !important;
+}
+
+.route-debug-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.route-debug-legend i {
+  display: inline-block;
+  inline-size: 13px;
+  block-size: 6px;
+  transform: skewX(-15deg);
+}
+
+.route-valid-swatch {
+  background: #dd9c3d;
+}
+
+.route-covered-swatch {
+  background: #46a46f;
+}
+
+.route-validation.route-invalid {
+  background: rgb(94 38 29 / 92%);
+}
+
+.route-validation.route-invalid .route-validation-meter i {
+  background: var(--oxide-hot);
 }
 
 .game-settings {
@@ -1293,6 +1372,11 @@ canvas {
 .touch-controls button.pressed {
   background: var(--oxide);
   scale: .93;
+}
+
+.touch-run,
+.touch-interact {
+  display: none;
 }
 
 .renderer-error {
@@ -1815,6 +1899,13 @@ canvas {
     grid-template-columns: 96px 82px;
   }
 
+  .route-validation {
+    inset-block-start: 212px;
+    inset-inline-start: 8px;
+    inline-size: 178px;
+    padding: 8px 17px 7px 11px;
+  }
+
   .position-plate {
     min-block-size: 89px;
     padding: 10px 18px 8px 12px;
@@ -1960,6 +2051,18 @@ canvas {
     font-size: .94rem !important;
   }
 
+  .is-exploring .touch-run,
+  .is-exploring .touch-interact {
+    display: grid;
+    inset-block-end: 126px;
+    inline-size: 60px;
+    block-size: 60px;
+    font-size: .86rem;
+  }
+
+  .is-exploring .touch-run { inset-inline-start: 22px; }
+  .is-exploring .touch-interact { inset-inline-end: 22px; }
+
   .countdown {
     font-size: clamp(5rem, 28vw, 8rem);
     -webkit-text-stroke-width: 8px;
@@ -2070,7 +2173,8 @@ canvas {
   }
 
   .running-order,
-  .drift-hud {
+  .drift-hud,
+  .route-validation {
     display: none;
   }
 
@@ -2096,6 +2200,13 @@ canvas {
     inline-size: 56px;
     block-size: 56px;
   }
+
+  .is-exploring .touch-run,
+  .is-exploring .touch-interact {
+    inset-block-end: 98px;
+    inline-size: 52px;
+    block-size: 52px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2113,6 +2224,8 @@ canvas {
   .game-brand,
   .position-plate,
   .lap-plate,
+  .route-validation,
+  .route-debug-toggle,
   .game-settings,
   .running-order,
   .drift-hud,

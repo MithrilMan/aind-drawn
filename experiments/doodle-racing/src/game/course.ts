@@ -32,19 +32,6 @@ export type CourseSample = Readonly<{
   distance: number;
 }>;
 
-export type CourseCheckpoint = Readonly<{
-  id: string;
-  index: number;
-  progress: number;
-  x: number;
-  z: number;
-  tangentX: number;
-  tangentZ: number;
-  normalX: number;
-  normalZ: number;
-  halfWidth: number;
-}>;
-
 export type CourseBounds = Readonly<{
   minimumX: number;
   maximumX: number;
@@ -55,7 +42,6 @@ export type CourseBounds = Readonly<{
 export type CourseLayout = Readonly<{
   recipe: CoursePathRecipe;
   samples: readonly CourseSample[];
-  checkpoints: readonly CourseCheckpoint[];
   totalLength: number;
   trackWidth: number;
   minimumTurnRadius: number;
@@ -75,9 +61,6 @@ export type CompiledCourseStroke = Readonly<{
 }>;
 
 const SAMPLE_COUNT = 256;
-const MINIMUM_CHECKPOINT_COUNT = 12;
-const MAXIMUM_CHECKPOINT_COUNT = 24;
-const CHECKPOINT_OFF_ROAD_MARGIN = 2;
 const EPSILON = 1e-9;
 
 function circumradius(first: THREE.Vector3, middle: THREE.Vector3, last: THREE.Vector3): number {
@@ -270,34 +253,6 @@ function validateCourseGeometry(
   }
 }
 
-function createCheckpoints(
-  samples: readonly CourseSample[],
-  totalLength: number,
-  trackWidth: number,
-): readonly CourseCheckpoint[] {
-  const checkpointCount = THREE.MathUtils.clamp(
-    Math.round(totalLength / (trackWidth * 2.45)),
-    MINIMUM_CHECKPOINT_COUNT,
-    MAXIMUM_CHECKPOINT_COUNT,
-  );
-  return Object.freeze(Array.from({ length: checkpointCount }, (_, index) => {
-    const progress = index / checkpointCount;
-    const sample = sampleAt(samples, totalLength, progress);
-    return Object.freeze({
-      id: index === 0 ? 'start-finish' : `checkpoint:${index}`,
-      index,
-      progress,
-      x: sample.x,
-      z: sample.z,
-      tangentX: sample.tangentX,
-      tangentZ: sample.tangentZ,
-      normalX: sample.normalX,
-      normalZ: sample.normalZ,
-      halfWidth: trackWidth * 0.5 + CHECKPOINT_OFF_ROAD_MARGIN,
-    });
-  }));
-}
-
 export function createCourseLayout(
   recipe: CoursePathRecipe = DEFAULT_COURSE_PATH_RECIPE,
 ): CourseLayout {
@@ -361,7 +316,6 @@ export function createCourseLayout(
   return Object.freeze({
     recipe,
     samples: Object.freeze(samples),
-    checkpoints: createCheckpoints(samples, totalLength, recipe.trackWidth),
     totalLength,
     trackWidth: recipe.trackWidth,
     minimumTurnRadius,

@@ -8,6 +8,7 @@ export const CHARACTER_POSES = [
   'airborne',
   'sit',
   'sleep',
+  'cough',
   'play',
   'dance',
 ] as const;
@@ -88,6 +89,8 @@ export type CharacterPartMotionSample = Readonly<{
 export type CharacterFaceMotionSample = Readonly<{
   expression: CharacterExpression;
   mouth: CharacterExpression | 'open';
+  /** Relative vertical scale for the selected mouth state. */
+  mouthOpenness: number;
   eyeState: 'open' | 'closed' | 'left' | 'right';
   eyeScale: number;
   eyeOpenness: number;

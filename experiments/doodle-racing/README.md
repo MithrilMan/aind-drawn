@@ -5,23 +5,33 @@ AIND Drawn multi-instance Doodle 3D pipeline with one procedural technical cours
 independently animated procedural vehicles, procedural trees, visible race fixtures, a
 grandstand, and animated procedural character spectators.
 
-The experiment deliberately owns game concerns such as input, arcade handling, opponent drivers,
+The experiment deliberately owns game concerns such as input bindings, arcade handling, opponent drivers,
 lap counting, ranking, collision response, drift scoring, cinematic and race cameras, and world
 placement. The library remains responsible for deterministic identity, solid topology, character
 and vehicle motion sampling, material projection, and shared Doodle rendering. Every collider used
 by gameplay comes from a visible fixture in the same world layout.
+
+Physical controls feed an experiment-local action-and-axis layer before either gameplay mode sees
+them. Each sample retains its keyboard, mouse, gamepad, or touch origin, distinguishes digital from
+analogue values, and marks camera axes as continuous or frame-delta signals. Race and Explore then
+map the same semantic snapshot into their own commands. This boundary is intentionally outside the
+asset library: `CharacterMotion` describes a cough, jump, or run, while a game decides which button
+requests it. The module is shaped for later extraction into a sibling input package once a second
+game proves the contract instead of merely admiring it.
 
 Course geometry is compiled from an immutable normalized `CoursePathRecipe`. `compileCourseStroke`
 turns a closed sampled pencil gesture into that recipe and the shared `CourseLayout`: it collapses
 duplicate input, simplifies the stroke, closes and smooths the loop, rejects self-intersections,
 insufficient road clearance, short paths, and unsafe turn radii, then derives the exact road samples
 used by rendering and gameplay. The current menu still uses the default recipe until the drawing
-surface is integrated. Each compiled layout also owns ordered arc-length checkpoints. Swept forward
-gate crossings drive lap counting and ranking, while respawn returns a racer to the last validated
-checkpoint; nearest-road projection alone cannot validate a shortcut. Yellow checkpoint bands are
-authored from those same gates and show their exact accepted lateral span. That span extends two
-world units beyond each road edge, so a modest excursion does not invalidate an otherwise complete
-lap.
+surface is integrated. Each compiled layout maps the same 256 road segments used by its spline.
+The four authored tyre footprints determine road contact: any overlap between one tyre and the
+road keeps route progress valid, including when the vehicle centre is already beyond the edge.
+Ranking freezes only after every tyre leaves the road, and respawn returns the racer to the last safe
+projection. A lap requires at least 85% route coverage and rejects any contiguous missed section
+longer than three track widths. The optional route-debug overlay uses the exact gameplay segments:
+amber shows valid road and green shows the road covered during the current lap. The finish stripe is
+the only permanent route marker.
 
 ## Run locally
 
@@ -32,19 +42,27 @@ pnpm dev:doodle-racing
 Open `http://127.0.0.1:4176`. The intro menu defaults to the Oil medium and five laps, with
 three, five, ten, and twenty laps available. A selected race begins with a six-second seeded
 grandstand camera pass, then a three-second starting countdown. Drive with the arrow keys, WASD, or
-a standard gamepad (left stick, triggers, and `A` for the handbrake). Use `Space` or `Shift` for the
+a standard gamepad (left stick, triggers, and `A` or left-stick click for the handbrake). Use `Space` or `Shift` for the
 keyboard handbrake drift, and press `P` to pause. `Esc` or `M` returns to the
 menu.
 
-The default camera follows the player with speed lead; `Map` frames the complete circuit. Oil is
+The default camera follows the player with speed lead; `Aerial` tracks the player from directly
+above with a wider, fixed-world view of the surrounding circuit. Oil is
 the default medium, and changing medium rebuilds only the shared drawing policy while preserving
-race state. Full-course mode adds four position markers anchored to the actual vehicle transforms,
-so cars remain identifiable at map scale and cannot be confused with tyre stacks. Vehicle drift
-lean is applied to the chassis' local longitudinal axis while the wheel-bearing root stays level
-with the road.
+race state. Aerial deliberately omits racer labels so the road and nearby vehicles remain readable
+while driving. Vehicle drift lean is applied to the chassis' local longitudinal axis while the
+wheel-bearing root stays level with the road.
 
 The menu also opens `Explore grandstand`. This is a separate presentation mode: a seeded random
-character can roam the full course map, climb authored row steps through changing floor height,
+character first materializes inside the existing Doodle smoke burst while the camera descends and
+rotates into a close-up. Once the smoke clears, the character coughs three times with a covering
+arm, partly open mouth, and closed eyes, then spends the rest of a 4.6-second close performance
+looking around in surprise. They hop twice and run toward the grandstand before camera and movement
+control pass to the player without a cut.
+Camera orbit, character reroll, and vehicle interaction remain locked during that entrance. Every
+`RaceWorldLayout` owns an `explorerSpawn` map element with the smoke entrance, initial heading, and
+approach waypoints, so another course can place or redirect the sequence without changing the stage
+runtime. After the handoff, the character can roam the full course map, climb authored row steps through changing floor height,
 with grounded gravity, maximum step-height collision, map-edge constraints, and collision against
 the world-space footprints of authored solid colliders on trees, barriers, tyres, cones, posts,
 and parked vehicles. Hold `Shift` to run, press `Space` to jump with the shared `airborne` motion,
@@ -54,7 +72,10 @@ from the character's feet: it expands until the old figure is fully covered, swa
 then rises and shrinks into the air before leaving the scene. Walking up the high/back side of the
 grandstand is blocked by the authored maximum step height. The camera is a third-person orthographic
 orbit camera: drag with the mouse or one finger to orbit, use the wheel or pinch to zoom, and press
-`R` or `Reset camera` to restore the over-the-shoulder view. The race simulation is not advanced
+`R` or `Reset camera` to restore the over-the-shoulder view. On a standard gamepad, the left stick
+moves and turns, the right stick orbits, the shoulder buttons zoom, `A` jumps, left-stick click runs,
+`X` interacts, right-stick click resets the camera, and `Y` rerolls. Coarse-pointer layouts expose
+the same movement, jump, run, interaction, and camera gestures through touch controls. The race simulation is not advanced
 while exploring. The four race vehicles remain parked near the start line. Approaching an authored
 door sensor exposes a focused callout rendered from that exact procedural door; pressing `E` opens
 it, transfers control to the car, and enables free arcade driving with engine audio, collisions,

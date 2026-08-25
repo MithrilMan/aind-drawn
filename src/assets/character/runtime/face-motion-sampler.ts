@@ -68,21 +68,26 @@ export function sampleCharacterFaceMotion(
   time: number,
   expression: CharacterExpression,
   autonomic: Readonly<{ blink: number; gaze: number }>,
+  coughImpulse = 0,
 ): CharacterFaceMotionSample {
   const gaze = sampleGaze(state, time, autonomic.gaze, identity.seed);
   const profile = createCharacterExpressionProfile(expression);
-  const blink = expression === 'sleeping'
+  const autonomousBlink = expression === 'sleeping'
     ? 0
     : sampleBlink(identity.seed, time, state.autoBlink, autonomic.blink);
+  const blink = coughImpulse > 0.08 ? 0 : autonomousBlink;
   const eyeState = expression === 'sleeping' || blink < 0.35
     ? 'closed'
     : gaze.x < -0.25 ? 'left' : gaze.x > 0.25 ? 'right' : 'open';
   const mouth = expression === 'sleeping'
     ? 'sleeping'
-    : state.command.talking && Math.sin(time * 13) > 0.15 ? 'open' : expression;
+    : coughImpulse > 0.08 || (state.command.talking && Math.sin(time * 13) > 0.15)
+      ? 'open'
+      : expression;
   return Object.freeze({
     expression,
     mouth,
+    mouthOpenness: coughImpulse > 0.08 ? 0.68 : 1,
     eyeState,
     eyeScale: profile.eyes.scale,
     eyeOpenness: profile.eyes.openness,

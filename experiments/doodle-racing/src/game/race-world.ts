@@ -56,12 +56,33 @@ export type GrandstandLayout = Readonly<{
   spectators: readonly SpectatorPlacement[];
 }>;
 
+export type ExplorerSpawnWaypoint = Readonly<{
+  x: number;
+  y: number;
+  z: number;
+}>;
+
+/**
+ * Map-authored entry point for the controllable character. The world owns the
+ * placement and approach path; the Explore runtime only directs the entrance.
+ */
+export type ExplorerSpawnPlacement = Readonly<{
+  id: string;
+  entrance: 'smoke';
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  approach: readonly ExplorerSpawnWaypoint[];
+}>;
+
 export type RaceWorldLayout = Readonly<{
   barriers: readonly SegmentObstacle[];
   tyreStacks: readonly CircleObstacle[];
   cones: readonly TrackCone[];
   trees: readonly TreePlacement[];
   grandstand: GrandstandLayout;
+  explorerSpawn: ExplorerSpawnPlacement;
   obstacles: readonly RaceObstacle[];
 }>;
 
@@ -134,6 +155,17 @@ export function grandstandSurfaceAt(
   return Object.freeze({
     height,
     row: highestRow,
+  });
+}
+
+export function grandstandLocalPoint(
+  stand: GrandstandLayout,
+  along: number,
+  away: number,
+): Readonly<{ x: number; z: number }> {
+  return Object.freeze({
+    x: stand.x + Math.cos(stand.heading) * along + Math.sin(stand.heading) * away,
+    z: stand.z - Math.sin(stand.heading) * along + Math.cos(stand.heading) * away,
   });
 }
 
@@ -295,6 +327,59 @@ function createGrandstand(course: CourseLayout, crowdSeed: number): GrandstandLa
   return Object.freeze({ x, z, heading, length, rows, spectators: Object.freeze(spectators) });
 }
 
+function insetCoursePoint(
+  course: CourseLayout,
+  point: Readonly<{ x: number; z: number }>,
+  margin: number,
+): Readonly<{ x: number; z: number }> {
+  return Object.freeze({
+    x: Math.max(
+      course.bounds.minimumX + margin,
+      Math.min(course.bounds.maximumX - margin, point.x),
+    ),
+    z: Math.max(
+      course.bounds.minimumZ + margin,
+      Math.min(course.bounds.maximumZ - margin, point.z),
+    ),
+  });
+}
+
+function createExplorerSpawn(
+  course: CourseLayout,
+  grandstand: GrandstandLayout,
+): ExplorerSpawnPlacement {
+  const start = insetCoursePoint(
+    course,
+    grandstandLocalPoint(grandstand, -grandstand.length * 0.18, -4.8),
+    1.6,
+  );
+  const middle = insetCoursePoint(
+    course,
+    grandstandLocalPoint(grandstand, -grandstand.length * 0.1, -2.75),
+    1.05,
+  );
+  const destination = insetCoursePoint(
+    course,
+    grandstandLocalPoint(grandstand, 0, -1.02),
+    0.6,
+  );
+  const approachHeading = Math.atan2(middle.x - start.x, middle.z - start.z);
+  return Object.freeze({
+    id: 'explorer-spawn:grandstand',
+    entrance: 'smoke',
+    x: start.x,
+    y: 0,
+    z: start.z,
+    // Materialize facing away from the destination so the opening camera sees
+    // the expression; the celebration turns the actor toward the approach.
+    heading: approachHeading + Math.PI,
+    approach: Object.freeze([
+      Object.freeze({ x: middle.x, y: 0, z: middle.z }),
+      Object.freeze({ x: destination.x, y: 0, z: destination.z }),
+    ]),
+  });
+}
+
 function createTrees(course: CourseLayout, grandstand: GrandstandLayout): readonly TreePlacement[] {
   const tree = new SeedTree(7391);
   const placements: TreePlacement[] = [];
@@ -339,6 +424,7 @@ export function createRaceWorldLayout(
     cones: createCones(course),
     trees,
     grandstand,
+    explorerSpawn: createExplorerSpawn(course, grandstand),
     obstacles: Object.freeze([...barriers, ...tyreStacks, ...treeObstacles]),
   });
 }

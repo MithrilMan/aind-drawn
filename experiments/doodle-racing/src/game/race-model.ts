@@ -16,7 +16,8 @@ import {
 import {
   advanceRaceRouteProgress,
   createRaceRouteProgress,
-  lastValidatedCheckpointProgress,
+  lastSafeRouteProgress,
+  maximumRouteGapDistance,
   projectRaceRouteProgress,
   type RaceRouteProgress,
 } from './race-progress.js';
@@ -26,6 +27,7 @@ import {
   type VehicleCollisionProfile,
 } from './obstacle-collision.js';
 import type { RaceWorldLayout } from './race-world.js';
+import { vehicleWheelsTouchRoute } from './route-contact.js';
 import {
   PAPER_CIRCUIT_VEHICLES,
   createPaperCircuitVehicleIdentity,
@@ -89,6 +91,10 @@ export type RaceSnapshot = Readonly<{
   impact: number;
   impactObstacleId: string | null;
   respawning: boolean;
+  routeCoverage: number;
+  routeCoverageWords: readonly number[];
+  largestRouteGap: number;
+  routeGapLimit: number;
   racers: readonly RacerSnapshot[];
 }>;
 
@@ -250,6 +256,7 @@ export class RaceSimulation {
   }
 
   public snapshot(): RaceSnapshot {
+    const playerRoute = this.player().route;
     const racers = Object.freeze(this.racers.map(snapshotOf));
     const player = racers.find(({ id }) => id === PLAYER_ID) as RacerSnapshot;
     const ordered = [...racers].sort((left, right) => right.raceScore - left.raceScore);
@@ -272,6 +279,10 @@ export class RaceSimulation {
       impact: player.impact,
       impactObstacleId: this.impactObstacleId,
       respawning: this.respawnRemaining > 0,
+      routeCoverage: playerRoute.coverageFraction,
+      routeCoverageWords: playerRoute.coverageWords,
+      largestRouteGap: playerRoute.largestSkippedDistance,
+      routeGapLimit: maximumRouteGapDistance(this.course),
       racers,
     });
   }
@@ -325,7 +336,7 @@ export class RaceSimulation {
     const projection = nearestCoursePoint(this.course, player.vehicle.x, player.vehicle.z);
     this.offRoad = projection.distanceFromCentre > this.course.trackWidth * 0.5 - 0.34;
     this.updateDrift(delta, player.vehicle);
-    this.updatePlayerProgress(player, previousVehicle, projection);
+    this.updatePlayerProgress(player, previousVehicle, before, projection);
     this.updateRespawn(delta, player, projection);
   }
 
@@ -345,14 +356,28 @@ export class RaceSimulation {
   private updatePlayerProgress(
     player: MutableRacer,
     previousVehicle: ArcadeVehicleState,
+    previousProjection: CourseProjection,
     projection: CourseProjection,
   ): void {
     player.route = advanceRaceRouteProgress(
       this.course,
       player.route,
-      previousVehicle,
-      player.vehicle,
-      projection.progress,
+      Object.freeze({
+        previous: previousVehicle,
+        current: player.vehicle,
+        previousProjection,
+        currentProjection: projection,
+        previousTouchesRoute: vehicleWheelsTouchRoute(
+          this.course,
+          previousVehicle,
+          this.collisionProfile(player.id),
+        ),
+        currentTouchesRoute: vehicleWheelsTouchRoute(
+          this.course,
+          player.vehicle,
+          this.collisionProfile(player.id),
+        ),
+      }),
     );
   }
 
@@ -364,14 +389,14 @@ export class RaceSimulation {
     const lost = projection.distanceFromCentre > this.course.trackWidth * 0.5 + 11;
     this.lostTime = lost ? this.lostTime + delta : 0;
     if (this.lostTime < 1.15) return;
-    const safeProgress = lastValidatedCheckpointProgress(this.course, player.route);
+    const safeProgress = lastSafeRouteProgress(player.route);
     const safe = sampleCourseAt(this.course, safeProgress);
     player.vehicle = createArcadeVehicleState(
       safe.x,
       safe.z,
       headingFor(safe.tangentX, safe.tangentZ),
     );
-    player.route = projectRaceRouteProgress(this.course, player.route, safeProgress);
+    player.route = projectRaceRouteProgress(player.route, safeProgress);
     this.lostTime = 0;
     this.respawnRemaining = 0.7;
     this.impactObstacleId = 'respawn';
@@ -418,9 +443,22 @@ export class RaceSimulation {
       racer.route = advanceRaceRouteProgress(
         this.course,
         racer.route,
-        previousVehicle,
-        racer.vehicle,
-        nextProjection.progress,
+        Object.freeze({
+          previous: previousVehicle,
+          current: racer.vehicle,
+          previousProjection: projection,
+          currentProjection: nextProjection,
+          previousTouchesRoute: vehicleWheelsTouchRoute(
+            this.course,
+            previousVehicle,
+            this.collisionProfile(racer.id),
+          ),
+          currentTouchesRoute: vehicleWheelsTouchRoute(
+            this.course,
+            racer.vehicle,
+            this.collisionProfile(racer.id),
+          ),
+        }),
       );
     }
   }

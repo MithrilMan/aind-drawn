@@ -57,6 +57,7 @@ function applyFacePart(
   } else if (binding.kind === 'mouth') {
     part.translateX(sample.face.gaze.x * sample.face.gaze.headFollow * unit * 0.04);
     part.translateY(sample.face.gaze.y * sample.face.gaze.headFollow * unit * 0.025);
+    part.scale.y *= sample.face.mouthOpenness;
     part.visible = binding.expression === sample.face.mouth;
   } else {
     const flow = sample.flows[binding.sampleId];

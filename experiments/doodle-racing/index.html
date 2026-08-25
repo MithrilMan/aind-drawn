@@ -218,6 +218,33 @@
           <time class="race-time" data-time>00:00.0</time>
         </section>
 
+        <section class="route-validation" aria-label="Route validation">
+          <div class="route-validation-copy">
+            <span>Route mapped</span>
+            <strong data-route-coverage>0%</strong>
+          </div>
+          <div
+            class="route-validation-meter"
+            role="progressbar"
+            aria-label="Mapped route coverage"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+            data-route-meter
+          ><i data-route-meter-fill></i></div>
+          <small>Largest gap <b data-route-gap>0.0</b> / <span data-route-gap-limit>0</span> m</small>
+          <button
+            class="route-debug-toggle"
+            type="button"
+            aria-pressed="false"
+            data-route-debug
+          >Debug path</button>
+          <small class="route-debug-legend" data-route-debug-legend hidden>
+            <span><i class="route-valid-swatch"></i>Valid road</span>
+            <span><i class="route-covered-swatch"></i>Covered this lap</span>
+          </small>
+        </section>
+
         <form class="game-settings" aria-label="Race settings">
           <label class="medium-control">
             <span class="visually-hidden">Drawing medium</span>
@@ -232,7 +259,7 @@
           </label>
           <div class="camera-control" role="group" aria-label="Camera mode">
             <button type="button" aria-pressed="true" data-camera="follow">Follow</button>
-            <button type="button" aria-pressed="false" data-camera="full">Map</button>
+            <button type="button" aria-pressed="false" data-camera="aerial">Aerial</button>
           </div>
           <button class="sound-toggle game-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
           <button class="pause-button" type="button" aria-pressed="false" data-pause>Pause</button>
@@ -297,12 +324,14 @@
           <span>WASD / arrows / gamepad</span> drive <b>·</b> <span>Space / gamepad A</span> drift <b>·</b> <span>P</span> pause
         </div>
 
-        <section class="touch-controls" aria-label="Touch driving controls">
-          <button class="touch-left" type="button" data-drive="left" aria-label="Steer left">Left</button>
-          <button class="touch-right" type="button" data-drive="right" aria-label="Steer right">Right</button>
-          <button class="touch-brake" type="button" data-drive="brake">Brake</button>
-          <button class="touch-drift" type="button" data-drive="handbrake">Drift</button>
-          <button class="touch-go" type="button" data-drive="accelerate">Go</button>
+        <section class="touch-controls" aria-label="Touch gameplay controls">
+          <button class="touch-left" type="button" data-control="left" aria-label="Steer left">Left</button>
+          <button class="touch-right" type="button" data-control="right" aria-label="Steer right">Right</button>
+          <button class="touch-brake" type="button" data-control="back" data-touch-back>Brake</button>
+          <button class="touch-drift" type="button" data-control="primary" data-touch-primary>Drift</button>
+          <button class="touch-go" type="button" data-control="forward">Go</button>
+          <button class="touch-run" type="button" data-control="sprint">Run</button>
+          <button class="touch-interact" type="button" data-control="interact">Use</button>
         </section>
 
         <section class="renderer-error" hidden data-renderer-error>

@@ -205,7 +205,6 @@ export class RaceCameraController {
   }
 
   public setExplorerActive(active: boolean): void {
-    if (active && !this.explorerActive) this.explorerInitialized = false;
     this.explorerActive = active;
     if (!active) this.clearExplorerPointers();
     this.explorerCanvas?.classList.toggle('is-explore-camera-dragging', active && this.explorerDragging);

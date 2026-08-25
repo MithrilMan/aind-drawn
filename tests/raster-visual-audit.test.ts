@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   auditRasterBoil,
+  createUniformAssetAppearance,
   type AssetBlueprint,
   type CanvasFactory,
   type DrawingContext,
@@ -79,6 +80,7 @@ function blueprint(draw: LayerDefinition['draw'], states: readonly string[] = ['
     assetId: 'audit-test:1',
     seed: 1042,
     medium: 'graphite',
+    appearance: createUniformAssetAppearance('authored', ['art']),
     manifest: Object.freeze({
       family: 'audit-test',
       parts: Object.freeze([Object.freeze({ id: 'art', spatial: 'surface' as const })]),

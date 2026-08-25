@@ -10,9 +10,11 @@ export * from './contracts/solid-asset.js';
 export * from './authoring/family-schema.js';
 export * from './authoring/raster-visual-audit.js';
 export * from './codecs/asset-identity.js';
+export * from './appearance/art-direction.js';
 
 // Building family
 export * from './assets/building/identity/authoring.js';
+export * from './assets/building/appearance/roles.js';
 export * from './assets/building/identity/codec.js';
 export * from './assets/building/identity/drawing-style.js';
 export * from './assets/building/identity/geometry.js';
@@ -27,6 +29,7 @@ export * from './assets/building/solid/recipe.js';
 
 // Character family
 export * from './assets/character/identity/accessory-profile.js';
+export * from './assets/character/appearance/roles.js';
 export * from './assets/character/identity/authoring.js';
 export * from './assets/character/identity/codec.js';
 export * from './assets/character/identity/drawing-style.js';
@@ -62,6 +65,7 @@ export { applySolidCharacterMotion } from './assets/character/runtime/solid-moti
 
 // Vehicle family
 export * from './assets/vehicle/identity/authoring.js';
+export * from './assets/vehicle/appearance/roles.js';
 export * from './assets/vehicle/identity/codec.js';
 export * from './assets/vehicle/identity/drawing-style.js';
 export * from './assets/vehicle/identity/geometry.js';
@@ -83,6 +87,7 @@ export { applySolidVehicleMotion } from './assets/vehicle/runtime/solid-motion-a
 
 // Tree family
 export * from './assets/tree/identity/codec.js';
+export * from './assets/tree/appearance/roles.js';
 export * from './assets/tree/identity/recipe.js';
 export * from './assets/tree/identity/semantics.js';
 export * from './assets/tree/solid/blueprint.js';
@@ -102,12 +107,17 @@ export * from './core/geometry.js';
 export * from './core/geometry3.js';
 export * from './core/random.js';
 export * from './core/sketch.js';
-export * from './materials/finish.js';
+export * from './materials/drawing.js';
 export * from './materials/medium.js';
+export * from './materials/surface.js';
 export * from './runtime/asset-composition.js';
 export { createAssetInstanceId } from './runtime/instance-id.js';
+export * from './runtime/raster-frame-baker.js';
+export * from './runtime/raster-frame-cache.js';
+export * from './runtime/raster-hand.js';
+export * from './runtime/raster-worker.js';
 export * from './runtime/solid-geometry.js';
-export * from './runtime/solid-materials.js';
+export * from './runtime/solid-surfaces.js';
 export * from './runtime/solid-part-focus.js';
 export * from './runtime/solid-rig.js';
 export * from './runtime/sprite-rig.js';

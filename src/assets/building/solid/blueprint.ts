@@ -1,6 +1,9 @@
 import type { Point } from '../../../core/geometry.js';
 import type { Point3 } from '../../../core/geometry3.js';
-import type { SolidMaterialSpec } from '../../../materials/finish.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
+import { DRAWING_INTENTS } from '../../../materials/drawing.js';
+import { mergePhysicalSurfaceTreatment, type SemanticSurfaceSpec } from '../../../materials/surface.js';
+import { BUILDING_ART_BINDINGS } from '../appearance/roles.js';
 import { createBuildingDrawingStyle } from '../identity/drawing-style.js';
 import {
   BUILDING_SEMANTIC_MANIFEST,
@@ -137,48 +140,67 @@ function shellWithDoorway(layout: SolidBuildingLayout): MeshGeometrySpec {
   });
 }
 
-function materialSpecs(recipe: SolidBuildingRecipe): readonly SolidMaterialSpec[] {
+function surfaceSpecs(recipe: SolidBuildingRecipe): readonly SemanticSurfaceSpec[] {
   const drawing = createBuildingDrawingStyle(recipe.identity);
+  const physical = (treatment: SemanticSurfaceSpec['physical']) => (
+    mergePhysicalSurfaceTreatment(treatment, recipe.style.physical)
+  );
   return Object.freeze([
     Object.freeze({
-      id: 'wall', color: recipe.identity.palette.wall,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'pigment', tone: drawing.facadeTone }),
+      id: 'wall', color: recipe.identity.palette.wall, substance: 'stone',
+      drawing: Object.freeze({ application: 'pigment', drawing: drawing.facadeDrawing }),
+      physical: physical(Object.freeze({
+        substrate: 'stone', finish: 'matte', roughness: 0.9, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'accent', color: recipe.identity.palette.accent,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'pigment', tone: 'hatch' }),
+      id: 'accent', color: recipe.identity.palette.accent, substance: 'paint',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.mid }),
+      physical: physical(Object.freeze({
+        substrate: 'generic', finish: 'matte', roughness: 0.82, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'roof', color: recipe.identity.palette.accent,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'paper', tone: 'light' }),
+      id: 'roof', color: recipe.identity.palette.accent, substance: 'ceramic',
+      drawing: Object.freeze({ application: 'paper', drawing: DRAWING_INTENTS.light }),
+      physical: physical(Object.freeze({
+        substrate: 'ceramic', finish: 'matte', roughness: 0.78, metalness: 0, clearcoat: 0.08,
+      })),
     }),
     Object.freeze({
-      id: 'balcony', color: recipe.identity.palette.accent,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'paper', tone: 'light' }),
+      id: 'balcony', color: recipe.identity.palette.accent, substance: 'metal',
+      drawing: Object.freeze({ application: 'paper', drawing: DRAWING_INTENTS.light }),
+      physical: physical(Object.freeze({
+        substrate: 'painted-metal', finish: 'matte', roughness: 0.66, metalness: 0.38, clearcoat: 0.18,
+      })),
     }),
     Object.freeze({
-      id: 'chimney', color: recipe.identity.palette.wall,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'pigment', tone: 'hatch' }),
+      id: 'chimney', color: recipe.identity.palette.wall, substance: 'stone',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.mid }),
+      physical: physical(Object.freeze({
+        substrate: 'stone', finish: 'raw', roughness: 0.96, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'glass:dark', color: recipe.identity.palette.glass,
-      finish: recipe.style.windowFinish, roughness: 0.18, clearcoat: 0.62,
-      drawing: Object.freeze({ application: 'pigment', tone: 'black' }),
+      id: 'glass:dark', color: recipe.identity.palette.glass, substance: 'glass',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.solid }),
+      physical: physical(Object.freeze({
+        substrate: 'glass', finish: 'gloss', roughness: 0.18, metalness: 0, clearcoat: 0.62,
+      })),
     }),
     Object.freeze({
-      id: 'glass:lit', color: recipe.identity.palette.accent,
-      finish: recipe.style.windowFinish, roughness: 0.18, clearcoat: 0.62,
-      drawing: Object.freeze({ application: 'pigment', tone: 'light' }),
+      id: 'glass:lit', color: recipe.identity.palette.accent, substance: 'glass',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.light }),
+      physical: physical(Object.freeze({
+        substrate: 'glass', finish: 'gloss', roughness: 0.18, metalness: 0, clearcoat: 0.62,
+      })),
     }),
     Object.freeze({
-      id: 'interior', color: recipe.identity.palette.interior,
-      finish: 'matte', roughness: 1,
-      drawing: Object.freeze({ application: 'pigment', tone: 'black' }),
+      id: 'interior', color: recipe.identity.palette.interior, substance: 'generic',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.solid }),
+      physical: physical(Object.freeze({
+        substrate: 'generic', finish: 'matte', roughness: 1, metalness: 0, clearcoat: 0,
+      })),
     }),
   ]);
 }
@@ -193,13 +215,13 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
   add({
     id: 'building:shell', node: 'root', order: 0,
     geometry: shellWithDoorway(layout),
-    materialId: 'wall', placement: placement([0, layout.wallHeight * 0.5, 0]),
+    surfaceId: 'wall', placement: placement([0, layout.wallHeight * 0.5, 0]),
     castShadow: true, receiveShadow: true,
   });
   add({
     id: 'building:roof', node: 'root', order: 1,
     geometry: prismFromProfile(layout.facade.roofProfile, layout.depth * 1.08),
-    materialId: 'roof', placement: placement([0, layout.wallHeight, 0]),
+    surfaceId: 'roof', placement: placement([0, layout.wallHeight, 0]),
     castShadow: true, receiveShadow: true,
   });
 
@@ -207,7 +229,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     add({
       id: window.id, node: 'root', order: 4,
       geometry: plate(window.profile, 0.055, 0.01),
-      materialId: window.lit ? 'glass:lit' : 'glass:dark',
+      surfaceId: window.lit ? 'glass:lit' : 'glass:dark',
       placement: placement([window.center[0], window.center[1], layout.depth * 0.5 + 0.045]),
       castShadow: false, receiveShadow: false,
     });
@@ -217,7 +239,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
   add({
     id: 'door:opening', node: 'root', order: 7,
     geometry: plate(doorOutline, 0.045, 0.004),
-    materialId: 'interior', placement: placement([
+    surfaceId: 'interior', placement: placement([
       layout.door.centerX,
       0,
       layout.door.recessZ,
@@ -231,7 +253,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
         node: 'root',
         order: 7,
         geometry: plate(infill, 0.05, 0.004),
-        materialId: 'wall',
+        surfaceId: 'wall',
         placement: placement([
           layout.door.centerX,
           0,
@@ -248,7 +270,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
   add({
     id: 'door', node: 'door', order: 8,
     geometry: plate(doorOutline, 0.08, identity.door.style === 'plank' ? 0.006 : 0.018),
-    materialId: 'accent', placement: placement([doorOffset, 0, 0]),
+    surfaceId: 'accent', placement: placement([doorOffset, 0, 0]),
     castShadow: true, receiveShadow: false,
   });
 
@@ -258,13 +280,13 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     const z = layout.depth * 0.5 + 0.2;
     add({
       id: `${balcony.id}:floor`, node: 'root', order: 5,
-      geometry: box([width, 0.08, 0.48]), materialId: 'balcony',
+      geometry: box([width, 0.08, 0.48]), surfaceId: 'balcony',
       placement: placement([x, y, z]),
       castShadow: true, receiveShadow: true,
     });
     add({
       id: `${balcony.id}:rail`, node: 'root', order: 6,
-      geometry: box([width, 0.055, 0.055]), materialId: 'balcony',
+      geometry: box([width, 0.055, 0.055]), surfaceId: 'balcony',
       placement: placement([x, y + railHeight, z + 0.22]),
       castShadow: true, receiveShadow: false,
     });
@@ -272,7 +294,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     for (let post = 0; post <= posts; post += 1) {
       add({
         id: `${balcony.id}:post:${post}`, node: 'root', order: 6,
-        geometry: box([0.035, railHeight, 0.035]), materialId: 'balcony',
+        geometry: box([0.035, railHeight, 0.035]), surfaceId: 'balcony',
         placement: placement([
           x - width * 0.5 + width * post / posts,
           y + railHeight * 0.5,
@@ -288,7 +310,7 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     const { centerX: x, width, height } = chimney;
     add({
       id: 'building:chimney', node: 'root', order: 2,
-      geometry: box([width, height, 0.42]), materialId: 'chimney',
+      geometry: box([width, height, 0.42]), surfaceId: 'chimney',
       placement: placement([x, layout.wallHeight + height * 0.58, 0]),
       castShadow: true, receiveShadow: true,
     });
@@ -300,11 +322,12 @@ function buildSolidBuildingBlueprint(recipe: SolidBuildingRecipe): SolidAssetBlu
     representation: 'solid',
     assetId: `building:${identity.seed}`,
     seed: identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, BUILDING_ART_BINDINGS),
     manifest: BUILDING_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
-    materials: materialSpecs(recipe),
+    surfaces: surfaceSpecs(recipe),
     colliders: Object.freeze([
       Object.freeze({
         id: 'body', kind: 'solid', shape: 'box',

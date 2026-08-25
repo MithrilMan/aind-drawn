@@ -1,8 +1,8 @@
 import type { AssetBlueprint } from '../contracts/raster-asset.js';
 import type { CanvasFactory, DrawingContext } from '../core/canvas.js';
 import { automaticCanvasFactory } from '../core/canvas.js';
-import { PAPER_RGB } from '../core/sketch.js';
 import { bakeRasterLayerFrame } from '../runtime/raster-frame-baker.js';
+import { CANVAS_RASTER_HAND, type RasterHand } from '../runtime/raster-hand.js';
 
 const DEFAULT_FRAME_COUNT = 3;
 const DEFAULT_GRID_SIZE = 16;
@@ -14,6 +14,7 @@ export type RasterBoilAuditOptions = Readonly<{
   structuralThreshold?: number;
   states?: 'all' | 'initial';
   canvasFactory?: CanvasFactory;
+  rasterHand?: RasterHand;
 }>;
 
 export type RasterBoilFrameComparison = Readonly<{
@@ -26,6 +27,7 @@ export type RasterLayerBoilAudit = Readonly<{
   layerId: string;
   semanticPartId: string;
   state: string;
+  paperColor: RasterHand['paperColor'];
   gridWidth: number;
   gridHeight: number;
   maximumDifference: number;
@@ -39,6 +41,8 @@ export type RasterBoilAuditReport = Readonly<{
   family: string;
   seed: number;
   medium: AssetBlueprint['medium'];
+  handId: string;
+  paperColor: RasterHand['paperColor'];
   frameCount: number;
   gridSize: number;
   structuralThreshold: number;
@@ -73,6 +77,7 @@ function downsample(
   width: number,
   height: number,
   maximumGridSize: number,
+  paperColor: RasterHand['paperColor'],
 ): PixelGrid {
   const gridWidth = Math.min(maximumGridSize, width);
   const gridHeight = Math.min(maximumGridSize, height);
@@ -91,13 +96,13 @@ function downsample(
       const alpha = (pixels[source + 3] ?? 0) / 255;
       sums[target] = (sums[target] ?? 0)
         + ((pixels[source] ?? 0) / 255) * alpha
-        + (PAPER_RGB[0] / 255) * (1 - alpha);
+        + (paperColor[0] / 255) * (1 - alpha);
       sums[target + 1] = (sums[target + 1] ?? 0)
         + ((pixels[source + 1] ?? 0) / 255) * alpha
-        + (PAPER_RGB[1] / 255) * (1 - alpha);
+        + (paperColor[1] / 255) * (1 - alpha);
       sums[target + 2] = (sums[target + 2] ?? 0)
         + ((pixels[source + 2] ?? 0) / 255) * alpha
-        + (PAPER_RGB[2] / 255) * (1 - alpha);
+        + (paperColor[2] / 255) * (1 - alpha);
       sums[target + 3] = (sums[target + 3] ?? 0) + alpha;
       counts[cell] = (counts[cell] ?? 0) + 1;
     }
@@ -133,11 +138,23 @@ function auditLayerState(
   gridSize: number,
   structuralThreshold: number,
   canvasFactory: CanvasFactory,
+  rasterHand: RasterHand,
 ): RasterLayerBoilAudit {
   const grids: PixelGrid[] = [];
+  let paperColor = rasterHand.paperColor;
   for (let frame = 0; frame < frameCount; frame += 1) {
-    const baked = bakeRasterLayerFrame(blueprint.seed, layer, state, frame, canvasFactory);
-    grids.push(downsample(baked.context, baked.canvas.width, baked.canvas.height, gridSize));
+    const baked = bakeRasterLayerFrame(blueprint, layer, state, frame, {
+      canvasFactory,
+      rasterHand,
+    });
+    paperColor = baked.paperColor;
+    grids.push(downsample(
+      baked.context,
+      baked.canvas.width,
+      baked.canvas.height,
+      gridSize,
+      baked.paperColor,
+    ));
   }
 
   const comparisons: RasterBoilFrameComparison[] = [];
@@ -163,6 +180,7 @@ function auditLayerState(
     layerId: layer.id,
     semanticPartId: layer.semanticPartId,
     state,
+    paperColor: Object.freeze([...paperColor] as [number, number, number]),
     gridWidth: firstGrid.width,
     gridHeight: firstGrid.height,
     maximumDifference,
@@ -188,6 +206,7 @@ export function auditRasterBoil(
     options.structuralThreshold ?? DEFAULT_STRUCTURAL_THRESHOLD,
   );
   const canvasFactory = options.canvasFactory ?? automaticCanvasFactory;
+  const rasterHand = options.rasterHand ?? CANVAS_RASTER_HAND;
   const layers: RasterLayerBoilAudit[] = [];
 
   for (const layer of blueprint.layers) {
@@ -203,6 +222,7 @@ export function auditRasterBoil(
         gridSize,
         structuralThreshold,
         canvasFactory,
+        rasterHand,
       ));
     }
   }
@@ -217,6 +237,10 @@ export function auditRasterBoil(
     family: blueprint.family,
     seed: blueprint.seed,
     medium: blueprint.medium,
+    handId: rasterHand.id,
+    paperColor: Object.freeze([
+      ...(layers[0]?.paperColor ?? rasterHand.paperColor),
+    ] as [number, number, number]),
     frameCount,
     gridSize,
     structuralThreshold,

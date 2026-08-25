@@ -1,10 +1,12 @@
 import {
   SeedTree,
   SolidRig,
+  createSemanticSurface,
+  createUniformAssetAppearance,
   type Point3,
   type SolidAssetBlueprint,
   type SuperellipsoidGeometrySpec,
-  type SolidMaterialSpec,
+  type SemanticSurfaceSpec,
 } from '../../../../src/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
 
@@ -25,13 +27,14 @@ type SmokePuff = Readonly<{
 
 type WorldPosition = Readonly<{ x: number; y: number; z: number; heading?: number }>;
 
-const SMOKE_MATERIAL: SolidMaterialSpec = Object.freeze({
+const SMOKE_SURFACE: SemanticSurfaceSpec = createSemanticSurface({
   id: 'smoke',
   color: Object.freeze([104, 107, 101] as [number, number, number]),
-  finish: 'matte',
-  roughness: 0.98,
-  metalness: 0,
-  drawing: Object.freeze({ application: 'pigment', tone: 'scribble' }),
+  substance: 'generic',
+  physical: Object.freeze({ roughness: 0.98, metalness: 0 }),
+  drawing: Object.freeze({
+    application: 'pigment', drawing: Object.freeze({ value: 'mid', gesture: 'agitated' }),
+  }),
 });
 
 function puffGeometry(radius: number, phase: number): SuperellipsoidGeometrySpec {
@@ -73,6 +76,7 @@ const SMOKE_BLUEPRINT: SolidAssetBlueprint<'explore-smoke'> = Object.freeze({
   representation: 'solid',
   assetId: 'paper-circuit:explore-smoke:1',
   seed: 47_221,
+  appearance: createUniformAssetAppearance('storybook', ['puff'], ['primary-form']),
   bounds: Object.freeze({
     minimum: Object.freeze([-1.25, 0, -1.25] as Point3),
     maximum: Object.freeze([1.35, 2.8, 1.35] as Point3),
@@ -101,14 +105,14 @@ const SMOKE_BLUEPRINT: SolidAssetBlueprint<'explore-smoke'> = Object.freeze({
     node: 'root',
     order: index,
     geometry: puffGeometry(puff.radius, puff.phase),
-    materialId: SMOKE_MATERIAL.id,
+    surfaceId: SMOKE_SURFACE.id,
     placement: Object.freeze({
       position: Object.freeze([puff.x, puff.y, puff.z] as Point3),
     }),
     castShadow: false,
     receiveShadow: false,
   }))),
-  materials: Object.freeze([SMOKE_MATERIAL]),
+  surfaces: Object.freeze([SMOKE_SURFACE]),
   colliders: Object.freeze([]),
   sockets: Object.freeze([]),
   interactionBindings: Object.freeze([]),

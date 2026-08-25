@@ -177,7 +177,7 @@ button {
 
 .recipe-bar {
   display: grid;
-  grid-template-columns: minmax(300px, 1.25fr) 146px 210px 132px minmax(230px, 0.85fr);
+  grid-template-columns: minmax(280px, 1.15fr) 128px 174px 190px 126px minmax(210px, 0.8fr);
   gap: 12px;
   align-items: end;
   padding: 9px 26px 11px;

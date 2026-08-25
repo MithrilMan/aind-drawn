@@ -1,5 +1,8 @@
 import type { Point3 } from '../../../core/geometry3.js';
-import type { SolidMaterialSpec } from '../../../materials/finish.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
+import { DRAWING_INTENTS } from '../../../materials/drawing.js';
+import { mergePhysicalSurfaceTreatment, type SemanticSurfaceSpec } from '../../../materials/surface.js';
+import { VEHICLE_ART_BINDINGS } from '../appearance/roles.js';
 import { createVehicleDrawingStyle } from '../identity/drawing-style.js';
 import {
   VEHICLE_SEMANTIC_MANIFEST,
@@ -100,46 +103,73 @@ function cylinder(radius: number, depth: number, segments = 24): MeshGeometrySpe
   });
 }
 
-function materialSpecs(recipe: SolidVehicleRecipe): readonly SolidMaterialSpec[] {
+function surfaceSpecs(recipe: SolidVehicleRecipe): readonly SemanticSurfaceSpec[] {
   const drawing = createVehicleDrawingStyle(recipe.identity);
+  const physical = (treatment: SemanticSurfaceSpec['physical']) => (
+    mergePhysicalSurfaceTreatment(treatment, recipe.style.physical)
+  );
   return Object.freeze([
     Object.freeze({
-      id: 'body', color: recipe.identity.palette.body,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'pigment', tone: drawing.bodyTone }),
-      clearcoat: 0.5,
+      id: 'body', color: recipe.identity.palette.body, substance: 'paint',
+      drawing: Object.freeze({ application: 'pigment', drawing: drawing.bodyDrawing }),
+      physical: physical(Object.freeze({
+        substrate: 'painted-metal', finish: 'gloss', roughness: 0.26,
+        metalness: 0.12, clearcoat: 0.5,
+      })),
     }),
     Object.freeze({
-      id: 'accent', color: recipe.identity.palette.accent,
-      finish: recipe.style.finish,
-      drawing: Object.freeze({ application: 'pigment', tone: drawing.metalTone }),
+      id: 'accent', color: recipe.identity.palette.accent, substance: 'metal',
+      drawing: Object.freeze({ application: 'pigment', drawing: drawing.metalDrawing }),
+      physical: physical(Object.freeze({
+        substrate: 'painted-metal', finish: 'satin', roughness: 0.32,
+        metalness: 0.68, clearcoat: 0.28,
+      })),
     }),
     Object.freeze({
-      id: 'glass', color: recipe.identity.palette.glass,
-      finish: recipe.style.glassFinish,
-      drawing: Object.freeze({ application: 'glaze', tone: drawing.glassTone }),
-      roughness: 0.12, clearcoat: 0.82,
+      id: 'glass', color: recipe.identity.palette.glass, substance: 'glass',
+      drawing: Object.freeze({ application: 'glaze', drawing: drawing.glassDrawing }),
+      physical: physical(Object.freeze({
+        substrate: 'glass', finish: 'gloss', roughness: 0.12, metalness: 0, clearcoat: 0.82,
+      })),
     }),
     Object.freeze({
-      id: 'tyre', color: recipe.identity.palette.tyre,
-      finish: 'rubber', drawing: Object.freeze({ application: 'pigment', tone: 'black' }), roughness: 0.92,
+      id: 'tyre', color: recipe.identity.palette.tyre, substance: 'rubber',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.solid }),
+      physical: physical(Object.freeze({
+        substrate: 'rubber', finish: 'matte', roughness: 0.92, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'hub', color: recipe.identity.palette.hub,
-      finish: recipe.identity.wheels.style === 'steel' ? 'metal' : 'chrome',
-      drawing: Object.freeze({ application: 'pigment', tone: drawing.metalTone }), metalness: 0.82,
+      id: 'hub', color: recipe.identity.palette.hub, substance: 'metal',
+      drawing: Object.freeze({ application: 'pigment', drawing: drawing.metalDrawing }),
+      physical: physical(Object.freeze({
+        substrate: 'metal',
+        finish: recipe.identity.wheels.style === 'steel' ? 'satin' : 'polished',
+        roughness: recipe.identity.wheels.style === 'steel' ? 0.3 : 0.16,
+        metalness: 0.82,
+        clearcoat: recipe.identity.wheels.style === 'steel' ? 0.3 : 0,
+      })),
     }),
     Object.freeze({
-      id: 'light', color: recipe.identity.palette.light,
-      finish: 'glossy', drawing: Object.freeze({ application: 'pigment', tone: 'light' }), clearcoat: 1,
+      id: 'light', color: recipe.identity.palette.light, substance: 'glass',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.light }),
+      physical: physical(Object.freeze({
+        substrate: 'glass', finish: 'gloss', roughness: 0.2, metalness: 0, clearcoat: 1,
+      })),
     }),
     Object.freeze({
-      id: 'rear-light', color: recipe.identity.palette.rearLight,
-      finish: 'glossy', drawing: Object.freeze({ application: 'pigment', tone: 'scribble' }), clearcoat: 1,
+      id: 'rear-light', color: recipe.identity.palette.rearLight, substance: 'glass',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.agitated }),
+      physical: physical(Object.freeze({
+        substrate: 'glass', finish: 'gloss', roughness: 0.2, metalness: 0, clearcoat: 1,
+      })),
     }),
     Object.freeze({
-      id: 'interior', color: recipe.identity.palette.interior,
-      finish: 'matte', drawing: Object.freeze({ application: 'pigment', tone: 'black' }), roughness: 1,
+      id: 'interior', color: recipe.identity.palette.interior, substance: 'cloth',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.solid }),
+      physical: physical(Object.freeze({
+        substrate: 'fiber', finish: 'matte', roughness: 1, metalness: 0, clearcoat: 0,
+      })),
     }),
   ]);
 }
@@ -157,19 +187,19 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   add({
     id: 'body', node: 'chassis', order: 0,
     geometry: bodyGeometry.shell,
-    materialId: 'body', placement: placement([0, 0, 0]),
+    surfaceId: 'body', placement: placement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
   add({
     id: 'cabin', node: 'chassis', order: 1,
-    geometry: createVehicleCabinGeometry(identity, layout), materialId: 'glass',
+    geometry: createVehicleCabinGeometry(identity, layout), surfaceId: 'glass',
     placement: placement([0, 0, 0]), castShadow: true, receiveShadow: true,
   });
   const roofPartGeometry = createVehicleRoofGeometry(identity, layout);
   add({
     id: 'roof', node: 'chassis', order: 2,
     geometry: roofPartGeometry,
-    materialId: 'body', placement: placement([0, 0, 0]),
+    surfaceId: 'body', placement: placement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
 
@@ -180,7 +210,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
       add({
         id: `${node}:tyre`, node, order: 4,
         geometry: torusWheel(identity.wheels.radius, identity.wheels.width),
-        materialId: 'tyre', placement: placement([0, 0, 0]),
+        surfaceId: 'tyre', placement: placement([0, 0, 0]),
         capabilities: Object.freeze([vehicleRollingPartCapability({
           steering: axle === 'front',
           side: sideSign,
@@ -194,7 +224,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
           identity.wheels.width * 1.05,
           identity.wheels.style === 'sport' ? 20 : 28,
         ),
-        materialId: 'hub', placement: placement([0, 0, 0]),
+        surfaceId: 'hub', placement: placement([0, 0, 0]),
         castShadow: true, receiveShadow: true,
       });
     }
@@ -207,26 +237,26 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   const cargoGeometry = bodyGeometry.cargo;
   add({
     id: 'hood:opening', node: 'chassis', order: 6,
-    geometry: hoodGeometry, materialId: 'interior',
+    geometry: hoodGeometry, surfaceId: 'interior',
     placement: placement([layout.hoodHingeX, layout.beltHeight - 0.025, 0]),
     castShadow: false, receiveShadow: false,
   });
   add({
     id: 'hood', node: 'hood', order: 7,
     geometry: hoodGeometry,
-    materialId: 'body', placement: placement([0, 0, 0]),
+    surfaceId: 'body', placement: placement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
   add({
     id: 'cargo:opening', node: 'chassis', order: 6,
-    geometry: cargoGeometry, materialId: 'interior',
+    geometry: cargoGeometry, surfaceId: 'interior',
     placement: placement([layout.cargoHingeX, layout.beltHeight - 0.025, 0]),
     castShadow: false, receiveShadow: false,
   });
   add({
     id: 'cargo', node: 'cargo', order: 7,
     geometry: cargoGeometry,
-    materialId: 'body', placement: placement([0, 0, 0]),
+    surfaceId: 'body', placement: placement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
 
@@ -255,7 +285,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
           ? `headlight:${side}`
           : `headlight:${side}:${light.id}`,
         node: 'chassis', order: 10,
-        geometry: roundedVolume(light.radii, light.exponent), materialId: 'light',
+        geometry: roundedVolume(light.radii, light.exponent), surfaceId: 'light',
         placement: placement([
           layout.length * 0.488,
           layout.bodyBottom + bodyHeight * 0.58 + light.y,
@@ -265,7 +295,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     }
     add({
       id: `taillight:${side}`, node: 'chassis', order: 10,
-      geometry: roundedVolume([0.065, 0.15, 0.105], 2.8), materialId: 'rear-light',
+      geometry: roundedVolume([0.065, 0.15, 0.105], 2.8), surfaceId: 'rear-light',
       placement: placement([
         -layout.length * 0.49,
         layout.bodyBottom + bodyHeight * 0.62,
@@ -276,7 +306,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   add({
     id: 'grille:front', node: 'chassis', order: 9,
     geometry: roundedVolume([0.045, bodyHeight * 0.2, layout.width * 0.25], 3.6),
-    materialId: 'accent',
+    surfaceId: 'accent',
     placement: placement([
       layout.length * 0.505,
       layout.bodyBottom + bodyHeight * 0.34,
@@ -286,13 +316,13 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   });
   add({
     id: 'bumper:front', node: 'chassis', order: 10,
-    geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), materialId: 'accent',
+    geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), surfaceId: 'accent',
     placement: placement([layout.length * 0.5, layout.bodyBottom + 0.14, 0]),
     castShadow: true, receiveShadow: true,
   });
   add({
     id: 'bumper:rear', node: 'chassis', order: 10,
-    geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), materialId: 'accent',
+    geometry: roundedVolume([0.08, 0.08, layout.width * 0.43], 3.4), surfaceId: 'accent',
     placement: placement([-layout.length * 0.5, layout.bodyBottom + 0.14, 0]),
     castShadow: true, receiveShadow: true,
   });
@@ -302,7 +332,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     for (const side of identity.doors.sides) {
       add({
         id: `roof-rack:${side}`, node: 'chassis', order: 11,
-        geometry: roundedVolume([rackLength * 0.5, 0.025, 0.025], 2.4), materialId: 'accent',
+        geometry: roundedVolume([rackLength * 0.5, 0.025, 0.025], 2.4), surfaceId: 'accent',
         placement: placement([
           0,
           layout.roofHeight + 0.16,
@@ -317,14 +347,14 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     const spoilerY = layout.beltHeight + 0.2;
     add({
       id: 'spoiler', node: 'chassis', order: 11,
-      geometry: roundedVolume([0.3, 0.035, layout.width * 0.42], 3.6), materialId: 'accent',
+      geometry: roundedVolume([0.3, 0.035, layout.width * 0.42], 3.6), surfaceId: 'accent',
       placement: placement([spoilerX, spoilerY, 0]),
       castShadow: true, receiveShadow: false,
     });
     for (const side of identity.doors.sides) {
       add({
         id: `spoiler:support:${side}`, node: 'chassis', order: 10,
-        geometry: roundedVolume([0.035, 0.13, 0.035], 3.2), materialId: 'accent',
+        geometry: roundedVolume([0.035, 0.13, 0.035], 3.2), surfaceId: 'accent',
         placement: placement([
           spoilerX,
           spoilerY - 0.13,
@@ -337,7 +367,7 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
   if (identity.details.towHitch) {
     add({
       id: 'tow-hitch', node: 'chassis', order: 11,
-      geometry: roundedVolume([0.13, 0.07, 0.07], 2.2), materialId: 'hub',
+      geometry: roundedVolume([0.13, 0.07, 0.07], 2.2), surfaceId: 'hub',
       placement: placement([-layout.length * 0.55, layout.bodyBottom, 0]),
       castShadow: true, receiveShadow: false,
     });
@@ -369,11 +399,12 @@ function buildBlueprint(recipe: SolidVehicleRecipe): SolidAssetBlueprint<'vehicl
     representation: 'solid',
     assetId: `vehicle:${identity.seed}`,
     seed: identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, VEHICLE_ART_BINDINGS),
     manifest: VEHICLE_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
-    materials: materialSpecs(recipe),
+    surfaces: surfaceSpecs(recipe),
     colliders: Object.freeze([
       Object.freeze({
         id: 'vehicle:body', kind: 'solid', shape: 'box',

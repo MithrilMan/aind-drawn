@@ -45,7 +45,10 @@ export class MediumVehicleGallery {
     private readonly targets: ReadonlyMap<MediumId, HTMLImageElement>,
   ) {
     const identity = createPaperCircuitVehicleIdentity('you', DEFAULT_VEHICLE_SEEDS.you);
-    const solid = createSolidVehicleBlueprint(identity, { finish: 'matte' });
+    const solid = createSolidVehicleBlueprint(identity, {
+      artDirection: 'storybook',
+      physical: Object.freeze({ finish: 'matte' }),
+    });
     this.rig = new SolidRig(solid, { instanceId: 'paper-circuit:medium-gallery-car' });
     this.doodle = new DoodleScene(canvas, viewport, 'oil', {
       preserveDrawingBuffer: true,

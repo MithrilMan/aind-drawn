@@ -1,23 +1,31 @@
 import {
   createInkedSolidProjectionProvider,
   fixedMark,
-  toneMarks,
+  valueMarks,
 } from '../projection-provider.js';
 
-const pigment = toneMarks({
-  black: { style: 'scribble', scale: 31, strength: 0.72, coverage: 0.68, lineWidth: 0.1352 },
-  hatch: { style: 'hatch', strength: 0.4, coverage: 0.06 },
-  scribble: { style: 'scribble', strength: 0.42, coverage: 0.05 },
-  stipple: { style: 'stipple', scale: 23.56, strength: 0.5, coverage: 0.04 },
+const pigment = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'none', strength: 0, coverage: 0.03 },
+  mid: { style: 'hatch', strength: 0.4, coverage: 0.06 },
+  dark: { style: 'scribble', strength: 0.52, coverage: 0.18 },
+  solid: { style: 'scribble', scale: 31, strength: 0.72, coverage: 0.68, lineWidth: 0.1352 },
+}, {
+  quiet: { style: 'none', strength: 0 },
+  agitated: { style: 'scribble', strength: 0.42 },
+  granular: { style: 'stipple', scale: 23.56, strength: 0.5 },
 });
 
-const tint = toneMarks({
-  black: { style: 'scribble', scale: 31, strength: 0.72, coverage: 0.68, lineWidth: 0.1352 },
-  hatch: { style: 'crosshatch', strength: 0.4, coverage: 0.12 },
-  scribble: { style: 'scribble', strength: 0.45, coverage: 0.08 },
-  stipple: { style: 'hatch', strength: 0.4, coverage: 0.08 },
+const tint = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'hatch', strength: 0.4, coverage: 0.08 },
+  mid: { style: 'crosshatch', strength: 0.4, coverage: 0.12 },
+  dark: { style: 'scribble', strength: 0.52, coverage: 0.24 },
+  solid: { style: 'scribble', scale: 31, strength: 0.72, coverage: 0.68, lineWidth: 0.1352 },
+}, {
+  quiet: { style: 'hatch', strength: 0.24 },
+  agitated: { style: 'scribble', strength: 0.45 },
+  granular: { style: 'stipple', strength: 0.4 },
 });
 
 export const graphiteProjectionProvider = createInkedSolidProjectionProvider({

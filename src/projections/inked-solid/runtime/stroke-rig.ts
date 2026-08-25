@@ -63,6 +63,30 @@ function curveFromPoints(points: readonly Point3[], closed: boolean): THREE.Curv
   return new THREE.CatmullRomCurve3(vectors, closed, 'centripetal');
 }
 
+const REVEAL_ATTRIBUTE = 'inkedStrokeProgress';
+
+function setTubeRevealProgress(
+  geometry: THREE.BufferGeometry,
+  tubularSegments: number,
+  radialSegments: number,
+): void {
+  const count = geometry.getAttribute('position').count;
+  const ringSize = radialSegments + 1;
+  const progress = new Float32Array(count);
+  for (let index = 0; index < count; index += 1) {
+    progress[index] = Math.min(1, Math.floor(index / ringSize) / tubularSegments);
+  }
+  geometry.setAttribute(REVEAL_ATTRIBUTE, new THREE.BufferAttribute(progress, 1));
+}
+
+function setConstantRevealProgress(geometry: THREE.BufferGeometry, value: number): void {
+  const count = geometry.getAttribute('position').count;
+  geometry.setAttribute(
+    REVEAL_ATTRIBUTE,
+    new THREE.BufferAttribute(new Float32Array(count).fill(value), 1),
+  );
+}
+
 /**
  * Resolves renderer-neutral, part-local stroke paths into thin three-dimensional
  * ink volumes. Parenting each stroke to its owner mesh preserves articulation,
@@ -125,13 +149,16 @@ export class InkedSolidStrokeRig {
     if (owner === null) throw new Error(`Unknown stroke owner part: ${stroke.partId}`);
     const points = roughen(resolveStrokePoints(this.blueprint, stroke), stroke);
     const curve = curveFromPoints(points, stroke.closed);
+    const tubularSegments = Math.max(8, points.length * 6);
+    const radialSegments = 5;
     const geometry = new THREE.TubeGeometry(
       curve,
-      Math.max(8, points.length * 6),
+      tubularSegments,
       stroke.radius,
-      5,
+      radialSegments,
       stroke.closed,
     );
+    setTubeRevealProgress(geometry, tubularSegments, radialSegments);
     const material = new THREE.MeshBasicMaterial({
       color: colorFromRgb(stroke.color),
       opacity: stroke.opacity,
@@ -149,9 +176,10 @@ export class InkedSolidStrokeRig {
     const meshes: THREE.Mesh[] = [tube];
     const geometries: THREE.BufferGeometry[] = [geometry];
     if (!stroke.closed) {
-      for (const endpoint of [points[0], points[points.length - 1]]) {
+      for (const [endpointIndex, endpoint] of [points[0], points[points.length - 1]].entries()) {
         if (endpoint === undefined) continue;
         const capGeometry = new THREE.SphereGeometry(stroke.radius, 6, 4);
+        setConstantRevealProgress(capGeometry, endpointIndex);
         const cap = new THREE.Mesh(capGeometry, material);
         cap.position.set(...endpoint);
         group.add(cap);

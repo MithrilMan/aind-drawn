@@ -14,6 +14,13 @@ import {
   type CourseProjection,
 } from './course.js';
 import {
+  advanceRaceRouteProgress,
+  createRaceRouteProgress,
+  lastValidatedCheckpointProgress,
+  projectRaceRouteProgress,
+  type RaceRouteProgress,
+} from './race-progress.js';
+import {
   createVehicleCollisionProfile,
   resolveObstacleCollisions,
   type VehicleCollisionProfile,
@@ -90,10 +97,7 @@ type MutableRacer = {
   name: string;
   isPlayer: boolean;
   vehicle: ArcadeVehicleState;
-  lap: number;
-  progress: number;
-  previousProgress: number;
-  raceProgress: number;
+  route: RaceRouteProgress;
   laneOffset: number;
   pace: number;
 };
@@ -118,9 +122,9 @@ function snapshotOf(racer: MutableRacer): RacerSnapshot {
     speed: vehicleSpeed(racer.vehicle),
     steering: racer.vehicle.steering,
     travelDistance: racer.vehicle.travelDistance,
-    lap: racer.lap,
-    progress: racer.progress,
-    raceScore: racer.raceProgress,
+    lap: racer.route.lap,
+    progress: racer.route.progress,
+    raceScore: racer.route.raceScore,
     slipAngle: racer.vehicle.slipAngle,
     drifting: racer.vehicle.drifting,
     impact: racer.vehicle.impact,
@@ -143,7 +147,6 @@ export class RaceSimulation {
   private elapsed = 0;
   private totalLaps: RaceLapCount = DEFAULT_RACE_LAPS;
   private offRoad = false;
-  private lastSafeProgress = 0;
   private lostTime = 0;
   private respawnRemaining = 0;
   private driftScore = 0;
@@ -193,7 +196,6 @@ export class RaceSimulation {
     this.countdown = COUNTDOWN_SECONDS;
     this.elapsed = 0;
     this.offRoad = false;
-    this.lastSafeProgress = 0.046;
     this.lostTime = 0;
     this.respawnRemaining = 0;
     this.driftScore = 0;
@@ -237,7 +239,7 @@ export class RaceSimulation {
       this.elapsed += delta;
       this.updatePlayer(delta, input);
       this.updateOpponents(delta);
-      if (this.player().lap >= this.totalLaps) this.phase = 'finished';
+      if (this.player().route.lap >= this.totalLaps) this.phase = 'finished';
     } else if (this.phase === 'finished') {
       this.finishElapsed = Math.min(
         FINISH_CINEMATIC_SECONDS,
@@ -292,10 +294,7 @@ export class RaceSimulation {
         coursePoint.z + coursePoint.normalZ * laneOffset,
         headingFor(coursePoint.tangentX, coursePoint.tangentZ),
       ),
-      lap: 0,
-      progress,
-      previousProgress: progress,
-      raceProgress: progress,
+      route: createRaceRouteProgress(this.course, progress),
       laneOffset,
       pace,
     };
@@ -307,7 +306,8 @@ export class RaceSimulation {
       this.respawnRemaining = Math.max(0, this.respawnRemaining - delta);
       return;
     }
-    const before = nearestCoursePoint(this.course, player.vehicle.x, player.vehicle.z);
+    const previousVehicle = player.vehicle;
+    const before = nearestCoursePoint(this.course, previousVehicle.x, previousVehicle.z);
     const surface = before.distanceFromCentre <= this.course.trackWidth * 0.5 - 0.34
       ? 'road'
       : 'off-road';
@@ -324,9 +324,8 @@ export class RaceSimulation {
 
     const projection = nearestCoursePoint(this.course, player.vehicle.x, player.vehicle.z);
     this.offRoad = projection.distanceFromCentre > this.course.trackWidth * 0.5 - 0.34;
-    if (!this.offRoad) this.lastSafeProgress = projection.progress;
     this.updateDrift(delta, player.vehicle);
-    this.updatePlayerProgress(player, projection);
+    this.updatePlayerProgress(player, previousVehicle, projection);
     this.updateRespawn(delta, player, projection);
   }
 
@@ -343,17 +342,18 @@ export class RaceSimulation {
     if (this.driftGrace === 0) this.driftChain = 0;
   }
 
-  private updatePlayerProgress(player: MutableRacer, projection: CourseProjection): void {
-    const forwardSpeed = player.vehicle.velocityX * projection.tangentX
-      + player.vehicle.velocityZ * projection.tangentZ;
-    if (player.previousProgress > 0.82 && projection.progress < 0.18 && forwardSpeed > 1) {
-      player.lap += 1;
-    } else if (player.previousProgress < 0.18 && projection.progress > 0.82 && forwardSpeed < -1) {
-      player.lap = Math.max(0, player.lap - 1);
-    }
-    player.previousProgress = projection.progress;
-    player.progress = projection.progress;
-    player.raceProgress = player.lap + player.progress;
+  private updatePlayerProgress(
+    player: MutableRacer,
+    previousVehicle: ArcadeVehicleState,
+    projection: CourseProjection,
+  ): void {
+    player.route = advanceRaceRouteProgress(
+      this.course,
+      player.route,
+      previousVehicle,
+      player.vehicle,
+      projection.progress,
+    );
   }
 
   private updateRespawn(
@@ -364,14 +364,14 @@ export class RaceSimulation {
     const lost = projection.distanceFromCentre > this.course.trackWidth * 0.5 + 11;
     this.lostTime = lost ? this.lostTime + delta : 0;
     if (this.lostTime < 1.15) return;
-    const safe = sampleCourseAt(this.course, this.lastSafeProgress);
+    const safeProgress = lastValidatedCheckpointProgress(this.course, player.route);
+    const safe = sampleCourseAt(this.course, safeProgress);
     player.vehicle = createArcadeVehicleState(
       safe.x,
       safe.z,
       headingFor(safe.tangentX, safe.tangentZ),
     );
-    player.progress = this.lastSafeProgress;
-    player.previousProgress = this.lastSafeProgress;
+    player.route = projectRaceRouteProgress(this.course, player.route, safeProgress);
     this.lostTime = 0;
     this.respawnRemaining = 0.7;
     this.impactObstacleId = 'respawn';
@@ -380,6 +380,7 @@ export class RaceSimulation {
   private updateOpponents(delta: number): void {
     for (const racer of this.racers) {
       if (racer.isPlayer) continue;
+      const previousVehicle = racer.vehicle;
       const projection = nearestCoursePoint(this.course, racer.vehicle.x, racer.vehicle.z);
       const speed = vehicleSpeed(racer.vehicle);
       const lookAhead = 5.2 + speed * 0.42;
@@ -414,20 +415,13 @@ export class RaceSimulation {
         this.collisionProfile(racer.id),
       ).state;
       const nextProjection = nearestCoursePoint(this.course, racer.vehicle.x, racer.vehicle.z);
-      const forwardSpeed = racer.vehicle.velocityX * nextProjection.tangentX
-        + racer.vehicle.velocityZ * nextProjection.tangentZ;
-      if (racer.previousProgress > 0.82 && nextProjection.progress < 0.18 && forwardSpeed > 1) {
-        racer.lap += 1;
-      } else if (
-        racer.previousProgress < 0.18
-        && nextProjection.progress > 0.82
-        && forwardSpeed < -1
-      ) {
-        racer.lap = Math.max(0, racer.lap - 1);
-      }
-      racer.previousProgress = nextProjection.progress;
-      racer.progress = nextProjection.progress;
-      racer.raceProgress = racer.lap + racer.progress;
+      racer.route = advanceRaceRouteProgress(
+        this.course,
+        racer.route,
+        previousVehicle,
+        racer.vehicle,
+        nextProjection.progress,
+      );
     }
   }
 

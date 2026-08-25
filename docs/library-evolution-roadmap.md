@@ -7,6 +7,12 @@ Scope: `src/`, the compiled library artifact, and library-level verification
 Out of scope: Projection Studio product design, application state, application bundle size,
 and experiment-specific controls
 
+Terminology note: historical initiative records below may still say `material`, `materialId`,
+`tone`, or `finish` in the vocabulary used when that work landed. The current contracts supersede
+those names: art direction, drawing medium, renderer-scoped raster hand, semantic substance,
+drawing application and intent, physical substrate, and physical finish are independent axes.
+See [Art Direction and Semantic Surfaces](art-direction-and-surfaces.md).
+
 ## Executive summary
 
 AIND Drawn already has a strong architectural center. Semantic asset families own their
@@ -564,11 +570,14 @@ the exact solid blueprint instead of maintaining competing geometry.
 This boundary should remain intact. New geometry specifications may be added to the contract, but
 asset families should never instantiate renderer objects.
 
-### Drawing medium and physical finish are orthogonal
+### Appearance and surface axes are orthogonal
 
-Raster medium policy and inked-solid deposition share semantic drawing intent, while smooth-solid
-finishes remain a physical material concern. This is a durable distinction and should not be
-collapsed into a single style identifier.
+Identity selects what the asset is. Art direction selects the visual grammar without mutating that
+identity. `MediumId` selects deposition, `RasterHand` selects a renderer-scoped raster executor,
+and `SemanticSurfaceSpec` keeps semantic substance plus drawing application and intent separate
+from physical substrate and finish. Doodle consumes the drawing axes and ignores physical response;
+smooth solid consumes physical response. This is a durable distinction and must not be collapsed
+into a single style or material identifier.
 
 ### Verification focuses on semantic invariants
 

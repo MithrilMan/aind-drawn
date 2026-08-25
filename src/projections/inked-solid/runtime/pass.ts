@@ -32,6 +32,7 @@ export type InkedSolidSceneRegistrationOptions = Readonly<{
 
 export type InkedSolidSceneRegistration = Readonly<{
   instanceId: AssetInstanceId;
+  setStrokeReveal: (progress: number) => void;
   dispose: () => void;
 }>;
 
@@ -63,6 +64,7 @@ class RegistrationHandle implements InkedSolidSceneRegistration {
 
   public constructor(
     public readonly instanceId: AssetInstanceId,
+    public readonly setStrokeReveal: (progress: number) => void,
     private readonly release: () => void,
   ) {}
 
@@ -147,9 +149,11 @@ export class InkedSolidScenePass {
         this.carrierScenes,
         slot,
       );
-      const handle = new RegistrationHandle(instanceId, () => {
-        this.unregister(instanceId);
-      });
+      const handle = new RegistrationHandle(
+        instanceId,
+        (progress) => { carrier.setStrokeReveal(progress); },
+        () => { this.unregister(instanceId); },
+      );
       this.registrations.set(instanceId, Object.freeze({ slot, carrier, handle }));
       return handle;
     } catch (error) {

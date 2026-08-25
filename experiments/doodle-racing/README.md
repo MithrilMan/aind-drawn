@@ -11,6 +11,18 @@ placement. The library remains responsible for deterministic identity, solid top
 and vehicle motion sampling, material projection, and shared Doodle rendering. Every collider used
 by gameplay comes from a visible fixture in the same world layout.
 
+Course geometry is compiled from an immutable normalized `CoursePathRecipe`. `compileCourseStroke`
+turns a closed sampled pencil gesture into that recipe and the shared `CourseLayout`: it collapses
+duplicate input, simplifies the stroke, closes and smooths the loop, rejects self-intersections,
+insufficient road clearance, short paths, and unsafe turn radii, then derives the exact road samples
+used by rendering and gameplay. The current menu still uses the default recipe until the drawing
+surface is integrated. Each compiled layout also owns ordered arc-length checkpoints. Swept forward
+gate crossings drive lap counting and ranking, while respawn returns a racer to the last validated
+checkpoint; nearest-road projection alone cannot validate a shortcut. Yellow checkpoint bands are
+authored from those same gates and show their exact accepted lateral span. That span extends two
+world units beyond each road edge, so a modest excursion does not invalidate an otherwise complete
+lap.
+
 ## Run locally
 
 ```sh
@@ -93,8 +105,11 @@ always opens its seed-specific animation script with the shared `dance` pose, th
 actions before automatically swapping to a fresh character with the same smoke-burst transition.
 `N` and the visible `New driver` control reroll the preview, and entering Explore materializes the
 exact seed currently shown in that viewport.
-Rerolls do not reset the camera orbit in Explore. When the race finishes, the grandstand enters an
-explicit staggered dance celebration instead of relying on a random crowd cue.
+Rerolls do not reset the camera orbit in Explore. Every playable character and spectator is human.
+Each race rebuilds a sparser 12-to-16-person grandstand from a fresh seed, with continuous placement
+along each row instead of a fixed seating grid. Spectators also own independent animation clocks,
+cue durations, and phases. When the race finishes, the grandstand enters a dance celebration without
+collapsing back into one synchronized chorus line.
 
 The menu and race use local WAV and Opus sound effects selected or generated in ElevenLabs: a UI
 click, character poof, arcade GO cue, looping drift skid, gravel/off-road layer, and finish applause.
@@ -108,10 +123,10 @@ braking. A separate steady engine clip remains available as a decode/loop fallba
 Spectators are not static props. Their seeded cue loops mix `idle`, `play`, `dance` (a goofy Macarena-style loop), `airborne`, and `sit`
 poses, happy/surprised/idle expressions, autonomous blink and gaze, and a talking mouth command;
 the apparent chatter and jumps are authored character runtime animation rather than camera noise.
+Per-spectator time scale and offset keep identical pose families from sharing the same limb phase.
 
-The scene-level diagnostics currently report 43 registered instances, 1,509 solid carrier parts,
-588 semantic stroke meshes, and 8,388 compositor proxies for the full race scene. The inked-solid
-pass uses four G-buffers plus the composite pass; hidden rigs now short-circuit matrix and anchor
+Scene-level instance and carrier counts vary with the seeded crowd size. The inked-solid pass uses
+four G-buffers plus the composite pass; hidden rigs now short-circuit matrix and anchor
 synchronisation, which keeps the exploration mode from paying for the parked cars. The remaining
 high-impact performance lever is reducing visible scene complexity or lowering the render pixel
 ratio after profiling on the target desktop GPU, not adding per-frame allocations to the asset

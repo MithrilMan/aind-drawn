@@ -1,7 +1,9 @@
 import { chaikin, closePath, type MutablePoint, type Point } from '../../../core/geometry.js';
 import { combineSeed } from '../../../core/random.js';
-import { PAPER, PAPER_RGB, type Sketch } from '../../../core/sketch.js';
+import type { Sketch } from '../../../core/sketch.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
 import { mediumById, type Medium } from '../../../materials/medium.js';
+import { CHARACTER_ART_BINDINGS } from '../appearance/roles.js';
 import type {
   AssetBlueprint,
   LayerDefinition,
@@ -130,9 +132,9 @@ function drawHead(
   const points = localize(outline, HEAD_CANVAS);
   sketch.paperFill(points);
   medium.skin(sketch, points, recipe.identity.palette.skin, { gap: 8 });
-  if (recipe.style.headTone !== 'light') {
+  if (recipe.style.headDrawing.value !== 'light') {
     medium.tone(sketch, points, {
-      style: recipe.style.headTone, gap: 9, color: recipe.identity.palette.skin,
+      drawing: recipe.style.headDrawing, gap: 9, color: recipe.identity.palette.skin,
     });
   }
   medium.edge(sketch, closePath(points), 4.4 * recipe.style.linePressure, { ghost: true });
@@ -166,7 +168,9 @@ function drawEars(sketch: Sketch, recipe: CharacterRecipe, medium: Medium): void
       ], true, 1);
     sketch.paperFill(points);
     medium.tone(sketch, points, {
-      style: recipe.identity.species === 'nightmare' ? 'black' : 'light',
+      drawing: recipe.identity.species === 'nightmare'
+        ? { ...recipe.style.headDrawing, value: 'solid' }
+        : recipe.style.headDrawing,
       color: recipe.identity.palette.skin,
     });
     medium.edge(sketch, closePath(points), 3.6 * recipe.style.linePressure, { ghost: true });
@@ -198,7 +202,7 @@ function drawHair(
     centerY - y * headHeight * 0.5,
   ]);
   medium.tone(sketch, points, {
-    style: recipe.style.hairTone, color: recipe.identity.palette.hair, gap: 7,
+    drawing: recipe.style.hairDrawing, color: recipe.identity.palette.hair, gap: 7,
   });
   medium.edge(sketch, closePath(points), 4 * recipe.style.linePressure, { ghost: true });
 }
@@ -236,7 +240,7 @@ function pupil(
   sketch.wobblyEllipse(centerX, centerY, vertical ? radius * 0.28 : radius, radius);
   sketch.context.fill();
   if (glint) {
-    sketch.context.fillStyle = PAPER;
+    sketch.context.fillStyle = sketch.paperAlpha(1);
     sketch.wobblyEllipse(centerX - radius * 0.35, centerY - radius * 0.38, radius * 0.28, radius * 0.28);
     sketch.context.fill();
   }
@@ -299,7 +303,7 @@ function drawEye(
     sketch.pencilFill(disc, 0.92);
     sketch.stroke(closePath(disc), 2.8, { amplitude: 0.5, taper: 0.1 });
     if (recipe.identity.eyes.glint) {
-      sketch.context.fillStyle = PAPER;
+      sketch.context.fillStyle = sketch.paperAlpha(1);
       sketch.wobblyEllipse(centerX - radius * 0.2, centerY - radius * 0.26, radius * 0.16, radius * 0.16);
       sketch.context.fill();
     }
@@ -407,7 +411,7 @@ function drawFacialHairComponent(
   ]);
   sketch.paperFill(points);
   medium.tone(sketch, points, {
-    style: recipe.style.hairTone,
+    drawing: recipe.style.hairDrawing,
     color: recipe.identity.palette.hair,
     gap: component.id.startsWith('moustache') ? 5 : 6,
   });
@@ -430,7 +434,7 @@ function drawFacialHairBeard(
   ]);
   sketch.paperFill(points);
   medium.tone(sketch, points, {
-    style: recipe.style.hairTone,
+    drawing: recipe.style.hairDrawing,
     color: recipe.identity.palette.hair,
     gap: 6,
   });
@@ -597,7 +601,7 @@ function drawTearComponent(
   const bottom = Math.max(...ys);
   const left = Math.min(...xs);
   const right = Math.max(...xs);
-  sketch.setInk(PAPER_RGB);
+  sketch.setInk(sketch.paperColor);
   sketch.stroke([
     [centerX - side * (right - left) * 0.1, top + (bottom - top) * 0.18],
     [centerX + side * (right - left) * 0.08, top + (bottom - top) * 0.58],
@@ -646,7 +650,7 @@ function drawTorso(sketch: Sketch, recipe: CharacterRecipe, medium: Medium, canv
     sketch.stroke(closePath(chest), 1.6 * recipe.style.linePressure, { alpha: 0.38, amplitude: 0.5 });
   } else {
     medium.tone(sketch, body, {
-      style: recipe.style.bodyTone, color: recipe.identity.palette.cloth, gap: 8,
+      drawing: recipe.style.bodyDrawing, color: recipe.identity.palette.cloth, gap: 8,
     });
   }
   medium.edge(sketch, closePath(body), 4.1 * recipe.style.linePressure, { ghost: true });
@@ -1011,6 +1015,7 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
     representation: 'raster',
     assetId: `character:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, CHARACTER_ART_BINDINGS),
     medium: recipe.style.medium,
     manifest: CHARACTER_SEMANTIC_MANIFEST,
     bounds: layout.bounds,

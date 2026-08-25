@@ -2,7 +2,6 @@ import {
   SeedTree,
   SolidRig,
   applySolidCharacterMotion,
-  createCharacterIdentity,
   createCharacterMotionState,
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
@@ -15,7 +14,11 @@ import {
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
-import type { RaceWorldLayout } from './race-world.js';
+import { createPaperCircuitPersonIdentity } from './paper-circuit-person.js';
+import {
+  createGrandstandSpectators,
+  type RaceWorldLayout,
+} from './race-world.js';
 
 type SpectatorAsset = {
   identity: CharacterIdentityRecipe;
@@ -25,7 +28,9 @@ type SpectatorAsset = {
   motion: CharacterMotionState;
   cues: readonly CrowdCue[];
   cueDuration: number;
-  phaseOffset: number;
+  scheduleOffset: number;
+  motionTimeOffset: number;
+  motionTimeScale: number;
   activeCue: number;
   celebrationCue: number;
   scale: number;
@@ -38,6 +43,13 @@ type CrowdCue = Readonly<{
   talking: boolean;
 }>;
 
+export type CrowdMotionTiming = Readonly<{
+  cueDuration: number;
+  scheduleOffset: number;
+  motionTimeOffset: number;
+  motionTimeScale: number;
+}>;
+
 const CROWD_POSES = Object.freeze<CharacterPose[]>([
   'play', 'dance', 'airborne', 'idle', 'dance', 'sit',
 ]);
@@ -45,14 +57,30 @@ const CROWD_EXPRESSIONS = Object.freeze<CharacterExpression[]>([
   'happy', 'happy', 'surprised', 'happy', 'idle',
 ]);
 
+export function createCrowdMotionTiming(seed: number): CrowdMotionTiming {
+  const random = new SeedTree(seed).random('paper-circuit:crowd-motion:timing');
+  return Object.freeze({
+    cueDuration: random.float(0.82, 2.15),
+    scheduleOffset: random.float(0, 5.8),
+    motionTimeOffset: random.float(3.2, 19.6),
+    motionTimeScale: random.float(0.78, 1.22),
+  });
+}
+
 export class CrowdField {
   private readonly spectators: readonly SpectatorAsset[];
 
-  public constructor(world: RaceWorldLayout) {
-    this.spectators = Object.freeze(world.grandstand.spectators.map((placement, index) => {
-      const identity = createCharacterIdentity(placement.seed);
+  public constructor(world: RaceWorldLayout, crowdSeed?: number) {
+    const placements = crowdSeed === undefined
+      ? world.grandstand.spectators
+      : createGrandstandSpectators(world.grandstand, crowdSeed);
+    this.spectators = Object.freeze(placements.map((placement) => {
+      const identity = createPaperCircuitPersonIdentity(placement.seed);
       const random = new SeedTree(placement.seed).random('paper-circuit:crowd-motion');
-      const solid = createSolidCharacterBlueprint(identity, { finish: 'matte' });
+      const solid = createSolidCharacterBlueprint(identity, {
+        artDirection: 'storybook',
+        physical: Object.freeze({ finish: 'matte' }),
+      });
       const rig = new SolidRig(solid, { instanceId: `paper-circuit:${placement.id}` });
       const yaw = placement.heading + random.float(-0.14, 0.14);
       const halfAngle = yaw * 0.5;
@@ -73,6 +101,7 @@ export class CrowdField {
           talking: random.chance(0.46),
         });
       }));
+      const timing = createCrowdMotionTiming(placement.seed);
       return {
         identity,
         solid,
@@ -80,8 +109,7 @@ export class CrowdField {
         strokes: createSolidCharacterInkStrokes(solid),
         motion: createCharacterMotionState(),
         cues,
-        cueDuration: random.float(0.72, 1.34),
-        phaseOffset: random.float(0, 2.4) + index * 0.037,
+        ...timing,
         activeCue: -1,
         celebrationCue: -1,
         scale,
@@ -109,9 +137,13 @@ export class CrowdField {
 
   public update(elapsedSeconds: number): void {
     for (const spectator of this.spectators) {
+      const motionTime = spectator.motionTimeOffset
+        + elapsedSeconds * spectator.motionTimeScale;
       if (this.celebrationActive) {
+        const celebrationStartedAt = spectator.motionTimeOffset
+          + this.celebrationStartedAt * spectator.motionTimeScale;
         const cueIndex = Math.floor(
-          (elapsedSeconds - this.celebrationStartedAt + spectator.phaseOffset)
+          (motionTime - celebrationStartedAt + spectator.scheduleOffset)
             / spectator.cueDuration,
         );
         if (cueIndex !== spectator.celebrationCue) {
@@ -119,7 +151,7 @@ export class CrowdField {
           const cue = spectator.cues[cueIndex % spectator.cues.length] as CrowdCue;
           const cueStartedAt = Math.max(
             0,
-            this.celebrationStartedAt - spectator.phaseOffset
+            celebrationStartedAt - spectator.scheduleOffset
               + cueIndex * spectator.cueDuration,
           );
           spectator.motion = setCharacterMotion(spectator.motion, {
@@ -131,14 +163,14 @@ export class CrowdField {
         }
       } else {
         const cueIndex = Math.floor(
-          (elapsedSeconds + spectator.phaseOffset) / spectator.cueDuration,
+          (motionTime + spectator.scheduleOffset) / spectator.cueDuration,
         );
         if (cueIndex !== spectator.activeCue) {
           spectator.activeCue = cueIndex;
           const cue = spectator.cues[cueIndex % spectator.cues.length] as CrowdCue;
           const cueStartedAt = Math.max(
             0,
-            cueIndex * spectator.cueDuration - spectator.phaseOffset,
+            cueIndex * spectator.cueDuration - spectator.scheduleOffset,
           );
           spectator.motion = setCharacterMotion(spectator.motion, cue, cueStartedAt);
         }
@@ -148,7 +180,7 @@ export class CrowdField {
         sampleCharacterMotion(
           spectator.identity,
           spectator.motion,
-          elapsedSeconds,
+          motionTime,
         ),
       );
       spectator.rig.root.scale.setScalar(spectator.scale);

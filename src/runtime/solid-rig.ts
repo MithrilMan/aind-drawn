@@ -16,14 +16,16 @@ import type {
 } from '../contracts/solid-asset.js';
 import type { InteractionSpec } from '../contracts/asset-semantics.js';
 import { validateSolidAssetBlueprint } from '../contracts/blueprint-validation.js';
+import { resolveSemanticSurface } from '../appearance/art-direction.js';
 import { surfaceFrame } from '../core/geometry3.js';
 import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
 import { resolveAssetInstanceId } from './instance-id.js';
 import { readWorldPose3, writeWorldPose3 } from './instance-pose.js';
 import {
-  SolidMaterialProvider,
-  type SolidMaterialProviderOptions,
-} from './solid-materials.js';
+  SolidSurfaceResourceCache,
+  type SolidSurfaceLease,
+  type SolidSurfaceResourceCacheOptions,
+} from './solid-surfaces.js';
 
 type SolidPartMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>;
 type NodeRestTransform = Readonly<{
@@ -33,9 +35,11 @@ type NodeRestTransform = Readonly<{
 }>;
 type PartRestTransform = NodeRestTransform & Readonly<{ visible: boolean }>;
 
-export type SolidRigOptions = SolidMaterialProviderOptions
-  & SolidGeometryFactoryOptions
-  & Readonly<{ instanceId?: AssetInstanceId }>;
+export type SolidRigOptions = SolidGeometryFactoryOptions & Readonly<{
+  instanceId?: AssetInstanceId;
+  surfaceCache?: SolidSurfaceResourceCache;
+  environmentMap?: SolidSurfaceResourceCacheOptions['environmentMap'];
+}>;
 
 /**
  * Three.js adapter for data-only solid blueprints. Asset code never imports
@@ -52,8 +56,9 @@ export class SolidRig implements SolidAssetInstance {
   private readonly nodeRest = new Map<string, NodeRestTransform>();
   private readonly parts = new Map<string, SolidPartMesh>();
   private readonly partRest = new Map<string, PartRestTransform>();
-  private readonly materials = new Map<string, THREE.MeshPhysicalMaterial>();
-  private readonly materialProvider: SolidMaterialProvider;
+  private readonly surfaceLeases = new Map<string, SolidSurfaceLease>();
+  private readonly surfaceCache: SolidSurfaceResourceCache;
+  private readonly ownsSurfaceCache: boolean;
   private readonly interactionStates = new Map<string, string>();
   private playbackTime = 0;
   private disposed = false;
@@ -62,22 +67,38 @@ export class SolidRig implements SolidAssetInstance {
     this.blueprint = validateSolidAssetBlueprint(blueprint);
     this.assetId = this.blueprint.assetId;
     this.instanceId = resolveAssetInstanceId(this.assetId, options.instanceId);
-    this.materialProvider = new SolidMaterialProvider(options);
+    if (options.surfaceCache !== undefined && options.environmentMap !== undefined) {
+      throw new Error('SolidRig environmentMap belongs to its scene-scoped surfaceCache');
+    }
+    this.ownsSurfaceCache = options.surfaceCache === undefined;
+    this.surfaceCache = options.surfaceCache
+      ?? new SolidSurfaceResourceCache({
+        ...(options.environmentMap === undefined ? {} : { environmentMap: options.environmentMap }),
+      });
     this.root.name = `instance:${this.instanceId}`;
     this.root.userData.assetId = this.assetId;
     this.root.userData.instanceId = this.instanceId;
+    this.root.userData.appearanceFingerprint = this.blueprint.appearance.appearanceFingerprint;
     try {
-      for (const spec of this.blueprint.materials) {
-        this.materials.set(spec.id, this.materialProvider.create(spec));
-      }
+      const surfaces = new Map(this.blueprint.surfaces.map((surface) => [surface.id, surface]));
       this.buildNodes(this.blueprint.nodes);
       for (const part of [...this.blueprint.parts].sort((left, right) => left.order - right.order)) {
         const parent = this.requireNode(part.node);
-        const material = this.materials.get(part.materialId);
-        if (material === undefined) throw new Error(`Unknown solid material: ${part.materialId}`);
+        const surface = surfaces.get(part.surfaceId);
+        if (surface === undefined) throw new Error(`Unknown solid surface: ${part.surfaceId}`);
+        const leaseKey = `${part.surfaceId}:${part.semanticPartId}`;
+        let lease = this.surfaceLeases.get(leaseKey);
+        if (lease === undefined) {
+          lease = this.surfaceCache.acquire(resolveSemanticSurface(
+            surface,
+            this.blueprint.appearance,
+            part.semanticPartId,
+          ));
+          this.surfaceLeases.set(leaseKey, lease);
+        }
         const mesh: SolidPartMesh = new THREE.Mesh(
           createSolidGeometry(part.geometry, options),
-          material,
+          lease.material,
         );
         mesh.name = `part:${part.id}`;
         mesh.renderOrder = part.order;
@@ -87,7 +108,7 @@ export class SolidRig implements SolidAssetInstance {
         mesh.userData.partId = part.id;
         mesh.userData.assetId = this.assetId;
         mesh.userData.instanceId = this.instanceId;
-        mesh.userData.materialId = part.materialId;
+        mesh.userData.surfaceId = part.surfaceId;
         mesh.position.set(...part.placement.position);
         if (part.placement.surface !== undefined) {
           const frame = surfaceFrame(part.placement.surface.normal, part.placement.surface.roll);
@@ -243,12 +264,13 @@ export class SolidRig implements SolidAssetInstance {
     if (this.disposed) return;
     this.disposed = true;
     for (const part of this.parts.values()) part.geometry.dispose();
-    this.materialProvider.dispose();
+    for (const lease of this.surfaceLeases.values()) lease.release();
+    this.surfaceLeases.clear();
+    if (this.ownsSurfaceCache) this.surfaceCache.dispose();
     this.parts.clear();
     this.partRest.clear();
     this.nodes.clear();
     this.nodeRest.clear();
-    this.materials.clear();
     this.interactionStates.clear();
     this.root.clear();
   }

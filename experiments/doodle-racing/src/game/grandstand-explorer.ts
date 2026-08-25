@@ -2,20 +2,21 @@ import {
   SeedTree,
   SolidRig,
   applySolidCharacterMotion,
-  createCharacterIdentity,
   createCharacterMotionState,
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
   sampleCharacterMotion,
   setCharacterMotion,
   type CharacterExpression,
-  type CharacterIdentityRecipe,
-  type CharacterIdentitySpecies,
   type CharacterMotionState,
   type CharacterPose,
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
+import {
+  createPaperCircuitPersonIdentity,
+  type PaperCircuitPersonIdentity,
+} from './paper-circuit-person.js';
 import type { CourseLayout } from './course.js';
 import type { ExploreInput } from './race-model.js';
 import {
@@ -51,7 +52,7 @@ type LocalBounds = Readonly<{
 type WorldPosition = Readonly<{ x: number; y: number; z: number }>;
 
 export type GrandstandExplorerSnapshot = Readonly<{
-  species: CharacterIdentitySpecies;
+  species: 'human';
   x: number;
   y: number;
   z: number;
@@ -107,12 +108,6 @@ function mapLocalBounds(
   return Object.freeze({ minAlong, maxAlong, minAway, maxAway });
 }
 
-function randomSpecies(seed: number): CharacterIdentitySpecies {
-  return new SeedTree(seed).random('paper-circuit:explorer:species').pick([
-    'human', 'cat', 'nightmare', 'creature', 'robot',
-  ] as const);
-}
-
 function previewExpression(pose: CharacterPose, beat: number): CharacterExpression {
   if (beat === 0) return 'happy';
   if (beat === 1) return 'surprised';
@@ -124,7 +119,7 @@ function previewExpression(pose: CharacterPose, beat: number): CharacterExpressi
 }
 
 export class GrandstandExplorer {
-  public readonly identity: CharacterIdentityRecipe;
+  public readonly identity: PaperCircuitPersonIdentity;
   public readonly solid: SolidAssetBlueprint<'character'>;
   public readonly rig: SolidRig;
 
@@ -170,7 +165,7 @@ export class GrandstandExplorer {
           + GRANDSTAND_STEP_DEPTH * 0.5 + 1.15,
       })
       : mapLocalBounds(course, stand);
-    this.identity = createCharacterIdentity(seed, { species: randomSpecies(seed) });
+    this.identity = createPaperCircuitPersonIdentity(seed);
     const previewRandom = new SeedTree(seed).random('paper-circuit:explorer:preview');
     const previewPoses = Object.freeze<CharacterPose[]>([
       'walk', 'play', 'airborne', 'idle', 'run',
@@ -188,7 +183,10 @@ export class GrandstandExplorer {
       index === 0 ? previewRandom.float(1.15, 1.7) : previewRandom.float(0.8, 1.65)
     )));
     this.previewLoopDuration = this.previewDurations.reduce((sum, duration) => sum + duration, 0);
-    this.solid = createSolidCharacterBlueprint(this.identity, { finish: 'matte' });
+    this.solid = createSolidCharacterBlueprint(this.identity, {
+      artDirection: 'storybook',
+      physical: Object.freeze({ finish: 'matte' }),
+    });
     this.rig = new SolidRig(this.solid, { instanceId: 'paper-circuit:explorer' });
     const xRadius = Math.max(
       Math.abs(this.solid.bounds.minimum[0]),

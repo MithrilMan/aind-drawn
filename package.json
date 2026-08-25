@@ -14,6 +14,8 @@
     "build:landing": "vite build --config experiments/landing/vite.config.ts",
     "build:projection-studio": "vite build --config experiments/projection-studio/vite.config.ts",
     "benchmark:inked-solid": "vitest bench --run benchmarks/inked-solid-scene.bench.ts",
+    "benchmark:raster-runtime": "vitest bench --run benchmarks/raster-runtime.bench.ts",
+    "benchmark:solid-runtime": "vitest bench --run benchmarks/solid-runtime.bench.ts",
     "clean": "node scripts/clean.mjs",
     "dev": "vite --config experiments/projection-studio/vite.config.ts",
     "dev:doodle-racing": "vite --config experiments/doodle-racing/vite.config.ts",

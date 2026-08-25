@@ -36,11 +36,12 @@ vehicle in any representation:
 - wheelbase, wheel radius, tyre width, axle height, and optional spare wheel;
 - door count, side, hinge placement, and entry intent;
 - lights, bumpers, mirrors, optional cargo, roof rack, or tow point;
-- palette roles and normalized drawing-tone intent;
+- palette roles and normalized drawing-value/gesture intent;
 - sockets such as driver seat, passenger seats, cargo, tow, and entry.
 
-Do not put `MediumId`, `SolidFinishId`, canvas coordinates, or Three.js values
-in identity. Use namespaces such as `vehicle:body`, `vehicle:cabin`,
+Do not put `MediumId`, `RasterHand`, art direction, physical substrate/finish,
+canvas coordinates, or Three.js values in identity. Use namespaces such as
+`vehicle:body`, `vehicle:cabin`,
 `vehicle:wheels`, `vehicle:doors`, `vehicle:lights`, and `vehicle:details`.
 
 ## Layout
@@ -81,8 +82,9 @@ The body collider remains solid. Wheel colliders may be circles when the shared
 collider vocabulary supports them; until then, use tested rectangles or polygons
 rather than adding a one-off physics concept inside the vehicle renderer.
 
-The raster representation recipe references identity and adds only `MediumId`
-and raster drawing policy. Draw rear parts before body and front parts after it.
+The raster representation recipe references identity and adds `MediumId`, art
+direction, and raster drawing policy. A custom `RasterHand` remains scoped to
+the consuming bake, cache, audit, or rig. Draw rear parts before body and front parts after it.
 Keep wheels independent even if the first consumer never animates them.
 
 ## Solid blueprint
@@ -135,15 +137,17 @@ applied. Preserve the profile endpoints and identity shape, and use a scale-awar
 than a seed-specific coordinate exception.
 
 The solid representation recipe references the same identity and adds only
-finish/mesh policy. Place seat and entry sockets in vehicle-local 3D space.
-Keep the body collider independent from wheel or interaction sensors.
+art direction, physical substrate/finish, and mesh policy. Its parts reference
+`SemanticSurfaceSpec` values through `surfaceId`. Place seat and entry sockets
+in vehicle-local 3D space. Keep the body collider independent from wheel or interaction sensors.
 
 ## Doodle 3D
 
 Wrap the exact solid blueprint with `createInkedSolidBlueprint` and the same
 medium used by the raster comparison. The vehicle adapter maps body, tyres,
-glass, and accents to generic drawing applications; the medium compiler never
-learns those vehicle concepts. Add family-authored spatial strokes only for genuine
+glass, and accents to generic drawing applications and explicit `ArtRole`
+bindings by `semanticPartId`; the medium compiler never learns those vehicle
+concepts. Add family-authored spatial strokes only for genuine
 features such as panel seams, tyre grooves, window divisions or seals, light divisions,
 or lifted wires.
 
@@ -187,6 +191,10 @@ In addition to the common family matrix, test:
 - door sensors and entry sockets identify the same side;
 - raster and solid adapters retain body archetype, door count, palette roles,
   and wheel proportions from the same identity;
+- art-direction changes preserve vehicle identity, geometry, sockets, colliders,
+  interaction bindings, and articulated topology across all projections;
+- physical substrate and finish affect smooth solid but not Doodle deposition;
+- a renderer-scoped raster hand cannot alter another vehicle rig;
 - tyres occupy real depth in solid output;
 - cabin belt and roof widths remain within authored cross-section ranges for every archetype;
 - roof and cabin carriers have no coplanar duplicate surface and roof faces are explicit,

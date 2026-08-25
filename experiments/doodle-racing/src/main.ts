@@ -321,7 +321,7 @@ function frame(now: number): void {
             exploreEngineVehicleId = null;
             engineSound.stopRace();
           }
-          exploreCharacter.textContent = `Random ${explorer.species}`;
+          exploreCharacter.textContent = 'Random person';
           const surface = explorer.row < 0 ? 'ground' : `row ${explorer.row + 1}`;
           const action = explorer.pose === 'run' ? 'running' : explorer.pose;
           exploreStatus.textContent = `${action} · ${surface}`;
@@ -348,7 +348,7 @@ function frame(now: number): void {
       stage?.render(snapshot, delta);
       const preview = appMode === 'menu' ? menuPreview?.render(delta) : null;
       if (appMode === 'menu' && preview !== null && preview !== undefined) {
-        menuCharacter.textContent = `Random ${preview.species}`;
+        menuCharacter.textContent = 'Random person';
         menuCharacterStatus.textContent = preview.pose === 'airborne'
           ? 'Jumping'
           : preview.pose === 'play' ? 'Celebrating'
@@ -416,6 +416,14 @@ function openMenu(): void {
 function startRace(): void {
   playMenuClick();
   const laps = selectedLapCount();
+  try {
+    stage?.rerollCrowd(createRandomSeed());
+  } catch (error) {
+    rendererError.hidden = false;
+    hud.announce('The crowd failed to rebuild. Retry is available.');
+    console.error(error);
+    return;
+  }
   simulation.start({ laps });
   engineSound.startRace();
   setAppMode('race');

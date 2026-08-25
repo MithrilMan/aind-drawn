@@ -100,21 +100,24 @@ export class RegisteredInkedSolidCarrier {
     policySlot: number,
   ) {
     this.strokeRig = new InkedSolidStrokeRig(blueprint, rig);
-    this.materialCache = new InkedSolidCarrierMaterialCache(policySlot);
+    this.materialCache = new InkedSolidCarrierMaterialCache(policySlot, blueprint.solid.appearance);
     this.strokeRig.visible = false;
     try {
       const ownerKeys = new InkedSolidCarrierOwnerKeys();
-      const materials = new Map(blueprint.solid.materials.map((material) => [material.id, material]));
-      const marks = new Map(blueprint.viewMarks.map((mark) => [mark.materialId, mark]));
+      const surfaces = new Map(blueprint.solid.surfaces.map((surface) => [surface.id, surface]));
+      const marks = new Map(blueprint.viewMarks.map((mark) => [
+        `${mark.semanticPartId}:${mark.surfaceId}`,
+        mark,
+      ]));
       for (const part of blueprint.solid.parts) {
         const source = rig.getPart(part.id);
-        const material = materials.get(part.materialId);
-        const mark = marks.get(part.materialId);
-        if (source === null || material === undefined || mark === undefined) {
+        const surface = surfaces.get(part.surfaceId);
+        const mark = marks.get(`${part.semanticPartId}:${part.surfaceId}`);
+        if (source === null || surface === undefined || mark === undefined) {
           throw new Error(`Cannot register incomplete inked-solid part ${part.id}`);
         }
-        const stageMaterials = this.materialCache.part(part, material, mark);
-        const contourOwner = material.drawing.application === 'ink' ? 0.5 : 1;
+        const stageMaterials = this.materialCache.part(part, surface, mark);
+        const contourOwner = surface.drawing.application === 'ink' ? 0.5 : 1;
         stageMaterials.anchorData.set(
           0,
           0,
@@ -158,6 +161,14 @@ export class RegisteredInkedSolidCarrier {
 
   public get proxyMeshCount(): number {
     return this.proxies.length;
+  }
+
+  public setStrokeReveal(progress: number): void {
+    this.assertAlive();
+    if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
+      throw new RangeError('Stroke reveal progress must be between zero and one');
+    }
+    for (const record of this.strokes) record.materials.revealProgress.value = progress;
   }
 
   public sync(camera: THREE.Camera): void {

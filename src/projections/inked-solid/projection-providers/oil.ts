@@ -1,23 +1,23 @@
 import {
   createInkedSolidProjectionProvider,
   fixedMark,
-  toneMarks,
+  valueMarks,
 } from '../projection-provider.js';
 
-const pigment = toneMarks({
-  black: { style: 'bristle', strength: 0.94, coverage: 0.99, scale: 8.36, lineWidth: 0.087 },
-  hatch: { style: 'bristle', strength: 0.82, coverage: 0.98, scale: 7.296 },
-  scribble: { style: 'bristle', strength: 0.86, coverage: 0.98, scale: 7.296 },
-  stipple: { style: 'bristle', strength: 0.74, coverage: 0.98, scale: 7.296 },
+const pigment = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'bristle', strength: 0.7, coverage: 0.98, scale: 6.384 },
+  mid: { style: 'bristle', strength: 0.82, coverage: 0.98, scale: 7.296 },
+  dark: { style: 'bristle', strength: 0.88, coverage: 0.985, scale: 7.8 },
+  solid: { style: 'bristle', strength: 0.94, coverage: 0.99, scale: 8.36, lineWidth: 0.087 },
 });
 
-const glaze = toneMarks({
-  black: { style: 'bristle', strength: 0.94, coverage: 0.78, scale: 8.36, lineWidth: 0.087 },
-  hatch: { style: 'bristle', strength: 0.82, coverage: 0.78, scale: 7.296 },
-  scribble: { style: 'bristle', strength: 0.86, coverage: 0.78, scale: 7.296 },
-  stipple: { style: 'bristle', strength: 0.74, coverage: 0.78, scale: 7.296 },
+const glaze = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'bristle', strength: 0.7, coverage: 0.78, scale: 6.384 },
+  mid: { style: 'bristle', strength: 0.82, coverage: 0.78, scale: 7.296 },
+  dark: { style: 'bristle', strength: 0.88, coverage: 0.78, scale: 7.8 },
+  solid: { style: 'bristle', strength: 0.94, coverage: 0.78, scale: 8.36, lineWidth: 0.087 },
 });
 
 export const oilProjectionProvider = createInkedSolidProjectionProvider({

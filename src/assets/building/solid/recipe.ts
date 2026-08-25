@@ -1,10 +1,15 @@
-import type { SolidFinishId } from '../../../materials/finish.js';
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
+import {
+  resolveArtDirection,
+  type ArtDirectionRecipe,
+  type ArtDirectionSource,
+} from '../../../appearance/art-direction.js';
+import type { PhysicalSurfaceTreatmentOverride } from '../../../materials/surface.js';
 import type { BuildingIdentityRecipe } from '../identity/recipe.js';
 
 export type SolidBuildingStyle = Readonly<{
-  finish: SolidFinishId;
-  windowFinish: SolidFinishId;
+  artDirection: ArtDirectionRecipe;
+  physical: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export type SolidBuildingRecipe = AssetRecipeEnvelope<
@@ -15,7 +20,8 @@ export type SolidBuildingRecipe = AssetRecipeEnvelope<
 >;
 
 export type SolidBuildingRecipeOptions = Readonly<{
-  finish?: SolidFinishId;
+  artDirection?: ArtDirectionSource;
+  physical?: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export function createSolidBuildingRecipe(
@@ -28,8 +34,8 @@ export function createSolidBuildingRecipe(
     representation: 'solid',
     identity,
     style: Object.freeze({
-      finish: options.finish ?? 'matte',
-      windowFinish: 'glossy',
+      artDirection: resolveArtDirection(options.artDirection),
+      physical: Object.freeze({ ...(options.physical ?? {}) }),
     }),
   });
 }

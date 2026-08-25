@@ -1,9 +1,14 @@
-import type {
-  MeshGeometrySpec,
-  Point3,
-  SolidAssetBlueprint,
-  SolidMaterialSpec,
-  SolidPartDefinition,
+import {
+  createSemanticSurface,
+  createUniformAssetAppearance,
+  type DrawingApplication,
+  type DrawingIntent,
+  type MeshGeometrySpec,
+  type Point3,
+  type SolidAssetBlueprint,
+  type SolidPartDefinition,
+  type SemanticSurfaceSpec,
+  type SurfaceSubstance,
 } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
 import {
@@ -13,19 +18,16 @@ import {
   type RaceWorldLayout,
 } from './race-world.js';
 
-function material(
+function surface(
   id: string,
   color: readonly [number, number, number],
-  application: SolidMaterialSpec['drawing']['application'],
-  tone: SolidMaterialSpec['drawing']['tone'],
-): SolidMaterialSpec {
-  return Object.freeze({
-    id,
-    color: Object.freeze(color),
-    finish: 'matte',
-    roughness: 0.95,
-    metalness: 0,
-    drawing: Object.freeze({ application, tone }),
+  substance: SurfaceSubstance,
+  application: DrawingApplication,
+  drawing: DrawingIntent,
+): SemanticSurfaceSpec {
+  return createSemanticSurface({
+    id, color, substance, drawing: Object.freeze({ application, drawing }),
+    physical: Object.freeze({ roughness: 0.95, metalness: 0 }),
   });
 }
 
@@ -97,7 +99,7 @@ export function createRaceSceneryBlueprint(
         type: 'box',
         size: [length + 0.04, barrier.height, barrier.radius * 2] as const,
       }),
-      materialId: index % 2 === 0 ? 'barrier:red' : 'barrier:paper',
+      surfaceId: index % 2 === 0 ? 'barrier:red' : 'barrier:paper',
       placement: Object.freeze({
         position: Object.freeze([
           (barrier.startX + barrier.endX) * 0.5,
@@ -131,7 +133,7 @@ export function createRaceSceneryBlueprint(
           widthSegments: 14,
           heightSegments: 7,
         }),
-        materialId: 'tyre',
+        surfaceId: 'tyre',
         placement: Object.freeze({ position: [stack.x, 0.2 + tyre * 0.3, stack.z] as const }),
         castShadow: true,
         receiveShadow: true,
@@ -145,7 +147,7 @@ export function createRaceSceneryBlueprint(
       node: 'root',
       order: 3,
       geometry: coneGeometry(0.23, 0.72),
-      materialId: 'cone',
+      surfaceId: 'cone',
       placement: Object.freeze({ position: [cone.x, 0.02, cone.z] as const }),
       castShadow: true,
       receiveShadow: true,
@@ -164,7 +166,7 @@ export function createRaceSceneryBlueprint(
         type: 'box',
         size: [stand.length, stepHeight, stepSpan.depth] as const,
       }),
-      materialId: row % 2 === 0 ? 'stand:paper' : 'stand:dark',
+      surfaceId: row % 2 === 0 ? 'stand:paper' : 'stand:dark',
       placement: Object.freeze({
         position: standPoint(world, 0, stepSpan.centreAway, stepHeight * 0.5),
         rotation: Object.freeze([0, stand.heading, 0] as const),
@@ -178,7 +180,7 @@ export function createRaceSceneryBlueprint(
   add({
     id: 'grandstand:roof', node: 'root', order: 4,
     geometry: Object.freeze({ type: 'box', size: [stand.length + 0.7, 0.16, 2.7] as const }),
-    materialId: 'stand:roof',
+    surfaceId: 'stand:roof',
     placement: Object.freeze({
       position: standPoint(world, 0, roofAway, roofHeight),
       rotation: Object.freeze([0, stand.heading, -0.05] as const),
@@ -191,7 +193,7 @@ export function createRaceSceneryBlueprint(
     add({
       id: `grandstand:post:${along < 0 ? 'left' : 'right'}`, node: 'root', order: 3,
       geometry: Object.freeze({ type: 'box', size: [0.16, postHeight, 0.16] as const }),
-      materialId: 'stand:dark',
+      surfaceId: 'stand:dark',
       placement: Object.freeze({ position: standPoint(world, along, roofAway, postHeight * 0.5) }),
       castShadow: true, receiveShadow: true,
     });
@@ -209,6 +211,10 @@ export function createRaceSceneryBlueprint(
     representation: 'solid',
     assetId: 'race-scenery:technical-circuit:1',
     seed: 7391,
+    appearance: createUniformAssetAppearance(
+      'storybook',
+      ['barriers', 'tyres', 'markers', 'grandstand'],
+    ),
     bounds: Object.freeze({
       minimum: [course.bounds.minimumX - 3, 0, course.bounds.minimumZ - 3] as const,
       maximum: [course.bounds.maximumX + 3, 3.8, course.bounds.maximumZ + 3] as const,
@@ -230,14 +236,14 @@ export function createRaceSceneryBlueprint(
       restPose: Object.freeze({ position: [0, 0, 0] as const, rotation: [0, 0, 0, 1] as const }),
     })]),
     parts: Object.freeze(parts),
-    materials: Object.freeze([
-      material('barrier:red', [181, 64, 43], 'pigment', 'scribble'),
-      material('barrier:paper', [231, 219, 190], 'paper', 'light'),
-      material('tyre', [45, 45, 40], 'pigment', 'black'),
-      material('cone', [207, 108, 42], 'pigment', 'hatch'),
-      material('stand:paper', [191, 180, 151], 'paper', 'light'),
-      material('stand:dark', [68, 70, 63], 'pigment', 'black'),
-      material('stand:roof', [135, 61, 43], 'pigment', 'hatch'),
+    surfaces: Object.freeze([
+      surface('barrier:red', [181, 64, 43], 'paint', 'pigment', { value: 'mid', gesture: 'agitated' }),
+      surface('barrier:paper', [231, 219, 190], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
+      surface('tyre', [45, 45, 40], 'rubber', 'pigment', { value: 'solid', gesture: 'regular' }),
+      surface('cone', [207, 108, 42], 'rubber', 'pigment', { value: 'mid', gesture: 'regular' }),
+      surface('stand:paper', [191, 180, 151], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
+      surface('stand:dark', [68, 70, 63], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
+      surface('stand:roof', [135, 61, 43], 'paint', 'pigment', { value: 'mid', gesture: 'regular' }),
     ]),
     colliders: Object.freeze([
       ...world.barriers.map((barrier) => {

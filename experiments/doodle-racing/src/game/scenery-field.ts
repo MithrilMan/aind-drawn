@@ -32,7 +32,10 @@ export class SceneryField {
         archetype: placement.seed % 5 === 0 ? 'pine' : placement.seed % 3 === 0 ? 'windswept' : 'broadleaf',
         season: placement.seed % 4 === 0 ? 'autumn' : 'summer',
       });
-      const solid = createSolidTreeBlueprint(identity, { finish: 'matte' });
+      const solid = createSolidTreeBlueprint(identity, {
+        artDirection: 'storybook',
+        physical: Object.freeze({ finish: 'matte' }),
+      });
       const rig = new SolidRig(solid, { instanceId: `paper-circuit:${placement.id}` });
       rig.root.scale.setScalar(placement.scale);
       const halfAngle = placement.rotation * 0.5;

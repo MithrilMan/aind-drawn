@@ -1,9 +1,14 @@
-import type {
-  MeshGeometrySpec,
-  Point3,
-  SolidAssetBlueprint,
-  SolidMaterialSpec,
-  SolidPartDefinition,
+import {
+  createSemanticSurface,
+  createUniformAssetAppearance,
+  type DrawingApplication,
+  type DrawingIntent,
+  type MeshGeometrySpec,
+  type Point3,
+  type SolidAssetBlueprint,
+  type SolidPartDefinition,
+  type SemanticSurfaceSpec,
+  type SurfaceSubstance,
 } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
 
@@ -45,19 +50,16 @@ function part(definition: SolidPartDefinition): SolidPartDefinition {
   return Object.freeze(definition);
 }
 
-function material(
+function surface(
   id: string,
   color: readonly [number, number, number],
-  application: SolidMaterialSpec['drawing']['application'],
-  tone: SolidMaterialSpec['drawing']['tone'],
-): SolidMaterialSpec {
-  return Object.freeze({
-    id,
-    color: Object.freeze(color),
-    finish: 'matte',
-    drawing: Object.freeze({ application, tone }),
-    roughness: 0.96,
-    metalness: 0,
+  substance: SurfaceSubstance,
+  application: DrawingApplication,
+  drawing: DrawingIntent,
+): SemanticSurfaceSpec {
+  return createSemanticSurface({
+    id, color, substance, drawing: Object.freeze({ application, drawing }),
+    physical: Object.freeze({ roughness: 0.96, metalness: 0 }),
   });
 }
 
@@ -78,29 +80,49 @@ export function createCourseBlueprint(
     part({
       id: 'ground', semanticPartId: 'ground', node: 'root', order: 0,
       geometry: Object.freeze({ type: 'box', size: [width, 0.16, depth] as const }),
-      materialId: 'grass',
+      surfaceId: 'grass',
       placement: Object.freeze({ position: [centreX, -0.09, centreZ] as const }),
       castShadow: false, receiveShadow: true,
     }),
     part({
       id: 'road', semanticPartId: 'road', node: 'root', order: 1,
       geometry: ribbonGeometry(layout, -halfTrack, halfTrack),
-      materialId: 'road', placement: Object.freeze({ position: [0, 0, 0] as const }),
+      surfaceId: 'road', placement: Object.freeze({ position: [0, 0, 0] as const }),
       castShadow: false, receiveShadow: true,
     }),
     part({
       id: 'edge:left', semanticPartId: 'edge', node: 'root', order: 2,
       geometry: ribbonGeometry(layout, halfTrack, halfTrack + 0.38),
-      materialId: 'edge', placement: Object.freeze({ position: [0, 0.016, 0] as const }),
+      surfaceId: 'edge', placement: Object.freeze({ position: [0, 0.016, 0] as const }),
       castShadow: false, receiveShadow: true,
     }),
     part({
       id: 'edge:right', semanticPartId: 'edge', node: 'root', order: 2,
       geometry: ribbonGeometry(layout, -halfTrack, -halfTrack - 0.38),
-      materialId: 'edge', placement: Object.freeze({ position: [0, 0.016, 0] as const }),
+      surfaceId: 'edge', placement: Object.freeze({ position: [0, 0.016, 0] as const }),
       castShadow: false, receiveShadow: true,
     }),
   ];
+  for (const checkpoint of layout.checkpoints.slice(1)) {
+    const checkpointHeading = Math.atan2(-checkpoint.tangentZ, checkpoint.tangentX);
+    parts.push(part({
+      id: `checkpoint:${checkpoint.index}`,
+      semanticPartId: 'checkpoint',
+      node: 'root',
+      order: 3,
+      geometry: Object.freeze({
+        type: 'box',
+        size: [0.32, 0.035, checkpoint.halfWidth * 2] as const,
+      }),
+      surfaceId: 'checkpoint',
+      placement: Object.freeze({
+        position: Object.freeze([checkpoint.x, 0.085, checkpoint.z] as const),
+        rotation: Object.freeze([0, checkpointHeading, 0] as const),
+      }),
+      castShadow: false,
+      receiveShadow: false,
+    }));
+  }
   for (let index = 0; index < stripeCount; index += 1) {
     const offset = -halfTrack + stripeWidth * (index + 0.5);
     parts.push(part({
@@ -109,7 +131,7 @@ export function createCourseBlueprint(
       node: 'root',
       order: 3,
       geometry: Object.freeze({ type: 'box', size: [0.52, 0.035, stripeWidth] as const }),
-      materialId: index % 2 === 0 ? 'finish-dark' : 'finish-light',
+      surfaceId: index % 2 === 0 ? 'finish-dark' : 'finish-light',
       placement: Object.freeze({
         position: Object.freeze([
           start.x + start.normalX * offset,
@@ -128,6 +150,10 @@ export function createCourseBlueprint(
     representation: 'solid',
     assetId: 'race-course:paper-loop:1',
     seed: 7301,
+    appearance: createUniformAssetAppearance(
+      'storybook',
+      ['ground', 'road', 'edge', 'checkpoint', 'finish'],
+    ),
     bounds: Object.freeze({
       minimum: [layout.bounds.minimumX, -0.2, layout.bounds.minimumZ] as const,
       maximum: [layout.bounds.maximumX, 0.2, layout.bounds.maximumZ] as const,
@@ -138,6 +164,7 @@ export function createCourseBlueprint(
         Object.freeze({ id: 'ground', spatial: 'surface' as const }),
         Object.freeze({ id: 'road', spatial: 'surface' as const }),
         Object.freeze({ id: 'edge', spatial: 'surface' as const }),
+        Object.freeze({ id: 'checkpoint', spatial: 'surface' as const }),
         Object.freeze({ id: 'finish', spatial: 'surface' as const }),
       ]),
       socketIds: Object.freeze([]),
@@ -149,12 +176,13 @@ export function createCourseBlueprint(
       restPose: Object.freeze({ position: [0, 0, 0] as const, rotation: IDENTITY_ROTATION }),
     })]),
     parts: Object.freeze(parts),
-    materials: Object.freeze([
-      material('grass', [179, 181, 132], 'pigment', 'scribble'),
-      material('road', [111, 102, 91], 'pigment', 'hatch'),
-      material('edge', [187, 69, 47], 'glaze', 'scribble'),
-      material('finish-dark', [42, 42, 38], 'ink', 'black'),
-      material('finish-light', [237, 225, 201], 'paper', 'light'),
+    surfaces: Object.freeze([
+      surface('grass', [179, 181, 132], 'foliage', 'pigment', { value: 'mid', gesture: 'agitated' }),
+      surface('road', [111, 102, 91], 'stone', 'pigment', { value: 'mid', gesture: 'regular' }),
+      surface('edge', [187, 69, 47], 'paint', 'glaze', { value: 'mid', gesture: 'agitated' }),
+      surface('checkpoint', [235, 177, 52], 'paint', 'pigment', { value: 'mid', gesture: 'agitated' }),
+      surface('finish-dark', [42, 42, 38], 'paint', 'ink', { value: 'solid', gesture: 'regular' }),
+      surface('finish-light', [237, 225, 201], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
     ]),
     colliders: Object.freeze([]),
     sockets: Object.freeze([]),

@@ -5,7 +5,14 @@ import type {
 } from '../../../../contracts/solid-asset.js';
 import { moveOnSurface, type Point3, type SurfaceAnchor } from '../../../../core/geometry3.js';
 import type { Point } from '../../../../core/geometry.js';
-import type { SolidMaterialSpec } from '../../../../materials/finish.js';
+import { createAssetAppearance } from '../../../../appearance/art-direction.js';
+import { DRAWING_INTENTS, type DrawingIntent } from '../../../../materials/drawing.js';
+import {
+  mergePhysicalSurfaceTreatment,
+  type SemanticSurfaceSpec,
+  type SurfaceDrawingIntent,
+} from '../../../../materials/surface.js';
+import { CHARACTER_ART_BINDINGS } from '../../appearance/roles.js';
 import { createCharacterDrawingStyle } from '../../identity/drawing-style.js';
 import { createCharacterEyewearProfile } from '../../identity/accessory-profile.js';
 import { createCharacterRoundEarProfile } from '../../identity/ear-profile.js';
@@ -130,53 +137,82 @@ function solidPlacement(position: Point3) {
   return Object.freeze({ position });
 }
 
-function materialSpecs(recipe: SolidFaceSourceRecipe): readonly SolidMaterialSpec[] {
+function surfaceSpecs(recipe: SolidFaceSourceRecipe): readonly SemanticSurfaceSpec[] {
   const drawing = createCharacterDrawingStyle(recipe.identity);
   const draw = (
-    application: SolidMaterialSpec['drawing']['application'],
-    tone: typeof drawing.headTone,
-  ) => Object.freeze({ application, tone });
+    application: SurfaceDrawingIntent['application'],
+    intent: DrawingIntent,
+  ) => Object.freeze({ application, drawing: intent });
+  const physical = (
+    treatment: SemanticSurfaceSpec['physical'],
+  ) => mergePhysicalSurfaceTreatment(treatment, recipe.style.physical);
   return Object.freeze([
     Object.freeze({
-      id: 'skin', color: recipe.identity.palette.skin, finish: recipe.style.finish,
-      drawing: draw('tint', drawing.headTone),
+      id: 'skin', color: recipe.identity.palette.skin, substance: 'skin',
+      drawing: draw('tint', drawing.headDrawing),
+      physical: physical(Object.freeze({
+        substrate: 'skin', finish: 'matte', roughness: 0.62, metalness: 0, clearcoat: 0.25,
+      })),
     }),
     Object.freeze({
-      id: 'ink', color: recipe.identity.palette.ink, finish: 'rubber',
-      drawing: draw('ink', 'black'),
+      id: 'ink', color: recipe.identity.palette.ink, substance: 'paint',
+      drawing: draw('ink', DRAWING_INTENTS.solid),
+      physical: physical(Object.freeze({
+        substrate: 'rubber', finish: 'matte', roughness: 0.82, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'sclera', color: recipe.identity.palette.sclera, finish: 'ceramic',
-      drawing: draw('paper', 'light'),
+      id: 'sclera', color: recipe.identity.palette.sclera, substance: 'ceramic',
+      drawing: draw('paper', DRAWING_INTENTS.light),
+      physical: physical(Object.freeze({
+        substrate: 'ceramic', finish: 'gloss', roughness: 0.3, metalness: 0, clearcoat: 1,
+      })),
     }),
     Object.freeze({
-      id: 'accent', color: recipe.identity.palette.accent, finish: 'glossy',
-      drawing: draw('flat', drawing.bodyTone),
+      id: 'accent', color: recipe.identity.palette.accent, substance: 'paint',
+      drawing: draw('flat', drawing.bodyDrawing),
+      physical: physical(Object.freeze({
+        substrate: recipe.identity.species === 'robot' ? 'painted-metal' : 'generic',
+        finish: 'gloss', roughness: 0.26, metalness: recipe.identity.species === 'robot' ? 0.68 : 0,
+        clearcoat: 1,
+      })),
     }),
     Object.freeze({
-      id: 'hair', color: recipe.identity.palette.hair, finish: 'matte',
-      drawing: draw('pigment', drawing.hairTone),
+      id: 'hair', color: recipe.identity.palette.hair, substance: 'hair',
+      drawing: draw('pigment', drawing.hairDrawing),
+      physical: physical(Object.freeze({
+        substrate: 'fiber', finish: 'matte', roughness: 0.95, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'facial-hair', color: recipe.identity.palette.hair, finish: 'wool',
-      drawing: draw('pigment', drawing.hairTone),
-      roughness: 0.92,
+      id: 'facial-hair', color: recipe.identity.palette.hair, substance: 'hair',
+      drawing: draw('pigment', drawing.hairDrawing),
+      physical: physical(Object.freeze({
+        substrate: 'fiber', finish: 'flocked', roughness: 0.92, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'skin-accent', color: recipe.identity.palette.skinAccent, finish: recipe.style.finish,
-      drawing: draw('tint', drawing.headTone),
+      id: 'skin-accent', color: recipe.identity.palette.skinAccent, substance: 'skin',
+      drawing: draw('tint', drawing.headDrawing),
+      physical: physical(Object.freeze({
+        substrate: 'skin', finish: 'matte', roughness: 0.64, metalness: 0, clearcoat: 0.2,
+      })),
     }),
     ...recipe.identity.accessories.map((accessory) => Object.freeze({
       id: `accessory:${accessory.kind}`,
       color: accessory.color,
-      finish: 'rubber' as const,
-      drawing: draw('ink', 'black'),
-      roughness: 0.72,
+      substance: 'rubber' as const,
+      drawing: draw('ink', DRAWING_INTENTS.solid),
+      physical: physical(Object.freeze({
+        substrate: 'rubber', finish: 'matte', roughness: 0.72, metalness: 0, clearcoat: 0,
+      })),
     })),
     Object.freeze({
-      id: 'tear', color: recipe.identity.palette.tear, finish: 'glossy',
-      drawing: draw('wash', 'light'),
-      roughness: 0.22, clearcoat: 0.35,
+      id: 'tear', color: recipe.identity.palette.tear, substance: 'liquid',
+      drawing: draw('wash', DRAWING_INTENTS.light),
+      physical: physical(Object.freeze({
+        substrate: 'glass', finish: 'gloss', roughness: 0.22, metalness: 0, clearcoat: 0.35,
+      })),
     }),
   ]);
 }
@@ -227,7 +263,7 @@ function addEyeParts(
       geometry: plate(
         ellipse(glintRadius, glintRadius), glintRadius * 0.24, glintRadius * 0.08,
       ),
-      materialId: 'sclera', placement: placement(glintAnchor),
+      surfaceId: 'sclera', placement: placement(glintAnchor),
       capabilities: eyeCapabilities(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
     });
   };
@@ -240,7 +276,7 @@ function addEyeParts(
         ellipse(radius * profile.pupilWidth, radius * profile.pupilRadius),
         radius * 0.2, radius * 0.06,
       ),
-      materialId: 'ink', placement: placement(pupilAnchor, radius * 0.04),
+      surfaceId: 'ink', placement: placement(pupilAnchor, radius * 0.04),
       capabilities: eyeCapabilities(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
     });
     for (const stroke of profile.strokes) {
@@ -251,7 +287,7 @@ function addEyeParts(
           band(radius, radius * stroke.width, radius * 0.08),
           radius * 0.12, radius * 0.04,
         ),
-        materialId: 'ink', placement: placement(lidAnchor),
+        surfaceId: 'ink', placement: placement(lidAnchor),
         capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
       });
     }
@@ -263,7 +299,7 @@ function addEyeParts(
     add({
       id: `eye:${sideId}:star`, node: 'head', order: 20,
       geometry: plate(star(radius), radius * 0.3, radius * 0.08),
-      materialId: 'ink', placement: placement(anchor),
+      surfaceId: 'ink', placement: placement(anchor),
       capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
     });
     addGlint(anchor, 0);
@@ -274,7 +310,7 @@ function addEyeParts(
     add({
       id: `eye:${sideId}:void`, node: 'head', order: 20,
       geometry: plate(ellipse(radius, radius * 1.02), radius * 0.34, radius * 0.11),
-      materialId: 'ink', placement: placement(anchor),
+      surfaceId: 'ink', placement: placement(anchor),
       capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
     });
     addGlint(anchor, 0);
@@ -294,7 +330,7 @@ function addEyeParts(
       widthSegments: 28,
       heightSegments: 20,
     }),
-    materialId: 'sclera', placement: placement(anchor, radius * 0.08),
+    surfaceId: 'sclera', placement: placement(anchor, radius * 0.08),
     capabilities: eyeCapabilities(side, radius), castShadow: false, receiveShadow: false,
   });
   const pupilRadius = radius * profile.pupilRadius;
@@ -307,7 +343,7 @@ function addEyeParts(
       pupilRadius * 0.5,
       pupilRadius * 0.18,
     ),
-    materialId: 'ink', placement: placement(pupilAnchor, pupilFront),
+    surfaceId: 'ink', placement: placement(pupilAnchor, pupilFront),
     capabilities: eyeCapabilities(side, radius, 'pupil'), castShadow: false, receiveShadow: false,
   });
   addGlint(pupilAnchor, pupilFront);
@@ -328,7 +364,7 @@ function addHairParts(
   ): void => {
     add({
       id, node: 'head', order, geometry,
-      materialId: 'hair', placement: solidPlacement([0, 0, 0]),
+      surfaceId: 'hair', placement: solidPlacement([0, 0, 0]),
       castShadow: true, receiveShadow: true,
     });
   };
@@ -377,7 +413,7 @@ function addFacialHairParts(
       radiusZ,
       layout.at,
     ),
-    materialId: 'facial-hair',
+    surfaceId: 'facial-hair',
     placement: solidPlacement([0, 0, 0]),
     castShadow: true,
     receiveShadow: true,
@@ -406,7 +442,7 @@ function addFacialHairParts(
         widthSegments: 28,
         heightSegments: 20,
       }),
-      materialId: 'facial-hair',
+      surfaceId: 'facial-hair',
       placement: solidPlacement(anchor.point),
       castShadow: true,
       receiveShadow: true,
@@ -426,7 +462,7 @@ function addEyewearParts(
   const halfHeight = radiusY * profile.lensHalfSize[1];
   const thickness = Math.min(radiusX, radiusY) * profile.frameThickness * 1.45;
   const depth = thickness * 0.82;
-  const materialId = `accessory:${profile.accessory.kind}`;
+  const surfaceId = `accessory:${profile.accessory.kind}`;
   let frameZ = 0;
   profile.lensCenters.forEach(([centerX, centerY], index) => {
     const anchor = layout.at(centerX, centerY);
@@ -435,7 +471,7 @@ function addEyewearParts(
       id: `accessory:eyewear:rim:${index === 0 ? 'left' : 'right'}`,
       node: 'head', order: 29 + index * 0.01,
       geometry: createEyewearRimGeometry(halfWidth, halfHeight, thickness, depth),
-      materialId,
+      surfaceId,
       placement: solidPlacement([centerX * radiusX, centerY * radiusY, frameZ]),
       castShadow: true, receiveShadow: true,
     });
@@ -447,7 +483,7 @@ function addEyewearParts(
   add({
     id: 'accessory:eyewear:bridge', node: 'head', order: 29.03,
     geometry: Object.freeze({ type: 'box', size: [bridgeWidth, thickness, depth] as const }),
-    materialId,
+    surfaceId,
     placement: solidPlacement([0, centerY + halfHeight * 0.12, frameZ]),
     castShadow: true, receiveShadow: true,
   });
@@ -460,7 +496,7 @@ function addEyewearParts(
       id: `accessory:eyewear:hinge:${side < 0 ? 'left' : 'right'}`,
       node: 'head', order: 29.04,
       geometry: Object.freeze({ type: 'box', size: [hingeWidth, thickness, depth] as const }),
-      materialId,
+      surfaceId,
       placement: solidPlacement([(templeX + rimOuterX) * 0.5, centerY, frameZ]),
       castShadow: true, receiveShadow: true,
     });
@@ -471,7 +507,7 @@ function addEyewearParts(
       geometry: Object.freeze({
         type: 'box', size: [thickness * 1.15, thickness, templeDepth] as const,
       }),
-      materialId,
+      surfaceId,
       placement: solidPlacement([templeX, centerY, frameZ - templeDepth * 0.5]),
       castShadow: true, receiveShadow: true,
     });
@@ -496,7 +532,7 @@ export function createSolidFaceBlueprint(
       add({
         id: `ear:${side < 0 ? 'left' : 'right'}`, node: 'head', order: -2,
         geometry: plate(triangle(earWidth, earHeight), earWidth * 0.28, earWidth * 0.08),
-        materialId: 'skin',
+        surfaceId: 'skin',
         placement: solidPlacement([
           side * radiusX * 0.58,
           radiusY * 0.74,
@@ -527,7 +563,7 @@ export function createSolidFaceBlueprint(
           type: 'superellipsoid', radii: earRadii, exponent: 2.4,
           widthSegments: 24, heightSegments: 18,
         }),
-        materialId: 'skin', placement: solidPlacement(earPosition),
+        surfaceId: 'skin', placement: solidPlacement(earPosition),
         castShadow: true, receiveShadow: true,
       });
       add({
@@ -537,7 +573,7 @@ export function createSolidFaceBlueprint(
           radii: [earRadii[0] * 0.52, earRadii[1] * 0.62, earRadii[2] * 0.38] as const,
           exponent: 2.4, widthSegments: 20, heightSegments: 14,
         }),
-        materialId: 'skin-accent',
+        surfaceId: 'skin-accent',
         placement: solidPlacement([
           earPosition[0], earPosition[1], earPosition[2] + earRadii[2] * 0.72,
         ]),
@@ -555,7 +591,7 @@ export function createSolidFaceBlueprint(
       widthSegments: 48,
       heightSegments: 32,
     }),
-    materialId: 'skin', placement: solidPlacement([0, 0, 0]),
+    surfaceId: 'skin', placement: solidPlacement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
 
@@ -576,7 +612,7 @@ export function createSolidFaceBlueprint(
           radii: [cheekRadius, cheekRadius * 0.72, cheekRadius * 0.45] as const,
           exponent: 2.4, widthSegments: 20, heightSegments: 14,
         }),
-        materialId: 'skin', placement: solidPlacement(anchor.point),
+        surfaceId: 'skin', placement: solidPlacement(anchor.point),
         castShadow: true, receiveShadow: true,
       });
     }
@@ -588,7 +624,7 @@ export function createSolidFaceBlueprint(
       add({
         id: `brow:${side < 0 ? 'left' : 'right'}`, node: 'head', order: 24,
         geometry: plate(band(layout.eyeRadius * 0.74, layout.eyeRadius * 0.09, 0), layout.eyeRadius * 0.2, layout.eyeRadius * 0.06),
-        materialId: 'hair', placement: placement(anchor),
+        surfaceId: 'hair', placement: placement(anchor),
         capabilities: Object.freeze([solidFaceMotionCapability({ kind: 'brow', side })]),
         castShadow: false, receiveShadow: false,
       });
@@ -616,7 +652,7 @@ export function createSolidFaceBlueprint(
         type: 'superellipsoid', radii: [noseRadius, noseLength, noseRadius * 0.9] as const,
         exponent: 2.2, widthSegments: 20, heightSegments: 14,
       }),
-      materialId: identity.species === 'robot' ? 'accent'
+      surfaceId: identity.species === 'robot' ? 'accent'
         : identity.species === 'cat' ? 'ink'
           : identity.nose.style === 'drop' ? 'skin-accent' : 'skin',
       placement: solidPlacement(nosePosition),
@@ -656,7 +692,7 @@ export function createSolidFaceBlueprint(
         node: 'head',
         order: 27 + componentIndex * 0.02,
         geometry: plate(scaledOutline, depth, depth * 0.46),
-        materialId: 'tear',
+        surfaceId: 'tear',
         placement: placement(tearAnchor),
         capabilities: Object.freeze([solidFaceMotionCapability({
           kind: 'flow-effect',
@@ -682,7 +718,7 @@ export function createSolidFaceBlueprint(
     const addMouthPart = (
       id: string,
       outline: readonly Point[],
-      materialId: string,
+      surfaceId: string,
       index: number,
     ): void => {
       const scaled = Object.freeze(outline.map(([x, y]) => Object.freeze([
@@ -693,7 +729,7 @@ export function createSolidFaceBlueprint(
         id,
         node: 'head', order: 28 + index * 0.02,
         geometry: plate(scaled, mouthThickness * 1.8, mouthThickness * 0.42),
-        materialId,
+        surfaceId,
         placement: placement(layout.mouthAnchor, mouthThickness * index * 0.5),
         capabilities: Object.freeze([solidFaceMotionCapability({ kind: 'mouth', expression })]),
         visible: expression === 'idle',
@@ -701,12 +737,12 @@ export function createSolidFaceBlueprint(
       });
     };
     profile.layers.forEach((mouthLayer, index) => {
-      const materialId = mouthLayer.role === 'tooth' ? 'sclera'
+      const surfaceId = mouthLayer.role === 'tooth' ? 'sclera'
         : mouthLayer.role === 'tongue' ? 'accent' : 'ink';
       addMouthPart(
         index === 0 ? expressionId : `${expressionId}:${mouthLayer.id}`,
         mouthLayer.outline,
-        materialId,
+        surfaceId,
         index,
       );
     });
@@ -730,6 +766,7 @@ export function createSolidFaceBlueprint(
     representation: 'solid',
     assetId: `character-face:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, CHARACTER_ART_BINDINGS),
     manifest: CHARACTER_FACE_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: Object.freeze([
@@ -742,7 +779,7 @@ export function createSolidFaceBlueprint(
       }),
     ]),
     parts: Object.freeze(parts),
-    materials: materialSpecs(recipe),
+    surfaces: surfaceSpecs(recipe),
     colliders: Object.freeze([
       Object.freeze({
         id: 'head', kind: 'solid', shape: 'box',

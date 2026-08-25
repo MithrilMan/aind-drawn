@@ -16,14 +16,14 @@ Then check out the revision stored in
 `references/kindergrimm.reference.json`:
 
 ```bash
-git -C references/kindergrimm checkout 811214c6dd5de18cc20335cd3d4ab0a06e45ffd4
+git -C references/kindergrimm checkout 5857b1e1cae2713d6714ad7dd7f89626bb242f0f
 ```
 
 PowerShell equivalent:
 
 ```powershell
 git clone https://github.com/albertobeiz/kindergrimm.git references/kindergrimm
-git -C references/kindergrimm checkout 811214c6dd5de18cc20335cd3d4ab0a06e45ffd4
+git -C references/kindergrimm checkout 5857b1e1cae2713d6714ad7dd7f89626bb242f0f
 ```
 
 When intentionally updating the reference, review the upstream diff first and
@@ -44,7 +44,7 @@ To inspect a possible upstream update without changing the checkout:
 
 ```bash
 git ls-remote https://github.com/albertobeiz/kindergrimm.git refs/heads/main
-git -C references/kindergrimm diff 811214c6dd5de18cc20335cd3d4ab0a06e45ffd4..origin/main
+git -C references/kindergrimm diff 5857b1e1cae2713d6714ad7dd7f89626bb242f0f..origin/main
 ```
 
 KinderGrimm includes an Unlicense dedication at the pinned revision. Preserve

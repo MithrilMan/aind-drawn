@@ -50,7 +50,7 @@ representation. Keep every family-owned adapter and animator below it:
 src/assets/<family>/
 ├── identity/
 │   ├── recipe.ts
-│   └── drawing-style.ts   # only when seeded tone hierarchy is shared
+│   └── drawing-style.ts   # only when seeded drawing intent is shared
 ├── raster/
 │   ├── recipe.ts
 │   ├── layout.ts
@@ -67,8 +67,10 @@ src/assets/<family>/
 Characters and buildings are the maintained examples. Identity owns semantic
 choices, proportions, part inventory, palette roles, feature topology,
 attachment intent, and normalized placement. Representation recipes reference
-the exact immutable identity and add only medium, finish, mesh density, or
-other projection policy.
+the exact immutable identity and add only art direction, drawing medium,
+physical treatment, mesh density, or other projection policy. `RasterHand` is
+selected by the consuming raster runtime, not stored in identity or installed
+globally.
 
 Do not call the identity factory inside an adapter. Passing the same seed to two
 independent generators produces correlated drift, not shared identity.
@@ -86,7 +88,10 @@ blueprint needs and no renderer objects.
 - Freeze the returned object and nested arrays/objects.
 - Keep `version: 1` on serialised recipes while the current contracts use it.
 - Put drawing `medium` in raster representation style, not shared identity.
-- Put physical `finish` in solid representation style, not shared identity.
+- Put art direction in immutable `AssetAppearance`, with explicit
+  `semanticPartId` to `ArtRole` bindings.
+- Put physical substrate and finish in solid representation style, not shared
+  identity; keep the represented `SurfaceSubstance` on each semantic surface.
 
 Good namespaces describe semantic ownership:
 
@@ -128,7 +133,7 @@ coordinate system and derived dimensions as the drawing or solid parts.
 
 Return an immutable `AssetBlueprint` with stable IDs:
 
-- `kind`, `seed`, `medium`, and total `bounds`;
+- `kind`, `seed`, `medium`, `appearance`, and total `bounds`;
 - one `LayerDefinition` per independently ordered, stateful, or articulated
   visual part;
 - colliders, sockets, and declarative interactions.
@@ -142,6 +147,11 @@ Use `mediumById(recipe.medium)` and the shared `Medium` operations. Preserve
 paper fill, pigment, and edge as separate drawing concerns. Artwork
 imperfection belongs in `Sketch`/`Medium` policy or authored geometry, not in
 collider jitter.
+
+A non-default `RasterHand` is supplied to the bake, cache, audit, or rig that
+owns it. Do not add `setHand()` or another process-global switch. The default
+hand inherits art-direction ink and paper unless an explicit scoped hand
+override says otherwise.
 
 Layer order is local to the asset. `SpriteRig.drawRank` assigns the global
 contiguous painter block. Do not use raw layer order to interleave separate
@@ -169,20 +179,22 @@ features whose depth changes their meaning.
 
 - Put one node at every physical articulation pivot.
 - Parent nodes according to semantic ownership.
-- Keep each independently visible or material-bearing part as a named
+- Keep each independently visible or surface-bearing part as a named
   `SolidPartDefinition`.
 - Use `placement.surface` for a feature mounted to an analytic host.
 - Store local Euler adjustments in `placement.rotation`; do not hand-tune
   transforms later in the experiment.
 - Reuse the same analytic surface for geometry and feature placement.
 
-### Materials and gameplay
+### Semantic surfaces and gameplay
 
-Materials carry a semantic `id`, colour, smooth finish, and an explicit generic
-drawing application plus tone. When a seeded tone hierarchy must match raster
-output, derive it next to identity and assign `SolidMaterialSpec.drawing.tone`.
-Map family semantics to `drawing.application` in the family adapter; never infer
-either value from part names, material IDs, or RGB.
+`SemanticSurfaceSpec` carries a semantic `id`, colour, represented substance,
+drawing application plus `DrawingIntent`, and physical substrate plus finish.
+When a seeded value/gesture hierarchy must match raster output, derive it next
+to identity and assign `surface.drawing.drawing`. Map family semantics to
+`drawing.application` and explicit `ArtRole` bindings in the family adapter;
+never infer them from path geometry, part names, surface IDs, or RGB. Parts
+reference surfaces through `surfaceId`.
 
 Solid colliders currently use boxes. Add a general collider primitive only when
 the domain needs it across families; do not bury a one-off physics type in an
@@ -231,6 +243,12 @@ Add applicable tests for:
 - shared semantic values across raster and solid projections;
 - wrapped/volumetric features occupying the expected axes;
 - public export availability and consumer document parsing.
+- art-direction changes preserving identity, manifest, topology, geometry,
+  sockets, colliders, and interactions across raster, solid, and Doodle 3D;
+- physical substrate/finish changes affecting smooth solid without changing
+  Doodle deposition;
+- scene-scoped surface resource sharing and reference-counted disposal;
+- renderer-scoped raster-hand isolation.
 
 Run `pnpm verify`. Inspect representative minimum, typical, maximum, and
 feature-heavy seeds in the in-app browser. For a multi-representation family,

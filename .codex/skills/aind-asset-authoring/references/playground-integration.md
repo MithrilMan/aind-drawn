@@ -28,7 +28,8 @@ can disagree with it.
 
 For Projection Studio, update `experiments/projection-studio/src/family-catalog.ts`:
 
-- add an English label, description, framing, and default finish;
+- add an English label, description, framing, and `defaultAppearance` containing
+  art direction plus an optional physical treatment override;
 - map authoring values explicitly to public typed identity options;
 - provide one projection factory returning raster, solid, and semantic strokes;
 - declare family controls, defaults, and a runtime-motion adapter;
@@ -45,8 +46,10 @@ canvas pixels, Three.js materials, or runtime mesh internals.
 - Offer “Generated from seed” where a nullable override is supported.
 - Regenerate identity after semantic changes.
 - Apply transient states through rig or animator APIs.
-- Keep physical finish controls disabled or irrelevant in Doodle 3D rather than
-  leaking them into medium policy.
+- Expose physical substrate and finish as separate smooth-solid controls. Hide
+  or disable both in Doodle 3D rather than leaking them into medium policy.
+- Expose art direction independently from medium and apply it through the public
+  appearance pipeline to raster, smooth solid, Doodle 3D, and scene direction.
 - Expose only parameters a user can understand and meaningfully author.
 
 All UI labels, messages, accessibility text, sample values, and exported example

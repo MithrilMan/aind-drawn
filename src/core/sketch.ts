@@ -11,6 +11,14 @@ import {
   type Point,
 } from './geometry.js';
 import { Random, type Seed } from './random.js';
+import {
+  artRolesForPart,
+  resolveDrawingIntent as resolveDirectedDrawingIntent,
+  transformArtDirectionColor,
+  type ArtRole,
+  type AssetAppearance,
+} from '../appearance/art-direction.js';
+import type { DrawingIntent } from '../materials/drawing.js';
 
 export type RgbColor = readonly [red: number, green: number, blue: number];
 
@@ -69,8 +77,12 @@ export class Sketch {
   public readonly width: number;
   public readonly height: number;
 
+  private baseInk: RgbColor = INK;
   private ink: RgbColor = INK;
+  private paper: RgbColor = PAPER_RGB;
   private random: Random;
+  private appearance: AssetAppearance | null = null;
+  private artRoles: readonly ArtRole[] = Object.freeze([]);
 
   public constructor(
     width: number,
@@ -107,18 +119,56 @@ export class Sketch {
   }
 
   public setInk(color: RgbColor | null): void {
-    this.ink = color ?? INK;
+    this.ink = color ?? this.baseInk;
+  }
+
+  public setBaseInk(color: RgbColor | null): void {
+    this.baseInk = color ?? INK;
+    this.ink = this.baseInk;
+  }
+
+  public setPaperColor(color: RgbColor | null): void {
+    this.paper = color ?? PAPER_RGB;
+  }
+
+  public setAppearance(appearance: AssetAppearance, semanticPartId: string): void {
+    this.appearance = appearance;
+    this.artRoles = artRolesForPart(appearance, semanticPartId);
+  }
+
+  public resolveDrawingIntent(intent: DrawingIntent): DrawingIntent {
+    if (this.appearance === null) return intent;
+    return resolveDirectedDrawingIntent(intent, this.appearance.artDirection, this.artRoles);
+  }
+
+  public get markSpacingScale(): number {
+    return this.appearance?.artDirection.drawing.markSpacingScale ?? 1;
+  }
+
+  public get contourScale(): number {
+    return this.appearance?.artDirection.drawing.contourScale ?? 1;
+  }
+
+  public get paperColor(): RgbColor {
+    return this.paper;
   }
 
   public inkAlpha(alpha: number): string {
-    return this.colorAlpha(this.ink, alpha);
+    return this.formatColor(this.ink, alpha);
   }
 
   public paperAlpha(alpha: number): string {
-    return this.colorAlpha(PAPER_RGB, alpha);
+    return this.formatColor(this.paper, alpha);
   }
 
   public colorAlpha(color: RgbColor, alpha: number): string {
+    const directed = this.appearance === null
+      ? color
+      : transformArtDirectionColor(color, this.appearance.artDirection, this.artRoles);
+    return this.formatColor(directed, alpha);
+  }
+
+  private formatColor(color: RgbColor, alpha: number): string {
     return `rgba(${color[0]},${color[1]},${color[2]},${clamp(alpha, 0, 1)})`;
   }
 
@@ -504,7 +554,7 @@ export class Sketch {
 
   public paperFill(points: readonly Point[]): void {
     this.polygon(points);
-    this.context.fillStyle = PAPER;
+    this.context.fillStyle = this.paperAlpha(1);
     this.context.fill();
   }
 

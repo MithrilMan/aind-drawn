@@ -7,9 +7,8 @@ import {
   createCharacterMotionState,
   sampleCharacterMotion,
   setCharacterMotion,
-  SolidMaterialProvider,
+  SolidSurfaceResourceCache,
   InkedSolidStrokeRig,
-  SOLID_FINISH_CATALOG,
   SolidRig,
   SpriteRig,
   createCharacterBlueprint,
@@ -27,6 +26,11 @@ import {
   createSolidCharacterBlueprint,
   createSolidBuildingBlueprint,
   createSolidVehicleBlueprint,
+  createSemanticSurface,
+  createUniformAssetAppearance,
+  DRAWING_INTENTS,
+  PHYSICAL_FINISHES,
+  PHYSICAL_SUBSTRATES,
   createVehicleIdentity,
   characterFlowOf,
   solidFaceMotionOf,
@@ -76,6 +80,7 @@ function testBlueprint(): AssetBlueprint {
     assetId: 'test',
     seed: 1,
     medium: 'graphite',
+    appearance: createUniformAssetAppearance('authored', ['art']),
     manifest: Object.freeze({
       family: 'test',
       parts: Object.freeze([Object.freeze({ id: 'art', spatial: 'surface' as const })]),
@@ -128,6 +133,7 @@ describe('sprite rig runtime', () => {
       assetId: 'interactive-door',
       seed: 4,
       medium: 'graphite',
+      appearance: createUniformAssetAppearance('authored', ['door']),
       manifest: Object.freeze({
         family: 'test',
         parts: Object.freeze([Object.freeze({ id: 'door', spatial: 'articulated' as const })]),
@@ -198,6 +204,7 @@ describe('sprite rig runtime', () => {
       assetId: 'moving-character',
       seed: 27,
       medium: 'graphite',
+      appearance: createUniformAssetAppearance('authored', ['limbs']),
       manifest: Object.freeze({
         family: 'character',
         parts: Object.freeze([Object.freeze({ id: 'limbs', spatial: 'articulated' as const })]),
@@ -310,6 +317,7 @@ describe('sprite rig runtime', () => {
       assetId: 'character:4210',
       seed: 4210,
       medium: 'graphite',
+      appearance: createUniformAssetAppearance('authored', ['limbs']),
       manifest: Object.freeze({
         family: 'character',
         parts: Object.freeze([Object.freeze({ id: 'limbs', spatial: 'articulated' as const })]),
@@ -418,47 +426,78 @@ describe('solid rig runtime', () => {
     rig.dispose();
   });
 
-  it('resolves the complete physical finish catalog through one owned provider', () => {
-    expect(SOLID_FINISH_CATALOG.map(({ id }) => id)).toEqual(expect.arrayContaining([
-      'glossy', 'rubber', 'ceramic', 'pearl', 'flocked', 'wood', 'wool',
-      'resin', 'chrome', 'crazed', 'skin',
+  it('resolves orthogonal substrates and finishes through one scene cache', () => {
+    expect(PHYSICAL_SUBSTRATES).toEqual(expect.arrayContaining([
+      'skin', 'fiber', 'wood', 'glass', 'rubber', 'ceramic', 'resin', 'metal',
     ]));
-    const provider = new SolidMaterialProvider();
-    const materials = new Map(SOLID_FINISH_CATALOG.map(({ id }, index) => [
+    expect(PHYSICAL_FINISHES).toEqual(expect.arrayContaining([
+      'raw', 'matte', 'satin', 'gloss', 'polished', 'flocked', 'crazed', 'iridescent',
+    ]));
+    const cache = new SolidSurfaceResourceCache();
+    const acquire = (
+      id: string,
+      substrate: typeof PHYSICAL_SUBSTRATES[number],
+      finish: typeof PHYSICAL_FINISHES[number],
+      color: readonly [number, number, number] = [120, 96, 74],
+    ) => cache.acquire(createSemanticSurface({
       id,
-      provider.create({
-        id: `finish:${id}`,
-        color: [120 + index, 96, 74] as const,
-        finish: id,
-        drawing: { application: 'pigment', tone: 'hatch' },
-      }),
-    ]));
-    expect(materials.get('pearl')?.iridescenceThicknessMap).not.toBeNull();
-    expect(materials.get('pearl')?.iridescence).toBeGreaterThan(0.8);
-    expect(materials.get('flocked')?.sheen).toBe(1);
-    expect(materials.get('wood')?.normalMap).not.toBeNull();
-    expect(materials.get('wood')?.roughnessMap).not.toBeNull();
-    expect(materials.get('wool')?.normalMap).not.toBeNull();
-    expect(materials.get('resin')?.normalMap).not.toBeNull();
-    expect(materials.get('chrome')?.metalness).toBe(1);
-    expect(materials.get('crazed')?.normalMap).not.toBeNull();
+      color,
+      substance: substrate === 'fiber'
+        ? 'cloth'
+        : substrate === 'painted-metal' ? 'paint' : substrate,
+      drawing: { application: 'pigment', drawing: DRAWING_INTENTS.mid },
+      physical: { substrate, finish },
+    }));
+    const pearl = acquire('pearl', 'ceramic', 'iridescent');
+    const flocked = acquire('flocked', 'fiber', 'flocked');
+    const wood = acquire('wood', 'wood', 'satin');
+    const resin = acquire('resin', 'resin', 'matte');
+    const chrome = acquire('chrome', 'metal', 'polished');
+    const crazed = acquire('crazed', 'ceramic', 'crazed');
+    expect(pearl.material.iridescenceThicknessMap).not.toBeNull();
+    expect(pearl.material.iridescence).toBeGreaterThan(0.8);
+    expect(flocked.material.sheen).toBe(1);
+    expect(wood.material.normalMap).not.toBeNull();
+    expect(wood.material.roughnessMap).not.toBeNull();
+    expect(resin.material.normalMap).not.toBeNull();
+    expect(chrome.material.metalness).toBeGreaterThan(0.8);
+    expect(crazed.material.normalMap).not.toBeNull();
 
-    const sharedWood = provider.create({
-      id: 'finish:wood:second', color: [90, 70, 50], finish: 'wood',
-      drawing: { application: 'pigment', tone: 'hatch' },
-    });
-    expect(sharedWood.normalMap).toBe(materials.get('wood')?.normalMap);
+    const sharedWood = acquire('wood:second', 'wood', 'satin', [90, 70, 50]);
+    expect(sharedWood.material.normalMap).toBe(wood.material.normalMap);
     let materialDisposals = 0;
     let textureDisposals = 0;
-    sharedWood.addEventListener('dispose', () => { materialDisposals += 1; });
-    sharedWood.normalMap?.addEventListener('dispose', () => { textureDisposals += 1; });
-    provider.dispose();
+    sharedWood.material.addEventListener('dispose', () => { materialDisposals += 1; });
+    sharedWood.material.normalMap?.addEventListener('dispose', () => { textureDisposals += 1; });
+    for (const lease of [pearl, flocked, wood, resin, chrome, crazed, sharedWood]) lease.release();
     expect(materialDisposals).toBe(1);
+    expect(textureDisposals).toBe(0);
+    cache.dispose();
     expect(textureDisposals).toBe(1);
-    expect(() => provider.create({
-      id: 'late', color: [0, 0, 0], finish: 'matte',
-      drawing: { application: 'pigment', tone: 'hatch' },
-    })).toThrow(/disposed/i);
+    expect(() => acquire('late', 'generic', 'matte')).toThrow(/disposed/i);
+  });
+
+  it('shares immutable resolved surface resources across rigs until the last owner releases', () => {
+    const blueprint = createSolidCharacterBlueprint(createCharacterIdentity(8_105), {
+      artDirection: 'storybook',
+    });
+    const cache = new SolidSurfaceResourceCache();
+    const first = new SolidRig(blueprint, { instanceId: 'shared:first', surfaceCache: cache });
+    const second = new SolidRig(blueprint, { instanceId: 'shared:second', surfaceCache: cache });
+    const firstHead = first.getPart('head')?.material;
+    const secondHead = second.getPart('head')?.material;
+    expect(firstHead).toBe(secondHead);
+    expect(Number.isInteger(cache.getDiagnostics().hits)).toBe(true);
+    expect(Number.isInteger(cache.getDiagnostics().misses)).toBe(true);
+    expect(cache.getDiagnostics().hits).toBeGreaterThan(0);
+    let disposals = 0;
+    firstHead?.addEventListener('dispose', () => { disposals += 1; });
+    first.dispose();
+    expect(disposals).toBe(0);
+    second.dispose();
+    expect(disposals).toBe(1);
+    expect(cache.getDiagnostics()).toMatchObject({ entries: 0, activeLeases: 0 });
+    cache.dispose();
   });
 
   it('scales runtime tessellation without changing authored geometry intent', () => {
@@ -628,9 +667,9 @@ describe('solid rig runtime', () => {
     }));
 
     for (const id of ['hand:left', 'hand:right', 'foot:left', 'foot:right']) {
-      expect(human.parts.find((part) => part.id === id)?.materialId).toBe('accent');
+      expect(human.parts.find((part) => part.id === id)?.surfaceId).toBe('accent');
     }
-    expect(cat.parts.find(({ id }) => id === 'hand:left')?.materialId).toBe('skin');
+    expect(cat.parts.find(({ id }) => id === 'hand:left')?.surfaceId).toBe('skin');
   });
 
   it('applies representation-neutral interaction states to solid nodes', () => {
@@ -678,7 +717,8 @@ describe('solid rig runtime', () => {
   it('builds semantic meshes and animates the rest pose without geometry rebuilds', () => {
     const identity = createCharacterIdentity(404, { species: 'human', shape: 'round' });
     const blueprint = createSolidFaceBlueprint(createSolidFaceRecipe(404, {
-      species: 'human', shape: 'round', finish: 'ceramic',
+      species: 'human', shape: 'round',
+      physical: { substrate: 'ceramic', finish: 'gloss' },
     }));
     const rig = new SolidRig(blueprint);
     expect(rig.nodeIds).toEqual(['head']);
@@ -718,7 +758,8 @@ describe('solid rig runtime', () => {
   it('keeps repeated expression commands idempotent and free of hidden blink state', () => {
     const identity = createCharacterIdentity(4104, { species: 'human', shape: 'round' });
     const rig = new SolidRig(createSolidFaceBlueprint(createSolidFaceRecipe(4104, {
-      species: 'human', shape: 'round', finish: 'skin',
+      species: 'human', shape: 'round',
+      physical: { substrate: 'skin', finish: 'satin' },
     })));
     const pupil = rig.getPart('eye:left:pupil');
     const restScaleY = pupil?.scale.y ?? 0;

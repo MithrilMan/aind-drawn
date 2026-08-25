@@ -44,6 +44,10 @@ export class RasterStage {
     this.rig?.root.removeFromParent();
     this.rig?.dispose();
     this.rig = new SpriteRig(blueprint, { boilFrames: 3 });
+    const paper = blueprint.appearance.artDirection.scene.paper;
+    const paperColor = new THREE.Color(paper[0] / 255, paper[1] / 255, paper[2] / 255);
+    this.renderer.setClearColor(paperColor, 1);
+    this.viewport.style.backgroundColor = `rgb(${paper.join(' ')})`;
     this.runtime = createRuntime(this.rig, identity, { autoGaze });
     this.scene.add(this.rig.root);
     this.frame();

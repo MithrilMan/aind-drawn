@@ -1,6 +1,9 @@
 import type { Seed } from '../../../core/random.js';
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
-import type { MediumId, ToneStyle } from '../../../materials/medium.js';
+import type { ArtDirectionRecipe, ArtDirectionSource } from '../../../appearance/art-direction.js';
+import { resolveArtDirection } from '../../../appearance/art-direction.js';
+import type { DrawingIntent } from '../../../materials/drawing.js';
+import type { MediumId } from '../../../materials/medium.js';
 import { createCharacterDrawingStyle } from '../identity/drawing-style.js';
 import {
   createCharacterIdentity,
@@ -23,9 +26,10 @@ export type OutfitStyle = CharacterOutfitStyle;
 export type RasterCharacterStyle = Readonly<{
   medium: MediumId;
   linePressure: number;
-  headTone: ToneStyle;
-  hairTone: ToneStyle;
-  bodyTone: ToneStyle;
+  headDrawing: DrawingIntent;
+  hairDrawing: DrawingIntent;
+  bodyDrawing: DrawingIntent;
+  artDirection: ArtDirectionRecipe;
 }>;
 
 export type CharacterRecipe = AssetRecipeEnvelope<
@@ -37,6 +41,7 @@ export type CharacterRecipe = AssetRecipeEnvelope<
 
 export type RasterCharacterRecipeOptions = Readonly<{
   medium?: MediumId;
+  artDirection?: ArtDirectionSource;
 }>;
 
 export type CharacterRecipeOptions = RasterCharacterRecipeOptions & Readonly<{
@@ -57,9 +62,10 @@ export function createRasterCharacterRecipe(
     style: Object.freeze({
       medium: options.medium ?? 'graphite',
       linePressure: drawing.linePressure,
-      headTone: drawing.headTone,
-      hairTone: drawing.hairTone,
-      bodyTone: drawing.bodyTone,
+      headDrawing: drawing.headDrawing,
+      hairDrawing: drawing.hairDrawing,
+      bodyDrawing: drawing.bodyDrawing,
+      artDirection: resolveArtDirection(options.artDirection),
     }),
   });
 }
@@ -74,5 +80,6 @@ export function createCharacterRecipe(
   });
   return createRasterCharacterRecipe(identity, {
     ...(options.medium === undefined ? {} : { medium: options.medium }),
+    ...(options.artDirection === undefined ? {} : { artDirection: options.artDirection }),
   });
 }

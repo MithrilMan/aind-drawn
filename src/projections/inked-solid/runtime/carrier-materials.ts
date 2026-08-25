@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
-import type { SolidMaterialSpec } from '../../../materials/finish.js';
+import {
+  resolveSemanticSurface,
+  type AssetAppearance,
+} from '../../../appearance/art-direction.js';
+import type { SemanticSurfaceSpec } from '../../../materials/surface.js';
 import type { SolidPartDefinition } from '../../../contracts/solid-asset.js';
 import type {
   InkedSolidStrokeSpec,
@@ -66,6 +70,72 @@ const NORMAL_FRAGMENT = /* glsl */`
   }
 `;
 
+const STROKE_VERTEX = /* glsl */`
+  attribute float inkedStrokeProgress;
+  varying float inkedRevealPosition;
+  varying vec3 inkedViewNormal;
+
+  void main() {
+    inkedRevealPosition = inkedStrokeProgress;
+    inkedViewNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const REVEAL_GUARD = /* glsl */`
+  uniform float revealProgress;
+  uniform float revealStart;
+  uniform float revealEnd;
+  varying float inkedRevealPosition;
+
+  void guardReveal() {
+    float localProgress = clamp(
+      (revealProgress - revealStart) / max(0.000001, revealEnd - revealStart),
+      0.0,
+      1.0
+    );
+    if (inkedRevealPosition > localProgress) discard;
+  }
+`;
+
+const STROKE_ALBEDO_FRAGMENT = /* glsl */`
+  ${REVEAL_GUARD}
+  uniform vec3 strokeColor;
+  uniform float strokeOpacity;
+
+  void main() {
+    guardReveal();
+    gl_FragColor = vec4(strokeColor, strokeOpacity);
+  }
+`;
+
+const STROKE_EMPTY_FRAGMENT = /* glsl */`
+  ${REVEAL_GUARD}
+  void main() {
+    guardReveal();
+    gl_FragColor = vec4(0.0);
+  }
+`;
+
+const STROKE_ANCHOR_FRAGMENT = /* glsl */`
+  ${REVEAL_GUARD}
+  void main() {
+    guardReveal();
+    gl_FragColor = vec4(0.0, 0.0, 0.0, 0.5);
+  }
+`;
+
+const STROKE_NORMAL_FRAGMENT = /* glsl */`
+  ${REVEAL_GUARD}
+  uniform float packedPolicyAndFlow;
+  varying vec3 inkedViewNormal;
+
+  void main() {
+    guardReveal();
+    gl_FragColor = vec4(normalize(inkedViewNormal) * 0.5 + 0.5, packedPolicyAndFlow);
+  }
+`;
+
 export type InkedSolidPartMaterials = Readonly<{
   albedo: THREE.Material;
   mark: THREE.Material;
@@ -79,6 +149,7 @@ export type InkedSolidStrokeMaterials = Readonly<{
   mark: THREE.Material;
   anchor: THREE.Material;
   normal: THREE.Material;
+  revealProgress: THREE.IUniform<number>;
 }>;
 
 function colorFromRgb(color: readonly [number, number, number]): THREE.Color {
@@ -91,18 +162,11 @@ export class InkedSolidCarrierMaterialCache {
   private readonly albedo = new Map<string, THREE.MeshBasicMaterial>();
   private readonly marks = new Map<string, THREE.ShaderMaterial>();
   private readonly normals = new Map<'faceted' | 'view-oriented', THREE.ShaderMaterial>();
-  private readonly strokeAlbedo = new Map<string, THREE.MeshBasicMaterial>();
-  private readonly emptyMark: THREE.ShaderMaterial;
-  private readonly strokeAnchor: THREE.ShaderMaterial;
 
-  public constructor(private readonly policySlot: number) {
-    this.emptyMark = this.track(this.dataMaterial('markData', new THREE.Vector4(0, 0, 0, 0)));
-    this.strokeAnchor = this.track(this.dataMaterial(
-      'anchorData',
-      new THREE.Vector4(0, 0, 0, 0.5),
-      ANCHOR_FRAGMENT,
-    ));
-  }
+  public constructor(
+    private readonly policySlot: number,
+    private readonly appearance: AssetAppearance,
+  ) {}
 
   public get size(): number {
     return this.owned.size;
@@ -110,13 +174,17 @@ export class InkedSolidCarrierMaterialCache {
 
   public part(
     part: SolidPartDefinition,
-    material: SolidMaterialSpec,
+    surface: SemanticSurfaceSpec,
     mark: InkedSolidViewMarkPolicy,
   ): InkedSolidPartMaterials {
     const anchorData = new THREE.Vector4();
     const anchor = this.track(this.dataMaterial('anchorData', anchorData, ANCHOR_FRAGMENT));
     return Object.freeze({
-      albedo: this.albedoMaterial(material),
+      albedo: this.albedoMaterial(resolveSemanticSurface(
+        surface,
+        this.appearance,
+        part.semanticPartId,
+      ), part.semanticPartId),
       mark: this.markMaterial(mark),
       anchor,
       normal: this.normalMaterial(inkedSolidSurfaceFlow(part.geometry)),
@@ -125,22 +193,33 @@ export class InkedSolidCarrierMaterialCache {
   }
 
   public stroke(stroke: InkedSolidStrokeSpec): InkedSolidStrokeMaterials {
-    let albedo = this.strokeAlbedo.get(stroke.id);
-    if (albedo === undefined) {
-      albedo = this.track(new THREE.MeshBasicMaterial({
-        color: colorFromRgb(stroke.color),
-        opacity: stroke.opacity,
-        transparent: stroke.opacity < 1,
-        toneMapped: false,
-        fog: false,
-      }));
-      this.strokeAlbedo.set(stroke.id, albedo);
-    }
+    const revealProgress: THREE.IUniform<number> = { value: 1 };
+    const baseUniforms = {
+      revealProgress,
+      revealStart: { value: stroke.reveal.start },
+      revealEnd: { value: stroke.reveal.end },
+    };
+    const shader = (
+      fragmentShader: string,
+      uniforms: Record<string, THREE.IUniform> = {},
+    ): THREE.ShaderMaterial => this.track(new THREE.ShaderMaterial({
+      vertexShader: STROKE_VERTEX,
+      fragmentShader,
+      uniforms: { ...baseUniforms, ...uniforms },
+      blending: THREE.NoBlending,
+      toneMapped: false,
+    }));
     return Object.freeze({
-      albedo,
-      mark: this.emptyMark,
-      anchor: this.strokeAnchor,
-      normal: this.normalMaterial('view-oriented'),
+      albedo: shader(STROKE_ALBEDO_FRAGMENT, {
+        strokeColor: { value: colorFromRgb(stroke.color) },
+        strokeOpacity: { value: stroke.opacity },
+      }),
+      mark: shader(STROKE_EMPTY_FRAGMENT),
+      anchor: shader(STROKE_ANCHOR_FRAGMENT),
+      normal: shader(STROKE_NORMAL_FRAGMENT, {
+        packedPolicyAndFlow: { value: (this.policySlot * 2) / 255 },
+      }),
+      revealProgress,
     });
   }
 
@@ -150,23 +229,24 @@ export class InkedSolidCarrierMaterialCache {
     this.albedo.clear();
     this.marks.clear();
     this.normals.clear();
-    this.strokeAlbedo.clear();
   }
 
-  private albedoMaterial(spec: SolidMaterialSpec): THREE.MeshBasicMaterial {
-    const cached = this.albedo.get(spec.id);
+  private albedoMaterial(spec: SemanticSurfaceSpec, semanticPartId: string): THREE.MeshBasicMaterial {
+    const key = `${semanticPartId}:${spec.id}`;
+    const cached = this.albedo.get(key);
     if (cached !== undefined) return cached;
     const material = this.track(new THREE.MeshBasicMaterial({
       color: colorFromRgb(spec.color),
       fog: false,
       toneMapped: false,
     }));
-    this.albedo.set(spec.id, material);
+    this.albedo.set(key, material);
     return material;
   }
 
   private markMaterial(mark: InkedSolidViewMarkPolicy): THREE.ShaderMaterial {
-    const cached = this.marks.get(mark.materialId);
+    const key = `${mark.semanticPartId}:${mark.surfaceId}`;
+    const cached = this.marks.get(key);
     if (cached !== undefined) return cached;
     const style = MARK_STYLE_MODE[mark.style];
     const packedStrengthAndWidth = (
@@ -179,7 +259,7 @@ export class InkedSolidCarrierMaterialCache {
       mark.coverage,
       0.5 + Math.min(0.49, mark.scale / 48),
     )));
-    this.marks.set(mark.materialId, material);
+    this.marks.set(key, material);
     return material;
   }
 

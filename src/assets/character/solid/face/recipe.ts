@@ -30,6 +30,7 @@ export function createSolidFaceRecipe(
     ...(shape === undefined ? {} : { shape }),
   });
   return createSolidCharacterRecipe(identity, {
-    ...(options.finish === undefined ? {} : { finish: options.finish }),
+    ...(options.artDirection === undefined ? {} : { artDirection: options.artDirection }),
+    ...(options.physical === undefined ? {} : { physical: options.physical }),
   });
 }

@@ -4,12 +4,14 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import {
   InkedSolidScenePass,
   SolidRig,
+  SolidSurfaceResourceCache,
   createInkedSolidBlueprint,
   inkedSolidMediumDefaults,
   type InkedSolidStrokeDefinition,
   type InkedSolidSceneRegistration,
   type MediumId,
   type SolidAssetBlueprint,
+  type SceneDirectionRecipe,
 } from '../../../src/index.js';
 import type {
   FamilyIdentity,
@@ -33,6 +35,16 @@ export class ThreeStage {
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
   private readonly environmentMap: THREE.Texture;
+  private readonly surfaceCache: SolidSurfaceResourceCache;
+  private readonly hemisphere = new THREE.HemisphereLight(0xfff4df, 0x475249, 1.8);
+  private readonly keyLight = this.directionalLight(0xffddbc, 3.2, [4.5, 7, 6]);
+  private readonly fillLight = this.directionalLight(0xb7cbd2, 1.35, [-5, 3, 2]);
+  private readonly rimLight = this.directionalLight(0xf5d9b5, 1.1, [1, 4, -5]);
+  private readonly groundMaterial = new THREE.MeshPhysicalMaterial({ roughness: 1, metalness: 0 });
+  private readonly ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    this.groundMaterial,
+  );
   private readonly canvas: HTMLCanvasElement;
   private readonly viewport: HTMLElement;
   private readonly observer: ResizeObserver;
@@ -53,6 +65,8 @@ export class ThreeStage {
   private turntable = false;
   private renderMode: ThreeRenderMode = 'doodle';
   private solidFrameScale = 0.62;
+  private strokeRevealElapsed = 2;
+  private sceneDirection: SceneDirectionRecipe | null = null;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -69,14 +83,12 @@ export class ThreeStage {
     const environment = new RoomEnvironment();
     const environmentGenerator = new THREE.PMREMGenerator(this.renderer);
     this.environmentMap = environmentGenerator.fromScene(environment, 0.04).texture;
+    this.surfaceCache = new SolidSurfaceResourceCache({ environmentMap: this.environmentMap });
     environment.dispose();
     environmentGenerator.dispose();
-    this.scene.add(
-      new THREE.HemisphereLight(0xfff4df, 0x475249, 1.8),
-      this.directionalLight(0xffddbc, 3.2, [4.5, 7, 6]),
-      this.directionalLight(0xb7cbd2, 1.35, [-5, 3, 2]),
-      this.directionalLight(0xf5d9b5, 1.1, [1, 4, -5]),
-    );
+    this.ground.rotation.x = -Math.PI / 2;
+    this.ground.receiveShadow = true;
+    this.scene.add(this.hemisphere, this.keyLight, this.fillLight, this.rimLight, this.ground);
     this.camera.position.set(0, 1, 8);
     this.applyRenderMode();
     this.observer = new ResizeObserver(() => {
@@ -106,7 +118,14 @@ export class ThreeStage {
     this.strokes = strokes;
     this.medium = medium;
     this.solidFrameScale = solidFrameScale;
-    this.rig = new SolidRig(solid, { environmentMap: this.environmentMap });
+    this.sceneDirection = solid.appearance.artDirection.scene;
+    this.applySceneDirection(this.sceneDirection);
+    this.ground.position.set(
+      (solid.bounds.minimum[0] + solid.bounds.maximum[0]) * 0.5,
+      solid.bounds.minimum[1] - 0.025,
+      (solid.bounds.minimum[2] + solid.bounds.maximum[2]) * 0.5,
+    );
+    this.rig = new SolidRig(solid, { surfaceCache: this.surfaceCache });
     this.runtime = createRuntime(this.rig, identity, { autoGaze });
     this.applyView();
     this.scene.add(this.rig.root);
@@ -150,6 +169,8 @@ export class ThreeStage {
     if (this.turntable) this.setView(this.yaw + TURNTABLE_DEGREES_PER_SECOND * deltaSeconds);
     this.runtime?.update({ deltaSeconds, elapsedSeconds, dynamicState, speed });
     if (this.renderMode === 'doodle') {
+      this.strokeRevealElapsed = Math.min(1.6, this.strokeRevealElapsed + deltaSeconds);
+      this.inkRegistration?.setStrokeReveal(this.strokeRevealElapsed / 1.6);
       this.pass?.render(this.scene, this.camera, elapsedSeconds);
     } else {
       this.renderer.render(this.scene, this.camera);
@@ -166,6 +187,9 @@ export class ThreeStage {
     this.inkRegistration?.dispose();
     this.pass?.dispose();
     this.rig?.dispose();
+    this.surfaceCache.dispose();
+    this.ground.geometry.dispose();
+    this.groundMaterial.dispose();
     this.environmentMap.dispose();
     this.renderer.dispose();
   }
@@ -214,12 +238,15 @@ export class ThreeStage {
       strokes: this.strokes,
     });
     this.inkRegistration?.dispose();
-    this.pass ??= new InkedSolidScenePass(this.renderer);
+    this.pass?.dispose();
+    this.pass = new InkedSolidScenePass(this.renderer, { paper: blueprint.paper });
     this.inkRegistration = this.pass.register({
       instanceId: this.rig.instanceId,
       blueprint,
       rig: this.rig,
     });
+    this.strokeRevealElapsed = 0;
+    this.inkRegistration.setStrokeReveal(0);
     this.resize();
   }
 
@@ -229,6 +256,29 @@ export class ThreeStage {
       ? THREE.ACESFilmicToneMapping
       : THREE.NoToneMapping;
     this.renderer.toneMappingExposure = solid ? 1.08 : 1;
+    this.ground.visible = solid;
+    if (this.sceneDirection !== null) {
+      const background = solid ? this.sceneDirection.backdrop : this.sceneDirection.paper;
+      this.scene.background = new THREE.Color(
+        background[0] / 255,
+        background[1] / 255,
+        background[2] / 255,
+      );
+    }
+  }
+
+  private applySceneDirection(direction: SceneDirectionRecipe): void {
+    const color = (value: readonly [number, number, number]): THREE.Color => (
+      new THREE.Color(value[0] / 255, value[1] / 255, value[2] / 255).convertSRGBToLinear()
+    );
+    this.keyLight.color.copy(color(direction.lighting.key));
+    this.keyLight.intensity = direction.lighting.keyIntensity;
+    this.fillLight.color.copy(color(direction.lighting.fill));
+    this.fillLight.intensity = direction.lighting.fillIntensity;
+    this.rimLight.intensity = direction.lighting.fillIntensity * 0.72;
+    this.groundMaterial.color.copy(color(direction.ground));
+    this.groundMaterial.needsUpdate = true;
+    this.applyRenderMode();
   }
 
   private directionalLight(

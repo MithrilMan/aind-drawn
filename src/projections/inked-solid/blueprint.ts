@@ -4,6 +4,11 @@ import { SeedTree } from '../../core/random.js';
 import type { MediumId } from '../../materials/medium.js';
 import type { SolidAssetBlueprint } from '../../contracts/solid-asset.js';
 import type { AssetBlueprintHeader } from '../../contracts/asset-envelope.js';
+import {
+  artDirectionDetailScale,
+  artRolesForPart,
+  resolveSemanticSurface,
+} from '../../appearance/art-direction.js';
 import { inkedSolidMediumDefaults } from './medium-projection.js';
 import {
   INKED_SOLID_MARK_STYLES,
@@ -13,7 +18,8 @@ import {
   type InkedSolidStrokeDefinition,
   type InkedSolidStrokePath,
   type InkedSolidStrokeSpec,
-  type InkedSolidViewMarkOverride,
+  type InkedSolidStrokeRevealSequence,
+  type InkedSolidViewMarkOverrides,
   type InkedSolidViewMarkPolicy,
 } from './contracts.js';
 
@@ -34,9 +40,10 @@ export type InkedSolidBlueprintOptions = Readonly<{
   medium: MediumId;
   contour?: Partial<Omit<InkedSolidContourPolicy, 'seed'>>;
   deposition?: Partial<Omit<InkedSolidDepositionPolicy, 'seed' | 'texture'>>;
-  viewMarks?: false | Readonly<Record<string, InkedSolidViewMarkOverride>>;
+  viewMarks?: false | InkedSolidViewMarkOverrides;
   paper?: Partial<Omit<InkedSolidPaperPolicy, 'seed'>>;
   strokes?: readonly InkedSolidStrokeDefinition[];
+  strokeReveal?: InkedSolidStrokeRevealSequence;
 }>;
 
 function finite(name: string, value: number): number {
@@ -137,36 +144,69 @@ export function createInkedSolidBlueprint<TFamily extends string>(
   const deposition = { ...defaults.deposition, ...options.deposition };
   const paper = { ...defaults.paper, ...options.paper };
   if (options.viewMarks !== undefined && options.viewMarks !== false) {
-    for (const materialId of Object.keys(options.viewMarks)) {
-      if (!solid.materials.some(({ id }) => id === materialId)) {
-        throw new RangeError(`viewMarks references unknown material ${materialId}`);
+    for (const surfaceId of Object.keys(options.viewMarks.surfaces ?? {})) {
+      if (!solid.surfaces.some(({ id }) => id === surfaceId)) {
+        throw new RangeError(`viewMarks references unknown surface ${surfaceId}`);
+      }
+    }
+    for (const semanticPartId of Object.keys(options.viewMarks.semanticParts ?? {})) {
+      if (!solid.manifest.parts.some(({ id }) => id === semanticPartId)) {
+        throw new RangeError(`viewMarks references unknown semantic part ${semanticPartId}`);
       }
     }
   }
-  const viewMarks = Object.freeze(solid.materials.map((material) => {
-    const projected = defaults.viewMark(material.drawing);
+  const surfaces = new Map(solid.surfaces.map((surface) => [surface.id, surface]));
+  const markOwners = new Map<string, { surfaceId: string; semanticPartId: string }>();
+  for (const part of solid.parts) {
+    markOwners.set(`${part.semanticPartId}:${part.surfaceId}`, {
+      surfaceId: part.surfaceId,
+      semanticPartId: part.semanticPartId,
+    });
+  }
+  const direction = solid.appearance.artDirection;
+  const viewMarks = Object.freeze([...markOwners.values()].map(({ surfaceId, semanticPartId }) => {
+    const authored = surfaces.get(surfaceId);
+    if (authored === undefined) throw new Error(`Missing semantic surface ${surfaceId}`);
+    const surface = resolveSemanticSurface(authored, solid.appearance, semanticPartId);
+    const projected = defaults.viewMark(surface.drawing);
     const override = options.viewMarks === false
       ? { style: 'none' as const, strength: 0 }
-      : options.viewMarks?.[material.id];
+      : {
+        ...options.viewMarks?.surfaces?.[surfaceId],
+        ...options.viewMarks?.semanticParts?.[semanticPartId],
+      };
     const mark = { ...projected, ...override };
     if (!INKED_SOLID_MARK_STYLES.includes(mark.style)) {
-      throw new RangeError(`viewMarks.${material.id}.style is not supported`);
+      throw new RangeError(`viewMarks.${semanticPartId}.style is not supported`);
     }
+    const roles = artRolesForPart(solid.appearance, semanticPartId);
+    const detailScale = artDirectionDetailScale(direction, roles);
     return Object.freeze({
-      materialId: material.id,
-      application: material.drawing.application,
-      tone: material.drawing.tone,
+      surfaceId,
+      semanticPartId,
+      application: surface.drawing.application,
+      drawing: surface.drawing.drawing,
       style: mark.style,
-      scale: positive(`viewMarks.${material.id}.scale`, mark.scale),
-      strength: unit(`viewMarks.${material.id}.strength`, mark.strength),
-      coverage: unit(`viewMarks.${material.id}.coverage`, mark.coverage),
-      lineWidth: unit(`viewMarks.${material.id}.lineWidth`, mark.lineWidth),
-      seed: tree.seed(`inked-solid:view-mark:${material.id}`),
+      scale: positive(`viewMarks.${semanticPartId}.scale`, mark.scale / direction.drawing.markSpacingScale),
+      strength: unit(`viewMarks.${semanticPartId}.strength`, Math.min(1, mark.strength * detailScale)),
+      coverage: unit(`viewMarks.${semanticPartId}.coverage`, mark.coverage),
+      lineWidth: unit(`viewMarks.${semanticPartId}.lineWidth`, mark.lineWidth),
+      seed: tree.seed(`inked-solid:view-mark:${semanticPartId}:${surfaceId}`),
     });
   }));
   const strokeIds = new Set<string>();
+  contour.width *= direction.drawing.contourScale;
+  contour.color = direction.palette.ink;
+  deposition.pigmentStrength = Math.min(
+    1,
+    deposition.pigmentStrength * direction.drawing.pigmentStrength,
+  );
+  if (options.paper?.color === undefined) paper.color = direction.scene.paper;
   const strokeScale = contour.width / defaults.contour.width;
-  const strokes = Object.freeze((options.strokes ?? []).map((stroke) => {
+  const strokeDefinitions = options.strokes ?? [];
+  const stagger = nonNegative('strokeReveal.stagger', options.strokeReveal?.stagger ?? 0.35);
+  const duration = 1 / Math.max(1, 1 + stagger * Math.max(0, strokeDefinitions.length - 1));
+  const strokes = Object.freeze(strokeDefinitions.map((stroke, strokeIndex) => {
     if (stroke.id.length === 0) throw new RangeError('stroke id must not be empty');
     if (strokeIds.has(stroke.id)) throw new RangeError(`duplicate stroke id: ${stroke.id}`);
     strokeIds.add(stroke.id);
@@ -194,6 +234,10 @@ export function createInkedSolidBlueprint<TFamily extends string>(
         (stroke.wobble ?? authoredRadius * 0.3) * strokeScale,
       ),
       seed: tree.seed(`inked-solid:stroke:${stroke.id}`),
+      reveal: Object.freeze({
+        start: strokeIndex * stagger * duration,
+        end: strokeIndex * stagger * duration + duration,
+      }),
     });
   }));
 
@@ -203,6 +247,7 @@ export function createInkedSolidBlueprint<TFamily extends string>(
     representation: 'inked-solid',
     assetId: solid.assetId,
     seed: solid.seed,
+    appearance: solid.appearance,
     medium: options.medium,
     solid,
     contour: Object.freeze({

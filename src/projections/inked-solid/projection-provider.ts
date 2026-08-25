@@ -1,5 +1,6 @@
 import { INK, PAPER_RGB, type RgbColor } from '../../core/sketch.js';
-import type { SolidDrawingApplication, SolidDrawingMaterialSpec } from '../../materials/finish.js';
+import type { DrawingGesture, DrawingValue } from '../../materials/drawing.js';
+import type { DrawingApplication, SurfaceDrawingIntent } from '../../materials/surface.js';
 import type {
   InkedSolidContourPolicy,
   InkedSolidDepositionPolicy,
@@ -18,7 +19,7 @@ export type InkedSolidViewMarkDefaults = Readonly<{
 }>;
 
 export type InkedSolidViewMarkProjector = (
-  drawing: SolidDrawingMaterialSpec,
+  drawing: SurfaceDrawingIntent,
 ) => InkedSolidViewMarkDefaults;
 
 export type InkedSolidMediumDefaults = Readonly<{
@@ -31,14 +32,14 @@ export type InkedSolidMediumDefaults = Readonly<{
 export type InkedSolidViewMarkOverride = Partial<InkedSolidViewMarkDefaults>;
 export type InkedSolidApplicationProjector = (
   base: InkedSolidViewMarkDefaults,
-  tone: SolidDrawingMaterialSpec['tone'],
+  drawing: SurfaceDrawingIntent['drawing'],
 ) => InkedSolidViewMarkDefaults;
 
 export type InkedSolidProjectionProviderOptions = Readonly<{
   contour?: Partial<Unseeded<InkedSolidContourPolicy>>;
   deposition?: Partial<Omit<InkedSolidDepositionPolicy, 'seed' | 'texture'>>;
   viewMark?: Partial<InkedSolidViewMarkDefaults>;
-  applications: Readonly<Record<SolidDrawingApplication, InkedSolidApplicationProjector>>;
+  applications: Readonly<Record<DrawingApplication, InkedSolidApplicationProjector>>;
   paper?: Partial<Unseeded<InkedSolidPaperPolicy>>;
 }>;
 
@@ -88,10 +89,15 @@ export function fixedMark(
   return (base) => Object.freeze({ ...base, ...override });
 }
 
-export function toneMarks(
-  overrides: Readonly<Record<SolidDrawingMaterialSpec['tone'], InkedSolidViewMarkOverride>>,
+export function valueMarks(
+  overrides: Readonly<Record<DrawingValue, InkedSolidViewMarkOverride>>,
+  gestures: Readonly<Partial<Record<DrawingGesture, InkedSolidViewMarkOverride>>> = {},
 ): InkedSolidApplicationProjector {
-  return (base, tone) => Object.freeze({ ...base, ...overrides[tone] });
+  return (base, drawing) => Object.freeze({
+    ...base,
+    ...overrides[drawing.value],
+    ...gestures[drawing.gesture],
+  });
 }
 
 export function createInkedSolidProjectionProvider(
@@ -103,7 +109,7 @@ export function createInkedSolidProjectionProvider(
   return Object.freeze({
     contour: Object.freeze({ ...contour, color: freezeColor(contour.color) }),
     deposition: Object.freeze({ ...BASE_DEPOSITION, ...options.deposition }),
-    viewMark: (drawing) => options.applications[drawing.application](baseMark, drawing.tone),
+    viewMark: (drawing) => options.applications[drawing.application](baseMark, drawing.drawing),
     paper: Object.freeze({ ...paper, color: freezeColor(paper.color) }),
   });
 }

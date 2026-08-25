@@ -1,6 +1,6 @@
 ---
 name: aind-asset-authoring
-description: Design, implement, or revise procedural asset types in aind-drawn, including deterministic identity, raster and solid projections, Doodle 3D, spatial topology, semantic parts, interactions, animation, catalog integration, and authoring tests.
+description: Design, implement, or revise procedural asset types in aind-drawn, including deterministic identity, art direction, semantic surfaces, raster and solid projections, Doodle 3D, spatial topology, interactions, animation, performance, catalog integration, and authoring tests.
 ---
 
 # AIND asset authoring
@@ -33,6 +33,7 @@ Before editing, read:
 
 - `docs/architecture.md`
 - `docs/asset-authoring.md`
+- `docs/art-direction-and-surfaces.md`
 - the existing family closest to the requested asset
 - `src/contracts/raster-asset.ts`
 
@@ -87,20 +88,22 @@ interaction intent, and normalized feature placement.
 Each representation recipe references that exact immutable identity and adds
 only representation policy:
 
-- raster: medium, tone, line pressure, bake policy;
-- solid: finish, mesh density, physical material policy;
-- inked solid: contour, spatial semantic stroke, and drawing-application
-  view-synthesized mark policy.
+- raster recipe: `MediumId`, art direction, line pressure, and bake policy;
+- raster runtime: an optional renderer-scoped `RasterHand`, never global state;
+- solid: art direction, physical substrate and finish, plus mesh-density policy;
+- inked solid: `MediumId`, contour, spatial semantic strokes, and
+  view-synthesized drawing-application policy.
 
-If a seeded tonal choice must remain recognisable across representations,
+If a seeded value or gesture choice must remain recognisable across representations,
 derive it once in an identity-adjacent drawing-style profile and place the
-resolved intent on `SolidMaterialSpec.drawing.tone`. Every solid material also
-declares a generic `drawing.application`; never infer either field from role,
-colour, material ID, or part name. Do not bury tone in the
-raster recipe and ask the inked-solid compiler to guess it from colour or part
-names.
+resolved intent on `SemanticSurfaceSpec.drawing.drawing`. Every semantic surface
+also declares a generic `drawing.application`; never infer either field from
+colour, surface ID, path geometry, or part name. Each family binds generic
+`ArtRole` values explicitly to `semanticPartId`. Do not bury drawing intent in
+the raster recipe and ask another projection to guess it.
 
-Do not put a drawing medium in shared identity. Do not rerun an identity factory
+Do not put a drawing medium, raster hand, art direction, or physical treatment
+in shared identity. Do not rerun an identity factory
 inside an adapter. A seed shared by two independent generators is not shared
 identity; it is two implementations hoping never to drift.
 
@@ -203,11 +206,13 @@ family IDs.
   and sockets, and representation-specific interaction bindings; never inspect textures.
 - Validate every interaction state, sensor, socket, layer, and layer-state binding.
 - Dispose runtime GPU resources through `SpriteRig.dispose()`.
-- Keep smooth-solid geometry and material specifications serialisable and free
-  of Three.js objects; resolve them through `SolidRig`.
+- Keep smooth-solid geometry and `SemanticSurfaceSpec` values serialisable and
+  free of Three.js objects. Resolve physical resources through a scene-scoped
+  `SolidSurfaceResourceCache`, and pass that cache to `SolidRig` when instances
+  should share immutable materials and procedural textures.
 - Derive 3D feature placement from the same analytic or modelled surface used
   to build the mesh. Use stable semantic part IDs and real node pivots.
-- Dispose solid GPU resources through `SolidRig.dispose()`.
+- Dispose each `SolidRig`, then dispose its scene cache after the final consumer.
 - Wrap the exact solid blueprint with `createInkedSolidBlueprint`; never copy,
   reroll, or specialize its semantic geometry for the inked projection.
 - Pass an explicit shared `MediumId` to `createInkedSolidBlueprint`. Raster and
@@ -215,12 +220,12 @@ family IDs.
   second 3D-only drawing-medium taxonomy.
 - Keep contours and generic medium marks camera-dependent. Synthesize medium
   marks in view-oriented drawing space, translate the field with the projected
-  origin of its visible semantic part, and clip it by semantic material masks.
+  origin of its visible semantic part, and clip it by semantic surface masks.
   Camera movement must update projection continuously without random seed or
   colour changes at quantized thresholds.
 - Use the visible surface normal to rotate and foreshorten directional gesture
   fields on explicitly faceted carrier topology and, only there, to vary mark
-  density under the discrete drawing light. Adjacent planes sharing a material must not
+  density under the discrete drawing light. Adjacent planes sharing a surface must not
   receive one uniform screen-space hatch. Keep camera response continuous;
   never classify camera-facing planes into arbitrary style buckets that can
   flicker during rotation. Derive smooth-versus-faceted flow from authored
@@ -239,25 +244,26 @@ family IDs.
 - Keep view-field frequency and phase invariant within one carrier region.
   On faceted carriers, drawing light may modulate pressure or opacity, or reveal
   an additional fixed-frequency pass; never rescale or rephase the field per
-  pixel because quantized tone boundaries would become visible seams. On smooth
+  pixel because quantized drawing-value boundaries would become visible seams. On smooth
   carriers, treat medium marks as deposited filler and keep lighting out of them.
 - Let the shared medium compiler project generic drawing applications into mark
   styles. Families map their own semantics to `paper`, `pigment`, `tint`,
   `flat`, `ink`, `wash`, or `glaze`; the compiler never receives family,
-  material-role, material-ID, or semantic-part vocabulary.
-- Require an authored drawing application and tone on every solid material.
-  Test that raster tone, solid drawing material spec, and inked-solid coverage agree
-  for representative seeds.
-- Preserve semantic material RGB as the exact inked-solid pigment source.
+  surface-role, surface-ID, or family-specific semantic-part vocabulary.
+- Require an authored drawing application plus `DrawingIntent` on every semantic
+  surface. Test that raster drawing intent, the solid surface, and inked-solid
+  coverage agree for representative seeds.
+- Preserve semantic surface RGB as the exact inked-solid pigment source.
   Describe volume through deposition opacity and mark density; never pre-mix
   pigment with paper, contour ink, scene fog, or normal-lighting colour.
 - Calibrate inked-solid mark density and opacity against the shared raster
-  medium's tone semantics and relative spacing. Test representative `light`,
-  `hatch`, `scribble`, and `black` tones instead of tuning per-family scales.
+  medium's drawing-value and gesture semantics plus relative spacing. Test
+  representative `paper`, `light`, `mid`, `dark`, and `solid` values with
+  `quiet`, `regular`, `agitated`, and `granular` gestures.
 - Project each medium from its raster deposition operation, not from generic
-  tone labels alone. For example, Watercolour uses layered translucent coverage
+  value labels alone. For example, Watercolour uses layered translucent coverage
   without directional hatch, Ink keeps one restrained hatch vocabulary while
-  tone changes fill coverage, and Oil uses an opaque bed plus broken pigment
+  drawing value changes fill coverage, and Oil uses an opaque bed plus broken pigment
   daubs. Do not reinterpret these filler operations as shadow bands.
 - Keep line boil on view-dependent contour passes. View-synthesized medium marks
   follow animated owner parts but never use boil frames; paper grain alone stays
@@ -267,13 +273,13 @@ family IDs.
   and dispose the scene pass explicitly. A registration owns its semantic
   `InkedSolidStrokeRig`; ordinary consumers do not construct a second one.
 - In Doodle 3D, the solid mesh is an invisible carrier for depth, occlusion,
-  normals, semantic colour, and material masks. Never composite its continuous
-  albedo. Semantic material colour may only source synthesized pigment; PBR
+  normals, semantic colour, and surface masks. Never composite its continuous
+  albedo. Semantic surface colour may only source synthesized pigment; PBR
   roughness, metalness, clearcoat, and specular response stay absent.
 - Begin every visible carrier region from opaque drawing paper, then composite
   semantic pigment bed, medium gestures, and contour in that order. Do not use
   transparent-clear RGB as the paper base, and keep carrier alpha opaque even
-  when a material intentionally has zero gesture coverage.
+  when a surface intentionally has zero gesture coverage.
 - Model expressive and decorative features with semantic subparts and ratios in
   shared identity/profile data. Eyes, hairlines, outfit motifs, and mouths are
   one normalized construction projected by raster and solid adapters, not two
@@ -284,22 +290,28 @@ family IDs.
   translate that intent; they must not own separate expression tables. Keep
   brows clear of pupil geometry and express upper-eye pressure through shared
   eye openness or an authored eyelid rather than mesh intersection.
-- Treat `SolidFinishId` and `MediumId` as orthogonal. Physical finishes such as
-  skin, wood, chrome, ceramic, or metal affect only smooth solid rendering.
-  Select them from `SOLID_FINISH_CATALOG`; resolve them only through
-  `SolidMaterialProvider`. A new finish requires one catalog entry, one
-  exhaustive provider recipe, any deterministic procedural map bundle, and
-  provider lifecycle tests. Asset families declare `SolidMaterialSpec` intent;
-  they never instantiate Three.js materials or own finish textures. Add new
+- Keep identity, `MediumId`, renderer-scoped `RasterHand`, art direction,
+  semantic substance, drawing application and intent, physical substrate, and
+  physical finish as independent axes. `SurfaceSubstance` says what the part is
+  understood to be made from; `PhysicalSurfaceTreatment` says how smooth solid
+  shades it. Doodle ignores substrate, finish, roughness, metalness, and
+  clearcoat. Asset families declare `SemanticSurfaceSpec`; they never
+  instantiate Three.js materials or own physical textures. Add new substrate or
+  finish behavior through `SolidSurfaceResourceCache`, with deterministic map
+  generation, reference-counted leases, and disposal tests. Add new
   medium behaviour centrally in `src/materials/medium.ts`, add one provider
   under `src/projections/inked-solid/projection-providers/`, and register it in
   `src/projections/inked-solid/medium-projection.ts`; extend the generic
   `InkedSolidScenePass` compositor field only when necessary, never a family adapter.
-- Treat `ToneStyle` as density intent, not permission to change a medium's mark
-  vocabulary. Oil answers every tone with loaded brush daubs, charcoal with
-  granular pickup, and marker with broad translucent passes. Never translate
-  an authored `hatch` tone into literal pencil hatching for a medium whose
-  raster implementation does not draw hatch lines.
+- Treat `DrawingIntent.value` as perceptual value and `DrawingIntent.gesture` as
+  energy/regularity, not renderer commands. Oil answers every value with loaded
+  brush daubs, charcoal with granular pickup, and marker with broad translucent
+  passes. Never reinterpret a generic gesture as a particular renderer primitive.
+- Compile art direction through immutable `AssetAppearance`. Include the
+  resolved recipe and explicit semantic-part bindings in its fingerprint. Art
+  direction may alter palette response, contour, detail budget, physical
+  response, paper, ground, backdrop, and lighting; it must not mutate identity,
+  topology, sockets, colliders, interactions, or stable boil-frame composition.
 - Author semantic marks in the family adapter. Use superellipsoid surface
   directions for analytic hosts and part-local points for boxes, profiles,
   meshes, or paths that leave a surface. Always name and validate the owner
@@ -351,10 +363,17 @@ Add tests that prove:
 - other families remain unchanged.
 - one inked-solid policy works on at least one organic and one architectural
   solid family without family-specific renderer branches.
-- physical finish changes smooth rendering without changing doodle deposition or
-  semantic stroke data.
-- every public physical finish resolves through one provider; generated maps
-  are shared within its ownership boundary and disposed exactly once.
+- art direction changes all three projections while `assetId`, identity,
+  manifest, geometry, sockets, colliders, interactions, and semantic topology
+  remain unchanged.
+- appearance fingerprints include both the normalized art-direction recipe and
+  explicit semantic-part bindings; custom recipes are detached and deeply frozen.
+- physical substrate or finish changes smooth rendering without changing Doodle
+  deposition or semantic stroke data.
+- every physical treatment resolves through `SolidSurfaceResourceCache`;
+  generated maps are shared within its scene boundary and disposed exactly once.
+- a second raster hand is scoped to a rig, cache, bake, or audit and never
+  installed through global mutable state.
 - every public `MediumId` compiles to a deterministic raster and inked-solid
   policy with the same ID and a visibly distinct view-synthesized character.
 

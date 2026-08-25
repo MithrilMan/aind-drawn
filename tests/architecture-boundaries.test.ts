@@ -139,7 +139,7 @@ describe('architectural boundaries', () => {
     }
   });
 
-  it('requires every family material to publish generic drawing intent', () => {
+  it('requires every family surface to publish renderer-neutral drawing intent', () => {
     const blueprints = [
       createSolidCharacterBlueprint(createCharacterIdentity(4104)),
       createSolidBuildingBlueprint(createBuildingIdentity(4104)),
@@ -147,11 +147,12 @@ describe('architectural boundaries', () => {
       createSolidTreeBlueprint(createTreeIdentity(6102)),
     ];
     for (const blueprint of blueprints) {
-      expect(blueprint.materials.length).toBeGreaterThan(0);
-      for (const material of blueprint.materials) {
-        expect(material.drawing.application).toMatch(/^(paper|pigment|tint|flat|ink|wash|glaze)$/);
-        expect(material.drawing.tone).toMatch(/^(black|hatch|scribble|stipple|light)$/);
-        expect(material).not.toHaveProperty('role');
+      expect(blueprint.surfaces.length).toBeGreaterThan(0);
+      for (const surface of blueprint.surfaces) {
+        expect(surface.drawing.application).toMatch(/^(paper|pigment|tint|flat|ink|wash|glaze)$/);
+        expect(surface.drawing.drawing.value).toMatch(/^(paper|light|mid|dark|solid)$/);
+        expect(surface.drawing.drawing.gesture).toMatch(/^(quiet|regular|agitated|granular)$/);
+        expect(surface).not.toHaveProperty('role');
       }
     }
   });

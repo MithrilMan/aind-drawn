@@ -118,6 +118,24 @@ describe('multi-instance inked-solid scene rendering', () => {
     expect(before.steadyStatePerMeshAllocations).toBe(0);
     expect(pass.paper).toEqual(DEFAULT_INKED_SOLID_SCENE_PAPER);
     expect(containsStroke(firstCharacter.root)).toBe(true);
+    const revealValues: number[] = [];
+    firstCharacter.root.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.name === '') {
+        const geometry = object.geometry as THREE.BufferGeometry;
+        const candidate = geometry.getAttribute('inkedStrokeProgress');
+        if (candidate instanceof THREE.BufferAttribute) {
+          for (let index = 0; index < candidate.count; index += 1) {
+            revealValues.push(candidate.getX(index));
+          }
+        }
+      }
+    });
+    expect(revealValues.length).toBeGreaterThan(0);
+    expect(Math.min(...revealValues)).toBe(0);
+    expect(Math.max(...revealValues)).toBe(1);
+    expect(() => { firstRegistration.setStrokeReveal(0.45); }).not.toThrow();
+    expect(() => { firstRegistration.setStrokeReveal(-0.01); })
+      .toThrow(/between zero and one/u);
 
     pass.setSize(640, 360, 1.5);
     pass.render(scene, new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 100), 1.25);

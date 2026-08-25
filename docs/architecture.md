@@ -115,7 +115,7 @@ from an already trusted identity.
 
 `validateRasterAssetBlueprint` and `validateSolidAssetBlueprint` are pure,
 renderer-free boundaries. They validate hierarchies, identifiers, references,
-geometry, capabilities, interactions, colliders, sockets, and materials while
+geometry, capabilities, interactions, colliders, sockets, appearance, and semantic surfaces while
 preserving valid blueprint references. `AssetValidationError` exposes every
 useful issue with a stable path and code rather than hiding the first useful
 fact behind a generic constructor exception.
@@ -153,19 +153,19 @@ without switching on character, building, vehicle, or any future family ID.
 | Representation | Blueprint payload | Runtime adapter |
 | --- | --- | --- |
 | Hand-drawn raster | Canvas draw callbacks grouped into named layers | `SpriteRig` |
-| Smooth solid | Serialisable superellipsoids, extruded profiles, and meshes | `SolidRig` |
-| Inked solid | An invisible smooth-solid carrier plus semantic strokes, multipass contour, material-aware pigment deposition, and paper policy | `InkedSolidScenePass` registrations around `SolidRig` |
+| Smooth solid | Serialisable superellipsoids, extruded profiles, meshes, and semantic surfaces | `SolidRig` |
+| Inked solid | An invisible smooth-solid carrier plus semantic strokes, multipass contour, surface-aware pigment deposition, and paper policy | `InkedSolidScenePass` registrations around `SolidRig` |
 
 The inked-solid projection is implemented as a representation adapter around
 the exact smooth-solid blueprint. The mesh contributes occlusion, normals, and
-semantic material masks, but its continuous surface is not composited. It adds
+semantic surface masks, but its continuous surface is not composited. It adds
 physical-finish-independent pigment, camera-derived contours,
 camera-conditioned view marks, and authored spatial semantic marks without
 copying geometry or semantic state. A mouth, seam, or
 cornice has named ownership rather than being guessed by edge detection. See
 [`3d-stroke-rendering.md`](3d-stroke-rendering.md) for the rendering boundary.
 
-Semantic material RGB is the exact pigment source shared with raster output.
+Semantic surface RGB is the exact pigment source shared with raster output.
 The inked-solid pass may change deposited opacity and mark density to describe
 volume, but it must not darken, light, fog, or mix that source colour with
 paper or contour ink before compositing. Medium-specific view-mark density is
@@ -219,6 +219,22 @@ rotation signs. Eyebrows remain clear of the pupil volume. A narrowed eye or an
 authored eyelid supplies occlusion pressure instead of pushing a brow mesh
 through the eye.
 
+## Appearance and art direction
+
+Every blueprint carries an immutable `AssetAppearance`. It resolves one
+`ArtDirectionRecipe`, an appearance fingerprint, and explicit bindings from
+`semanticPartId` to generic `ArtRole` values. Families own those bindings;
+generic projection and runtime code never branches on a family name or guesses
+meaning from path geometry.
+
+Art direction may transform palette response, base ink, drawing economy,
+contour weight, paper, physical response, and consumer scene lighting. It does
+not alter `assetId`, identity, semantic topology, geometry, sockets, colliders,
+or interactions. Raster, smooth-solid, and Doodle projections compile the same
+appearance independently. `MediumId`, `RasterHand`, and physical treatment stay
+separate axes. The complete model and extension rules are documented in
+[`art-direction-and-surfaces.md`](art-direction-and-surfaces.md).
+
 ## Raster asset contract
 
 An asset generator returns an immutable blueprint containing:
@@ -259,6 +275,26 @@ baked as composites; interactive layers remain independent.
 
 The canvas factory is injected. Browser canvases are the default adapter, while
 the drawing core remains compatible with `OffscreenCanvas` and test doubles.
+`RasterHand` is the scoped surface and base ink/paper boundary; it is selected
+once per baked frame, never per mark or animation tick. `bakeRasterLayerFrame`
+exposes the renderer-free result for external adapters.
+
+Repeated instances may share immutable canvases through a scene-owned
+`RasterFrameCache`. Cache identity is the exact blueprint and layer objects plus
+state and boil frame, never `assetId` alone. Each rig owns its texture wrappers,
+while wrappers over one immutable canvas share a Three.js source and therefore
+one compatible renderer upload. Reference-counted renderer disposal means that
+clearing retained canvases or one rig cannot invalidate another live rig. See
+[`raster-rendering.md`](raster-rendering.md) for ownership, performance budgets,
+custom hands, and the renderer roadmap.
+
+`RasterWorkerClient` and `installRasterWorkerHost` provide the asynchronous
+worker boundary. The main thread sends a serialisable identity/recipe payload;
+the worker reconstructs the blueprint because draw callbacks cannot cross
+structured clone. It may return a transferable `OffscreenCanvas` frame or run
+the complete boil audit away from the main thread. Projection Studio exercises
+the audit path and falls back to synchronous baking when workers or
+`OffscreenCanvas` are unavailable.
 
 ### Raster visual audit
 
@@ -279,7 +315,7 @@ rendered from one exact identity through the public blueprint and rig pipeline.
 ## Solid geometry and runtime
 
 `SolidAssetBlueprint` is JSON-compatible data. It publishes a node hierarchy,
-named parts, geometry specifications, physical material intent, 3D bounds,
+named parts, geometry specifications, semantic surfaces, 3D bounds,
 colliders, sockets, semantic ownership, and node-transform interaction bindings. Supported geometry
 primitives are boxes, superellipsoids, extruded 2D profiles, and indexed or flat
 triangle meshes.
@@ -333,15 +369,18 @@ steering and suspension intent. Separate raster and solid applicators select
 their family capability targets without inspecting or discriminating the other
 rig representation.
 
-Physical material resolution is centralized in `SolidMaterialProvider`.
-`SolidMaterialSpec.finish` selects a renderer policy from the complete public
-catalog; the provider lazily creates and shares deterministic normal,
-roughness, and iridescence maps where a finish needs them. One provider belongs
-to one rig and disposes every material and generated texture it owns. Asset
-families declare material intent only; they neither construct Three.js
-materials nor duplicate procedural texture generators. Runtime geometry detail
-is likewise a `SolidRig` option, scaling authored tessellation without changing
-identity, bounds, sockets, colliders, or serialized mesh topology.
+Physical resolution is centralized in the scene-scoped
+`SolidSurfaceResourceCache`. `SemanticSurfaceSpec` keeps represented
+`substance`, renderer-neutral drawing intent, and physical treatment separate.
+The physical treatment combines a carrier `substrate` with an independent
+`finish`, plus optional roughness, metalness, and clearcoat overrides. The cache
+lazily creates deterministic normal, roughness, and iridescence maps, shares
+equal resolved surfaces across rigs, and releases a material after its last
+lease. The scene owner disposes cached texture profiles. Asset families neither
+construct Three.js materials nor duplicate procedural texture generators.
+Runtime geometry detail remains a `SolidRig` option, scaling authored
+tessellation without changing identity, bounds, sockets, colliders, or
+serialized mesh topology.
 
 `SolidRig.getSocketWorldPose` returns a serialisable position and quaternion;
 `SolidRig.getColliderWorldShape` returns the immutable authored collider plus
@@ -371,11 +410,11 @@ children, and returns deterministic serialisable snapshots. Inserted runtime
 resources are explicitly `owned` or `borrowed`: removal and composition disposal
 release only owned rigs, and every disposal path is idempotent.
 
-Blueprints are shared immutable references, while GPU resources remain owned by
-individual rigs. Geometry, material, or texture sharing is intentionally deferred
-until measurements justify a reference-counted cache with exact disposal tests.
-The composition service does not own physics, navigation, gameplay, ECS storage,
-or persistence policy.
+Blueprints are shared immutable references. Raster texture wrappers and solid
+geometry remain rig-owned; baked raster canvases and resolved solid surface
+resources may be shared through explicitly scene-owned caches with tested
+reference-counted disposal. The composition service does not own those scene
+caches, physics, navigation, gameplay, ECS storage, or persistence policy.
 
 Buildings use the same boundary without character concepts. A shared building
 identity owns archetype, dimensions, depth, floors, bays, roof, door, balconies,
@@ -390,12 +429,13 @@ an articulated door node, a recessed opening, matching colliders, and the same e
 `createInkedSolidBlueprint` wraps any `SolidAssetBlueprint` by reference and
 adds immutable drawing policy only. It requires the same `MediumId` used by
 raster recipes; `inkedSolidMediumDefaults` compiles that medium into volumetric
-coverage, view-synthesized marks, contour, and paper policy. Every material
-declares a generic `SolidMaterialSpec.drawing` application and tone.
+coverage, view-synthesized marks, contour, and paper policy. Every surface
+declares a generic `SemanticSurfaceSpec.drawing` application plus perceptual
+value and gesture.
 Applications such as `pigment`, `tint`, `paper`, `ink`, `wash`, and `glaze`
 describe deposition rather than asset semantics; the selected medium provider
-resolves them without inspecting family, material, or part names. Physical
-`SolidFinishId` remains an orthogonal smooth-rendering concern.
+resolves them without inspecting family, surface, or part names. Physical
+substrate and finish remain orthogonal smooth-rendering concerns.
 `InkedSolidScenePass` registers exact blueprint/rig/instance triples and precomputes part,
 material, topology, owner-anchor, semantic-stroke, and pass-material mappings. The service renders
 all registered carriers into shared unlit semantic albedo, depth, normal/topology, material-mark,
@@ -404,7 +444,7 @@ carrier and synthesizes a fresh two-dimensional drawing for the current camera
 projection. Carrier pixels start from opaque paper, receive an irregular
 semantic-colour pigment bed, then gesture marks and contours. Mark fields live
 in view-oriented drawing space, are translated with the projected origin of
-their owning semantic part, and are clipped by the projected material masks.
+their owning semantic part, and are clipped by the projected surface masks.
 On explicitly faceted carriers, the visible normal continuously rotates and
 foreshortens directional fields; drawing-light response changes mark density
 and pressure so adjacent planes do not collapse into one uniform hatch. Smooth
@@ -430,6 +470,9 @@ not per generated fan triangle, so renderer triangulation diagonals cannot leak 
 Each registration owns an `InkedSolidStrokeRig`, which resolves family-authored paths into small
 ink volumes parented to their owner parts. These volumes are reserved for genuinely spatial marks
 such as whiskers, wires, lifted seams, and other strokes that must leave or follow a surface.
+Every stroke geometry stores normalized reveal progress once. A registration's
+`setStrokeReveal` advances one shared shader uniform across the four carrier
+passes; it never rebuilds tubes in the animation loop.
 Disposing the registration releases its proxy materials and stroke resources before the caller
 disposes the `SolidRig`; disposing the scene pass releases every remaining registration and shared
 G-buffer resource.

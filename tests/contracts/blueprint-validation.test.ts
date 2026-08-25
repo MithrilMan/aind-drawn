@@ -7,6 +7,7 @@ import {
   SolidRig,
   SpriteRig,
   createBuildingIdentity,
+  createAssetAppearance,
   createCharacterIdentity,
   createRasterBuildingBlueprint,
   createRasterBuildingRecipe,
@@ -18,6 +19,7 @@ import {
   createSolidFaceBlueprint,
   createSolidFaceRecipe,
   createSolidVehicleBlueprint,
+  createUniformAssetAppearance,
   createVehicleIdentity,
   validateAssetBlueprintParity,
   validateAssetSemanticManifest,
@@ -90,8 +92,8 @@ function invalidSolidBlueprint(): unknown {
   const source = createSolidBuildingBlueprint(createBuildingIdentity(5104));
   const firstNode = source.nodes[0];
   const firstPart = source.parts[0];
-  const firstMaterial = source.materials[0];
-  if (firstNode === undefined || firstPart === undefined || firstMaterial === undefined) {
+  const firstSurface = source.surfaces[0];
+  if (firstNode === undefined || firstPart === undefined || firstSurface === undefined) {
     throw new Error('Expected a complete solid building');
   }
   return {
@@ -103,10 +105,10 @@ function invalidSolidBlueprint(): unknown {
       restPose: { ...firstNode.restPose, rotation: [0, 0, 0, 0] },
     }, ...source.nodes.slice(1)],
     colliders: [{ ...source.colliders[0], center: [0, 0, 0] }, ...source.colliders.slice(1)],
-    materials: [...source.materials, firstMaterial],
+    surfaces: [...source.surfaces, firstSurface],
     parts: [{
       ...firstPart,
-      materialId: 'missing-material',
+      surfaceId: 'missing-material',
       geometry: {
         type: 'mesh',
         vertices: [[0, 0, 0], [1, 0, 0], [2, 0, 0]],
@@ -158,6 +160,7 @@ function failingSpriteBlueprint(): AssetBlueprint<'test'> {
     assetId: 'test:failing-sprite',
     seed: 1,
     medium: 'graphite',
+    appearance: createUniformAssetAppearance('authored', ['art']),
     manifest: Object.freeze({
       family: 'test',
       parts: Object.freeze([Object.freeze({ id: 'art', spatial: 'surface' as const })]),
@@ -224,6 +227,10 @@ describe('blueprint validation', () => {
     const solid = createSolidBuildingBlueprint(identity);
     const withoutChimney = {
       ...raster,
+      appearance: createAssetAppearance(
+        raster.appearance.artDirection,
+        raster.appearance.parts.filter(({ semanticPartId }) => semanticPartId !== 'chimney'),
+      ),
       manifest: {
         ...raster.manifest,
         parts: raster.manifest.parts.filter(({ id }) => id !== 'chimney'),
@@ -270,6 +277,41 @@ describe('blueprint validation', () => {
     const error = validationError(() => validateRasterAssetBlueprint(legacyShape));
     expect(error.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ path: ['interactions'], code: 'object.unknown_key' }),
+    ]));
+  });
+
+  it('validates complete art-direction data and its appearance fingerprint', () => {
+    const source = createRasterCharacterBlueprint(createCharacterIdentity(3_114));
+    const invalid = {
+      ...source,
+      appearance: {
+        ...source.appearance,
+        appearanceFingerprint: 'art:stale',
+        artDirection: {
+          ...source.appearance.artDirection,
+          palette: {
+            ...source.appearance.artDirection.palette,
+            ink: [999, 20, 20],
+          },
+          drawing: {
+            ...source.appearance.artDirection.drawing,
+            contourScale: 0,
+          },
+        },
+      },
+    } as AssetBlueprint<'character'>;
+    const issues = validationError(() => validateRasterAssetBlueprint(invalid)).issues;
+    expect(issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        path: ['appearance', 'appearanceFingerprint'], code: 'value.fingerprint',
+      }),
+      expect.objectContaining({
+        path: ['appearance', 'artDirection', 'palette', 'ink', 0], code: 'value.maximum',
+      }),
+      expect.objectContaining({
+        path: ['appearance', 'artDirection', 'drawing', 'contourScale'],
+        code: 'value.exclusive_minimum',
+      }),
     ]));
   });
 
@@ -355,11 +397,11 @@ describe('blueprint validation', () => {
     dispose.mockRestore();
   });
 
-  it('disposes solid materials when construction fails after allocation', () => {
+  it('releases allocated solid surfaces when construction fails', () => {
     const blueprint = createSolidFaceBlueprint(createSolidFaceRecipe(404));
     const dispose = vi.spyOn(THREE.MeshPhysicalMaterial.prototype, 'dispose');
     expect(() => new SolidRig(blueprint, { detail: Number.NaN })).toThrow(RangeError);
-    expect(dispose).toHaveBeenCalledTimes(blueprint.materials.length);
+    expect(dispose).toHaveBeenCalledTimes(1);
     dispose.mockRestore();
   });
 

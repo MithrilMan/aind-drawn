@@ -1,9 +1,9 @@
 import { SeedTree } from '../../../core/random.js';
-import type { ToneStyle } from '../../../materials/medium.js';
+import { DRAWING_INTENTS, type DrawingIntent } from '../../../materials/drawing.js';
 import type { BuildingIdentityRecipe } from './recipe.js';
 
 export type BuildingDrawingStyle = Readonly<{
-  facadeTone: ToneStyle;
+  facadeDrawing: DrawingIntent;
 }>;
 
 /** Resolves seeded drawing intent shared by raster and volumetric projections. */
@@ -12,6 +12,11 @@ export function createBuildingDrawingStyle(
 ): BuildingDrawingStyle {
   const random = new SeedTree(identity.seed).random('building:raster');
   return Object.freeze({
-    facadeTone: random.pick<ToneStyle>(['light', 'hatch', 'scribble', 'stipple']),
+    facadeDrawing: random.pick<DrawingIntent>([
+      DRAWING_INTENTS.light,
+      DRAWING_INTENTS.mid,
+      DRAWING_INTENTS.agitated,
+      DRAWING_INTENTS.granular,
+    ]),
   });
 }

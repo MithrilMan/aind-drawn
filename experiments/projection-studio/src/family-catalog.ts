@@ -35,6 +35,7 @@ import {
   createSolidVehicleBlueprint,
   createSolidVehicleInkStrokes,
   type AssetAuthoringValue,
+  type ArtDirectionId,
   type AssetBlueprint,
   type AssetFamilyAuthoringSchema,
   type BuildingArchetype,
@@ -62,7 +63,7 @@ import {
   type MediumId,
   type RoofStyle,
   type SolidAssetBlueprint,
-  type SolidFinishId,
+  type PhysicalSurfaceTreatmentOverride,
   type VehicleArchetype,
   type VehicleDoorCount,
   type VehicleIdentityOptions,
@@ -97,7 +98,16 @@ export type StudioRuntimeAdapter = Readonly<{
 }>;
 
 export type StudioRuntimeOptions = Readonly<{ autoGaze: boolean }>;
+export type StudioAppearanceOptions = Readonly<{
+  artDirection: ArtDirectionId;
+  physical: PhysicalSurfaceTreatmentOverride;
+}>;
 export type FamilyIdentity = BuildingIdentityRecipe | CharacterIdentityRecipe | VehicleIdentityRecipe;
+export type StudioRasterWorkerPayload = Readonly<{
+  identity: FamilyIdentity;
+  medium: MediumId;
+  artDirection: ArtDirectionId;
+}>;
 export type StudioRasterRuntimeFactory = (
   rig: SpriteRig,
   identity: FamilyIdentity,
@@ -124,7 +134,7 @@ export type StudioFamilyDefinition = Readonly<{
   initialYaw: number;
   initialPitch: number;
   solidFrameScale: number;
-  defaultFinish: SolidFinishId;
+  defaultAppearance: StudioAppearanceOptions;
   rasterViewTitle: string;
   rasterAriaLabel: string;
   workspaceNote: string;
@@ -138,9 +148,13 @@ export type StudioFamilyDefinition = Readonly<{
     seed: number,
     medium: MediumId,
     customization: FamilyCustomization,
-    finish: SolidFinishId,
+    appearance: StudioAppearanceOptions,
   ) => FamilyProjection;
-  createRasterProjection: (identity: FamilyIdentity, medium: MediumId) => AssetBlueprint;
+  createRasterProjection: (
+    identity: FamilyIdentity,
+    medium: MediumId,
+    artDirection: ArtDirectionId,
+  ) => AssetBlueprint;
   createRasterRuntime: StudioRasterRuntimeFactory;
   createSolidRuntime: StudioSolidRuntimeFactory;
 }>;
@@ -166,27 +180,40 @@ function choices(values: readonly string[]): readonly StudioChoice[] {
 
 const binaryChoices = choices(['closed', 'open']);
 
-function characterRasterProjection(identity: FamilyIdentity, medium: MediumId): AssetBlueprint {
+function characterRasterProjection(
+  identity: FamilyIdentity,
+  medium: MediumId,
+  artDirection: ArtDirectionId,
+): AssetBlueprint {
   if (identity.family !== 'character') {
     throw new TypeError('Character raster projection requires character identity');
   }
-  return createRasterCharacterBlueprint(identity, { medium });
+  return createRasterCharacterBlueprint(identity, { medium, artDirection });
 }
 
-function buildingRasterProjection(identity: FamilyIdentity, medium: MediumId): AssetBlueprint {
+function buildingRasterProjection(
+  identity: FamilyIdentity,
+  medium: MediumId,
+  artDirection: ArtDirectionId,
+): AssetBlueprint {
   if (identity.family !== 'building') {
     throw new TypeError('Building raster projection requires building identity');
   }
-  return createRasterBuildingBlueprint(createRasterBuildingRecipe(identity, { medium }));
+  return createRasterBuildingBlueprint(createRasterBuildingRecipe(identity, { medium, artDirection }));
 }
 
-function vehicleRasterProjection(identity: FamilyIdentity, medium: MediumId): AssetBlueprint {
+function vehicleRasterProjection(
+  identity: FamilyIdentity,
+  medium: MediumId,
+  artDirection: ArtDirectionId,
+): AssetBlueprint {
   if (identity.family !== 'vehicle') {
     throw new TypeError('Vehicle raster projection requires vehicle identity');
   }
   return createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, {
     medium,
     side: 'right',
+    artDirection,
   }));
 }
 
@@ -194,7 +221,7 @@ function characterProjection(
   seed: number,
   medium: MediumId,
   customization: FamilyCustomization,
-  finish: SolidFinishId,
+  appearance: StudioAppearanceOptions,
 ): FamilyProjection {
   const shape = optionalString(customization.shape) as CharacterHeadShape | undefined;
   const eyeStyle = optionalString(customization.eyeStyle) as CharacterEyeStyle | undefined;
@@ -224,8 +251,8 @@ function characterProjection(
     ...(outfitStyle === undefined ? {} : { outfitStyle }),
   };
   const identity = createCharacterIdentity(seed, options);
-  const raster = characterRasterProjection(identity, medium);
-  const solid = createSolidCharacterBlueprint(identity, { finish });
+  const raster = characterRasterProjection(identity, medium, appearance.artDirection);
+  const solid = createSolidCharacterBlueprint(identity, appearance);
   return Object.freeze({
     identity,
     raster,
@@ -238,7 +265,7 @@ function buildingProjection(
   seed: number,
   medium: MediumId,
   customization: FamilyCustomization,
-  finish: SolidFinishId,
+  appearance: StudioAppearanceOptions,
 ): FamilyProjection {
   const archetype = optionalString(customization.archetype) as BuildingArchetype | undefined;
   const roof = optionalString(customization.roof) as RoofStyle | undefined;
@@ -253,8 +280,8 @@ function buildingProjection(
     ...(chimney === undefined ? {} : { chimney }),
   };
   const identity = createBuildingIdentity(seed, options);
-  const raster = buildingRasterProjection(identity, medium);
-  const solid = createSolidBuildingBlueprint(identity, { finish });
+  const raster = buildingRasterProjection(identity, medium, appearance.artDirection);
+  const solid = createSolidBuildingBlueprint(identity, appearance);
   return Object.freeze({
     identity,
     raster,
@@ -267,7 +294,7 @@ function vehicleProjection(
   seed: number,
   medium: MediumId,
   customization: FamilyCustomization,
-  finish: SolidFinishId,
+  appearance: StudioAppearanceOptions,
 ): FamilyProjection {
   const roofRack = optionalBoolean(customization.roofRack);
   const spoiler = optionalBoolean(customization.spoiler);
@@ -288,8 +315,8 @@ function vehicleProjection(
     ...(spoiler === undefined ? {} : { spoiler }),
   };
   const identity = createVehicleIdentity(seed, options);
-  const raster = vehicleRasterProjection(identity, medium);
-  const solid = createSolidVehicleBlueprint(identity, { finish });
+  const raster = vehicleRasterProjection(identity, medium, appearance.artDirection);
+  const solid = createSolidVehicleBlueprint(identity, appearance);
   return Object.freeze({
     identity,
     raster,
@@ -366,7 +393,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     initialYaw: 0,
     initialPitch: -4,
     solidFrameScale: 0.62,
-    defaultFinish: 'skin',
+    defaultAppearance: Object.freeze({ artDirection: 'authored', physical: Object.freeze({}) }),
     rasterViewTitle: 'Front view',
     rasterAriaLabel: 'Front-facing 2D character drawing',
     workspaceNote: 'Pose it, add expression, then inspect every angle.',
@@ -406,7 +433,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     initialYaw: 0,
     initialPitch: 0,
     solidFrameScale: 0.72,
-    defaultFinish: 'matte',
+    defaultAppearance: Object.freeze({ artDirection: 'authored', physical: Object.freeze({}) }),
     rasterViewTitle: 'Front elevation',
     rasterAriaLabel: 'Front elevation 2D building drawing',
     workspaceNote: 'Open the door, reshape the architecture, then inspect every angle.',
@@ -433,7 +460,7 @@ export const STUDIO_FAMILIES: readonly StudioFamilyDefinition[] = Object.freeze(
     initialYaw: 0,
     initialPitch: 0,
     solidFrameScale: 0.62,
-    defaultFinish: 'glossy',
+    defaultAppearance: Object.freeze({ artDirection: 'authored', physical: Object.freeze({}) }),
     rasterViewTitle: 'Right side elevation',
     rasterAriaLabel: 'Right-side elevation 2D vehicle drawing',
     workspaceNote: 'Drive it, steer it, open its moving parts, then inspect every angle.',

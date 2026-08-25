@@ -66,7 +66,7 @@ export class RaceStage {
   private readonly doodle: DoodleScene;
   private readonly scenery: SceneryField;
   private readonly vehicles: VehicleField;
-  private readonly crowd: CrowdField;
+  private crowd: CrowdField;
   private readonly effects: DriftEffects;
   private readonly smoke: SmokeBurst;
   private readonly camera: RaceCameraController;
@@ -132,6 +132,15 @@ export class RaceStage {
     this.doodle.setMedium(medium);
   }
 
+  public rerollCrowd(seed: number): void {
+    const previous = this.crowd;
+    const replacement = new CrowdField(this.world, seed);
+    replacement.setVisible(this.mode !== 'menu');
+    this.crowd = replacement;
+    this.doodle.setAssets(this.sceneAssets());
+    previous.dispose();
+  }
+
   public diagnostics(): InkedSolidSceneDiagnostics | null {
     return this.doodle.diagnostics();
   }
@@ -156,6 +165,7 @@ export class RaceStage {
       this.exploreDrive.reset();
       this.effects.reset();
       this.vehicles.update(this.exploreDrive.frame().racers, 0);
+      this.camera.resetExplorer();
     }
     this.crowd.setCelebrating(false, 0);
     this.vehicles.setVisible(mode === 'race' || mode === 'explore');

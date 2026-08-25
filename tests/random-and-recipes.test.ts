@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest';
 import {
   CHARACTER_AUTHORING_SCHEMA,
   CHARACTER_EXPRESSIONS,
+  ART_DIRECTION_CATALOG,
+  DRAWING_INTENTS,
   MEDIUM_IDS,
   Random,
   SeedTree,
+  SolidRig,
   buildCharacterLayout,
   buildSolidCharacterLayout,
   buildSolidFaceLayout,
@@ -15,6 +18,7 @@ import {
   characterHeadShapeField,
   characterMouthCenterY,
   createBuildingFacadeGeometry,
+  createAssetAppearance,
   createBuildingIdentity,
   createCharacterEyeProfile,
   createCharacterEyewearProfile,
@@ -53,6 +57,7 @@ import {
   pointOnSuperellipsoid,
   solidFaceMotionOf,
   type Point3,
+  type ArtDirectionRecipe,
 } from '../src/index.js';
 
 describe('deterministic generation', () => {
@@ -85,6 +90,32 @@ describe('deterministic generation', () => {
     expect([lateFork.next(), lateFork.next()]).toEqual([earlyFork.next(), earlyFork.next()]);
   });
 
+  it('normalizes custom art direction and fingerprints its semantic bindings', () => {
+    const mutable = JSON.parse(JSON.stringify(ART_DIRECTION_CATALOG.storybook)) as {
+      id: string;
+      palette: { warmth: number };
+      drawing: { contourScale: number };
+    };
+    mutable.id = 'custom-storybook';
+    const first = createAssetAppearance(
+      mutable as unknown as ArtDirectionRecipe,
+      [{ semanticPartId: 'focus', roles: ['focal-feature'] }],
+    );
+    const second = createAssetAppearance(
+      mutable as unknown as ArtDirectionRecipe,
+      [{ semanticPartId: 'focus', roles: ['secondary-form'] }],
+    );
+    mutable.palette.warmth = -0.8;
+    expect(first.artDirection.palette.warmth).toBe(ART_DIRECTION_CATALOG.storybook.palette.warmth);
+    expect(Object.isFrozen(first.artDirection.scene.lighting)).toBe(true);
+    expect(first.appearanceFingerprint).not.toBe(second.appearanceFingerprint);
+    mutable.drawing.contourScale = 0;
+    expect(() => createAssetAppearance(
+      mutable as unknown as ArtDirectionRecipe,
+      [{ semanticPartId: 'focus', roles: ['focal-feature'] }],
+    )).toThrow(/valid range/u);
+  });
+
   it('persists complete recipes as stable JSON data', () => {
     const first = createCharacterRecipe(913, { species: 'cat', medium: 'watercolor' });
     const second = createCharacterRecipe(913, { species: 'cat', medium: 'watercolor' });
@@ -93,8 +124,12 @@ describe('deterministic generation', () => {
 
 
   it('persists solid faces as renderer-neutral deterministic data', () => {
-    const first = createSolidFaceRecipe(707, { species: 'human', finish: 'ceramic' });
-    const second = createSolidFaceRecipe(707, { species: 'human', finish: 'ceramic' });
+    const first = createSolidFaceRecipe(707, {
+      species: 'human', physical: { substrate: 'ceramic', finish: 'gloss' },
+    });
+    const second = createSolidFaceRecipe(707, {
+      species: 'human', physical: { substrate: 'ceramic', finish: 'gloss' },
+    });
     const blueprint = createSolidFaceBlueprint(first);
     expect(JSON.parse(JSON.stringify(first))).toEqual(second);
     expect(JSON.parse(JSON.stringify(blueprint))).toEqual(blueprint);
@@ -107,9 +142,13 @@ describe('deterministic generation', () => {
   it('projects one character identity into raster and solid representations', () => {
     const identity = createCharacterIdentity(4107, { species: 'cat', shape: 'pear' });
     const rasterRecipe = createRasterCharacterRecipe(identity, { medium: 'graphite' });
-    const solidRecipe = createSolidCharacterRecipe(identity, { finish: 'ceramic' });
+    const solidRecipe = createSolidCharacterRecipe(identity, {
+      physical: { substrate: 'ceramic', finish: 'gloss' },
+    });
     const raster = createRasterCharacterBlueprint(identity, { medium: 'graphite' });
-    const solid = createSolidCharacterFaceBlueprint(identity, { finish: 'ceramic' });
+    const solid = createSolidCharacterFaceBlueprint(identity, {
+      physical: { substrate: 'ceramic', finish: 'gloss' },
+    });
 
     expect(rasterRecipe.identity).toBe(identity);
     expect(solidRecipe.identity).toBe(identity);
@@ -123,10 +162,51 @@ describe('deterministic generation', () => {
       'ear:left', 'ear:right', 'muzzle:left', 'muzzle:right', 'nose',
     ]));
     expect(createRasterCharacterRecipe(identity, { medium: 'watercolor' }).identity).toBe(identity);
-    expect(createSolidCharacterRecipe(identity, { finish: 'metal' }).identity).toBe(identity);
+    expect(createSolidCharacterRecipe(identity, {
+      physical: { substrate: 'metal', finish: 'polished' },
+    }).identity).toBe(identity);
     expect(JSON.parse(JSON.stringify(identity))).toEqual(
       createCharacterIdentity(4107, { species: 'cat', shape: 'pear' }),
     );
+  });
+
+  it('changes art direction across raster, solid, and Doodle without changing identity', () => {
+    const identity = createCharacterIdentity(4_207, {
+      species: 'human', hairStyle: 'quiff', outfitStyle: 'buttons',
+    });
+    const authoredRaster = createRasterCharacterBlueprint(identity, { artDirection: 'authored' });
+    const storybookRaster = createRasterCharacterBlueprint(identity, { artDirection: 'storybook' });
+    const authoredSolid = createSolidCharacterBlueprint(identity, { artDirection: 'authored' });
+    const storybookSolid = createSolidCharacterBlueprint(identity, { artDirection: 'storybook' });
+    const authoredDoodle = createInkedSolidBlueprint(authoredSolid, { medium: 'graphite' });
+    const storybookDoodle = createInkedSolidBlueprint(storybookSolid, { medium: 'graphite' });
+
+    expect(storybookRaster.assetId).toBe(authoredRaster.assetId);
+    expect(storybookRaster.manifest).toBe(authoredRaster.manifest);
+    expect(storybookRaster.layers.map(({ id, semanticPartId, bone }) => ({
+      id, semanticPartId, bone,
+    }))).toEqual(authoredRaster.layers.map(({ id, semanticPartId, bone }) => ({
+      id, semanticPartId, bone,
+    })));
+    expect(storybookSolid.assetId).toBe(authoredSolid.assetId);
+    expect(storybookSolid.manifest).toBe(authoredSolid.manifest);
+    expect(storybookSolid.nodes).toEqual(authoredSolid.nodes);
+    expect(storybookSolid.parts).toEqual(authoredSolid.parts);
+    expect(storybookSolid.surfaces).toEqual(authoredSolid.surfaces);
+    expect(storybookSolid.appearance.parts).toEqual(authoredSolid.appearance.parts);
+    expect(storybookSolid.appearance.appearanceFingerprint)
+      .not.toBe(authoredSolid.appearance.appearanceFingerprint);
+    expect(storybookDoodle.paper.color).not.toEqual(authoredDoodle.paper.color);
+    expect(storybookDoodle.contour.width).not.toBe(authoredDoodle.contour.width);
+
+    const authoredRig = new SolidRig(authoredSolid);
+    const storybookRig = new SolidRig(storybookSolid);
+    expect(storybookRig.getPart('head')?.material.color.getHex())
+      .not.toBe(authoredRig.getPart('head')?.material.color.getHex());
+    expect(storybookRig.getPart('head')?.material.roughness)
+      .toBeGreaterThanOrEqual(authoredRig.getPart('head')?.material.roughness ?? 0);
+    authoredRig.dispose();
+    storybookRig.dispose();
   });
 
   it('uses one explicit envelope across identities, recipes, and blueprints', () => {
@@ -373,7 +453,7 @@ describe('asset contracts', () => {
     const identity = createCharacterIdentity(4107, {
       species: 'cat', hairStyle: 'none', eyeStyle: 'saucer', alternateEyeStyle: null,
     });
-    const recipe = createSolidCharacterRecipe(identity, { finish: 'matte' });
+    const recipe = createSolidCharacterRecipe(identity, { physical: { finish: 'matte' } });
     const layout = buildSolidCharacterLayout(recipe);
     const blueprint = createSolidCharacterBlueprint(recipe);
 
@@ -569,7 +649,9 @@ describe('asset contracts', () => {
     });
     const facade = createBuildingFacadeGeometry(identity);
     const rasterRecipe = createRasterBuildingRecipe(identity, { medium: 'watercolor' });
-    const solidRecipe = createSolidBuildingRecipe(identity, { finish: 'ceramic' });
+    const solidRecipe = createSolidBuildingRecipe(identity, {
+      physical: { substrate: 'ceramic', finish: 'gloss' },
+    });
     const raster = createRasterBuildingBlueprint(rasterRecipe);
     const solid = createSolidBuildingBlueprint(solidRecipe);
 
@@ -581,7 +663,7 @@ describe('asset contracts', () => {
       'building:shell', 'building:roof', 'door:opening', 'door', 'balcony:0:floor',
     ]));
     expect(solid.parts.find(({ id }) => id === 'building:shell')?.geometry.type).toBe('mesh');
-    expect(solid.parts.find(({ id }) => id === 'door:opening')?.materialId).toBe('interior');
+    expect(solid.parts.find(({ id }) => id === 'door:opening')?.surfaceId).toBe('interior');
     const roof = solid.parts.find(({ id }) => id === 'building:roof');
     if (roof?.geometry.type !== 'mesh') throw new TypeError('Expected a mesh roof');
     expect(roof.geometry.vertices
@@ -596,7 +678,7 @@ describe('asset contracts', () => {
       expect(window.geometry.outline).toEqual(facadeWindow.profile);
       expect(window.placement.position[0]).toBeCloseTo(facadeWindow.center[0]);
       expect(window.placement.position[1]).toBeCloseTo(facadeWindow.center[1]);
-      expect(window.materialId).toBe(facadeWindow.lit ? 'glass:lit' : 'glass:dark');
+      expect(window.surfaceId).toBe(facadeWindow.lit ? 'glass:lit' : 'glass:dark');
     }
     const door = solid.parts.find(({ id }) => id === 'door');
     if (door?.geometry.type !== 'extruded-profile') {
@@ -637,15 +719,16 @@ describe('asset contracts', () => {
     expect(characterInk.solid).toBe(characterSolid);
     expect(buildingInk.solid).toBe(buildingSolid);
     expect(characterInk.contour).toEqual(buildingInk.contour);
-    expect(characterInk.viewMarks.find(({ materialId }) => materialId === 'hair')?.style)
+    expect(characterInk.viewMarks.find(({ surfaceId }) => surfaceId === 'hair')?.style)
       .toBe('scribble');
     expect(characterInk.viewMarks.find(({ application }) => application === 'ink')?.style)
       .toBe('solid');
     expect(characterInk.viewMarks.find(({ application }) => application === 'paper')?.style)
       .toBe('none');
-    const facadeTone = buildingSolid.materials.find(({ id }) => id === 'wall')?.drawing.tone;
-    expect(buildingInk.viewMarks.find(({ materialId }) => materialId === 'wall')?.style)
-      .toBe(facadeTone === 'black' ? 'scribble' : facadeTone);
+    const facadeDrawing = buildingSolid.surfaces.find(({ id }) => id === 'wall')?.drawing;
+    if (facadeDrawing === undefined) throw new Error('Building wall surface is missing');
+    expect(buildingInk.viewMarks.find(({ surfaceId }) => surfaceId === 'wall'))
+      .toMatchObject(inkedSolidMediumDefaults('graphite').viewMark(facadeDrawing));
     expect(characterInk.deposition).toEqual(buildingInk.deposition);
     expect(characterInk.strokes.length).toBeGreaterThan(0);
     expect(buildingInk.strokes.length).toBeGreaterThan(0);
@@ -679,19 +762,21 @@ describe('asset contracts', () => {
     const raster = createRasterCharacterRecipe(identity, { medium: 'graphite' });
     const solid = createSolidCharacterBlueprint(identity);
     const inked = createInkedSolidBlueprint(solid, { medium: 'graphite' });
-    const skin = solid.materials.find(({ id }) => id === 'skin');
-    const hair = solid.materials.find(({ id }) => id === 'hair');
-    const skinMark = inked.viewMarks.find(({ materialId }) => materialId === 'skin');
-    const hairMark = inked.viewMarks.find(({ materialId }) => materialId === 'hair');
-    const inkMark = inked.viewMarks.find(({ materialId }) => materialId === 'ink');
-    const clothMark = inked.viewMarks.find(({ materialId }) => materialId === 'cloth');
+    const skin = solid.surfaces.find(({ id }) => id === 'skin');
+    const hair = solid.surfaces.find(({ id }) => id === 'hair');
+    const skinMark = inked.viewMarks.find(({ surfaceId }) => surfaceId === 'skin');
+    const hairMark = inked.viewMarks.find(({ surfaceId }) => surfaceId === 'hair');
+    const inkMark = inked.viewMarks.find(({ surfaceId }) => surfaceId === 'ink');
+    const clothMark = inked.viewMarks.find(({ surfaceId }) => surfaceId === 'cloth');
 
-    expect(raster.style).toMatchObject({ headTone: 'light', hairTone: 'black' });
+    expect(raster.style).toMatchObject({
+      headDrawing: { value: 'light' }, hairDrawing: { value: 'solid' },
+    });
     expect(skin?.color).toEqual(identity.palette.skin);
     expect(hair?.color).toEqual(identity.palette.hair);
-    expect(skin?.drawing.tone).toBe(raster.style.headTone);
-    expect(hair?.drawing.tone).toBe(raster.style.hairTone);
-    expect(skinMark).toMatchObject({ style: 'hatch', strength: 0.4, coverage: 0.08 });
+    expect(skin?.drawing.drawing).toEqual(raster.style.headDrawing);
+    expect(hair?.drawing.drawing).toEqual(raster.style.hairDrawing);
+    expect(skinMark).toMatchObject({ style: 'hatch', strength: 0.24, coverage: 0.08 });
     expect(hairMark).toMatchObject({ style: 'scribble', strength: 0.72, coverage: 0.68 });
     expect(hairMark?.scale).toBeCloseTo((skinMark?.scale ?? 0) * 2.5);
     expect(clothMark).toMatchObject({ style: 'none', strength: 0, coverage: 0.03 });
@@ -701,30 +786,34 @@ describe('asset contracts', () => {
 
   it('calibrates graphite mark density to the shared raster tone hierarchy', () => {
     const graphite = inkedSolidMediumDefaults('graphite');
-    const light = graphite.viewMark({ application: 'pigment', tone: 'light' });
-    const hatch = graphite.viewMark({ application: 'pigment', tone: 'hatch' });
-    const scribble = graphite.viewMark({ application: 'pigment', tone: 'scribble' });
-    const stipple = graphite.viewMark({ application: 'pigment', tone: 'stipple' });
-    const black = graphite.viewMark({ application: 'pigment', tone: 'black' });
+    const light = graphite.viewMark({ application: 'pigment', drawing: DRAWING_INTENTS.light });
+    const hatch = graphite.viewMark({ application: 'pigment', drawing: DRAWING_INTENTS.mid });
+    const scribble = graphite.viewMark({
+      application: 'pigment', drawing: { value: 'dark', gesture: 'agitated' },
+    });
+    const stipple = graphite.viewMark({
+      application: 'pigment', drawing: { value: 'dark', gesture: 'granular' },
+    });
+    const black = graphite.viewMark({ application: 'pigment', drawing: DRAWING_INTENTS.solid });
 
     expect(light).toMatchObject({ style: 'none', strength: 0, coverage: 0.03 });
     expect(hatch).toMatchObject({ style: 'hatch', strength: 0.4, coverage: 0.06 });
-    expect(scribble).toMatchObject({ style: 'scribble', strength: 0.42, coverage: 0.05 });
-    expect(stipple).toMatchObject({ style: 'stipple', strength: 0.5, coverage: 0.04 });
+    expect(scribble).toMatchObject({ style: 'scribble', strength: 0.42, coverage: 0.18 });
+    expect(stipple).toMatchObject({ style: 'stipple', strength: 0.5, coverage: 0.18 });
     expect(black).toMatchObject({ style: 'scribble', strength: 0.72, coverage: 0.68 });
     expect(black.scale).toBeCloseTo(hatch.scale * 2.5);
     expect(black.lineWidth).toBeCloseTo(hatch.lineWidth * 2.6);
     expect(graphite.deposition.planeSeparationStrength).toBeGreaterThan(0.4);
   });
 
-  it('shares facade tone intent between raster and solid building materials', () => {
+  it('shares facade drawing intent between raster and solid building surfaces', () => {
     const identity = createBuildingIdentity(1440);
     const raster = createRasterBuildingRecipe(identity, { medium: 'graphite' });
     const solid = createSolidBuildingBlueprint(identity);
-    expect(solid.materials.find(({ id }) => id === 'wall')?.color)
+    expect(solid.surfaces.find(({ id }) => id === 'wall')?.color)
       .toEqual(identity.palette.wall);
-    expect(solid.materials.find(({ id }) => id === 'wall')?.drawing.tone)
-      .toBe(raster.style.tone);
+    expect(solid.surfaces.find(({ id }) => id === 'wall')?.drawing.drawing)
+      .toEqual(raster.style.drawing);
   });
 
   it('projects every raster medium into a distinct volumetric drawing policy', () => {
@@ -754,40 +843,52 @@ describe('asset contracts', () => {
     const inked = createInkedSolidBlueprint(solid, { medium: 'oil' });
     const painted = inked.viewMarks.filter(({ application }) => application !== 'paper');
     expect(painted.every(({ coverage }) => coverage >= 0.62)).toBe(true);
-    expect(inked.viewMarks.find(({ materialId }) => materialId === 'skin')?.coverage).toBe(0.98);
+    expect(inked.viewMarks.find(({ surfaceId }) => surfaceId === 'skin')?.coverage).toBe(0.98);
     expect(inked.contour.wander).toBeGreaterThan(0);
   });
 
   it('keeps oil, charcoal, and marker inside their raster mark vocabularies', () => {
-    const tones = ['black', 'hatch', 'scribble', 'stipple', 'light'] as const;
+    const drawings = [
+      DRAWING_INTENTS.solid,
+      DRAWING_INTENTS.mid,
+      { value: 'dark', gesture: 'agitated' } as const,
+      { value: 'dark', gesture: 'granular' } as const,
+      DRAWING_INTENTS.light,
+    ];
     const oil = inkedSolidMediumDefaults('oil');
     const charcoal = inkedSolidMediumDefaults('chalk');
     const marker = inkedSolidMediumDefaults('marker');
-    for (const tone of tones) {
-      expect(oil.viewMark({ application: 'pigment', tone }).style).toBe('bristle');
-      expect(charcoal.viewMark({ application: 'pigment', tone }).style).toBe('stipple');
-      expect(marker.viewMark({ application: 'pigment', tone }).style).toBe('marker');
+    for (const drawing of drawings) {
+      expect(oil.viewMark({ application: 'pigment', drawing }).style).toBe('bristle');
+      expect(charcoal.viewMark({ application: 'pigment', drawing }).style).toBe('stipple');
+      expect(marker.viewMark({ application: 'pigment', drawing }).style).toBe('marker');
     }
-    expect(marker.viewMark({ application: 'pigment', tone: 'hatch' }).lineWidth)
+    expect(marker.viewMark({ application: 'pigment', drawing: DRAWING_INTENTS.mid }).lineWidth)
       .toBeGreaterThan(0.2);
-    expect(charcoal.viewMark({ application: 'tint', tone: 'hatch' }).style).not.toBe('hatch');
+    expect(charcoal.viewMark({ application: 'tint', drawing: DRAWING_INTENTS.mid }).style)
+      .not.toBe('hatch');
   });
 
   it('projects ink and watercolour as deposited filler rather than invented shading bands', () => {
     const ink = inkedSolidMediumDefaults('ink');
-    const inkBlack = ink.viewMark({ application: 'pigment', tone: 'black' });
-    const inkLight = ink.viewMark({ application: 'pigment', tone: 'light' });
+    const inkBlack = ink.viewMark({ application: 'pigment', drawing: DRAWING_INTENTS.solid });
+    const inkLight = ink.viewMark({ application: 'pigment', drawing: DRAWING_INTENTS.light });
     expect(inkBlack).toMatchObject({ style: 'hatch', strength: 0.2, coverage: 0.9 });
     expect(inkLight.style).toBe('none');
     expect(inkLight.coverage).toBeCloseTo(0.16 + 0.34 * 0.74);
 
     const watercolour = inkedSolidMediumDefaults('watercolor');
-    const watercolourBlack = watercolour.viewMark({ application: 'pigment', tone: 'black' });
-    const watercolourLight = watercolour.viewMark({ application: 'pigment', tone: 'light' });
+    const watercolourBlack = watercolour.viewMark({
+      application: 'pigment', drawing: DRAWING_INTENTS.solid,
+    });
+    const watercolourLight = watercolour.viewMark({
+      application: 'pigment', drawing: DRAWING_INTENTS.light,
+    });
     expect(watercolourBlack.style).toBe('none');
     expect(watercolourLight.style).toBe('none');
     expect(watercolourBlack.coverage).toBeGreaterThan(watercolourLight.coverage);
-    expect(watercolour.viewMark({ application: 'ink', tone: 'black' }).style).toBe('solid');
+    expect(watercolour.viewMark({ application: 'ink', drawing: DRAWING_INTENTS.solid }).style)
+      .toBe('solid');
   });
 
   it('validates ink policies without mutating solid semantics', () => {
@@ -809,16 +910,16 @@ describe('asset contracts', () => {
     })).toThrow(/wander/i);
     expect(() => createInkedSolidBlueprint(solid, {
       medium: 'graphite',
-      viewMarks: { wall: { scale: 0 } },
-    })).toThrow(/viewMarks\.wall\.scale/i);
+      viewMarks: { surfaces: { wall: { scale: 0 } } },
+    })).toThrow(/viewMarks\..*\.scale/i);
     expect(() => createInkedSolidBlueprint(solid, {
       medium: 'graphite',
-      viewMarks: { wall: { coverage: 1.01 } },
-    })).toThrow(/viewMarks\.wall\.coverage/i);
+      viewMarks: { surfaces: { wall: { coverage: 1.01 } } },
+    })).toThrow(/viewMarks\..*\.coverage/i);
     expect(() => createInkedSolidBlueprint(solid, {
       medium: 'graphite',
-      viewMarks: { missing: { style: 'scribble' } },
-    })).toThrow(/unknown material/i);
+      viewMarks: { surfaces: { missing: { style: 'scribble' } } },
+    })).toThrow(/unknown surface/i);
     expect(() => createInkedSolidBlueprint(solid, {
       medium: 'graphite',
       strokes: [{
@@ -837,8 +938,10 @@ describe('asset contracts', () => {
 
   it('keeps doodle deposition and strokes independent from smooth physical finish', () => {
     const identity = createCharacterIdentity(321, { hairStyle: 'cap' });
-    const matte = createSolidCharacterBlueprint(identity, { finish: 'matte' });
-    const metal = createSolidCharacterBlueprint(identity, { finish: 'metal' });
+    const matte = createSolidCharacterBlueprint(identity, { physical: { finish: 'matte' } });
+    const metal = createSolidCharacterBlueprint(identity, {
+      physical: { substrate: 'metal', finish: 'polished' },
+    });
     const matteInk = createInkedSolidBlueprint(matte, {
       medium: 'graphite',
       strokes: createSolidCharacterInkStrokes(matte),
@@ -847,8 +950,10 @@ describe('asset contracts', () => {
       medium: 'graphite',
       strokes: createSolidCharacterInkStrokes(metal),
     });
-    expect(matte.materials.some(({ finish }) => finish === 'matte')).toBe(true);
-    expect(metal.materials.some(({ finish }) => finish === 'metal')).toBe(true);
+    expect(matte.surfaces.every(({ physical }) => physical.finish === 'matte')).toBe(true);
+    expect(metal.surfaces.every(({ physical }) => (
+      physical.substrate === 'metal' && physical.finish === 'polished'
+    ))).toBe(true);
     expect(matteInk.deposition).toEqual(metalInk.deposition);
     expect(matteInk.strokes).toEqual(metalInk.strokes);
   });
@@ -983,9 +1088,11 @@ describe('asset contracts', () => {
       outfitStyle: 'buttons',
     });
     const raster = createRasterCharacterBlueprint(identity);
-    const solid = createSolidCharacterBlueprint(identity, { finish: 'skin' });
+    const solid = createSolidCharacterBlueprint(identity, {
+      physical: { substrate: 'skin', finish: 'satin' },
+    });
     const faceLayout = buildSolidFaceLayout(createSolidCharacterRecipe(identity, {
-      finish: 'skin',
+      physical: { substrate: 'skin', finish: 'satin' },
     }));
     const rasterIds = raster.layers.map(({ id }) => id);
     const solidIds = solid.parts.map(({ id }) => id);
@@ -1011,11 +1118,15 @@ describe('asset contracts', () => {
     if (temple?.geometry.type === 'box') {
       expect(temple.placement.position[2] - temple.geometry.size[2] * 0.5).toBeLessThan(0);
     }
-    expect(solid.materials.find(({ id }) => id === 'facial-hair')).toMatchObject({
-      finish: 'wool', drawing: { application: 'pigment' },
+    expect(solid.surfaces.find(({ id }) => id === 'facial-hair')).toMatchObject({
+      substance: 'hair',
+      physical: { substrate: 'skin', finish: 'satin' },
+      drawing: { application: 'pigment' },
     });
-    expect(solid.materials.find(({ id }) => id === 'accessory:eyewear')).toMatchObject({
-      finish: 'rubber', drawing: { application: 'ink', tone: 'black' },
+    expect(solid.surfaces.find(({ id }) => id === 'accessory:eyewear')).toMatchObject({
+      substance: 'rubber',
+      physical: { substrate: 'skin', finish: 'satin' },
+      drawing: { application: 'ink', drawing: DRAWING_INTENTS.solid },
     });
     expect(() => createInkedSolidBlueprint(solid, {
       medium: 'graphite',

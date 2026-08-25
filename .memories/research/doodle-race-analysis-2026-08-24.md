@@ -1,6 +1,6 @@
 # Doodle Race Review
 
-Last updated: 2026-08-24
+Last updated: 2026-08-25
 
 ## Summary
 
@@ -8,10 +8,11 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 
 ## Evidence
 
-- The verification suites pass: 12 test files and 163 tests after the race-menu, explorer, vehicle-pose,
+- The verification suites pass: 12 test files and 170 tests after the course compiler, ordered route
+  checkpoint, race-menu, explorer, vehicle-pose,
   hidden-carrier, Explore-camera, character-axis, and grandstand-grounding regressions were added.
-  The focused Doodle Race suite passes 26 tests, including the queued reroll and smoke-tail
-  animation.
+  The focused Doodle Race suite passes 40 tests, including pencil-path validation, shortcut
+  rejection, queued reroll, and smoke-tail animation.
 - Live browser QA at the desktop viewport confirms the initial `Oil`/`5 laps` menu, a 10-lap
   start, full-map racer markers, and a random-character grandstand walk with `idle`/`walk` state.
 - At 320px, the brand/settings plates overlap and the fixed-size touch controls overlap adjacent targets. At 390px, the running-order plate overlaps the drift HUD.
@@ -20,15 +21,28 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 ## Reusable findings
 
 - `RaceSimulation` combines phase flow, ranking, lap detection, drift scoring, respawn, player physics, and opponent steering. Split rules into focused modules before adding more race systems.
-- `stepArcadeVehicle` marks a drift only when handbrake is pressed; steering-only slip cannot score despite the product contract allowing steering or handbrake drift.
-- `nearestCoursePoint` selects the nearest of 256 samples rather than projecting onto a course segment; this is a likely source of progress/off-road jitter at speed.
-- Off-road handling reduces grip and eventually respawns, but there are no explicit sectors/checkpoints or cut validation. Verify and then add a route-progress contract before expanding track shortcuts.
+- `nearestCoursePoint` projects continuously onto the 256 sampled course segments. Generated path
+  validation keeps non-adjacent centre-line sections far enough apart to avoid ambiguous projection.
+- Course layouts own ordered arc-length checkpoints. Swept forward gate crossing advances one expected
+  gate at a time; ranking is clamped to the validated sector, and recovery uses the last validated gate.
+  Nearest-road projection is continuous over sample segments but no longer authorizes lap progress.
+  Every non-start gate is rendered as a yellow band using the exact gameplay half-width. A two-unit
+  off-road margin tolerates small excursions without weakening the ordered anti-shortcut rule.
 - Opponents follow fixed lane offsets and pace targets and do not collide with each other, so the race currently behaves more like a player-versus-ghost contest than a tactical pack race.
 - Renderer failures now pause an active race before the stage is discarded; retry can resume from a
   safe paused state. Medium rebuild failures follow the same pause/error path.
 
 ## Implemented decisions
 
+- `CoursePathRecipe` stores the immutable normalized centre line, world scale, and track width for the
+  experiment-local solid course. `compileCourseStroke` collapses duplicate samples, normalizes and
+  simplifies a closed gesture, then compiles it through the same layout consumed by the Doodle ribbon,
+  physics, AI, camera, and scenery. It rejects open paths, self-intersections, unsafe turn radii,
+  insufficient non-adjacent clearance, and tracks too short for their width.
+- Race progression is an independent pure route state. Every racer must cross generated checkpoints
+  in order and in the authored forward direction before the start line can increment a lap. A swept
+  gate test prevents high-speed tunnelling; skipped and reverse crossings do not advance state, and
+  respawn returns to the last validated checkpoint rather than the latest arbitrary on-road sample.
 - Vehicle roots now own only world position and yaw. Drift lean is applied to the authored
   chassis' local X axis, while wheel-bearing roots remain level with the road. This fixes the
   disappearing-car failure caused by mutating `root.rotation.z` after writing a world quaternion.
@@ -69,14 +83,21 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   artifacts during camera motion. `grandstandStepSpan` now preserves the exact external stair
   profile and walking surface while giving every visible end-face pixel one carrier owner; the
   focused regression asserts row depth, centre, and boundary adjacency.
-- Grandstand spectators already use seeded runtime animation rather than static poses: seven-cue
-  loops select `idle`, `play`, `airborne`, or `sit`, vary expressions, enable autonomous blink/gaze,
-  and sometimes issue the `talking` mouth command. This explains the perceived chatter and jumps.
+- Each race derives 12-16 grandstand spectators from a fresh Web Crypto seed. Every row receives
+  three or four continuously positioned occupants with enforced along-row clearance and small depth
+  jitter, replacing the visible four-by-five seating grid while keeping feet on authored step tops.
+- Spectators use seeded seven-cue loops plus independent local animation clocks. Per-person cue
+  duration, schedule offset, time offset, and time scale keep `play`, `dance`, `airborne`, `idle`,
+  and `sit` motion out of phase even when several people share a pose. Celebration still requests
+  `dance`, but it no longer samples one common choreography phase.
 - The menu is a single centered composition: its wide translucent surface owns both the setup panel
   and an explicit framed preview bay on the right. Menu camera framing uses a `1.12` world-unit
   screen offset and `6.8` view size so the procedural character remains inside that bay at the
   reported 1289x556 viewport. The preview loop starts with the shared `dance` pose; at race finish
-  the crowd is explicitly switched to staggered `dance` cues before returning to its seeded loop.
+  the crowd switches to independently clocked `dance` cues before returning to its seeded loop.
+- Doodle Race owns a human-only casting boundary through `createPaperCircuitPersonIdentity`; both
+  the crowd and the menu/Explore character use it, so library species such as cats, creatures,
+  nightmares, and robots cannot leak into the experiment through a random identity roll.
 - The menu character now owns a dedicated `DoodleScene` and canvas inside the menu rather than
   being composited into the race canvas. Desktop may keep the live circuit around the menu, while
   viewports at or below 760 CSS pixels use a full-screen vertical menu and hide the race canvas.
@@ -150,15 +171,20 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   Ordinary interaction callouts render authored parts closed, matching the visible parked vehicle,
   while the configurator explicitly requests an open hood. Dialog close, medium changes, renderer
   recovery, and application disposal update or release that scene.
+- Suspending Explore camera input for the hood configurator must not reset the orbit. Camera
+  activation only gates pointer/wheel handling; `RaceStage` calls `resetExplorer()` explicitly when
+  entering Explore or when the user requests a camera reset. Re-enabling input after closing the
+  configurator therefore preserves the exact pre-dialog yaw, pitch, and distance.
 - Free-drive Explore framing adds an orthographic zoom-out baseline on entry and a further monotonic
   speed term capped at the 24-world-unit reference speed. Walking keeps the existing orbit framing;
   the transition remains smoothed by the camera controller.
 
 ## Performance evidence
 
-- Development diagnostics for the full race scene: 43 registered instances, 1,509 carrier parts,
-  588 semantic stroke meshes, and 8,388 compositor proxies. The shared pass uses four G-buffers
-  and a composite render call sequence.
+- The earlier fixed 20-person crowd measured 43 registered instances, 1,509 carrier parts,
+  588 semantic stroke meshes, and 8,388 compositor proxies. Treat that as a historical upper
+  baseline: the seeded 12-16-person crowd now varies these totals per race. The shared pass uses
+  four G-buffers and a composite render call sequence.
 - The bounded race-effects field adds one registration, 93 carrier parts, and 372 proxies. Its 512
   skid decals share one mutable carrier mesh, so decal history grows in vertex updates rather than
   scene registrations or part count.

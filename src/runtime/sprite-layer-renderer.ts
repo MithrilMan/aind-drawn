@@ -4,41 +4,61 @@ import type { AssetBlueprint, LayerDefinition } from '../contracts/raster-asset.
 import type { CanvasFactory, DrawingCanvas } from '../core/canvas.js';
 import { hashString } from '../core/random.js';
 import type { AssetInstanceId } from '../contracts/asset-instance.js';
+import type { RasterFrameCache } from './raster-frame-cache.js';
+import type { RasterHand } from './raster-hand.js';
 import { bakeRasterLayerFrame } from './raster-frame-baker.js';
 import type { RasterSkeleton } from './raster-skeleton.js';
 
 export type SpriteLayerRendererOptions = Readonly<{
   boilFrames: number;
   canvasFactory: CanvasFactory;
+  rasterHand: RasterHand;
+  frameCache?: RasterFrameCache;
   textureAnisotropy: number;
   drawRank: number;
   instanceId: AssetInstanceId;
 }>;
+
+type RasterCanvasTexture = THREE.CanvasTexture<DrawingCanvas>;
 
 type LayerRecord = Readonly<{
   definition: LayerDefinition;
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   material: THREE.MeshBasicMaterial;
   geometry: THREE.PlaneGeometry;
-  frames: Map<string, THREE.CanvasTexture[]>;
+  frames: Map<string, RasterCanvasTexture[]>;
   canvases: Map<string, DrawingCanvas[]>;
   fps: number;
   offset: number;
   current: { state: string; frame: number };
 }>;
 
+// Three.js deduplicates WebGL textures by Source plus sampler parameters. Keep
+// wrapper ownership per rig while allowing equal immutable cached canvases to
+// share one renderer upload and GPU allocation.
+const sharedCanvasSources = new WeakMap<DrawingCanvas, THREE.Source<DrawingCanvas>>();
+
+function sharedCanvasSource(canvas: DrawingCanvas): THREE.Source<DrawingCanvas> {
+  const existing = sharedCanvasSources.get(canvas);
+  if (existing !== undefined) return existing;
+  const source = new THREE.Source(canvas);
+  source.needsUpdate = true;
+  sharedCanvasSources.set(canvas, source);
+  return source;
+}
+
 function normalizedFrame(frame: number, count: number): number {
   return ((Math.floor(frame) % count) + count) % count;
 }
 
-function createTexture(canvas: DrawingCanvas, anisotropy: number): THREE.CanvasTexture {
-  const texture = new THREE.CanvasTexture(canvas as HTMLCanvasElement);
+function createTexture(canvas: DrawingCanvas, anisotropy: number): RasterCanvasTexture {
+  const texture = new THREE.CanvasTexture<DrawingCanvas>(canvas);
+  texture.source = sharedCanvasSource(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = anisotropy;
   texture.generateMipmaps = false;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.needsUpdate = true;
   return texture;
 }
 
@@ -48,6 +68,8 @@ export class SpriteLayerRenderer {
   private readonly skeleton: RasterSkeleton;
   private readonly boilFrames: number;
   private readonly canvasFactory: CanvasFactory;
+  private readonly rasterHand: RasterHand;
+  private readonly frameCache: RasterFrameCache | undefined;
   private readonly textureAnisotropy: number;
   private readonly instanceId: AssetInstanceId;
   private readonly layers = new Map<string, LayerRecord>();
@@ -62,6 +84,8 @@ export class SpriteLayerRenderer {
     this.skeleton = skeleton;
     this.boilFrames = Math.max(1, Math.floor(options.boilFrames));
     this.canvasFactory = options.canvasFactory;
+    this.rasterHand = options.rasterHand;
+    this.frameCache = options.frameCache;
     this.textureAnisotropy = Math.max(1, Math.floor(options.textureAnisotropy));
     this.drawRank = Math.trunc(options.drawRank);
     this.instanceId = options.instanceId;
@@ -175,19 +199,21 @@ export class SpriteLayerRenderer {
 
   private ensureFrames(layer: LayerRecord, state: string): void {
     if (layer.frames.has(state)) return;
-    const textures: THREE.CanvasTexture[] = [];
+    const textures: RasterCanvasTexture[] = [];
     const canvases: DrawingCanvas[] = [];
     layer.canvases.set(state, canvases);
     layer.frames.set(state, textures);
     try {
       for (let frame = 0; frame < this.boilFrames; frame += 1) {
-        const baked = bakeRasterLayerFrame(
-          this.blueprint.seed,
+        const baked = this.frameCache?.getOrBake(
+          this.blueprint,
           layer.definition,
           state,
           frame,
-          this.canvasFactory,
-        );
+        ) ?? bakeRasterLayerFrame(this.blueprint, layer.definition, state, frame, {
+          canvasFactory: this.canvasFactory,
+          rasterHand: this.rasterHand,
+        });
         canvases.push(baked.canvas);
         textures.push(createTexture(baked.canvas, this.textureAnisotropy));
       }

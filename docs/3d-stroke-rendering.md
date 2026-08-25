@@ -14,7 +14,7 @@ target look is built from four cooperating systems driven by the same
 1. medium-specific pigment synthesized for the current camera projection;
 2. semantic spatial strokes attached to named parts;
 3. view-dependent contours and creases;
-4. material-aware masks that clip marks to projected semantic regions.
+4. surface-aware masks that clip marks to projected semantic regions.
 
 This keeps an eye line attached to the eye socket, a sleeve seam attached to
 the arm, a cornice attached to a facade, and a mouth expression attached to the
@@ -83,9 +83,9 @@ The policy is serialisable and contains no Three.js objects. Medium is required:
 there is no second 3D-only drawing taxonomy and no implicit fallback hidden in
 the runtime. `inkedSolidMediumDefaults(medium)` compiles the shared medium into
 volumetric contour, coverage, drawing-application view marks, and paper policies.
-`SolidMaterialSpec.drawing` explicitly supplies both the deposition application
+`SemanticSurfaceSpec.drawing` explicitly supplies both the deposition application
 and authored tonal hierarchy across raster and solid adapters. There is no
-fallback from asset or material names. Explicit
+fallback from asset or surface names. Explicit
 options are authoring diagnostics, not alternate user-facing render styles.
 Setting `viewMarks: false` may isolate the pigment bed while debugging, but a
 truthful Doodle projection keeps the medium's gesture marks enabled. The runtime
@@ -107,7 +107,7 @@ const registration = pass.register({
 });
 ```
 
-Registration compiles part, material, topology, owner-anchor, and semantic-stroke lookups once.
+Registration compiles part, surface, topology, owner-anchor, and semantic-stroke lookups once.
 Multiple instances of one solid blueprint and different media may share one pass; paper remains a
 single scene-level policy and never depends on registration order. Dispose the registration
 before its borrowed `SolidRig`, and dispose the pass when the drawing surface is torn down.
@@ -116,7 +116,7 @@ before its borrowed `SolidRig`, and dispose the pass when the drawing surface is
 
 ### 1. Invisible carrier and view synthesis
 
-The pass renders semantic albedo with depth, normals, and material membership
+The pass renders semantic albedo with depth, normals, and surface membership
 from the real meshes, but uses those buffers only to decide occlusion,
 contours, projected regions, discrete tone, and pigment colour. Every visible
 carrier region begins as opaque drawing paper, not as transparent-clear black
@@ -126,7 +126,7 @@ is never composited into the result.
 
 The smooth solid's roughness, metalness, clearcoat, specular response, and even
 its unlit continuous colour are therefore absent from Doodle 3D. Semantic
-material RGB is the exact pigment source used by authored or procedural marks.
+surface RGB is the exact pigment source used by authored or procedural marks.
 It is never pre-mixed with contour ink or paper and is never multiplied by
 normal lighting. Smooth carriers keep light-invariant deposited density. Only
 authored faceted carriers may use quantized plane separation to change pressure
@@ -171,22 +171,28 @@ colliders, or interaction anchors. Animated `jitter` is a separate displacement
 quantised by the configured boil frame rate; independent noise every frame
 would be shimmer, not pencil.
 
+Semantic stroke tubes and endpoint caps also carry an immutable
+`inkedStrokeProgress` attribute. `createInkedSolidBlueprint` assigns stable
+normalized start/end windows, and `InkedSolidSceneRegistration.setStrokeReveal`
+updates one shared uniform used by albedo, mark, anchor, and normal passes.
+Animating reveal therefore performs no curve resampling, tube reconstruction,
+or per-stroke scene mutation.
+
 ### 4. Camera-conditioned doodle synthesis
 
-The pass renders a material-mark buffer. Each solid material's authored drawing
-tone, or its role when no tone is authored, compiles to a renderer-neutral mark
-style and coverage. Graphite hair can therefore retain the exact seeded
-`black`, `hatch`, or `scribble` hierarchy selected by the shared drawing style;
-generic skin and facades receive broken hatch, and clothing receives crosshatch.
+The pass renders a surface-mark buffer. Each semantic surface's authored
+drawing application, value, and gesture compile to a medium-specific mark
+style and coverage. Graphite may express dark agitated hair as scribble while
+another medium preserves the same value through its own deposited vocabulary.
 Each medium then preserves its raster deposition operation: Watercolour uses
 layered translucent coverage without directional bands, Ink reveals one fine
 hatch only at the same tone densities as raster, and Oil combines an opaque bed
 with broken bristle daubs. The composite shader generates those fields in normalized paper space
-and clips them by the material membership visible from the active camera.
-Graphite tone density is calibrated to the raster medium's relative spacing and
-alpha: `light` remains an unhatched pigment bed, ordinary hatch retains its
-authored interval, and `black` uses a materially denser multi-pass field. This
-keeps tone hierarchy comparable without pretending pixels and projected surface
+and clips them by the surface membership visible from the active camera.
+Graphite value density is calibrated to the raster medium's relative spacing and
+alpha: `light` remains an unhatched pigment bed, regular mid-value intent retains
+its authored interval, and `solid` uses a materially denser multi-pass field. This
+keeps value hierarchy comparable without pretending pixels and projected surface
 marks are numerically identical units.
 
 This is intentionally not a texture wrapped around a mesh. Rotating the asset
@@ -197,7 +203,7 @@ origin of the semantic part visible at each pixel. On explicitly faceted
 carrier topology, the visible surface normal rotates and foreshortens
 directional marks while discrete drawing light changes their density and
 pressure. Adjacent wall or roof planes therefore separate through hatch flow
-and tone even when they share one material. Smooth meshes and superellipsoids
+and value even when they share one surface. Smooth meshes and superellipsoids
 retain one view-oriented 2D field at light-invariant deposited density. Their
 geometry controls occlusion but never bends marks into topographic rings or
 reinterprets filler as shadow. This classification is authored in
@@ -241,7 +247,10 @@ inked solid.
    paths; window strokes are reserved for real internal divisions.
 7. **Shipped:** an intentional faceted vehicle shell with bonnet, shoulder, belt, and end-plane
    changes detected generically from the normal/topology buffer.
-8. **Next:** complete the focused revolution and sweep primitives, then extend semantic authoring
+8. **Shipped:** progressive semantic-stroke reveal from immutable normalized
+   vertex progress and per-stroke stagger, advanced through one registration
+   uniform without geometry reconstruction.
+9. **Next:** complete the focused revolution and sweep primitives, then extend semantic authoring
    to props and plants as those solid families are introduced.
 
 The runtime is already generic. New families add stroke recipes, not shader

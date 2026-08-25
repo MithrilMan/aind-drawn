@@ -7,6 +7,7 @@ import {
   finiteTuple,
   indexById,
   validateCapabilities,
+  validateAppearance,
   validateExactInventory,
   validateHeader,
   validateHierarchy,
@@ -336,7 +337,7 @@ export function validateRasterAssetBlueprint(blueprint: unknown): AssetBlueprint
 export function validateRasterAssetBlueprint(blueprint: unknown): AssetBlueprint {
   const collector = new AssetValidationCollector();
   const root = collector.object(blueprint, [], [
-    'blueprintVersion', 'family', 'representation', 'assetId', 'seed', 'medium',
+    'blueprintVersion', 'family', 'representation', 'assetId', 'seed', 'appearance', 'medium',
     'manifest', 'bounds', 'bones', 'layers', 'colliders', 'sockets', 'interactionBindings',
   ]);
   validateHeader(root, 'raster', collector);
@@ -346,6 +347,7 @@ export function validateRasterAssetBlueprint(blueprint: unknown): AssetBlueprint
     collector,
     typeof root.family === 'string' ? root.family : undefined,
   );
+  validateAppearance(root.appearance, manifest.partIds, collector);
   collector.oneOf(root.medium, ['medium'], MEDIUM_IDS);
   validateRasterBounds(root.bounds, collector);
   const bones = validateRasterBones(root.bones, collector);

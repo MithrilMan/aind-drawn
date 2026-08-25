@@ -1,31 +1,31 @@
 import {
   createInkedSolidProjectionProvider,
   fixedMark,
-  toneMarks,
+  valueMarks,
 } from '../projection-provider.js';
 
-const pigment = toneMarks({
-  black: { style: 'marker', strength: 0.72, coverage: 0.56, scale: 10.44, lineWidth: 0.28 },
-  hatch: { style: 'marker', strength: 0.6472, coverage: 0.376, scale: 10.44, lineWidth: 0.28 },
-  scribble: { style: 'marker', strength: 0.6212, coverage: 0.346, scale: 10.44, lineWidth: 0.28 },
-  stipple: { style: 'marker', strength: 0.59, coverage: 0.31, scale: 10.44, lineWidth: 0.28 },
+const pigment = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'marker', strength: 0.5484, coverage: 0.262, scale: 10.44, lineWidth: 0.28 },
+  mid: { style: 'marker', strength: 0.6472, coverage: 0.376, scale: 10.44, lineWidth: 0.28 },
+  dark: { style: 'marker', strength: 0.69, coverage: 0.47, scale: 10.44, lineWidth: 0.28 },
+  solid: { style: 'marker', strength: 0.72, coverage: 0.56, scale: 10.44, lineWidth: 0.28 },
 });
 
-const tint = toneMarks({
-  black: { style: 'marker', strength: 0.72, coverage: 0.34, scale: 10.44, lineWidth: 0.28 },
-  hatch: { style: 'marker', strength: 0.6472, coverage: 0.3064, scale: 10.44, lineWidth: 0.28 },
-  scribble: { style: 'marker', strength: 0.6212, coverage: 0.2944, scale: 10.44, lineWidth: 0.28 },
-  stipple: { style: 'marker', strength: 0.59, coverage: 0.28, scale: 10.44, lineWidth: 0.28 },
+const tint = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'marker', strength: 0.5484, coverage: 0.22, scale: 10.44, lineWidth: 0.28 },
+  mid: { style: 'marker', strength: 0.6472, coverage: 0.3064, scale: 10.44, lineWidth: 0.28 },
+  dark: { style: 'marker', strength: 0.69, coverage: 0.324, scale: 10.44, lineWidth: 0.28 },
+  solid: { style: 'marker', strength: 0.72, coverage: 0.34, scale: 10.44, lineWidth: 0.28 },
 });
 
-const glaze = toneMarks({
-  black: { style: 'marker', strength: 0.72, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
-  hatch: { style: 'marker', strength: 0.6472, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
-  scribble: { style: 'marker', strength: 0.6212, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
-  stipple: { style: 'marker', strength: 0.59, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
+const glaze = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'marker', strength: 0.5484, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
+  mid: { style: 'marker', strength: 0.6472, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
+  dark: { style: 'marker', strength: 0.69, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
+  solid: { style: 'marker', strength: 0.72, coverage: 0.24, scale: 10.44, lineWidth: 0.28 },
 });
 
 export const markerProjectionProvider = createInkedSolidProjectionProvider({

@@ -1,24 +1,24 @@
 import {
   createInkedSolidProjectionProvider,
   fixedMark,
-  toneMarks,
+  valueMarks,
 } from '../projection-provider.js';
 
-const pigment = toneMarks({
-  black: { style: 'hatch', strength: 0.2, coverage: 0.9 },
-  hatch: { style: 'hatch', strength: 0.2, coverage: 0.6928 },
-  scribble: { style: 'hatch', strength: 0.2, coverage: 0.6188 },
-  stipple: { style: 'none', strength: 0, coverage: 0.53 },
+const pigment = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'none', strength: 0, coverage: 0.4116 },
-});
+  mid: { style: 'hatch', strength: 0.2, coverage: 0.6928 },
+  dark: { style: 'hatch', strength: 0.2, coverage: 0.8 },
+  solid: { style: 'hatch', strength: 0.2, coverage: 0.9 },
+}, { quiet: { style: 'none', strength: 0 }, granular: { style: 'none', strength: 0 } });
 
-const glaze = toneMarks({
-  black: { style: 'hatch', strength: 0.2, coverage: 0.18 },
-  hatch: { style: 'hatch', strength: 0.2, coverage: 0.18 },
-  scribble: { style: 'hatch', strength: 0.2, coverage: 0.18 },
-  stipple: { style: 'none', strength: 0, coverage: 0.18 },
+const glaze = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'none', strength: 0, coverage: 0.18 },
-});
+  mid: { style: 'hatch', strength: 0.2, coverage: 0.18 },
+  dark: { style: 'hatch', strength: 0.2, coverage: 0.18 },
+  solid: { style: 'hatch', strength: 0.2, coverage: 0.18 },
+}, { quiet: { style: 'none', strength: 0 }, granular: { style: 'none', strength: 0 } });
 
 export const inkProjectionProvider = createInkedSolidProjectionProvider({
   contour: { width: 1.6, opacity: 0.96, jitter: 0.26, wander: 1.15 },

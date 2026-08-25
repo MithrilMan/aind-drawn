@@ -1,6 +1,8 @@
 import type { Point } from '../../../core/geometry.js';
 import type { Point3 } from '../../../core/geometry3.js';
-import type { SolidMaterialSpec } from '../../../materials/finish.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
+import { mergePhysicalSurfaceTreatment, type SemanticSurfaceSpec } from '../../../materials/surface.js';
+import { CHARACTER_ART_BINDINGS } from '../appearance/roles.js';
 import { createCharacterDrawingStyle } from '../identity/drawing-style.js';
 import { createCharacterOutfitProfile } from '../identity/outfit-profile.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
@@ -76,7 +78,7 @@ function addOutfitParts(
     add({
       id: `outfit:${mark.id}`, node: 'torso', order: 8,
       geometry: plate(outline, torsoDepth * 0.12, torsoDepth * 0.035),
-      materialId: 'accent', placement: solidPlacement([0, centerY, front]),
+      surfaceId: 'accent', placement: solidPlacement([0, centerY, front]),
       castShadow: false, receiveShadow: false,
     });
   }
@@ -104,7 +106,7 @@ function addTailParts(
         2.2,
         [16, 10],
       ),
-      materialId: 'skin',
+      surfaceId: 'skin',
       placement: solidPlacement(
         [centerX, centerY, 0] as const,
         [0, 0, angle - Math.PI / 2] as const,
@@ -135,7 +137,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
   add({
     id: 'body:torso', node: 'torso', order: 0,
     geometry: ellipsoid(torsoRadii, identity.species === 'robot' ? 4.8 : 2.6, [32, 22]),
-    materialId: bodyMaterial,
+    surfaceId: bodyMaterial,
     placement: solidPlacement([0, layout.torso.height * 0.5, 0] as const),
     castShadow: true, receiveShadow: true,
   });
@@ -149,7 +151,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         layout.limbs.armLength * 0.44,
         layout.limbs.armRadius,
       ] as const, 2.2, [18, 12]),
-      materialId: limbMaterial,
+      surfaceId: limbMaterial,
       placement: solidPlacement([0, -layout.limbs.armLength * 0.44, 0] as const),
       castShadow: true, receiveShadow: true,
     });
@@ -161,7 +163,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         handRadius * (identity.species === 'cat' ? 0.72 : 0.9),
         handRadius * 0.82,
       ] as const, 2.2, [16, 10]),
-      materialId: identity.species === 'cat' ? 'skin' : 'accent',
+      surfaceId: identity.species === 'cat' ? 'skin' : 'accent',
       placement: solidPlacement([0, -layout.limbs.armLength * 0.9, handRadius * 0.18] as const),
       castShadow: true, receiveShadow: true,
     });
@@ -173,7 +175,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         layout.limbs.legLength * 0.4,
         layout.limbs.legRadius,
       ] as const, 2.3, [18, 12]),
-      materialId: limbMaterial,
+      surfaceId: limbMaterial,
       placement: solidPlacement([0, -layout.limbs.legLength * 0.43, 0] as const),
       castShadow: true, receiveShadow: true,
     });
@@ -185,7 +187,7 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
         footRadius * 0.62,
         footRadius * 1.48,
       ] as const, 2.4, [18, 12]),
-      materialId: identity.species === 'cat' ? 'skin' : 'accent',
+      surfaceId: identity.species === 'cat' ? 'skin' : 'accent',
       placement: solidPlacement([
         0,
         -layout.limbs.legLength * 0.88,
@@ -200,12 +202,19 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
   for (const part of face.parts) add(part);
 
   const drawing = createCharacterDrawingStyle(identity);
-  const clothMaterial: SolidMaterialSpec = Object.freeze({
+  const clothSurface: SemanticSurfaceSpec = Object.freeze({
     id: 'cloth', color: identity.palette.cloth,
-    finish: identity.species === 'robot' ? 'metal' : 'matte',
-    drawing: Object.freeze({ application: 'pigment', tone: drawing.bodyTone }),
+    substance: identity.species === 'robot' ? 'metal' : 'cloth',
+    drawing: Object.freeze({ application: 'pigment', drawing: drawing.bodyDrawing }),
+    physical: mergePhysicalSurfaceTreatment(Object.freeze({
+      substrate: identity.species === 'robot' ? 'metal' : 'fiber',
+      finish: 'matte',
+      roughness: identity.species === 'robot' ? 0.3 : 0.95,
+      metalness: identity.species === 'robot' ? 0.82 : 0,
+      clearcoat: identity.species === 'robot' ? 0.3 : 0,
+    }), recipe.style.physical),
   });
-  const materials = Object.freeze([...face.materials, clothMaterial]);
+  const surfaces = Object.freeze([...face.surfaces, clothSurface]);
   const bodyTop = layout.limbs.legLength + layout.torso.height;
   const headMinimum = layout.face.surfaceBounds.minimum;
   const headMaximum = layout.face.surfaceBounds.maximum;
@@ -216,11 +225,12 @@ function buildSolidCharacterBlueprint(recipe: SolidCharacterRecipe): SolidAssetB
     representation: 'solid',
     assetId: `character:${identity.seed}`,
     seed: identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, CHARACTER_ART_BINDINGS),
     manifest: CHARACTER_SEMANTIC_MANIFEST,
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
-    materials,
+    surfaces,
     colliders: Object.freeze([
       Object.freeze({
         id: 'body', kind: 'solid', shape: 'box',

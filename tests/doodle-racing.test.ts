@@ -14,11 +14,17 @@ import {
   vehicleSpeed,
 } from '../experiments/doodle-racing/src/game/arcade-vehicle-physics.js';
 import {
+  CoursePathValidationError,
+  compileCourseStroke,
   createCourseLayout,
   nearestCoursePoint,
   sampleCourseAt,
+  type CourseCheckpoint,
 } from '../experiments/doodle-racing/src/game/course.js';
-import { CrowdField } from '../experiments/doodle-racing/src/game/crowd-field.js';
+import {
+  CrowdField,
+  createCrowdMotionTiming,
+} from '../experiments/doodle-racing/src/game/crowd-field.js';
 import { DoodleAssetRegistry } from '../experiments/doodle-racing/src/game/doodle-asset-registry.js';
 import {
   DriftEffects,
@@ -31,6 +37,7 @@ import {
   mergeStandardGamepadInput,
 } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
+import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
 import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
 import {
   createVehicleCollisionProfile,
@@ -52,6 +59,12 @@ import {
   type DriveInput,
   type RacerSnapshot,
 } from '../experiments/doodle-racing/src/game/race-model.js';
+import {
+  advanceRaceRouteProgress,
+  createRaceRouteProgress,
+  crossesCheckpointForward,
+  lastValidatedCheckpointProgress,
+} from '../experiments/doodle-racing/src/game/race-progress.js';
 import { createRaceSceneryBlueprint } from '../experiments/doodle-racing/src/game/race-scenery-blueprint.js';
 import {
   createRaceWorldLayout,
@@ -104,6 +117,20 @@ const DRIFT_LEFT: DriveInput = Object.freeze({
   handbrake: true,
 });
 
+function checkpointCrossing(
+  checkpoint: CourseCheckpoint,
+  direction: 1 | -1 = 1,
+  lateralOffset = 0,
+): readonly [previous: Readonly<{ x: number; z: number }>, current: Readonly<{ x: number; z: number }>] {
+  const before = -2.5 * direction;
+  const after = 2.5 * direction;
+  const pointAt = (along: number): Readonly<{ x: number; z: number }> => Object.freeze({
+    x: checkpoint.x + checkpoint.tangentX * along + checkpoint.normalX * lateralOffset,
+    z: checkpoint.z + checkpoint.tangentZ * along + checkpoint.normalZ * lateralOffset,
+  });
+  return Object.freeze([pointAt(before), pointAt(after)] as const);
+}
+
 class FakeAudio {
   public preload = '';
   public volume = 0;
@@ -137,9 +164,24 @@ describe('Paper Circuit experiment', () => {
     expect(layout.samples).toHaveLength(256);
     expect(layout.totalLength).toBeGreaterThan(260);
     expect(layout.trackWidth).toBeGreaterThanOrEqual(9);
+    expect(layout.checkpoints.length).toBeGreaterThanOrEqual(12);
+    expect(layout.checkpoints[0]?.id).toBe('start-finish');
     expect(layout.minimumTurnRadius).toBeGreaterThan(layout.trackWidth * 0.5 + 0.6);
     expect(validateSolidAssetBlueprint(blueprint)).toBe(blueprint);
     expect(blueprint.parts.filter(({ semanticPartId }) => semanticPartId === 'finish')).toHaveLength(8);
+    const checkpointParts = blueprint.parts.filter(
+      ({ semanticPartId }) => semanticPartId === 'checkpoint',
+    );
+    expect(checkpointParts).toHaveLength(layout.checkpoints.length - 1);
+    for (const checkpoint of layout.checkpoints.slice(1)) {
+      const checkpointPart = checkpointParts.find(({ id }) => id === `checkpoint:${checkpoint.index}`);
+      if (checkpointPart?.geometry.type !== 'box') {
+        throw new Error(`Checkpoint ${checkpoint.index} must use visible box geometry`);
+      }
+      expect(checkpointPart.geometry.size[2]).toBeCloseTo(checkpoint.halfWidth * 2, 8);
+      expect(checkpointPart.placement.position[0]).toBeCloseTo(checkpoint.x, 8);
+      expect(checkpointPart.placement.position[2]).toBeCloseTo(checkpoint.z, 8);
+    }
     const road = blueprint.parts.find(({ id }) => id === 'road');
     expect(road?.geometry.type).toBe('mesh');
     if (road?.geometry.type !== 'mesh') throw new Error('Road must use mesh geometry');
@@ -161,6 +203,159 @@ describe('Paper Circuit experiment', () => {
     expect(wrapped.x).toBeCloseTo(start.x, 6);
     expect(wrapped.z).toBeCloseTo(start.z, 6);
     expect(nearestCoursePoint(layout, start.x, start.z).distanceFromCentre).toBeCloseTo(0, 6);
+  });
+
+  it('compiles a closed pencil stroke into one immutable deterministic course recipe and layout', () => {
+    const stroke = Object.freeze(Array.from({ length: 97 }, (_, index) => {
+      const angle = index / 96 * Math.PI * 2;
+      return Object.freeze([
+        0.5 + Math.cos(angle) * 0.44,
+        0.5 + Math.sin(angle) * 0.32,
+      ] as const);
+    }));
+
+    const first = compileCourseStroke(stroke);
+    const second = compileCourseStroke(stroke);
+
+    expect(first).toEqual(second);
+    expect(Object.isFrozen(first.recipe)).toBe(true);
+    expect(Object.isFrozen(first.recipe.points)).toBe(true);
+    expect(first.recipe.points.length).toBeLessThan(stroke.length - 1);
+    expect(first.layout.recipe).toBe(first.recipe);
+    expect(first.layout.samples).toHaveLength(256);
+    expect(first.layout.checkpoints.length).toBeGreaterThanOrEqual(12);
+    expect(first.layout.minimumTurnRadius).toBeGreaterThan(first.layout.trackWidth * 0.5);
+
+    const sample = sampleCourseAt(first.layout, 0.237);
+    const projection = nearestCoursePoint(
+      first.layout,
+      sample.x + sample.normalX * 2.75,
+      sample.z + sample.normalZ * 2.75,
+    );
+    expect(projection.distanceFromCentre).toBeCloseTo(2.75, 2);
+    expect(projection.progress).toBeCloseTo(0.237, 2);
+  });
+
+  it('rejects open and self-intersecting pencil strokes with authoring-safe errors', () => {
+    const openStroke = Object.freeze(Array.from({ length: 24 }, (_, index) => Object.freeze([
+      index / 23,
+      0.2 + index / 23 * 0.6,
+    ] as const)));
+    expect(() => compileCourseStroke(openStroke)).toThrow(CoursePathValidationError);
+    try {
+      compileCourseStroke(openStroke);
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'path-closure' });
+    }
+
+    const crossingStroke = Object.freeze(Array.from({ length: 129 }, (_, index) => {
+      const angle = index / 128 * Math.PI * 2;
+      return Object.freeze([
+        0.5 + Math.sin(angle) * 0.43,
+        0.5 + Math.sin(angle) * Math.cos(angle) * 0.36,
+      ] as const);
+    }));
+    try {
+      compileCourseStroke(crossingStroke);
+      throw new Error('Expected the crossing course stroke to be rejected');
+    } catch (error) {
+      expect(error).toMatchObject({ code: 'self-intersection' });
+    }
+  });
+
+  it('requires ordered swept checkpoint crossings before counting a lap', () => {
+    const course = createCourseLayout();
+    let route = createRaceRouteProgress(course, 0.02);
+    const firstCheckpoint = course.checkpoints[1];
+    const skippedCheckpoint = course.checkpoints[2];
+    if (firstCheckpoint === undefined || skippedCheckpoint === undefined) {
+      throw new Error('Course requires ordered checkpoints');
+    }
+
+    const [skipFrom, skipTo] = checkpointCrossing(skippedCheckpoint);
+    route = advanceRaceRouteProgress(
+      course,
+      route,
+      skipFrom,
+      skipTo,
+      skippedCheckpoint.progress,
+    );
+    expect(route.nextCheckpointIndex).toBe(1);
+    expect(route.lap).toBe(0);
+    expect(route.raceScore).toBeCloseTo(0, 8);
+
+    const [reverseFrom, reverseTo] = checkpointCrossing(firstCheckpoint, -1);
+    expect(crossesCheckpointForward(firstCheckpoint, reverseFrom, reverseTo)).toBe(false);
+    expect(firstCheckpoint.halfWidth - course.trackWidth * 0.5).toBeCloseTo(2, 8);
+    const [toleratedFrom, toleratedTo] = checkpointCrossing(
+      firstCheckpoint,
+      1,
+      course.trackWidth * 0.5 + 1.9,
+    );
+    expect(crossesCheckpointForward(firstCheckpoint, toleratedFrom, toleratedTo)).toBe(true);
+    const [outsideFrom, outsideTo] = checkpointCrossing(
+      firstCheckpoint,
+      1,
+      firstCheckpoint.halfWidth + 0.1,
+    );
+    expect(crossesCheckpointForward(firstCheckpoint, outsideFrom, outsideTo)).toBe(false);
+    route = advanceRaceRouteProgress(
+      course,
+      route,
+      reverseFrom,
+      reverseTo,
+      firstCheckpoint.progress,
+    );
+    expect(route.nextCheckpointIndex).toBe(1);
+
+    for (let index = 1; index < course.checkpoints.length; index += 1) {
+      const checkpoint = course.checkpoints[index];
+      if (checkpoint === undefined) throw new Error(`Missing checkpoint ${index}`);
+      const [previous, current] = checkpointCrossing(checkpoint);
+      route = advanceRaceRouteProgress(
+        course,
+        route,
+        previous,
+        current,
+        checkpoint.progress,
+      );
+    }
+    expect(route.nextCheckpointIndex).toBe(0);
+    expect(route.lap).toBe(0);
+    const start = course.checkpoints[0];
+    if (start === undefined) throw new Error('Course requires a start line');
+    const [startPrevious, startCurrent] = checkpointCrossing(start);
+    route = advanceRaceRouteProgress(course, route, startPrevious, startCurrent, 0);
+    expect(route.lap).toBe(1);
+    expect(route.nextCheckpointIndex).toBe(1);
+  });
+
+  it('anchors recovery to the last validated checkpoint instead of the nearest road point', () => {
+    const course = createCourseLayout();
+    let route = createRaceRouteProgress(course, 0.02);
+    const firstCheckpoint = course.checkpoints[1];
+    if (firstCheckpoint === undefined) throw new Error('Course requires a checkpoint');
+    const [previous, current] = checkpointCrossing(firstCheckpoint);
+    route = advanceRaceRouteProgress(
+      course,
+      route,
+      previous,
+      current,
+      firstCheckpoint.progress,
+    );
+    const farAhead = course.checkpoints[Math.min(6, course.checkpoints.length - 1)];
+    if (farAhead === undefined) throw new Error('Course requires a later checkpoint');
+    const [shortcutFrom, shortcutTo] = checkpointCrossing(farAhead);
+    route = advanceRaceRouteProgress(
+      course,
+      route,
+      shortcutFrom,
+      shortcutTo,
+      farAhead.progress,
+    );
+
+    expect(lastValidatedCheckpointProgress(course, route)).toBe(firstCheckpoint.progress);
+    expect(route.raceScore).toBeCloseTo(firstCheckpoint.progress, 8);
   });
 
   it('opens in the race menu and accepts the supported lap counts', () => {
@@ -311,6 +506,51 @@ describe('Paper Circuit experiment', () => {
     controller.dispose();
   });
 
+  it('preserves the Explore orbit while the hood configurator suspends camera input', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 220);
+    const controller = new RaceCameraController(
+      camera,
+      layout,
+      world,
+      () => Object.freeze({ width: 1440, height: 900 }),
+    );
+    const snapshot = Object.freeze({
+      species: 'human' as const,
+      x: world.grandstand.x,
+      y: 0,
+      z: world.grandstand.z,
+      heading: world.grandstand.heading,
+      speed: 0,
+      along: 0,
+      away: -0.9,
+      row: -1,
+      pose: 'idle' as const,
+      expression: 'idle' as const,
+      elapsed: 0,
+    });
+
+    controller.setExplorerActive(true);
+    for (let index = 0; index < 80; index += 1) {
+      controller.updateExplorer(snapshot, 0.05);
+    }
+    const settled = camera.position.clone();
+    const turned = Object.freeze({
+      ...snapshot,
+      heading: snapshot.heading + Math.PI * 0.5,
+    });
+
+    controller.setExplorerActive(false);
+    controller.setExplorerActive(true);
+    for (let index = 0; index < 80; index += 1) {
+      controller.updateExplorer(turned, 0.05);
+    }
+
+    expect(camera.position.distanceTo(settled)).toBeLessThan(0.02);
+    controller.dispose();
+  });
+
   it('keeps the ground inside a very low Explore camera projection', () => {
     const pitch = 0.06;
     const distance = 12.4;
@@ -399,6 +639,7 @@ describe('Paper Circuit experiment', () => {
     expect(previous.racers.filter(({ isPlayer }) => !isPlayer).every((racer) => (
       nearestCoursePoint(layout, racer.x, racer.z).distanceFromCentre < layout.trackWidth
     ))).toBe(true);
+    expect(previous.racers.filter(({ isPlayer }) => !isPlayer).some(({ lap }) => lap > 0)).toBe(true);
   });
 
   it('derives every gameplay obstacle from visible scenery geometry', () => {
@@ -409,7 +650,8 @@ describe('Paper Circuit experiment', () => {
     expect(validateSolidAssetBlueprint(scenery)).toBe(scenery);
     expect(world.barriers.length).toBeGreaterThan(20);
     expect(world.trees).toHaveLength(16);
-    expect(world.grandstand.spectators).toHaveLength(20);
+    expect(world.grandstand.spectators.length).toBeGreaterThanOrEqual(12);
+    expect(world.grandstand.spectators.length).toBeLessThanOrEqual(16);
     expect(scenery.colliders.map(({ id }) => id).sort()).toEqual(
       [
         ...world.barriers,
@@ -466,7 +708,8 @@ describe('Paper Circuit experiment', () => {
   it('keeps every seeded crowd animation valid across repeated cue changes', () => {
     const layout = createCourseLayout();
     const crowd = new CrowdField(createRaceWorldLayout(layout));
-    expect(crowd.doodleAssets()).toHaveLength(20);
+    expect(crowd.doodleAssets().length).toBeGreaterThanOrEqual(12);
+    expect(crowd.doodleAssets().length).toBeLessThanOrEqual(16);
     expect(() => {
       for (const time of [0, 0.8, 1.9, 3.4, 6.2, 12.8]) crowd.update(time);
       crowd.setCelebrating(true, 13.4);
@@ -483,6 +726,41 @@ describe('Paper Circuit experiment', () => {
     crowd.dispose();
   });
 
+  it('scatters a deterministic human crowd differently for each race seed', () => {
+    const layout = createCourseLayout();
+    const first = createRaceWorldLayout(layout, 41_001).grandstand;
+    const repeated = createRaceWorldLayout(layout, 41_001).grandstand;
+    const nextRace = createRaceWorldLayout(layout, 41_002).grandstand;
+
+    expect(repeated.spectators).toEqual(first.spectators);
+    expect(nextRace.spectators).not.toEqual(first.spectators);
+    expect(createPaperCircuitPersonIdentity(41_001).species).toBe('human');
+    for (const row of Array.from({ length: first.rows }, (_, index) => index)) {
+      const spectators = first.spectators.filter((spectator) => spectator.row === row);
+      expect(spectators.length).toBeGreaterThanOrEqual(3);
+      expect(spectators.length).toBeLessThanOrEqual(4);
+      const along = spectators.map((spectator) => {
+        const deltaX = spectator.x - first.x;
+        const deltaZ = spectator.z - first.z;
+        return deltaX * Math.cos(first.heading) - deltaZ * Math.sin(first.heading);
+      }).sort((left, right) => left - right);
+      for (let index = 1; index < along.length; index += 1) {
+        expect((along[index] as number) - (along[index - 1] as number)).toBeGreaterThan(2);
+      }
+    }
+  });
+
+  it('gives spectators independent deterministic animation clocks', () => {
+    const world = createRaceWorldLayout(createCourseLayout(), 52_117);
+    const timings = world.grandstand.spectators.map(({ seed }) => createCrowdMotionTiming(seed));
+    expect(createCrowdMotionTiming(world.grandstand.spectators[0]?.seed ?? 0))
+      .toEqual(timings[0]);
+    expect(new Set(timings.map(({ motionTimeOffset }) => motionTimeOffset)).size)
+      .toBe(timings.length);
+    expect(new Set(timings.map(({ motionTimeScale }) => motionTimeScale)).size)
+      .toBe(timings.length);
+  });
+
   it('opens the menu character preview with the shared dance pose', () => {
     const layout = createCourseLayout();
     const world = createRaceWorldLayout(layout);
@@ -490,6 +768,7 @@ describe('Paper Circuit experiment', () => {
     explorer.setPreviewMode(true);
 
     const opening = explorer.updatePreview(0.05);
+    expect(explorer.identity.species).toBe('human');
     expect(opening.pose).toBe('dance');
     expect(opening.expression).toBe('happy');
 
@@ -935,6 +1214,7 @@ describe('Paper Circuit experiment', () => {
         registered.push(options.instanceId);
         return Object.freeze({
           instanceId: options.instanceId,
+          setStrokeReveal: () => undefined,
           dispose: () => { disposed.push(options.instanceId); },
         });
       },

@@ -165,6 +165,11 @@
           </select>
         </label>
 
+        <label class="recipe-field direction-field">
+          <span class="field-label">Art direction</span>
+          <select name="art-direction" data-art-direction></select>
+        </label>
+
         <button class="reroll-button" type="button" data-reroll>
           <span class="reroll-mark" aria-hidden="true">↻</span>
           New seed
@@ -270,8 +275,12 @@
               <label data-lively-gaze-control><input type="checkbox" checked data-auto-gaze /> Lively gaze</label>
               <label data-doodle-control><input type="checkbox" checked data-line-boil /> Wobbly lines</label>
               <label class="finish-control" data-solid-control hidden>
+                <span>Substrate</span>
+                <select data-substrate aria-label="Physical substrate"></select>
+              </label>
+              <label class="finish-control" data-solid-control hidden>
                 <span>Finish</span>
-                <select data-finish aria-label="Solid finish"></select>
+                <select data-physical-finish aria-label="Physical surface finish"></select>
               </label>
             </div>
           </section>

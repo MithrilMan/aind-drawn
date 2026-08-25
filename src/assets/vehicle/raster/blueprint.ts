@@ -1,6 +1,9 @@
 import { closePath, type Point } from '../../../core/geometry.js';
 import type { Sketch } from '../../../core/sketch.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
+import { DRAWING_INTENTS } from '../../../materials/drawing.js';
 import { mediumById, type Medium } from '../../../materials/medium.js';
+import { VEHICLE_ART_BINDINGS } from '../appearance/roles.js';
 import type {
   AssetBlueprint,
   LayerDefinition,
@@ -42,7 +45,7 @@ function drawBody(
   const body = canvasPoints(layout, layout.bodyOutline);
   sketch.paperFill(body);
   medium.tone(sketch, body, {
-    style: recipe.style.bodyTone,
+    drawing: recipe.style.bodyDrawing,
     color: recipe.identity.palette.body,
     gap: 9,
   });
@@ -51,7 +54,7 @@ function drawBody(
   const cabin = canvasPoints(layout, layout.cabinOutline);
   sketch.paperFill(cabin);
   medium.tone(sketch, cabin, {
-    style: recipe.style.glassTone,
+    drawing: recipe.style.glassDrawing,
     color: recipe.identity.palette.glass,
     gap: 8,
   });
@@ -75,11 +78,11 @@ function drawWheel(
   const centerY = sketch.height / 2;
   const outerRadius = Math.min(sketch.width, sketch.height) * 0.43;
   const outer = sketch.blobPoints(centerX, centerY, outerRadius, outerRadius, 0, 0.16);
-  medium.tone(sketch, outer, { style: 'black', color: recipe.identity.palette.tyre });
+  medium.tone(sketch, outer, { drawing: DRAWING_INTENTS.solid, color: recipe.identity.palette.tyre });
   medium.edge(sketch, closePath(outer), 4.4, { ghost: true, amplitude: 1.2 });
   const hubRadius = outerRadius * recipe.identity.wheels.hubRadiusRatio;
   const hub = sketch.blobPoints(centerX, centerY, hubRadius, hubRadius, 0, 0.12);
-  medium.tone(sketch, hub, { style: recipe.style.metalTone, color: recipe.identity.palette.hub });
+  medium.tone(sketch, hub, { drawing: recipe.style.metalDrawing, color: recipe.identity.palette.hub });
   medium.edge(sketch, closePath(hub), 3, { ghost: true });
   const spokeCount = recipe.identity.wheels.style === 'hubcap' ? 4 : 5;
   for (let index = 0; index < spokeCount; index += 1) {
@@ -98,7 +101,7 @@ function drawWheel(
   ], 4.1, { alpha: 0.9, ghost: true });
   if (recipe.identity.wheels.style === 'steel') {
     const center = sketch.blobPoints(centerX, centerY, hubRadius * 0.3, hubRadius * 0.3, 0, 0.08);
-    medium.tone(sketch, center, { style: 'black', color: recipe.identity.palette.tyre });
+    medium.tone(sketch, center, { drawing: DRAWING_INTENTS.solid, color: recipe.identity.palette.tyre });
   }
 }
 
@@ -115,7 +118,7 @@ function drawDoor(
   if (state === 'open') {
     const opening = canvasPoints(layout, layout.doorOpeningOutline);
     sketch.paperFill(opening);
-    medium.tone(sketch, opening, { style: 'black', color: recipe.identity.palette.interior });
+    medium.tone(sketch, opening, { drawing: DRAWING_INTENTS.solid, color: recipe.identity.palette.interior });
     medium.edge(sketch, closePath(opening), 3.5, { ghost: true });
     const hingeX = canvasPoint(layout, [layout.doorHinge.x, layout.doorHinge.y])[0];
     const projection = Math.max(0.12, Math.cos(recipe.identity.doors.openingAngle));
@@ -124,18 +127,18 @@ function drawDoor(
     const openWindowFrame = windowFrame.map(project);
     const openWindowGlass = windowGlass.map(project);
     sketch.paperFill(openPanel);
-    medium.tone(sketch, openPanel, { style: recipe.style.bodyTone, color: recipe.identity.palette.body });
+    medium.tone(sketch, openPanel, { drawing: recipe.style.bodyDrawing, color: recipe.identity.palette.body });
     medium.edge(sketch, closePath(openPanel), 4, { ghost: true });
     if (recipe.identity.doors.windowFrame === 'framed') {
       sketch.paperFill(openWindowFrame);
       medium.tone(sketch, openWindowFrame, {
-        style: recipe.style.bodyTone,
+        drawing: recipe.style.bodyDrawing,
         color: recipe.identity.palette.body,
       });
     }
     sketch.paperFill(openWindowGlass);
     medium.tone(sketch, openWindowGlass, {
-      style: recipe.style.glassTone,
+      drawing: recipe.style.glassDrawing,
       color: recipe.identity.palette.glass,
     });
     medium.edge(
@@ -174,7 +177,7 @@ function drawHingedPanel(
     return;
   }
   sketch.paperFill(panel);
-  medium.tone(sketch, panel, { style: 'black', color: recipe.identity.palette.interior });
+  medium.tone(sketch, panel, { drawing: DRAWING_INTENTS.solid, color: recipe.identity.palette.interior });
   medium.edge(sketch, closePath(panel), 3.2, { alpha: 0.7, ghost: true });
   const hinge = direction === 1 ? panel[0] as Point : panel[1] as Point;
   const far = direction === 1 ? panel[1] as Point : panel[0] as Point;
@@ -186,7 +189,7 @@ function drawHingedPanel(
     [hinge[0], hinge[1] + 5],
   ];
   sketch.paperFill(lifted);
-  medium.tone(sketch, lifted, { style: recipe.style.bodyTone, color: recipe.identity.palette.body });
+  medium.tone(sketch, lifted, { drawing: recipe.style.bodyDrawing, color: recipe.identity.palette.body });
   medium.edge(sketch, closePath(lifted), 3.8, { ghost: true });
 }
 
@@ -200,7 +203,7 @@ function drawDetails(
   const headlight = canvasPoint(layout, [length * 0.955, layout.beltHeight * 0.82]);
   const drawLight = (centerX: number, centerY: number, radiusX: number, radiusY: number): void => {
     const light = sketch.blobPoints(centerX, centerY, radiusX, radiusY, 14);
-    medium.tone(sketch, light, { style: 'light', color: recipe.identity.palette.light });
+    medium.tone(sketch, light, { drawing: DRAWING_INTENTS.light, color: recipe.identity.palette.light });
     medium.edge(sketch, closePath(light), 2.4, { ghost: true });
   };
   switch (recipe.identity.details.headlight) {
@@ -215,7 +218,7 @@ function drawDetails(
         [headlight[0] - 10, headlight[1] - 9], [headlight[0] + 8, headlight[1] - 8],
         [headlight[0] + 9, headlight[1] + 8], [headlight[0] - 9, headlight[1] + 9],
       ] as const;
-      medium.tone(sketch, light, { style: 'light', color: recipe.identity.palette.light });
+      medium.tone(sketch, light, { drawing: DRAWING_INTENTS.light, color: recipe.identity.palette.light });
       medium.edge(sketch, closePath(light), 2.4, { ghost: true });
       break;
     }
@@ -230,7 +233,7 @@ function drawDetails(
 
   const tail = canvasPoint(layout, [length * 0.035, layout.beltHeight * 0.79]);
   const tailLight = sketch.blobPoints(tail[0], tail[1], 5.5, 12, -10);
-  medium.tone(sketch, tailLight, { style: 'scribble', color: recipe.identity.palette.rearLight });
+  medium.tone(sketch, tailLight, { drawing: DRAWING_INTENTS.agitated, color: recipe.identity.palette.rearLight });
   medium.edge(sketch, closePath(tailLight), 2.1, { ghost: true });
 
   for (let index = -1; index <= 1; index += 1) {
@@ -397,6 +400,7 @@ export function createRasterVehicleBlueprint(recipe: RasterVehicleRecipe): Asset
     representation: 'raster',
     assetId: `vehicle:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, VEHICLE_ART_BINDINGS),
     medium: recipe.style.medium,
     manifest: VEHICLE_SEMANTIC_MANIFEST,
     bounds: layout.bounds,

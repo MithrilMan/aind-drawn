@@ -350,7 +350,10 @@ export class VehicleField {
     vehicleId: PaperCircuitVehicleId,
     identity: VehicleIdentityRecipe,
   ): VehicleRenderAsset {
-    const solid = createSolidVehicleBlueprint(identity, { finish: 'matte' });
+    const solid = createSolidVehicleBlueprint(identity, {
+      artDirection: 'storybook',
+      physical: Object.freeze({ finish: 'matte' }),
+    });
     const strokes = createSolidVehicleInkStrokes(solid);
     const preview = (
       key: string,

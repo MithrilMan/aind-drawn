@@ -1,14 +1,20 @@
 import type { SolidAssetBlueprint } from '../solid-asset.js';
-import { SOLID_DRAWING_APPLICATIONS, SOLID_FINISH_IDS } from '../../materials/finish.js';
+import { DRAWING_GESTURES, DRAWING_VALUES } from '../../materials/drawing.js';
+import {
+  DRAWING_APPLICATIONS,
+  PHYSICAL_FINISHES,
+  PHYSICAL_SUBSTRATES,
+  SURFACE_SUBSTANCES,
+} from '../../materials/surface.js';
 import { AssetValidationCollector, type ValidationPath } from '../../validation/value-validator.js';
 import { validateSemanticManifest } from './manifest.js';
 import {
   EPSILON,
-  TONE_STYLES,
   finiteTuple,
   indexById,
   positiveTuple,
   validateCapabilities,
+  validateAppearance,
   validateExactInventory,
   validateHeader,
   validateHierarchy,
@@ -216,23 +222,23 @@ function validateSolidGeometry(
   }
 }
 
-function validateSolidMaterials(
+function validateSolidSurfaces(
   value: unknown,
   collector: AssetValidationCollector,
 ): ReadonlySet<string> {
-  const materials = collector.array(value, ['materials']);
-  if (materials.length === 0) {
+  const surfaces = collector.array(value, ['surfaces']);
+  if (surfaces.length === 0) {
     collector.issue(
-      ['materials'],
+      ['surfaces'],
       'array.non_empty',
-      'A solid blueprint requires at least one material',
+      'A solid blueprint requires at least one semantic surface',
     );
   }
-  const indexed = indexById(materials, ['materials'], 'material', collector);
-  materials.forEach((entry, index) => {
-    const path = ['materials', index] as const;
-    const material = collector.object(entry, path);
-    const color = collector.tuple(material.color, [...path, 'color'], 3);
+  const indexed = indexById(surfaces, ['surfaces'], 'surface', collector);
+  surfaces.forEach((entry, index) => {
+    const path = ['surfaces', index] as const;
+    const surface = collector.object(entry, path, ['id', 'color', 'substance', 'drawing', 'physical']);
+    const color = collector.tuple(surface.color, [...path, 'color'], 3);
     color.forEach((channel, channelIndex) => {
       collector.number(channel, [...path, 'color', channelIndex], {
         integer: true,
@@ -240,21 +246,34 @@ function validateSolidMaterials(
         maximum: 255,
       });
     });
-    collector.oneOf(material.finish, [...path, 'finish'], SOLID_FINISH_IDS);
+    collector.oneOf(surface.substance, [...path, 'substance'], SURFACE_SUBSTANCES);
     const drawing = collector.object(
-      material.drawing,
+      surface.drawing,
       [...path, 'drawing'],
-      ['application', 'tone'],
+      ['application', 'drawing'],
     );
     collector.oneOf(
       drawing.application,
       [...path, 'drawing', 'application'],
-      SOLID_DRAWING_APPLICATIONS,
+      DRAWING_APPLICATIONS,
     );
-    collector.oneOf(drawing.tone, [...path, 'drawing', 'tone'], TONE_STYLES);
+    const intent = collector.object(
+      drawing.drawing,
+      [...path, 'drawing', 'drawing'],
+      ['value', 'gesture'],
+    );
+    collector.oneOf(intent.value, [...path, 'drawing', 'drawing', 'value'], DRAWING_VALUES);
+    collector.oneOf(intent.gesture, [...path, 'drawing', 'drawing', 'gesture'], DRAWING_GESTURES);
+    const physical = collector.object(
+      surface.physical,
+      [...path, 'physical'],
+      ['substrate', 'finish', 'roughness', 'metalness', 'clearcoat'],
+    );
+    collector.oneOf(physical.substrate, [...path, 'physical', 'substrate'], PHYSICAL_SUBSTRATES);
+    collector.oneOf(physical.finish, [...path, 'physical', 'finish'], PHYSICAL_FINISHES);
     for (const key of ['roughness', 'metalness', 'clearcoat'] as const) {
-      if (key in material) {
-        collector.number(material[key], [...path, key], { minimum: 0, maximum: 1 });
+      if (key in physical) {
+        collector.number(physical[key], [...path, 'physical', key], { minimum: 0, maximum: 1 });
       }
     }
   });
@@ -323,7 +342,7 @@ function validateSurfaceAnchor(
 function validateSolidParts(
   value: unknown,
   nodes: ReadonlySet<string>,
-  materials: ReadonlySet<string>,
+  surfaces: ReadonlySet<string>,
   semanticParts: ReadonlySet<string>,
   collector: AssetValidationCollector,
 ): void {
@@ -349,12 +368,12 @@ function validateSolidParts(
     }
     collector.number(part.order, [...path, 'order']);
     validateSolidGeometry(part.geometry, [...path, 'geometry'], collector);
-    collector.string(part.materialId, [...path, 'materialId']);
-    if (typeof part.materialId === 'string' && !materials.has(part.materialId)) {
+    collector.string(part.surfaceId, [...path, 'surfaceId']);
+    if (typeof part.surfaceId === 'string' && !surfaces.has(part.surfaceId)) {
       collector.issue(
-        [...path, 'materialId'],
+        [...path, 'surfaceId'],
         'reference.missing',
-        `Unknown material ${part.materialId}`,
+        `Unknown semantic surface ${part.surfaceId}`,
       );
     }
     const placement = collector.object(part.placement, [...path, 'placement']);
@@ -554,7 +573,7 @@ export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBluep
   const collector = new AssetValidationCollector();
   const root = collector.object(blueprint, [], [
     'blueprintVersion', 'family', 'representation', 'assetId', 'seed', 'manifest',
-    'bounds', 'nodes', 'parts', 'materials', 'colliders', 'sockets', 'interactionBindings',
+    'appearance', 'bounds', 'nodes', 'parts', 'surfaces', 'colliders', 'sockets', 'interactionBindings',
   ]);
   validateHeader(root, 'solid', collector);
   const manifest = validateSemanticManifest(
@@ -563,10 +582,11 @@ export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBluep
     collector,
     typeof root.family === 'string' ? root.family : undefined,
   );
+  validateAppearance(root.appearance, manifest.partIds, collector);
   validateSolidBounds(root.bounds, collector);
-  const materials = validateSolidMaterials(root.materials, collector);
+  const surfaces = validateSolidSurfaces(root.surfaces, collector);
   const nodes = validateSolidNodes(root.nodes, collector);
-  validateSolidParts(root.parts, nodes, materials, manifest.partIds, collector);
+  validateSolidParts(root.parts, nodes, surfaces, manifest.partIds, collector);
   const colliderKinds = validateSolidColliders(root.colliders, nodes, collector);
   const sockets = validateSolidSockets(root.sockets, nodes, collector);
   validateExactInventory(

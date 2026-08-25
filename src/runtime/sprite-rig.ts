@@ -19,6 +19,8 @@ import { InteractionStateController } from './interaction-state-controller.js';
 import { resolveAssetInstanceId } from './instance-id.js';
 import { readWorldPose2, writeWorldPose2 } from './instance-pose.js';
 import { RasterSkeleton, type BonePose } from './raster-skeleton.js';
+import type { RasterFrameCache } from './raster-frame-cache.js';
+import { CANVAS_RASTER_HAND, type RasterHand } from './raster-hand.js';
 import { SpriteLayerRenderer } from './sprite-layer-renderer.js';
 
 export type { BonePose } from './raster-skeleton.js';
@@ -26,6 +28,8 @@ export type { BonePose } from './raster-skeleton.js';
 export type SpriteRigOptions = Readonly<{
   boilFrames?: number;
   canvasFactory?: CanvasFactory;
+  rasterHand?: RasterHand;
+  frameCache?: RasterFrameCache;
   textureAnisotropy?: number;
   drawRank?: number;
   instanceId?: AssetInstanceId;
@@ -74,12 +78,18 @@ function createRuntimeParts(
   instanceId: AssetInstanceId,
   options: SpriteRigOptions,
 ): SpriteRuntimeParts {
+  if (options.frameCache !== undefined
+      && (options.canvasFactory !== undefined || options.rasterHand !== undefined)) {
+    throw new Error('frameCache owns canvasFactory and rasterHand; configure them on the cache');
+  }
   const skeleton = new RasterSkeleton(root, blueprint.bones);
   let layers: SpriteLayerRenderer | undefined;
   try {
     layers = new SpriteLayerRenderer(blueprint, skeleton, {
       boilFrames: options.boilFrames ?? 3,
       canvasFactory: options.canvasFactory ?? automaticCanvasFactory,
+      rasterHand: options.rasterHand ?? CANVAS_RASTER_HAND,
+      ...(options.frameCache === undefined ? {} : { frameCache: options.frameCache }),
       textureAnisotropy: options.textureAnisotropy ?? 4,
       drawRank: options.drawRank ?? 0,
       instanceId,

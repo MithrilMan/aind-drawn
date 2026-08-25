@@ -1,11 +1,14 @@
-import type { MediumId, ToneStyle } from '../../../materials/medium.js';
+import { resolveArtDirection, type ArtDirectionRecipe, type ArtDirectionSource } from '../../../appearance/art-direction.js';
+import type { DrawingIntent } from '../../../materials/drawing.js';
+import type { MediumId } from '../../../materials/medium.js';
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import { createBuildingDrawingStyle } from '../identity/drawing-style.js';
 import type { BuildingIdentityRecipe } from '../identity/recipe.js';
 
 export type RasterBuildingStyle = Readonly<{
   medium: MediumId;
-  tone: ToneStyle;
+  drawing: DrawingIntent;
+  artDirection: ArtDirectionRecipe;
 }>;
 
 export type RasterBuildingRecipe = AssetRecipeEnvelope<
@@ -17,6 +20,7 @@ export type RasterBuildingRecipe = AssetRecipeEnvelope<
 
 export type RasterBuildingRecipeOptions = Readonly<{
   medium?: MediumId;
+  artDirection?: ArtDirectionSource;
 }>;
 
 export function createRasterBuildingRecipe(
@@ -31,7 +35,8 @@ export function createRasterBuildingRecipe(
     identity,
     style: Object.freeze({
       medium: options.medium ?? 'graphite',
-      tone: drawing.facadeTone,
+      drawing: drawing.facadeDrawing,
+      artDirection: resolveArtDirection(options.artDirection),
     }),
   });
 }

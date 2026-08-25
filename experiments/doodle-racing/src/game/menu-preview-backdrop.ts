@@ -2,24 +2,27 @@ import * as THREE from 'three';
 
 import {
   SolidRig,
+  createSemanticSurface,
+  createUniformAssetAppearance,
   type Point3,
   type SolidAssetBlueprint,
-  type SolidMaterialSpec,
+  type DrawingApplication,
+  type DrawingIntent,
+  type SemanticSurfaceSpec,
+  type SurfaceSubstance,
 } from '../../../../src/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
 
-const material = (
+const surface = (
   id: string,
   color: readonly [number, number, number],
-  application: SolidMaterialSpec['drawing']['application'],
-  tone: SolidMaterialSpec['drawing']['tone'],
-): SolidMaterialSpec => Object.freeze({
-  id,
-  color: Object.freeze(color),
-  finish: 'matte',
-  roughness: 1,
-  metalness: 0,
-  drawing: Object.freeze({ application, tone }),
+  substance: SurfaceSubstance,
+  application: DrawingApplication,
+  drawing: DrawingIntent,
+): SemanticSurfaceSpec => createSemanticSurface({
+  id, color, substance,
+  physical: Object.freeze({ roughness: 1, metalness: 0 }),
+  drawing: Object.freeze({ application, drawing }),
 });
 
 const MENU_PREVIEW_BACKDROP_BLUEPRINT: SolidAssetBlueprint<'menu-preview'> = Object.freeze({
@@ -28,6 +31,11 @@ const MENU_PREVIEW_BACKDROP_BLUEPRINT: SolidAssetBlueprint<'menu-preview'> = Obj
   representation: 'solid',
   assetId: 'paper-circuit:menu-preview:1',
   seed: 73_019,
+  appearance: createUniformAssetAppearance(
+    'storybook',
+    ['field', 'spotlight', 'stripe'],
+    ['primary-form'],
+  ),
   bounds: Object.freeze({
     minimum: Object.freeze([-3.8, -4.25, -0.08] as Point3),
     maximum: Object.freeze([3.8, 4.25, 0.18] as Point3),
@@ -59,7 +67,7 @@ const MENU_PREVIEW_BACKDROP_BLUEPRINT: SolidAssetBlueprint<'menu-preview'> = Obj
       node: 'root',
       order: 0,
       geometry: Object.freeze({ type: 'box', size: Object.freeze([7.6, 8.5, 0.08] as Point3) }),
-      materialId: 'oxide',
+      surfaceId: 'oxide',
       placement: Object.freeze({ position: Object.freeze([0, 0, 0] as Point3) }),
       castShadow: false,
       receiveShadow: false,
@@ -76,7 +84,7 @@ const MENU_PREVIEW_BACKDROP_BLUEPRINT: SolidAssetBlueprint<'menu-preview'> = Obj
         widthSegments: 32,
         heightSegments: 12,
       }),
-      materialId: 'paper',
+      surfaceId: 'paper',
       placement: Object.freeze({ position: Object.freeze([0.28, 0.26, 0.085] as Point3) }),
       castShadow: false,
       receiveShadow: false,
@@ -87,7 +95,7 @@ const MENU_PREVIEW_BACKDROP_BLUEPRINT: SolidAssetBlueprint<'menu-preview'> = Obj
       node: 'root',
       order: 2,
       geometry: Object.freeze({ type: 'box', size: Object.freeze([7.9, 0.34, 0.06] as Point3) }),
-      materialId: 'ink',
+      surfaceId: 'ink',
       placement: Object.freeze({
         position: Object.freeze([0, -3.65, 0.12] as Point3),
         rotation: Object.freeze([0, 0, -0.055] as Point3),
@@ -96,10 +104,10 @@ const MENU_PREVIEW_BACKDROP_BLUEPRINT: SolidAssetBlueprint<'menu-preview'> = Obj
       receiveShadow: false,
     }),
   ]),
-  materials: Object.freeze([
-    material('oxide', [197, 78, 49], 'pigment', 'black'),
-    material('paper', [241, 229, 200], 'paper', 'light'),
-    material('ink', [23, 25, 24], 'pigment', 'black'),
+  surfaces: Object.freeze([
+    surface('oxide', [197, 78, 49], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
+    surface('paper', [241, 229, 200], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
+    surface('ink', [23, 25, 24], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
   ]),
   colliders: Object.freeze([]),
   sockets: Object.freeze([]),

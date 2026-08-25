@@ -102,7 +102,9 @@ describe('vehicle asset family', () => {
   it('projects one identity into aligned raster, solid, and doodle contracts', () => {
     const identity = createVehicleIdentity(5103, { archetype: 'sedan', doorCount: 4 });
     const raster = createRasterVehicleBlueprint(createRasterVehicleRecipe(identity, { medium: 'ink' }));
-    const solid = createSolidVehicleBlueprint(identity, { finish: 'metal' });
+    const solid = createSolidVehicleBlueprint(identity, {
+      physical: { substrate: 'metal', finish: 'polished' },
+    });
     const rasterFront = raster.layers.find(({ id }) => id === 'wheel:front');
     const rasterFrontBone = raster.bones.find(({ id }) => id === rasterFront?.bone);
     const solidFront = solid.nodes.find(({ id }) => id === 'wheel:front:left');
@@ -141,14 +143,14 @@ describe('vehicle asset family', () => {
       expect(width).toBeLessThan(identity.dimensions.width * 0.76);
     }
     expect(solid.parts.find(({ id }) => id === 'door:left:opening')).toMatchObject({
-      node: 'chassis', materialId: 'interior',
+      node: 'chassis', surfaceId: 'interior',
     });
     expect(solid.parts.some(({ id }) => id === 'door:left:window-opening')).toBe(false);
     expect(solid.parts.find(({ id }) => id === 'hood:opening')).toMatchObject({
-      node: 'chassis', materialId: 'interior',
+      node: 'chassis', surfaceId: 'interior',
     });
     expect(solid.parts.find(({ id }) => id === 'cargo:opening')).toMatchObject({
-      node: 'chassis', materialId: 'interior',
+      node: 'chassis', surfaceId: 'interior',
     });
     expect(solid.parts.find(({ id }) => id === 'door:left:window')?.node).toBe('door:left');
     expect(solid.parts.find(({ id }) => id === 'door:left:window-frame')?.node).toBe('door:left');

@@ -4,10 +4,12 @@ import {
   Random,
   SeedTree,
   SolidRig,
+  createSemanticSurface,
+  createUniformAssetAppearance,
   type MeshGeometrySpec,
   type Point3,
   type SolidAssetBlueprint,
-  type SolidMaterialSpec,
+  type SemanticSurfaceSpec,
   type SolidPartDefinition,
   type SuperellipsoidGeometrySpec,
 } from '../../../../src/index.js';
@@ -70,38 +72,42 @@ export type DriftEffectsDiagnostics = Readonly<{
   sparks: number;
 }>;
 
-const MATERIALS: readonly SolidMaterialSpec[] = Object.freeze([
-  Object.freeze({
+const SURFACES: readonly SemanticSurfaceSpec[] = Object.freeze([
+  createSemanticSurface({
     id: 'skid-rubber',
     color: Object.freeze([37, 36, 32] as const),
-    finish: 'rubber',
-    roughness: 1,
-    metalness: 0,
-    drawing: Object.freeze({ application: 'ink', tone: 'black' }),
+    substance: 'rubber',
+    physical: Object.freeze({ roughness: 1, metalness: 0 }),
+    drawing: Object.freeze({
+      application: 'ink', drawing: Object.freeze({ value: 'solid', gesture: 'regular' }),
+    }),
   }),
-  Object.freeze({
+  createSemanticSurface({
     id: 'tyre-smoke',
     color: Object.freeze([132, 132, 124] as const),
-    finish: 'matte',
-    roughness: 1,
-    metalness: 0,
-    drawing: Object.freeze({ application: 'wash', tone: 'light' }),
+    substance: 'generic',
+    physical: Object.freeze({ roughness: 1, metalness: 0 }),
+    drawing: Object.freeze({
+      application: 'wash', drawing: Object.freeze({ value: 'light', gesture: 'quiet' }),
+    }),
   }),
-  Object.freeze({
+  createSemanticSurface({
     id: 'track-dust',
     color: Object.freeze([169, 139, 91] as const),
-    finish: 'matte',
-    roughness: 1,
-    metalness: 0,
-    drawing: Object.freeze({ application: 'wash', tone: 'stipple' }),
+    substance: 'stone',
+    physical: Object.freeze({ roughness: 1, metalness: 0 }),
+    drawing: Object.freeze({
+      application: 'wash', drawing: Object.freeze({ value: 'mid', gesture: 'granular' }),
+    }),
   }),
-  Object.freeze({
+  createSemanticSurface({
     id: 'impact-spark',
     color: Object.freeze([222, 119, 43] as const),
-    finish: 'matte',
-    roughness: 0.9,
-    metalness: 0,
-    drawing: Object.freeze({ application: 'pigment', tone: 'hatch' }),
+    substance: 'metal',
+    physical: Object.freeze({ roughness: 0.9, metalness: 0 }),
+    drawing: Object.freeze({
+      application: 'pigment', drawing: Object.freeze({ value: 'mid', gesture: 'regular' }),
+    }),
   }),
 ]);
 
@@ -156,7 +162,7 @@ function particleParts(kind: 'smoke' | 'dust', count: number): readonly SolidPar
     node: 'root',
     order: kind === 'smoke' ? 2 : 1,
     geometry: puffGeometry(index + (kind === 'dust' ? 41 : 0)),
-    materialId: kind === 'smoke' ? 'tyre-smoke' : 'track-dust',
+    surfaceId: kind === 'smoke' ? 'tyre-smoke' : 'track-dust',
     placement: Object.freeze({ position: Object.freeze([0, HIDDEN_SURFACE_Y, 0] as Point3) }),
     castShadow: false,
     receiveShadow: false,
@@ -170,7 +176,7 @@ function sparkParts(): readonly SolidPartDefinition[] {
     node: 'root',
     order: 3,
     geometry: Object.freeze({ type: 'box', size: Object.freeze([0.13, 0.025, 0.035] as Point3) }),
-    materialId: 'impact-spark',
+    surfaceId: 'impact-spark',
     placement: Object.freeze({ position: Object.freeze([0, HIDDEN_SURFACE_Y, 0] as Point3) }),
     castShadow: false,
     receiveShadow: false,
@@ -184,7 +190,7 @@ function createEffectsBlueprint(course: CourseLayout): SolidAssetBlueprint<'race
     node: 'root',
     order: 0,
     geometry: skidGeometry(),
-    materialId: 'skid-rubber',
+    surfaceId: 'skid-rubber',
     placement: Object.freeze({ position: Object.freeze([0, 0, 0] as Point3) }),
     castShadow: false,
     receiveShadow: false,
@@ -195,6 +201,10 @@ function createEffectsBlueprint(course: CourseLayout): SolidAssetBlueprint<'race
     representation: 'solid',
     assetId: 'paper-circuit:race-effects:1',
     seed: 73_911,
+    appearance: createUniformAssetAppearance(
+      'storybook',
+      ['skid-marks', 'smoke', 'dust', 'spark'],
+    ),
     bounds: Object.freeze({
       minimum: Object.freeze([course.bounds.minimumX - 3, -2.1, course.bounds.minimumZ - 3] as Point3),
       maximum: Object.freeze([course.bounds.maximumX + 3, 4, course.bounds.maximumZ + 3] as Point3),
@@ -224,7 +234,7 @@ function createEffectsBlueprint(course: CourseLayout): SolidAssetBlueprint<'race
       ...particleParts('dust', DUST_SLOT_COUNT),
       ...sparkParts(),
     ]),
-    materials: MATERIALS,
+    surfaces: SURFACES,
     colliders: Object.freeze([]),
     sockets: Object.freeze([]),
     interactionBindings: Object.freeze([]),

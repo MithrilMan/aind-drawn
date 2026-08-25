@@ -1,31 +1,31 @@
 import {
   createInkedSolidProjectionProvider,
   fixedMark,
-  toneMarks,
+  valueMarks,
 } from '../projection-provider.js';
 
 const coverage = Object.freeze({
-  black: 1 - (1 - 0.23) ** 4,
-  hatch: 1 - (1 - 0.1936) ** 3,
-  scribble: 1 - (1 - 0.1806) ** 3,
-  stipple: 1 - (1 - 0.165) ** 3,
+  paper: 0,
   light: 1 - (1 - 0.1442) ** 3,
+  mid: 1 - (1 - 0.1936) ** 3,
+  dark: 1 - (1 - 0.21) ** 4,
+  solid: 1 - (1 - 0.23) ** 4,
 });
 
-const pigment = toneMarks({
-  black: { style: 'none', strength: 0, coverage: coverage.black },
-  hatch: { style: 'none', strength: 0, coverage: coverage.hatch },
-  scribble: { style: 'none', strength: 0, coverage: coverage.scribble },
-  stipple: { style: 'none', strength: 0, coverage: coverage.stipple },
+const pigment = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: coverage.paper },
   light: { style: 'none', strength: 0, coverage: coverage.light },
+  mid: { style: 'none', strength: 0, coverage: coverage.mid },
+  dark: { style: 'none', strength: 0, coverage: coverage.dark },
+  solid: { style: 'none', strength: 0, coverage: coverage.solid },
 });
 
-const glaze = toneMarks({
-  black: { style: 'none', strength: 0, coverage: coverage.black * 0.55 },
-  hatch: { style: 'none', strength: 0, coverage: coverage.hatch * 0.55 },
-  scribble: { style: 'none', strength: 0, coverage: coverage.scribble * 0.55 },
-  stipple: { style: 'none', strength: 0, coverage: coverage.stipple * 0.55 },
+const glaze = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'none', strength: 0, coverage: coverage.light * 0.55 },
+  mid: { style: 'none', strength: 0, coverage: coverage.mid * 0.55 },
+  dark: { style: 'none', strength: 0, coverage: coverage.dark * 0.55 },
+  solid: { style: 'none', strength: 0, coverage: coverage.solid * 0.55 },
 });
 
 export const watercolorProjectionProvider = createInkedSolidProjectionProvider({

@@ -199,7 +199,7 @@ export class FamilyCustomizer {
       this.seed,
       this.medium,
       next,
-      family.defaultFinish,
+      family.defaultAppearance,
     );
     const result = this.previewRenderer.render(projection.raster, {
       ...(parameter.preview?.rasterLayerIds === undefined

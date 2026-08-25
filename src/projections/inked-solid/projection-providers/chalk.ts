@@ -1,23 +1,23 @@
 import {
   createInkedSolidProjectionProvider,
   fixedMark,
-  toneMarks,
+  valueMarks,
 } from '../projection-provider.js';
 
-const pigment = toneMarks({
-  black: { style: 'stipple', strength: 0.7, coverage: 0.62, scale: 12.18 },
-  hatch: { style: 'stipple', strength: 0.5824, coverage: 0.48 },
-  scribble: { style: 'stipple', strength: 0.5404, coverage: 0.43 },
-  stipple: { style: 'stipple', strength: 0.49, coverage: 0.37 },
+const pigment = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'stipple', strength: 0.4228, coverage: 0.29, scale: 9.03 },
+  mid: { style: 'stipple', strength: 0.5824, coverage: 0.48 },
+  dark: { style: 'stipple', strength: 0.64, coverage: 0.55, scale: 11 },
+  solid: { style: 'stipple', strength: 0.7, coverage: 0.62, scale: 12.18 },
 });
 
-const glaze = toneMarks({
-  black: { style: 'stipple', strength: 0.7, coverage: 0.24, scale: 12.18 },
-  hatch: { style: 'stipple', strength: 0.5824, coverage: 0.24 },
-  scribble: { style: 'stipple', strength: 0.5404, coverage: 0.24 },
-  stipple: { style: 'stipple', strength: 0.49, coverage: 0.24 },
+const glaze = valueMarks({
+  paper: { style: 'none', strength: 0, coverage: 0 },
   light: { style: 'stipple', strength: 0.4228, coverage: 0.2156, scale: 9.03 },
+  mid: { style: 'stipple', strength: 0.5824, coverage: 0.24 },
+  dark: { style: 'stipple', strength: 0.64, coverage: 0.24, scale: 11 },
+  solid: { style: 'stipple', strength: 0.7, coverage: 0.24, scale: 12.18 },
 });
 
 export const chalkProjectionProvider = createInkedSolidProjectionProvider({

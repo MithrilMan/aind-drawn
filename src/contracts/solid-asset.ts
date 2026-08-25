@@ -1,6 +1,6 @@
 import type { Point } from '../core/geometry.js';
 import type { Bounds3, Point3, RadialDeformation, SurfaceAnchor } from '../core/geometry3.js';
-import type { SolidMaterialSpec } from '../materials/finish.js';
+import type { SemanticSurfaceSpec } from '../materials/surface.js';
 import type { AssetCapabilities } from './asset-capabilities.js';
 import type { AssetBlueprintHeader } from './asset-envelope.js';
 import type { AssetSemanticManifest } from './asset-semantics.js';
@@ -67,7 +67,7 @@ export type SolidPartDefinition = Readonly<{
   node: string;
   order: number;
   geometry: SolidGeometrySpec;
-  materialId: string;
+  surfaceId: string;
   placement: SolidPlacement;
   capabilities?: AssetCapabilities;
   visible?: boolean;
@@ -144,7 +144,7 @@ export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprin
   manifest: AssetSemanticManifest<TFamily>;
   nodes: readonly SolidNodeDefinition[];
   parts: readonly SolidPartDefinition[];
-  materials: readonly SolidMaterialSpec[];
+  surfaces: readonly SemanticSurfaceSpec[];
   colliders: readonly SolidColliderDefinition[];
   sockets: readonly SolidSocketDefinition[];
   interactionBindings: readonly SolidInteractionBinding[];

@@ -1,12 +1,12 @@
 import { SeedTree } from '../../../core/random.js';
-import type { ToneStyle } from '../../../materials/medium.js';
+import { DRAWING_INTENTS, type DrawingIntent } from '../../../materials/drawing.js';
 import type { CharacterIdentityRecipe } from './recipe.js';
 
 export type CharacterDrawingStyle = Readonly<{
   linePressure: number;
-  headTone: ToneStyle;
-  hairTone: ToneStyle;
-  bodyTone: ToneStyle;
+  headDrawing: DrawingIntent;
+  hairDrawing: DrawingIntent;
+  bodyDrawing: DrawingIntent;
 }>;
 
 /**
@@ -21,14 +21,16 @@ export function createCharacterDrawingStyle(
   const isCreature = identity.species === 'nightmare' || identity.species === 'creature';
   return Object.freeze({
     linePressure: tree.random('character:line').float(0.86, 1.2),
-    headTone: isCreature
-      ? 'scribble'
-      : tree.random('character:raster:head-tone').pick<ToneStyle>(['light', 'light', 'hatch']),
-    hairTone: tree.random('character:raster:hair-tone').pick<ToneStyle>([
-      'hatch', 'scribble', 'black',
+    headDrawing: isCreature
+      ? DRAWING_INTENTS.agitated
+      : tree.random('character:raster:head-tone').pick<DrawingIntent>([
+        DRAWING_INTENTS.light, DRAWING_INTENTS.light, DRAWING_INTENTS.mid,
+      ]),
+    hairDrawing: tree.random('character:raster:hair-tone').pick<DrawingIntent>([
+      DRAWING_INTENTS.mid, DRAWING_INTENTS.agitated, DRAWING_INTENTS.solid,
     ]),
-    bodyTone: tree.random('character:raster:body-tone').pick<ToneStyle>([
-      'light', 'hatch', 'scribble',
+    bodyDrawing: tree.random('character:raster:body-tone').pick<DrawingIntent>([
+      DRAWING_INTENTS.light, DRAWING_INTENTS.mid, DRAWING_INTENTS.agitated,
     ]),
   });
 }

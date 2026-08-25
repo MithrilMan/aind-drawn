@@ -190,13 +190,13 @@ export function createSolidVehicleDoorParts(
     part({
       id: `door:${side}:opening`, node: 'chassis', order: 7,
       geometry: warpedPanelGeometry(identity, layout, side, apertureProud, apertureDepth),
-      materialId: 'interior', placement: Object.freeze({ position: openingPlacement }),
+      surfaceId: 'interior', placement: Object.freeze({ position: openingPlacement }),
       castShadow: false, receiveShadow: false,
     }),
     part({
       id: `door:${side}`, node: `door:${side}`, order: 8,
       geometry: warpedPanelGeometry(identity, layout, side, skinProud, panelDepth),
-      materialId: 'body', placement: Object.freeze({ position: [0, 0, 0] as const }),
+      surfaceId: 'body', placement: Object.freeze({ position: [0, 0, 0] as const }),
       castShadow: true, receiveShadow: true,
     }),
   ];
@@ -211,7 +211,7 @@ export function createSolidVehicleDoorParts(
         skinProud,
         frameDepth,
       ),
-      materialId: 'body',
+      surfaceId: 'body',
       placement: Object.freeze({ position: [0, 0, 0] as const }),
       castShadow: true, receiveShadow: true,
     }));
@@ -226,7 +226,7 @@ export function createSolidVehicleDoorParts(
       skinProud + 0.003,
       windowDepth,
     ),
-    materialId: 'glass',
+    surfaceId: 'glass',
     placement: Object.freeze({ position: [0, 0, 0] as const }),
     castShadow: false, receiveShadow: false,
   }));
@@ -238,7 +238,7 @@ export function createSolidVehicleDoorParts(
   parts.push(part({
     id: `door:${side}:handle`, node: `door:${side}`, order: 10,
     geometry: roundedVolume([0.11, 0.025, 0.025], 2.8),
-    materialId: 'accent',
+    surfaceId: 'accent',
     placement: Object.freeze({
       position: Object.freeze([
         layout.doorHandle[0],

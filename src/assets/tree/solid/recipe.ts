@@ -1,9 +1,15 @@
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
-import type { SolidFinishId } from '../../../materials/finish.js';
+import {
+  resolveArtDirection,
+  type ArtDirectionRecipe,
+  type ArtDirectionSource,
+} from '../../../appearance/art-direction.js';
+import type { PhysicalSurfaceTreatmentOverride } from '../../../materials/surface.js';
 import type { TreeIdentityRecipe } from '../identity/recipe.js';
 
 export type SolidTreeStyle = Readonly<{
-  finish: SolidFinishId;
+  artDirection: ArtDirectionRecipe;
+  physical: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export type SolidTreeRecipe = AssetRecipeEnvelope<
@@ -14,7 +20,8 @@ export type SolidTreeRecipe = AssetRecipeEnvelope<
 >;
 
 export type SolidTreeRecipeOptions = Readonly<{
-  finish?: SolidFinishId;
+  artDirection?: ArtDirectionSource;
+  physical?: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export function createSolidTreeRecipe(
@@ -26,6 +33,9 @@ export function createSolidTreeRecipe(
     family: 'tree',
     representation: 'solid',
     identity,
-    style: Object.freeze({ finish: options.finish ?? 'matte' }),
+    style: Object.freeze({
+      artDirection: resolveArtDirection(options.artDirection),
+      physical: Object.freeze({ ...(options.physical ?? {}) }),
+    }),
   });
 }

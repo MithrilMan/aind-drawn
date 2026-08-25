@@ -21,6 +21,7 @@ const requiredExports = [
   'SolidRig',
   'InkedSolidScenePass',
   'InkedSolidStrokeRig',
+  'RasterFrameCache',
   'sampleCharacterMotion',
   'createCharacterMotionState',
   'setCharacterMotion',
@@ -67,6 +68,8 @@ const requiredExports = [
   'validateSolidAssetBlueprint',
   'createAssetComposition',
   'createAssetInstanceId',
+  'bakeRasterLayerFrame',
+  'createCanvasRasterHand',
 ];
 
 for (const exportName of requiredExports) {

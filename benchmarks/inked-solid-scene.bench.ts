@@ -5,6 +5,7 @@ import {
   MEDIUM_IDS,
   InkedSolidScenePass,
   SolidRig,
+  SolidSurfaceResourceCache,
   createBuildingIdentity,
   createCharacterIdentity,
   createInkedSolidBlueprint,
@@ -49,11 +50,15 @@ const buildingSolid = createSolidBuildingBlueprint(createBuildingIdentity(8_102)
 const characterStrokes = createSolidCharacterInkStrokes(characterSolid);
 const buildingStrokes = createSolidBuildingInkStrokes(buildingSolid);
 const rigs: SolidRig[] = [];
+const surfaceCache = new SolidSurfaceResourceCache();
 
 for (let index = 0; index < INSTANCE_COUNT; index += 1) {
   const solid = index % 2 === 0 ? characterSolid : buildingSolid;
   const strokes = index % 2 === 0 ? characterStrokes : buildingStrokes;
-  const rig = new SolidRig(solid, { instanceId: `benchmark:${index}` });
+  const rig = new SolidRig(solid, {
+    instanceId: `benchmark:${index}`,
+    surfaceCache,
+  });
   rig.root.position.set((index % 8) * 2.5 - 8.75, Math.floor(index / 8) * 0.15, 0);
   rigs.push(rig);
   scene.add(rig.root);
@@ -75,6 +80,7 @@ console.info('Inked-solid benchmark configuration', {
   drawCallsPerFrame: diagnostics.renderCalls,
   renderTargets: diagnostics.renderTargets,
   steadyStatePerMeshAllocations: diagnostics.steadyStatePerMeshAllocations,
+  surfaceResources: surfaceCache.getDiagnostics(),
 });
 
 let elapsedSeconds = 0;
@@ -93,4 +99,5 @@ describe('multi-instance inked-solid scene pass', () => {
 afterAll(() => {
   pass.dispose();
   for (const rig of rigs) rig.dispose();
+  surfaceCache.dispose();
 });

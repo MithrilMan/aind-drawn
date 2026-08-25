@@ -1,3 +1,5 @@
+import type { AssetAppearance } from '../appearance/art-direction.js';
+
 /** Representation identifiers owned by the shared projection contracts. */
 export type AssetRepresentationId = 'raster' | 'solid' | 'inked-solid';
 
@@ -33,4 +35,6 @@ export type AssetBlueprintHeader<
   /** Deterministic authored-content identity, shared by projections of one complete asset. */
   assetId: string;
   seed: number;
+  /** Appearance varies independently from authored identity and topology. */
+  appearance: AssetAppearance;
 }>;

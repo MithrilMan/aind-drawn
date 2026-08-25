@@ -1,6 +1,9 @@
 import { closePath, type MutablePoint, type Point } from '../../../core/geometry.js';
-import { PAPER, type Sketch } from '../../../core/sketch.js';
+import type { Sketch } from '../../../core/sketch.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
+import { DRAWING_INTENTS } from '../../../materials/drawing.js';
 import { mediumById, type Medium } from '../../../materials/medium.js';
+import { BUILDING_ART_BINDINGS } from '../appearance/roles.js';
 import {
   createBuildingFacadeGeometry,
   type BuildingFacadeGeometry,
@@ -53,7 +56,7 @@ function drawWindow(
   ]);
   sketch.paperFill(window);
   medium.tone(sketch, window, {
-    style: lit ? 'light' : 'black',
+    drawing: lit ? DRAWING_INTENTS.light : DRAWING_INTENTS.solid,
     color: lit ? recipe.identity.palette.accent : recipe.identity.palette.glass,
   });
   medium.edge(sketch, closePath(window), 3, { ghost: true });
@@ -88,7 +91,7 @@ function drawChimney(
   ];
   sketch.paperFill(chimneyProfile);
   medium.tone(sketch, chimneyProfile, {
-    style: 'hatch', color: recipe.identity.palette.wall, gap: 7,
+    drawing: DRAWING_INTENTS.mid, color: recipe.identity.palette.wall, gap: 7,
   });
   medium.edge(sketch, closePath(chimneyProfile), 3.2, { ghost: true });
   sketch.stroke(
@@ -157,7 +160,7 @@ function drawBuildingShell(
   ];
   sketch.paperFill(wall);
   medium.tone(sketch, wall, {
-    style: recipe.style.tone, color: recipe.identity.palette.wall, gap: 11,
+    drawing: recipe.style.drawing, color: recipe.identity.palette.wall, gap: 11,
   });
   medium.edge(sketch, closePath(wall), 4.4, { ghost: true, amplitude: 1.1 });
 
@@ -195,7 +198,9 @@ function drawDoor(
     centerX + x * PIXELS_PER_UNIT,
     metrics.bottom - y * PIXELS_PER_UNIT,
   ]);
-  medium.tone(sketch, opening, { style: 'black', color: recipe.identity.palette.interior });
+  medium.tone(sketch, opening, {
+    drawing: DRAWING_INTENTS.solid, color: recipe.identity.palette.interior,
+  });
   medium.edge(sketch, closePath(opening), 3.5, { ghost: true });
 
   if (state === 'open') {
@@ -205,7 +210,7 @@ function drawDoor(
     const panel = opening.map(([x, y]): Point => [hingeX + (x - hingeX) * projection, y]);
     sketch.paperFill(panel);
     medium.tone(sketch, panel, {
-      style: 'hatch', color: recipe.identity.palette.accent, gap: 7,
+      drawing: DRAWING_INTENTS.mid, color: recipe.identity.palette.accent, gap: 7,
     });
     medium.edge(sketch, closePath(panel), 3.1, { ghost: true });
     return;
@@ -213,7 +218,7 @@ function drawDoor(
 
   sketch.paperFill(opening);
   medium.tone(sketch, opening, {
-    style: recipe.identity.door.style === 'panel' ? 'light' : 'hatch',
+    drawing: recipe.identity.door.style === 'panel' ? DRAWING_INTENTS.light : DRAWING_INTENTS.mid,
     color: recipe.identity.palette.accent,
     gap: 7,
   });
@@ -232,7 +237,7 @@ function drawDoor(
     ], 2, { alpha: 0.52 });
   }
   const latchSign = recipe.identity.door.hinge === 'left' ? 1 : -1;
-  sketch.context.fillStyle = PAPER;
+  sketch.context.fillStyle = sketch.paperAlpha(1);
   sketch.wobblyEllipse(centerX + width * 0.28 * latchSign, metrics.bottom - height * 0.43, 2.2, 2.2);
   sketch.context.fill();
 }
@@ -296,6 +301,7 @@ export function createRasterBuildingBlueprint(recipe: RasterBuildingRecipe): Ass
     representation: 'raster',
     assetId: `building:${identity.seed}`,
     seed: identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, BUILDING_ART_BINDINGS),
     medium: recipe.style.medium,
     manifest: BUILDING_SEMANTIC_MANIFEST,
     bounds: Object.freeze({

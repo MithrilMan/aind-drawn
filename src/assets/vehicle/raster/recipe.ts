@@ -1,4 +1,5 @@
 import type { MediumId } from '../../../materials/medium.js';
+import { resolveArtDirection, type ArtDirectionRecipe, type ArtDirectionSource } from '../../../appearance/art-direction.js';
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
 import {
   createVehicleDrawingStyle,
@@ -9,6 +10,7 @@ import type { VehicleIdentityRecipe, VehicleSide } from '../identity/recipe.js';
 export type RasterVehicleStyle = VehicleDrawingStyle & Readonly<{
   medium: MediumId;
   side: VehicleSide;
+  artDirection: ArtDirectionRecipe;
 }>;
 
 export type RasterVehicleRecipe = AssetRecipeEnvelope<
@@ -22,6 +24,7 @@ export type RasterVehicleOptions = Readonly<{
   medium?: MediumId;
   /** Side shown by the orthographic elevation. */
   side?: VehicleSide;
+  artDirection?: ArtDirectionSource;
 }>;
 
 export function createRasterVehicleRecipe(
@@ -37,6 +40,7 @@ export function createRasterVehicleRecipe(
       ...createVehicleDrawingStyle(identity),
       medium: options.medium ?? 'graphite',
       side: options.side ?? 'right',
+      artDirection: resolveArtDirection(options.artDirection),
     }),
   });
 }

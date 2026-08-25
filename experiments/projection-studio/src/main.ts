@@ -2,12 +2,20 @@ import './style.css';
 
 import {
   MEDIUM_IDS,
-  SOLID_FINISH_CATALOG,
+  ART_DIRECTION_CATALOG,
+  ART_DIRECTION_IDS,
+  PHYSICAL_FINISHES,
+  PHYSICAL_SUBSTRATES,
+  RasterWorkerClient,
   auditRasterBoil,
   mediumById,
   type AssetAuthoringValue,
   type MediumId,
-  type SolidFinishId,
+  type ArtDirectionId,
+  type PhysicalFinishId,
+  type PhysicalSubstrateId,
+  type PhysicalSurfaceTreatmentOverride,
+  type RasterBoilAuditReport,
 } from '../../../src/index.js';
 import { BlueprintPreviewRenderer } from './blueprint-preview.js';
 import { ThreeStage, type ThreeRenderMode } from './three-stage.js';
@@ -20,6 +28,8 @@ import {
   type FamilyProjection,
   type StudioFamilyDefinition,
   type StudioFamilyId,
+  type StudioAppearanceOptions,
+  type StudioRasterWorkerPayload,
 } from './family-catalog.js';
 import { FamilyCustomizer } from './family-customizer.js';
 import { RasterStage } from './raster-stage.js';
@@ -44,7 +54,9 @@ const solidCanvas = required('[data-solid-canvas]', HTMLCanvasElement);
 const solidViewport = required('[data-solid-viewport]', HTMLElement);
 const seedInput = required('[data-seed]', HTMLInputElement);
 const mediumInput = required('[data-medium]', HTMLSelectElement);
-const finishInput = required('[data-finish]', HTMLSelectElement);
+const artDirectionInput = required('[data-art-direction]', HTMLSelectElement);
+const substrateInput = required('[data-substrate]', HTMLSelectElement);
+const physicalFinishInput = required('[data-physical-finish]', HTMLSelectElement);
 const speedInput = required('[data-speed]', HTMLInputElement);
 const speedOutput = required('[data-speed-output]', HTMLOutputElement);
 const yawInput = required('[data-yaw]', HTMLInputElement);
@@ -78,6 +90,7 @@ if (initialFamily === undefined) throw new Error('Projection Studio requires a c
 let familyId: StudioFamilyId = initialFamily.id;
 let seed = initialFamily.defaultSeed;
 let medium: MediumId = 'graphite';
+let artDirection: ArtDirectionId = 'authored';
 let speed = 0.7;
 let playing = true;
 let turntable = false;
@@ -90,26 +103,62 @@ let activeWorkspace: 'animate' | 'compare' | 'customize' = 'animate';
 let customizerDirty = true;
 let comparisonDirty = true;
 let comparisonRenderToken = 0;
+let comparisonAbort: AbortController | null = null;
 let activeProjection: FamilyProjection | null = null;
 let renderMode: ThreeRenderMode = 'doodle';
 let threeStage: ThreeStage | null = null;
 const customizationByFamily = new Map<StudioFamilyId, FamilyCustomization>(
   STUDIO_FAMILIES.map((family) => [family.id, family.defaultCustomization]),
 );
-const finishByFamily = new Map<StudioFamilyId, SolidFinishId>(
-  STUDIO_FAMILIES.map((family) => [family.id, family.defaultFinish]),
+const physicalByFamily = new Map<StudioFamilyId, PhysicalSurfaceTreatmentOverride>(
+  STUDIO_FAMILIES.map((family) => [family.id, family.defaultAppearance.physical]),
 );
 const dynamicStateByFamily = new Map<StudioFamilyId, FamilyDynamicState>(
   STUDIO_FAMILIES.map((family) => [family.id, family.defaultDynamicState]),
 );
 const familyPreviewCache = new Map<string, string>();
+let rasterWorker: Worker | null = null;
+let rasterWorkerClient: RasterWorkerClient<StudioRasterWorkerPayload> | null = null;
 
-finishInput.replaceChildren(...SOLID_FINISH_CATALOG.map((finish) => {
+if (typeof Worker !== 'undefined' && typeof OffscreenCanvas !== 'undefined') {
+  try {
+    rasterWorker = new Worker(new URL('./raster-bake.worker.ts', import.meta.url), { type: 'module' });
+    rasterWorkerClient = new RasterWorkerClient(rasterWorker);
+  } catch (error: unknown) {
+    console.warn('Raster audit worker is unavailable; using the synchronous path', error);
+  }
+}
+
+artDirectionInput.replaceChildren(...ART_DIRECTION_IDS.map((id) => {
   const option = document.createElement('option');
-  option.value = finish.id;
-  option.textContent = finish.label;
+  option.value = id;
+  option.textContent = ART_DIRECTION_CATALOG[id].label;
   return option;
 }));
+const semanticOption = (label: string): HTMLOptionElement => {
+  const option = document.createElement('option');
+  option.value = 'semantic';
+  option.textContent = label;
+  return option;
+};
+substrateInput.replaceChildren(
+  semanticOption('Semantic default'),
+  ...PHYSICAL_SUBSTRATES.map((id) => {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = titleCase(id);
+    return option;
+  }),
+);
+physicalFinishInput.replaceChildren(
+  semanticOption('Semantic default'),
+  ...PHYSICAL_FINISHES.map((id) => {
+    const option = document.createElement('option');
+    option.value = id;
+    option.textContent = titleCase(id);
+    return option;
+  }),
+);
 
 function currentFamily(): StudioFamilyDefinition {
   return studioFamilyById(familyId);
@@ -121,11 +170,29 @@ function currentCustomization(): FamilyCustomization {
   return customization;
 }
 
-function currentFinish(): SolidFinishId {
-  return finishByFamily.get(familyId) ?? currentFamily().defaultFinish;
+function currentAppearance(): StudioAppearanceOptions {
+  return Object.freeze({
+    artDirection,
+    physical: physicalByFamily.get(familyId) ?? currentFamily().defaultAppearance.physical,
+  });
 }
 
-finishInput.value = currentFinish();
+function omitPhysicalField(
+  treatment: PhysicalSurfaceTreatmentOverride,
+  field: 'substrate' | 'finish',
+): PhysicalSurfaceTreatmentOverride {
+  return Object.freeze({
+    ...(field === 'substrate' || treatment.substrate === undefined
+      ? {} : { substrate: treatment.substrate }),
+    ...(field === 'finish' || treatment.finish === undefined
+      ? {} : { finish: treatment.finish }),
+    ...(treatment.roughness === undefined ? {} : { roughness: treatment.roughness }),
+    ...(treatment.metalness === undefined ? {} : { metalness: treatment.metalness }),
+    ...(treatment.clearcoat === undefined ? {} : { clearcoat: treatment.clearcoat }),
+  });
+}
+
+artDirectionInput.value = artDirection;
 
 function currentDynamicState(): FamilyDynamicState {
   return dynamicStateByFamily.get(familyId) ?? currentFamily().defaultDynamicState;
@@ -170,7 +237,7 @@ function createThreeStage(): void {
 
 function rebuildProjection(): void {
   const family = currentFamily();
-  const projection = family.createProjection(seed, medium, currentCustomization(), currentFinish());
+  const projection = family.createProjection(seed, medium, currentCustomization(), currentAppearance());
   activeProjection = projection;
   rasterStage.setBlueprint(
     projection.raster,
@@ -237,11 +304,18 @@ async function renderComparison(): Promise<void> {
   if (projection === null) return;
   const family = currentFamily();
   const token = ++comparisonRenderToken;
+  comparisonAbort?.abort();
+  const abort = new AbortController();
+  comparisonAbort = abort;
   comparisonDirty = false;
   comparisonStatus.textContent = 'Preparing deterministic previews…';
 
   const specimens = MEDIUM_IDS.map((candidateMedium) => {
-    const blueprint = family.createRasterProjection(projection.identity, candidateMedium);
+    const blueprint = family.createRasterProjection(
+      projection.identity,
+      candidateMedium,
+      artDirection,
+    );
     if (blueprint.assetId !== projection.raster.assetId) {
       throw new Error(`Medium ${candidateMedium} rerolled asset identity`);
     }
@@ -270,13 +344,38 @@ async function renderComparison(): Promise<void> {
   comparisonGrid.replaceChildren(...specimens.map(({ card }) => card));
 
   let stableCount = 0;
+  let workerAuditMilliseconds = 0;
   for (let index = 0; index < specimens.length; index += 1) {
     await nextPaint();
     if (token !== comparisonRenderToken || activeWorkspace !== 'compare') return;
     const specimen = specimens[index];
     if (specimen === undefined) continue;
     try {
-      const report = auditRasterBoil(specimen.blueprint, { states: 'initial' });
+      let report: RasterBoilAuditReport;
+      if (rasterWorkerClient === null) {
+        report = auditRasterBoil(specimen.blueprint, { states: 'initial' });
+      } else {
+        try {
+          const result = await rasterWorkerClient.auditBoil({
+            payload: Object.freeze({
+              identity: projection.identity,
+              medium: specimen.blueprint.medium,
+              artDirection,
+            }),
+            options: { states: 'initial' },
+          }, abort.signal);
+          report = result.report;
+          workerAuditMilliseconds += result.durationMilliseconds;
+        } catch (error: unknown) {
+          if (abort.signal.aborted) return;
+          console.warn('Raster audit worker failed; using the synchronous path', error);
+          rasterWorkerClient.dispose();
+          rasterWorkerClient = null;
+          rasterWorker?.terminate();
+          rasterWorker = null;
+          report = auditRasterBoil(specimen.blueprint, { states: 'initial' });
+        }
+      }
       specimen.badge.className = `audit-badge ${report.passed ? 'stable' : 'unstable'}`;
       specimen.badge.textContent = report.passed ? 'Stable' : 'Review';
       specimen.card.dataset.audit = report.passed ? 'stable' : 'unstable';
@@ -293,17 +392,23 @@ async function renderComparison(): Promise<void> {
     comparisonStatus.textContent = `Audited ${index + 1} of ${specimens.length} media`;
   }
   if (token === comparisonRenderToken) {
-    comparisonStatus.textContent = `${stableCount}/${specimens.length} media structurally stable across three rest-state boil frames`;
+    const execution = rasterWorkerClient === null
+      ? 'main-thread fallback'
+      : `OffscreenCanvas worker ${Math.round(workerAuditMilliseconds)} ms`;
+    comparisonStatus.textContent = `${stableCount}/${specimens.length} media structurally stable across three rest-state boil frames · ${execution}`;
   }
 }
 
 function familyPreview(family: StudioFamilyDefinition): string {
   const customization = customizationByFamily.get(family.id) ?? family.defaultCustomization;
-  const key = JSON.stringify({ family: family.id, seed, medium, customization });
+  const appearance = Object.freeze({
+    artDirection,
+    physical: physicalByFamily.get(family.id) ?? family.defaultAppearance.physical,
+  });
+  const key = JSON.stringify({ family: family.id, seed, medium, customization, appearance });
   const cached = familyPreviewCache.get(key);
   if (cached !== undefined) return cached;
-  const finish = finishByFamily.get(family.id) ?? family.defaultFinish;
-  const projection = family.createProjection(seed, medium, customization, finish);
+  const projection = family.createProjection(seed, medium, customization, appearance);
   const result = familyPreviewRenderer.render(projection.raster);
   familyPreviewCache.set(key, result);
   return result;
@@ -348,7 +453,9 @@ function setFamily(nextFamilyId: StudioFamilyId): void {
   const family = currentFamily();
   yaw = family.initialYaw;
   pitch = family.initialPitch;
-  finishInput.value = currentFinish();
+  const physical = currentAppearance().physical;
+  substrateInput.value = physical.substrate ?? 'semantic';
+  physicalFinishInput.value = physical.finish ?? 'semantic';
   yawInput.value = String(yaw);
   yawOutput.value = `${yaw}°`;
   turntable = false;
@@ -470,8 +577,29 @@ mediumInput.addEventListener('change', () => {
   rebuildProjection();
 });
 
-finishInput.addEventListener('change', () => {
-  finishByFamily.set(familyId, finishInput.value as SolidFinishId);
+artDirectionInput.addEventListener('change', () => {
+  artDirection = artDirectionInput.value as ArtDirectionId;
+  familyPreviewCache.clear();
+  rebuildProjection();
+});
+
+substrateInput.addEventListener('change', () => {
+  const current = currentAppearance().physical;
+  const withoutSubstrate = omitPhysicalField(current, 'substrate');
+  physicalByFamily.set(familyId, Object.freeze(substrateInput.value === 'semantic'
+    ? withoutSubstrate
+    : { ...withoutSubstrate, substrate: substrateInput.value as PhysicalSubstrateId }));
+  familyPreviewCache.clear();
+  rebuildProjection();
+});
+
+physicalFinishInput.addEventListener('change', () => {
+  const current = currentAppearance().physical;
+  const withoutFinish = omitPhysicalField(current, 'finish');
+  physicalByFamily.set(familyId, Object.freeze(physicalFinishInput.value === 'semantic'
+    ? withoutFinish
+    : { ...withoutFinish, finish: physicalFinishInput.value as PhysicalFinishId }));
+  familyPreviewCache.clear();
   rebuildProjection();
 });
 
@@ -544,10 +672,13 @@ function animate(now: number): void {
 function dispose(): void {
   cancelAnimationFrame(animationFrame);
   comparisonRenderToken += 1;
+  comparisonAbort?.abort();
   customizer.dispose();
   familyPreviewRenderer.dispose();
   rasterStage.dispose();
   threeStage?.dispose();
+  rasterWorkerClient?.dispose();
+  rasterWorker?.terminate();
 }
 
 window.addEventListener('pagehide', dispose, { once: true });

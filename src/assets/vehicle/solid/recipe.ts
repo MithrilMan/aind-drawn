@@ -1,10 +1,15 @@
-import type { SolidFinishId } from '../../../materials/finish.js';
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
+import {
+  resolveArtDirection,
+  type ArtDirectionRecipe,
+  type ArtDirectionSource,
+} from '../../../appearance/art-direction.js';
+import type { PhysicalSurfaceTreatmentOverride } from '../../../materials/surface.js';
 import type { VehicleIdentityRecipe } from '../identity/recipe.js';
 
 export type SolidVehicleStyle = Readonly<{
-  finish: SolidFinishId;
-  glassFinish: SolidFinishId;
+  artDirection: ArtDirectionRecipe;
+  physical: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export type SolidVehicleRecipe = AssetRecipeEnvelope<
@@ -15,8 +20,8 @@ export type SolidVehicleRecipe = AssetRecipeEnvelope<
 >;
 
 export type SolidVehicleRecipeOptions = Readonly<{
-  finish?: SolidFinishId;
-  glassFinish?: SolidFinishId;
+  artDirection?: ArtDirectionSource;
+  physical?: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export function createSolidVehicleRecipe(
@@ -29,8 +34,8 @@ export function createSolidVehicleRecipe(
     representation: 'solid',
     identity,
     style: Object.freeze({
-      finish: options.finish ?? 'glossy',
-      glassFinish: options.glassFinish ?? 'glossy',
+      artDirection: resolveArtDirection(options.artDirection),
+      physical: Object.freeze({ ...(options.physical ?? {}) }),
     }),
   });
 }

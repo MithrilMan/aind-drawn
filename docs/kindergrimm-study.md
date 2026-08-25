@@ -176,7 +176,7 @@ Nel port questo diventa un confine pubblico, non un sottoprogetto gloss:
 - `SolidAssetBlueprint` contiene solo dati serializzabili;
 - `SolidGeometrySpec` descrive superellissoidi, profili estrusi e mesh;
 - `SurfaceAnchor` unifica punto, normale e roll;
-- `SolidMaterialSpec` dichiara ruolo cromatico e finitura fisica;
+- `SemanticSurfaceSpec` dichiara ruolo cromatico e finitura fisica;
 - `SolidRig` è l'adapter Three.js e possiede le risorse GPU;
 - `sampleCharacterMotion` produce locomozione, espressione e moto autonomico
   come dato semantico immutabile;
@@ -265,6 +265,106 @@ bounds; anticiparlo ora significherebbe aggiungere una politica di scena senza
 un caso d'uso che possa verificarla. N8AO, SEO e share-card sono invece dettagli
 dell'applicazione upstream, non capacità della libreria di disegno.
 
+## Aggiornamento upstream `811214c..5857b1e`
+
+Il delta revisionato il 25 agosto 2026 contiene sei commit e circa dodicimila
+righe nuove. Aggiunge tre esperimenti distinti: uno schema 2.5D animato
+(`src/pipes.js`), una seconda mano raster basata su p5.brush (`src/brush/`) e
+nove stili pittorici confrontabili su una contact sheet e una timeline
+(`src/styles/`, `src/stylesheet.js`, `src/timeline.js`). Il volume del diff non
+deve trarre in inganno: la maggior parte delle righe appartiene ai nove studi
+pittorici, non a nuovo core riusabile.
+
+### Cosa conviene riusare
+
+| Priorità | Idea upstream | Decisione per AIND Drawn |
+| --- | --- | --- |
+| Alta | Contact sheet con la stessa identità in ogni colonna e un solo asse variabile | Portare il metodo di confronto in un laboratorio visuale. L'identità condivisa rende finalmente onesto il confronto tra medium, proiezioni e future direzioni artistiche. |
+| Alta | Audit `style × species × seed` e misura del flicker tra boil frame ridotti a una griglia 16×16 | Aggiungere un audit visuale deterministico alla pipeline di authoring. I test correnti provano contratti e parità semantica, ma non rilevano una decisione compositiva che lampeggia tra due frame. |
+| Alta | Separazione tra materiale, mano e stile | Adottata: `MediumId`, `RasterHand`, `ArtDirectionRecipe`, sostanza semantica e trattamento fisico sono assi distinti. Una mano alternativa resta un adapter runtime scoped. |
+| Media | Inchiostro di base, ground, backdrop e forma del pannello come leve di stile | Adottata per ink, paper, backdrop, ground e lighting. La composizione del pannello resta al consumer, non all'identità dell'asset. |
+| Media | Reveal di migliaia di tratti tramite arc-length e delay per vertice mossi da un solo uniform | Adottata sui tratti semantici: progress normalizzato immutabile e un uniform condiviso, senza ricostruire geometria. |
+| Media | Budget espliciti di segni e colore in `pipes`, generazione statica e `frame(t)` che legge soltanto il tempo | Adottare budget misurabili nelle composizioni procedurali e continuare a tenere identità e tempo separati. Il principio è più prezioso del monolite `pipes.js`. |
+| Bassa | Timeline lineare con shelf packing greedy e camera che segue la densità dei dati | Tenere come pattern di visualizzazione, non come capacità della libreria di asset. È ottimo design editoriale, ma non giustifica un nuovo modulo core. |
+
+La separazione proposta è:
+
+```text
+Asset identity
+  -> representation recipe
+  -> semantic geometry and marks
+       + MediumId            (graphite, ink, oil: come il pigmento viene deposto)
+       + RasterHand          (Canvas hand, futura brush hand: chi produce il segno)
+       + ArtDirectionRecipe  (palette, ink, paper, ground, backdrop, regole per ArtRole)
+```
+
+Il criterio di promozione è stato soddisfatto: `authored`, `storybook` e
+`cut-paper` operano su personaggio, edificio, veicolo e albero, usando binding
+espliciti da `semanticPartId` a `ArtRole` e senza branch di famiglia nel resolver.
+Ogni blueprint conserva identità e topologia e pubblica un fingerprint separato
+dell'apparenza.
+
+### Dove l'upstream va migliorato, non copiato
+
+- `setHand()` è stato aggiunto come stato globale. Funziona nella pagina singola
+  dell'upstream, ma impedisce a due scene con mani diverse di convivere. AIND
+  Drawn usa invece un `RasterHand` immutabile e scoped a rig, cache, audit o bake
+  diretto. Il runtime lo prende in prestito: un'implementazione esterna che
+  possiede risorse mantiene il proprio lifecycle senza introdurre uno switch
+  globale o confondere la disposal delle texture del rig.
+- `BSketch extends Sketch` conserva la geometria seedata e sostituisce i
+  mark-maker, intuizione valida. L'implementazione p5.brush richiede però una
+  singola plate WebGL condivisa, un flush per segno e circa 292 ms per
+  personaggio contro 32 ms della mano originale: 9,1 volte il costo. Va tenuta
+  opt-in e sperimentale finché un benchmark locale non dimostra un budget
+  accettabile. La dipendenza vendorizzata mantiene inoltre licenza MIT propria;
+  l'Unlicense di KinderGrimm non la assorbe.
+- Gli stili sono fusi nello stesso dizionario dei medium. Nel port questo
+  allargherebbe `MediumId`, oggi condiviso tra raster e inked-solid, e
+  costringerebbe ogni stile a fingere di essere una tecnica di deposizione 3D.
+  Sono due assi ortogonali e devono restarlo.
+- Molti stili riconoscono la faccia attraverso euristiche su dimensione,
+  `overshoot` e `taper`, oppure conservano stato mutabile sullo sketch. AIND
+  Drawn possiede già `semanticPartId`, manifest, profili facciali e namespace
+  seedati: una direzione artistica deve ricevere quei dati esplicitamente, non
+  indovinare che una curva grande probabilmente sia una testa.
+- Le decisioni compositive stabili sono spesso derivate da hash di posizione o
+  misure della plate. Nel framework vanno risolte una volta in una ricetta di
+  stile immutabile. Il boil può variare pickup e pressione, mai halo, facet,
+  collage cut o gag surrealista.
+- `pipes.js` concentra generazione, rendering, camera, input, lifecycle e HUD in
+  oltre ottocento righe. Va studiato come composizione, non promosso a famiglia
+  asset o copiato nel runtime. Una cattedrale per un esperimento resterebbe una
+  cattedrale, anche con bei colori piatti.
+
+### Stato di adozione e prossime prove
+
+1. **Completato:** Projection Studio espone la matrice deterministica degli
+   stessi asset e medium, mentre `auditRasterBoil` misura il drift strutturale
+   usando esattamente il baker pubblico del runtime.
+2. **Completato nel core:** `RasterHand` è ora scoped a rig, cache, audit o bake
+   diretto. La mano Canvas resta il default a dipendenze zero; `RasterFrameCache`
+   evita di rieseguire la costruzione procedurale per istanze dello stesso
+   blueprint e pubblica diagnostica di hit, miss e pixel trattenuti. Il
+   benchmark dedicato copre bake indipendente, cache fredda e cache calda.
+3. **Completato come esperimento operativo:** `RasterWorkerClient` e
+   `installRasterWorkerHost` spostano bake o audit dietro `OffscreenCanvas`,
+   passando identità serializzabili e ricostruendo il blueprint nel worker. Lo
+   Studio usa il percorso per l'audit multi-medium con fallback sincrono.
+4. **Primo adapter renderer candidato:** PixiJS v8, consumando
+   `bakeRasterLayerFrame` senza contaminare ricette, socket o collider. p5 non
+   risolve un collo di bottiglia attuale; Phaser porta un intero framework di
+   gioco dove serve un adapter di texture e scene graph.
+5. **Completato:** la direzione artistica è contratto pubblico e agisce su
+   raster, smooth solid e Doodle 3D preservando identità, manifest, geometria,
+   socket, collider e interazioni.
+6. **Completato:** il reveal progressivo compila finestre di stagger per tratto,
+   memorizza il progresso nella geometria una volta e aggiorna un solo uniform
+   attraverso la registrazione della scena.
+
+Il contratto, i risultati del benchmark e la roadmap dei backend sono descritti
+in [`raster-rendering.md`](raster-rendering.md).
+
 ## Come estendere il sistema a un editor di livelli
 
 Per aggiungere un oggetto non si modifica il runtime:
@@ -274,7 +374,7 @@ Per aggiungere un oggetto non si modifica il runtime:
 2. calcolare misure, socket e collider;
 3. scegliere una rappresentazione e restituire un blueprint con parti semantiche;
 4. per il raster, disegnare con `Sketch` e un `Medium`; per il volume, emettere
-   `SolidGeometrySpec` e `SolidMaterialSpec`;
+   `SolidGeometrySpec` e `SemanticSurfaceSpec`;
 5. istanziare il blueprint nel gioco con `SpriteRig`, `SolidRig` o un adapter
    equivalente del consumer.
 

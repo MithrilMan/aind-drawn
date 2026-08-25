@@ -1,16 +1,17 @@
 # Procedural asset authoring
 
-The library separates a generated asset into six contracts when one semantic
+The library separates a generated asset into seven contracts when one semantic
 identity has more than one representation:
 
 1. An **identity recipe** owns representation-independent semantic choices.
 2. A **representation recipe** references that identity and adds only medium,
-   finish, mesh density, or other representation-specific policy.
+   art direction, physical overrides, mesh density, or other projection policy.
 3. A **semantic manifest** names representation-neutral parts, sockets, colliders,
    and interaction intent.
-4. A **layout** derives world geometry, bounds, anchors, and part dimensions.
-5. A **blueprint** binds concrete visual parts and interaction bindings to that manifest.
-6. A **runtime** adapts those parts to a renderer and applies transient state.
+4. An **appearance** binds those semantic parts to generic art roles and one immutable direction.
+5. A **layout** derives world geometry, bounds, anchors, and part dimensions.
+6. A **blueprint** binds concrete visual parts, surfaces, and interactions to that manifest.
+7. A **runtime** adapts those parts to a renderer and applies transient state.
 
 Drawing code consumes a complete recipe. It must not make new semantic random
 choices while rasterizing; otherwise boil frames can change the identity of the
@@ -114,7 +115,7 @@ draw callback would save a folder and spend the rest of the project paying for i
 `src/assets/character` is the multi-representation reference. A single
 `CharacterIdentityRecipe` owns species, proportions, palette, facial features,
 hair, outfit, and body semantics under `character/identity`. `character/raster`
-adds raster-medium policy, while `character/solid` adds solid finish, depth,
+adds raster-medium policy, while `character/solid` adds physical treatment, depth,
 body topology, articulated nodes, colliders, and sockets.
 `character/solid/face` is the focused face projection reused by the complete
 character. The face
@@ -238,34 +239,37 @@ so semantic drift cannot masquerade as an attractive variant.
 - Keep local layer order small; `SpriteRig.drawRank` assigns the global block.
 - For solids, use stable node and part IDs and mount features through a shared
   `SurfaceAnchor`; do not hand-tune Three.js transforms in the consumer.
-- Keep material intent in `SolidMaterialSpec` and lighting/environment policy in
-  the runtime or scene. Every material declares both a generic
-  `drawing.application` and `drawing.tone`. The application describes deposition
-  (`pigment`, `tint`, `paper`, `ink`, `wash`, or `glaze`), never an asset role.
-  When tonal hierarchy is part of cross-representation identity, author
-  `drawing.tone`; do not let each projection reroll it.
-- Select physical appearance from `SOLID_FINISH_CATALOG`. The runtime
-  `SolidMaterialProvider` is the only place that maps a finish to Three.js
-  parameters and procedural maps. Add a finish once to the catalog, its
-  exhaustive provider recipe, and focused provider tests; do not construct
-  materials or textures inside an asset family. The provider owns generated
-  maps, shares them within one rig, and disposes them with that rig.
+- Keep surface intent in `SemanticSurfaceSpec` and lighting/environment policy
+  in art direction or the consuming scene. A surface declares represented
+  `substance`, generic `drawing.application`, perceptual `drawing.value` and
+  `drawing.gesture`, plus a separate physical treatment. Drawing application
+  describes deposition (`pigment`, `tint`, `paper`, `ink`, `wash`, or `glaze`),
+  never an asset role. Do not let each projection reroll drawing hierarchy.
+- Model physical appearance as `substrate` plus `finish`; neither is a drawing
+  medium or semantic part role. `SolidSurfaceResourceCache` is the only place
+  that maps a resolved surface to Three.js parameters and procedural maps.
+  Share one cache within a bounded scene and dispose it with that scene. Do not
+  construct materials or textures inside an asset family.
+- Give every family an explicit semantic-part-to-`ArtRole` binding table. Art
+  direction may change palette response, mark budget, contour, paper, and
+  physical response, but never identity, topology, geometry, sockets,
+  colliders, or interactions. Do not infer roles from path geometry.
 - Treat runtime `detail` as tessellation policy. It may scale authored segment
   counts but must not alter serialized geometry, gameplay bounds, sockets,
   colliders, or identity. Hand-authored mesh topology is preserved.
 - Keep inked-solid policy in `InkedSolidBlueprint`; screen-space contours belong
   to the camera pass. Procedural medium marks are synthesized in paper space for
-  the current projection and clipped by semantic material masks.
+  the current projection and clipped by semantic surface masks.
 - Keep physical and gameplay geometry exact. Express hand-drawn imprecision in
   the projected contour policy: static low-frequency wander, pressure variation,
   broken pickup, echoes, and optional quantized boil. Never bake decorative
   wobble into colliders or duplicate it in an individual asset family.
 - Treat the solid mesh as an invisible Doodle 3D carrier. It supplies depth,
-  normals, occlusion, semantic material colour, and material membership;
+  normals, occlusion, semantic surface colour, and surface membership;
   continuous mesh albedo must never reach the composite. Carrier regions begin
   as drawing paper; semantic colour supplies the irregular pigment bed and
   view-synthesized marks.
-- Preserve semantic material RGB as the exact pigment source. Express volume by
+- Preserve semantic surface RGB as the exact pigment source. Express volume by
   changing deposition opacity and density; never pre-mix pigment with paper,
   contour ink, fog, or normal lighting. Those layers are composited separately.
 - Compile view-mark density, opacity, and style from the shared raster medium
@@ -277,7 +281,7 @@ so semantic drift cannot masquerade as an attractive variant.
   origin so articulation carries its marks. Camera and root rotation must
   update projection continuously without a discrete seed or colour reroll.
 - Condition directional gesture fields by the visible surface normal only on
-  explicitly faceted carrier topology. Adjacent planes sharing one material
+  explicitly faceted carrier topology. Adjacent planes sharing one surface
   must still separate through continuous hatch orientation, foreshortening,
   density, and pressure; never assign arbitrary camera-facing style buckets
   that flicker as the camera rotates. Smooth meshes and superellipsoids keep
@@ -297,12 +301,12 @@ so semantic drift cannot masquerade as an attractive variant.
 - Reserve part-local or surface-following stroke paths for marks with real
   spatial meaning: whiskers, wires, seams, scars, raised outlines, and paths that
   deliberately leave a host. Do not use them to simulate generic medium fill.
-- Do not feed physical finish into pigment deposition. Let the inked runtime
+- Do not feed physical substrate or finish into pigment deposition. Let the inked runtime
   own paper response, mark coverage, and discrete volume tone.
 - Use the same `MediumId` for raster and inked-solid projections of one preview.
-  `skin`, `wood`, `chrome`, `ceramic`, and other physical finishes belong only
-  to smooth solid rendering; they are not drawing media and must not leak into
-  doodle policy.
+  `skin`, `wood`, and `ceramic` describe substance or substrate; `matte`,
+  `gloss`, and `polished` describe finish. Both belong only to smooth solid
+  rendering and must not leak into Doodle policy.
 - Add a new drawing medium once in `src/materials/medium.ts`, implement one
   provider under `src/projections/inked-solid/projection-providers/`, and register it
   in `medium-projection.ts`; add a new generic
@@ -313,8 +317,8 @@ so semantic drift cannot masquerade as an attractive variant.
   its restrained hatch only at the same tone densities as raster; Oil preserves
   its opaque pigment bed and broken daubs; Charcoal remains granular pickup;
   Marker remains broad translucent passes. `ToneStyle` expresses density, not
-  a renderer command: a shared `hatch` tone does not authorize literal hatch
-  lines in a medium whose raster operation never draws them.
+  a renderer command: `DrawingIntent` value and gesture do not authorize
+  literal hatch lines in a medium whose raster operation never draws them.
 - Secondary effects own normalized attachment, component topology, clearance,
   and flow intent in shared identity profiles. A wet tear, for example, is an
   attached stream plus independently flowing drop and bead rather than one
@@ -398,12 +402,16 @@ remain visible when the door opens and violates articulated ownership.
    both outputs must retain the same `MediumId` and distinct deterministic policy.
 11. Audit representative raster blueprints with `auditRasterBoil` and inspect
     the deterministic multi-medium contact sheet in Projection Studio.
-12. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
+12. When a scene repeats the exact same raster blueprint, share a scene-owned
+    `RasterFrameCache`, inspect its retained-pixel diagnostics, and clear it at
+    the scene lifecycle boundary. Audit with the same custom `RasterHand` used
+    by the runtime. See [`raster-rendering.md`](raster-rendering.md).
+13. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
    inked-solid representation, dispose its scene registration before the owner solid rig, then
    dispose `InkedSolidScenePass` when the drawing surface is torn down. Direct lower-level
    `InkedSolidStrokeRig` consumers still dispose strokes before their owner solid rig.
-13. Run `pnpm verify`.
-14. Inspect representative seeds in the internal browser at every width the
+14. Run `pnpm verify`.
+15. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under

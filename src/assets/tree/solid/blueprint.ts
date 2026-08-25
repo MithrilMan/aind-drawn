@@ -1,5 +1,8 @@
 import type { Point3 } from '../../../core/geometry3.js';
-import type { SolidMaterialSpec } from '../../../materials/finish.js';
+import { createAssetAppearance } from '../../../appearance/art-direction.js';
+import { DRAWING_INTENTS } from '../../../materials/drawing.js';
+import { mergePhysicalSurfaceTreatment, type SemanticSurfaceSpec } from '../../../materials/surface.js';
+import { TREE_ART_BINDINGS } from '../appearance/roles.js';
 import type {
   MeshGeometrySpec,
   SolidAssetBlueprint,
@@ -72,23 +75,32 @@ function taperedBranch(
   });
 }
 
-function materials(recipe: SolidTreeRecipe): readonly SolidMaterialSpec[] {
+function surfaceSpecs(recipe: SolidTreeRecipe): readonly SemanticSurfaceSpec[] {
   const { palette } = recipe.identity;
+  const physical = (treatment: SemanticSurfaceSpec['physical']) => (
+    mergePhysicalSurfaceTreatment(treatment, recipe.style.physical)
+  );
   return Object.freeze([
     Object.freeze({
-      id: 'bark', color: palette.bark, finish: recipe.style.finish,
-      roughness: 0.96,
-      drawing: Object.freeze({ application: 'pigment', tone: 'hatch' }),
+      id: 'bark', color: palette.bark, substance: 'wood',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.mid }),
+      physical: physical(Object.freeze({
+        substrate: 'wood', finish: 'raw', roughness: 0.96, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'foliage', color: palette.foliage, finish: recipe.style.finish,
-      roughness: 0.92,
-      drawing: Object.freeze({ application: 'pigment', tone: 'scribble' }),
+      id: 'foliage', color: palette.foliage, substance: 'foliage',
+      drawing: Object.freeze({ application: 'pigment', drawing: DRAWING_INTENTS.agitated }),
+      physical: physical(Object.freeze({
+        substrate: 'generic', finish: 'matte', roughness: 0.92, metalness: 0, clearcoat: 0,
+      })),
     }),
     Object.freeze({
-      id: 'foliage:accent', color: palette.foliageAccent, finish: recipe.style.finish,
-      roughness: 0.9,
-      drawing: Object.freeze({ application: 'glaze', tone: 'stipple' }),
+      id: 'foliage:accent', color: palette.foliageAccent, substance: 'foliage',
+      drawing: Object.freeze({ application: 'glaze', drawing: DRAWING_INTENTS.granular }),
+      physical: physical(Object.freeze({
+        substrate: 'generic', finish: 'matte', roughness: 0.9, metalness: 0, clearcoat: 0,
+      })),
     }),
   ]);
 }
@@ -108,14 +120,14 @@ function buildSolidTreeBlueprint(recipe: SolidTreeRecipe): SolidAssetBlueprint<'
       layout.trunkBaseRadius,
       layout.trunkTopRadius,
     ),
-    materialId: 'bark', placement: placement([0, 0, 0]),
+    surfaceId: 'bark', placement: placement([0, 0, 0]),
     castShadow: true, receiveShadow: true,
   });
   for (const branch of layout.branches) {
     add({
       id: branch.id, node: 'root', order: 1,
       geometry: taperedBranch(branch.start, branch.end, branch.startRadius, branch.endRadius, 6),
-      materialId: 'bark', placement: placement([0, 0, 0]),
+      surfaceId: 'bark', placement: placement([0, 0, 0]),
       castShadow: true, receiveShadow: true,
     });
   }
@@ -136,7 +148,7 @@ function buildSolidTreeBlueprint(recipe: SolidTreeRecipe): SolidAssetBlueprint<'
         widthSegments: 12,
         heightSegments: 8,
       }),
-      materialId: index % 3 === 0 ? 'foliage:accent' : 'foliage',
+      surfaceId: index % 3 === 0 ? 'foliage:accent' : 'foliage',
       placement: placement(cluster.centre),
       castShadow: true, receiveShadow: true,
     });
@@ -148,11 +160,12 @@ function buildSolidTreeBlueprint(recipe: SolidTreeRecipe): SolidAssetBlueprint<'
     representation: 'solid',
     assetId: `tree:${recipe.identity.seed}`,
     seed: recipe.identity.seed,
+    appearance: createAssetAppearance(recipe.style.artDirection, TREE_ART_BINDINGS),
     manifest: createTreeSemanticManifest(recipe.identity),
     bounds: layout.bounds,
     nodes: layout.nodes,
     parts: Object.freeze(parts),
-    materials: materials(recipe),
+    surfaces: surfaceSpecs(recipe),
     colliders: Object.freeze([Object.freeze({
       id: 'trunk', kind: 'solid', shape: 'capsule', node: 'root',
       localPose: spatialPose([0, layout.trunkHeight * 0.5, 0]),

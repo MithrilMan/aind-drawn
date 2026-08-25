@@ -4,8 +4,8 @@
   "repository": "https://github.com/albertobeiz/kindergrimm.git",
   "checkoutDirectory": "references/kindergrimm",
   "referenceRef": "refs/heads/main",
-  "referenceCommit": "811214c6dd5de18cc20335cd3d4ab0a06e45ffd4",
-  "referenceDate": "2026-08-21T14:24:00+02:00",
+  "referenceCommit": "5857b1e1cae2713d6714ad7dd7f89626bb242f0f",
+  "referenceDate": "2026-08-25T17:55:15+02:00",
   "reviewedAreas": [
     "src/rng.js",
     "src/sketch.js",
@@ -25,6 +25,13 @@
     "src/gloss",
     "src/voxel",
     "src/obj",
-    "src/photo.js"
+    "src/photo.js",
+    "src/brush/bplate.js",
+    "src/brush/bsketch.js",
+    "src/styles",
+    "src/stylesheet.js",
+    "src/timeline.js",
+    "src/pipes.js",
+    "vendor/brush.esm.js"
   ]
 }

@@ -8,8 +8,8 @@ as a hand-drawn 3D view. Also read `docs/3d-stroke-rendering.md`,
 
 ## Preserve the representation boundary
 
-`SolidAssetBlueprint` owns semantic volume, nodes, parts, materials, bounds,
-colliders, sockets, and interactions. `createInkedSolidBlueprint` wraps that
+`SolidAssetBlueprint` owns semantic volume, nodes, parts, surfaces, appearance,
+bounds, colliders, sockets, and interactions. `createInkedSolidBlueprint` wraps that
 exact blueprint by reference and adds drawing policy only.
 
 Never:
@@ -21,7 +21,7 @@ Never:
 - branch in the renderer on asset kind, part ID, or family name.
 
 The mesh is an invisible carrier for depth, occlusion, normals, semantic
-material colour, material membership, and part ownership.
+surface colour, surface membership, and part ownership.
 
 ## Build the solid first
 
@@ -38,24 +38,32 @@ Use stable node and part IDs. Feature placement derives from the same analytic
 or modelled surface that created the host. `surfaceFrame` supplies a tangent
 basis for surface-mounted parts; adapter-local camera guesses do not.
 
-`SolidRig` owns the Three.js geometries and materials created from serialisable
-specifications. It also owns their disposal.
+`SolidRig` owns Three.js geometries and leases immutable materials from a
+scene-scoped `SolidSurfaceResourceCache`. Dispose rigs before the cache; the
+cache releases shared material and procedural texture resources after the final
+lease.
 
-## Share medium and tone intent
+## Share appearance, medium, and surface intent
 
 Pass an explicit `MediumId` to `createInkedSolidBlueprint`, normally the same
 medium used by the raster preview of that identity. Graphite, ink, watercolor,
 oil, chalk, and marker are shared drawing media.
 
-`SolidFinishId` affects only smooth-solid rendering. Skin, glass, ceramic,
-rubber, and metal are physical finishes, not drawing media. Changing finish
-must not alter inked deposition or semantic strokes.
+`AssetAppearance` carries the exact normalized art direction and explicit
+semantic-part role bindings used by raster, smooth solid, and Doodle 3D. Doodle
+resolves drawing policy per `(semanticPartId, surfaceId)`.
 
-Semantic material RGB is the exact pigment source. Do not pre-darken, lighten,
+`SurfaceSubstance` is semantic. `PhysicalSurfaceTreatment` contains the
+smooth-solid-only substrate, finish, roughness, metalness, and clearcoat.
+Changing any physical field must not alter Doodle deposition or semantic
+strokes.
+
+Semantic surface RGB is the exact pigment source. Do not pre-darken, lighten,
 fog, or mix it with paper, contour ink, or scene lighting. When seeded tonal
 hierarchy must converge with raster output, derive it beside identity and set
-`SolidMaterialSpec.drawing.tone`. Every material also selects a generic
-`drawing.application`; there is no fallback from role, ID, colour, or part name.
+`SemanticSurfaceSpec.drawing.drawing`. Every surface also selects a generic
+`drawing.application`; there is no fallback from role, ID, colour, path
+geometry, or part name.
 
 ## Understand the four drawing systems
 
@@ -73,10 +81,10 @@ broken pigment daubs. Preserve those distinctions centrally for every family.
 ### View-synthesised marks
 
 The shared medium compiler maps the authored generic drawing application and
-tone to hatch, crosshatch, scribble, stipple, wash, bristle, marker, or solid
+drawing intent to hatch, crosshatch, scribble, stipple, wash, bristle, marker, or solid
 marks. Fields are
 view-oriented, translated by the projected origin of their owning semantic
-part, and clipped by material membership. Animation therefore carries marks
+part, and clipped by surface membership. Animation therefore carries marks
 without turning them into UV textures.
 
 These marks are the medium's visible fill vocabulary, not optional lighting.
@@ -122,7 +130,7 @@ hard planes still need visual separation.
 - Keep field frequency and phase invariant inside one carrier region. On a
   faceted carrier, drawing light may change pressure or opacity, or reveal
   another fixed-frequency pass. Per-pixel scale changes create visible seams at
-  quantised tone boundaries. Smooth carriers ignore drawing light for filler.
+  quantised drawing-value boundaries. Smooth carriers ignore drawing light for filler.
 - Name this policy as plane separation (`planeSeparationStrength` and
   `planeSeparationSteps`), never shading. It articulates authored hard faces and
   must not imply a shadow system in the drawing medium.
@@ -156,10 +164,12 @@ Test that:
 - every stroke owner exists and path validation rejects incompatible geometry;
 - all public media compile deterministic, distinct policy;
 - raster and inked previews use the same medium and semantic pigment colours;
-- physical finish changes do not change inked policy;
-- every material has an explicit generic drawing application and tone;
-- representative light, hatch, scribble, and black tones preserve their
-  relative density;
+- art direction changes Doodle policy without changing the wrapped solid
+  identity, topology, geometry, sockets, colliders, or interactions;
+- physical substrate and finish changes do not change inked policy;
+- every surface has an explicit generic drawing application and `DrawingIntent`;
+- representative drawing values and gestures preserve their relative density
+  and the medium's own mark vocabulary;
 - one renderer works on at least one organic smooth asset and one architectural
   faceted asset without family branches.
 

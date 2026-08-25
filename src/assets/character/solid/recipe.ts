@@ -1,10 +1,16 @@
 import { SeedTree } from '../../../core/random.js';
 import type { AssetRecipeEnvelope } from '../../../contracts/asset-envelope.js';
-import type { SolidFinishId } from '../../../materials/finish.js';
+import {
+  resolveArtDirection,
+  type ArtDirectionRecipe,
+  type ArtDirectionSource,
+} from '../../../appearance/art-direction.js';
+import type { PhysicalSurfaceTreatmentOverride } from '../../../materials/surface.js';
 import type { CharacterIdentityRecipe } from '../identity/recipe.js';
 
 export type SolidCharacterStyle = Readonly<{
-  finish: SolidFinishId;
+  artDirection: ArtDirectionRecipe;
+  physical: PhysicalSurfaceTreatmentOverride;
   depth: number;
 }>;
 
@@ -16,7 +22,8 @@ export type SolidCharacterRecipe = AssetRecipeEnvelope<
 >;
 
 export type SolidCharacterRecipeOptions = Readonly<{
-  finish?: SolidFinishId;
+  artDirection?: ArtDirectionSource;
+  physical?: PhysicalSurfaceTreatmentOverride;
 }>;
 
 export function createSolidCharacterRecipe(
@@ -30,7 +37,8 @@ export function createSolidCharacterRecipe(
     representation: 'solid',
     identity,
     style: Object.freeze({
-      finish: options.finish ?? (identity.species === 'robot' ? 'metal' : 'skin'),
+      artDirection: resolveArtDirection(options.artDirection),
+      physical: Object.freeze({ ...(options.physical ?? {}) }),
       depth: random.float(0.88, 1.08),
     }),
   });

@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import { approach, clamp, lerp, smoothstep } from './scalar.js';
 
 export type ArcadeVehicleState = Readonly<{
   x: number;
@@ -26,11 +26,9 @@ export type ArcadeDriveInput = Readonly<{
   left: boolean;
   right: boolean;
   handbrake: boolean;
-  /** Optional analogue overrides. Digital controls continue to use the booleans above. */
   steeringAxis?: number;
   throttle?: number;
   brakePressure?: number;
-  /** Internal race assists. They remain optional so Explore and existing callers stay compatible. */
   boost?: number;
   draft?: number;
 }>;
@@ -42,16 +40,14 @@ const OFF_ROAD_MAX_SPEED = 16;
 const DRIFT_ENTRY_SPEED = 15.5;
 const DRIFT_HOLD_SPEED = 7.5;
 
-function approach(value: number, target: number, speed: number): number {
-  if (Math.abs(target - value) <= speed) return target;
-  return value + Math.sign(target - value) * speed;
-}
-
 export function createArcadeVehicleState(
   x: number,
   z: number,
   heading: number,
 ): ArcadeVehicleState {
+  if (![x, z, heading].every(Number.isFinite)) {
+    throw new RangeError('Arcade vehicle pose must contain finite values');
+  }
   return Object.freeze({
     x,
     z,
@@ -79,7 +75,7 @@ export function stepArcadeVehicle(
   surface: DrivingSurface,
   deltaSeconds: number,
 ): ArcadeVehicleState {
-  const delta = THREE.MathUtils.clamp(deltaSeconds, 0, 0.05);
+  const delta = clamp(deltaSeconds, 0, 0.05);
   const forwardX = Math.cos(state.heading);
   const forwardZ = -Math.sin(state.heading);
   const rightX = Math.sin(state.heading);
@@ -87,20 +83,12 @@ export function stepArcadeVehicle(
   let longitudinal = state.velocityX * forwardX + state.velocityZ * forwardZ;
   const lateral = state.velocityX * rightX + state.velocityZ * rightZ;
 
-  const throttle = THREE.MathUtils.clamp(
-    input.throttle ?? Number(input.accelerate),
-    0,
-    1,
-  );
-  const brakePressure = THREE.MathUtils.clamp(
-    input.brakePressure ?? Number(input.brake),
-    0,
-    1,
-  );
-  const boost = THREE.MathUtils.clamp(input.boost ?? 0, 0, 1);
-  const draft = THREE.MathUtils.clamp(input.draft ?? 0, 0, 1);
+  const throttle = clamp(input.throttle ?? Number(input.accelerate), 0, 1);
+  const brakePressure = clamp(input.brakePressure ?? Number(input.brake), 0, 1);
+  const boost = clamp(input.boost ?? 0, 0, 1);
+  const draft = clamp(input.draft ?? 0, 0, 1);
   const digitalSteering = Number(input.left) - Number(input.right);
-  const rawSteering = THREE.MathUtils.clamp(input.steeringAxis ?? digitalSteering, -1, 1);
+  const rawSteering = clamp(input.steeringAxis ?? digitalSteering, -1, 1);
 
   const baseMaximumSpeed = surface === 'road' ? ROAD_MAX_SPEED : OFF_ROAD_MAX_SPEED;
   const surfaceMaximumSpeed = baseMaximumSpeed * (1 + boost * 0.12 + draft * 0.025);
@@ -108,11 +96,7 @@ export function stepArcadeVehicle(
   const traction = state.airborne ? 0.14 : 1;
   if (throttle > 0) {
     const effectiveThrottle = throttle ** 1.35;
-    const forwardSpeedRatio = THREE.MathUtils.clamp(
-      Math.max(0, longitudinal) / surfaceMaximumSpeed,
-      0,
-      1,
-    );
+    const forwardSpeedRatio = clamp(Math.max(0, longitudinal) / surfaceMaximumSpeed, 0, 1);
     const driveAcceleration = longitudinal < -1
       ? 40
       : 28 * (1 - 0.72 * forwardSpeedRatio ** 1.7);
@@ -137,11 +121,7 @@ export function stepArcadeVehicle(
   }
 
   const speed = Math.abs(longitudinal);
-  const highSpeedSteeringReduction = THREE.MathUtils.lerp(
-    1,
-    0.74,
-    THREE.MathUtils.smoothstep(speed, 11, ROAD_MAX_SPEED),
-  );
+  const highSpeedSteeringReduction = lerp(1, 0.74, smoothstep(speed, 11, ROAD_MAX_SPEED));
   const steeringTarget = Math.sign(rawSteering)
     * Math.abs(rawSteering) ** 0.82
     * highSpeedSteeringReduction;
@@ -149,12 +129,12 @@ export function stepArcadeVehicle(
     && state.steering !== 0
     && Math.sign(steeringTarget) !== Math.sign(state.steering);
   const steeringResponse = reversingSteering ? 22 : steeringTarget === 0 ? 17 : 12;
-  const steering = THREE.MathUtils.lerp(
+  const steering = lerp(
     state.steering,
     steeringTarget,
     1 - Math.exp(-steeringResponse * delta),
   );
-  const speedFactor = THREE.MathUtils.clamp(speed / 13, 0, 1);
+  const speedFactor = clamp(speed / 13, 0, 1);
   const powerDriftIntent = !state.airborne
     && surface === 'road'
     && speed > DRIFT_ENTRY_SPEED
@@ -171,7 +151,7 @@ export function stepArcadeVehicle(
       * Math.sign(longitudinal || 1)
       * (0.46 + speedFactor * 1.04)
       * (driftIntent ? 1.28 : 1);
-  const angularVelocity = THREE.MathUtils.lerp(
+  const angularVelocity = lerp(
     state.angularVelocity,
     yawTarget,
     1 - Math.exp(-(state.airborne ? 2.8 : driftIntent ? 10.5 : 15) * delta),
@@ -179,9 +159,7 @@ export function stepArcadeVehicle(
   const heading = state.heading + angularVelocity * delta;
 
   const counterSteering = state.slipAngle * rawSteering < -0.025;
-  const driftGrip = input.handbrake
-    ? 2.05
-    : THREE.MathUtils.lerp(6.4, 2.65, throttle);
+  const driftGrip = input.handbrake ? 2.05 : lerp(6.4, 2.65, throttle);
   const lateralGrip = state.airborne
     ? 0.45
     : surface === 'off-road'
@@ -200,17 +178,10 @@ export function stepArcadeVehicle(
   nextLateral *= Math.exp(-lateralGrip * delta);
   if (input.handbrake) nextLongitudinal *= Math.exp(-1.55 * delta);
   const maximumSpeed = surfaceMaximumSpeed * (1 - state.curbPenalty * 0.48);
-  nextLongitudinal = THREE.MathUtils.clamp(nextLongitudinal, -8.5, maximumSpeed);
-  const unboundedSlipAngle = Math.atan2(
-    nextLateral,
-    Math.max(0.25, Math.abs(nextLongitudinal)),
-  );
+  nextLongitudinal = clamp(nextLongitudinal, -8.5, maximumSpeed);
+  const unboundedSlipAngle = Math.atan2(nextLateral, Math.max(0.25, Math.abs(nextLongitudinal)));
   const driftSpeedScale = driftIntent
-    ? THREE.MathUtils.lerp(
-      1,
-      0.84,
-      THREE.MathUtils.clamp(Math.abs(unboundedSlipAngle) / 0.65, 0, 1),
-    )
+    ? lerp(1, 0.84, clamp(Math.abs(unboundedSlipAngle) / 0.65, 0, 1))
     : 1;
   const combinedMaximumSpeed = maximumSpeed * driftSpeedScale;
   const combinedSpeed = Math.hypot(nextLongitudinal, nextLateral);
@@ -229,11 +200,7 @@ export function stepArcadeVehicle(
   if (airborne) {
     verticalVelocity -= 14 * delta;
     elevation += verticalVelocity * delta;
-    pitch = approach(
-      pitch,
-      THREE.MathUtils.clamp(verticalVelocity * 0.035, -0.14, 0.14),
-      1.7 * delta,
-    );
+    pitch = approach(pitch, clamp(verticalVelocity * 0.035, -0.14, 0.14), 1.7 * delta);
     if (elevation <= 0) {
       elevation = 0;
       verticalVelocity = 0;

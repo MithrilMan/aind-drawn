@@ -2,19 +2,20 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 
 import {
-  CONTROL_ACTION_IDS,
   controlAction,
   controlAxis,
+  type StandardGamepadSample,
+} from '@mithrilman/aind-game-runtime';
+
+import {
+  CONTROL_ACTION_IDS,
   toDriveInput,
   toExploreInput,
   type ControlSnapshot,
   type ExploreCameraInput,
 } from '../experiments/doodle-racing/src/game/controls.js';
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
-import {
-  standardGamepadControls,
-  type StandardGamepadSample,
-} from '../experiments/doodle-racing/src/game/input-controller.js';
+import { standardGamepadControls } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { RaceCameraController } from '../experiments/doodle-racing/src/game/race-camera.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
 

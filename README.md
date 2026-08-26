@@ -8,7 +8,8 @@ projection, pose, interaction state, and point of view.**
 [Open Projection Studio](https://mithrilman.github.io/aind-drawn/projection-studio/) ·
 [Read the architecture](docs/architecture.md) ·
 [Author an asset family](docs/asset-authoring.md) ·
-[Integrate raster rendering](docs/raster-rendering.md)
+[Integrate raster rendering](docs/raster-rendering.md) ·
+[Use the game runtime](docs/game-runtime.md)
 
 AIND Drawn is an experimental TypeScript and Three.js library for building procedural subjects
 as durable semantic identities rather than disposable images. One resolved character, building,
@@ -60,6 +61,14 @@ runtime; there is no second set of illustrative stand-ins waiting to drift away 
 - Buildings with semantic structure and projection-specific rendering.
 - Runtime rigs that expose semantic parts instead of forcing consumers to address pixels or opaque
   mesh indices.
+
+### Reusable game foundations
+
+- A renderer-neutral sibling package for typed controls, standard gamepad mapping, fixed-step
+  simulation, arcade vehicle motion, and swept structural collision.
+- A separate browser adapter for keyboard, pointer, touch, and gamepad events.
+- Product-owned adapters from asset dimensions and capabilities to generic gameplay contracts;
+  simulation never imports drawing rigs or Three.js.
 
 ### Extensible authoring
 

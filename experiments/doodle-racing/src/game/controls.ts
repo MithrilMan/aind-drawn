@@ -1,3 +1,9 @@
+import {
+  createControlSchema,
+  type ControlAxisSample,
+  type ControlSnapshot as RuntimeControlSnapshot,
+} from '@mithrilman/aind-game-runtime';
+
 import type { DriveInput, ExploreInput } from './race-model.js';
 
 export const CONTROL_AXIS_IDS = [
@@ -22,60 +28,18 @@ export const CONTROL_ACTION_IDS = [
 
 export type ControlAxisId = typeof CONTROL_AXIS_IDS[number];
 export type ControlActionId = typeof CONTROL_ACTION_IDS[number];
-export type ControlDevice = 'keyboard' | 'mouse' | 'gamepad' | 'touch';
-export type ControlSignalKind = 'digital' | 'analog';
-export type ControlAxisBehavior = 'continuous' | 'delta';
+export type ControlSnapshot = RuntimeControlSnapshot<ControlAxisId, ControlActionId>;
 
-export type ControlAxisSample = Readonly<{
-  value: number;
-  device: ControlDevice | null;
-  kind: ControlSignalKind;
-  behavior: ControlAxisBehavior;
-}>;
-
-export type ControlActionSample = Readonly<{
-  active: boolean;
-  pressed: boolean;
-  device: ControlDevice | null;
-}>;
-
-export type ControlSnapshot = Readonly<{
-  axes: Readonly<Record<ControlAxisId, ControlAxisSample>>;
-  actions: Readonly<Record<ControlActionId, ControlActionSample>>;
-}>;
+export const PAPER_CIRCUIT_CONTROL_SCHEMA = createControlSchema(
+  CONTROL_AXIS_IDS,
+  CONTROL_ACTION_IDS,
+);
 
 export type ExploreCameraInput = Readonly<{
   orbitX: ControlAxisSample;
   orbitY: ControlAxisSample;
   zoom: ControlAxisSample;
 }>;
-
-export function controlAxis(
-  value: number,
-  device: ControlDevice | null = null,
-  kind: ControlSignalKind = 'digital',
-  behavior: ControlAxisBehavior = 'continuous',
-): ControlAxisSample {
-  const bounded = Number.isFinite(value) ? Math.max(-1, Math.min(1, value)) : 0;
-  return Object.freeze({
-    value: bounded,
-    device: bounded === 0 ? null : device,
-    kind,
-    behavior,
-  });
-}
-
-export function controlAction(
-  active: boolean,
-  pressed = false,
-  device: ControlDevice | null = null,
-): ControlActionSample {
-  return Object.freeze({
-    active,
-    pressed: active && pressed,
-    device: active ? device : null,
-  });
-}
 
 export function toDriveInput(controls: ControlSnapshot): DriveInput {
   const steering = controls.axes.turn.value;

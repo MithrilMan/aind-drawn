@@ -12,9 +12,11 @@ draft slingshots, and active landings from authored low ramps.
 
 ## Details
 
-- `arcade-vehicle-physics.ts` remains the single deterministic handling model used by racers and
-  Explore free drive. Optional `steeringAxis`, `throttle`, and `brakePressure` values preserve all
-  existing digital callers.
+- `packages/game-runtime/src/arcade-vehicle.ts` is the single deterministic handling model used by
+  racers and Explore free drive through `@mithrilman/aind-game-runtime`. Optional `steeringAxis`,
+  `throttle`, and `brakePressure` values preserve all existing digital callers. Paper Circuit owns
+  only its control schema/mapping and the adapter from authored vehicle identity to the structural
+  collision profile.
 - High-speed steering lock falls to 74% while sign reversal responds faster than turn-in. Do not
   collapse these into one smoothing constant; quick opposite lock is part of drift recovery.
 - Throttle uses a mildly progressive response, falling torque near maximum speed, and continuous
@@ -59,15 +61,18 @@ draft slingshots, and active landings from authored low ramps.
 - Relevant references are linked in `experiments/doodle-racing/README.md`: Criterion's GDC vehicle
   feel talk, Ghost Games' NFS handling notes, an arcade-racing implementation survey, and Steve
   Swink's game-feel framework.
-- Verification on the current concurrent worktree: 57 focused Doodle Race tests and 217 full tests
-  pass; the Doodle Race production build, global typecheck, and scoped ESLint pass. Browser QA at
-  1280x720 confirms that every visible ramp reads as one oxide launch surface with three white bars.
-  Earlier browser QA found and corrected one bottom-HUD overlap and reported no console warnings or
-  errors. Full verification reaches public API verification, then stops because the concurrently
-  added extension system exports are not yet represented in `scripts/public-api.snapshot.json`.
-  Flow tests cover linked countersteer boost, pass-envelope near misses, physical drafting plus
-  lateral slingshot, authored ramp dimensions, clean airborne arcs, rough landing speed loss, and
-  the prior 30-versus-120-Hz handling comparison.
+- The interaction callout currently constructs a dedicated `SolidRig` synchronously when a vehicle
+  preview first appears and disposes it when the player leaves the activation radius. This is an
+  unmeasured but strong candidate for the reported proximity hitch. Profile before changing it;
+  likely durable fixes are idle-time prewarming or a bounded preview cache, with GPU memory and
+  asset replacement invalidation made explicit.
+- Current verification passes 227 tests, global typecheck and ESLint, the game-runtime package
+  build, the 224-export public API check, and all production experiment builds. Browser QA at
+  1280x720 previously confirmed that every visible ramp reads as one oxide launch surface with
+  three white bars and reported no console warnings or errors. Flow tests cover linked countersteer
+  boost, pass-envelope near misses, physical drafting plus lateral slingshot, authored ramp
+  dimensions, clean airborne arcs, rough landing speed loss, and the prior 30-versus-120-Hz
+  handling comparison.
 
 ## Reuse When
 

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import type { VehicleCollisionProfile } from '@mithrilman/aind-game-runtime';
+
 import {
   SolidRig,
   applySolidVehicleMotion,
@@ -16,11 +18,8 @@ import {
 } from '../../../../src/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
 import type { VehicleEffectSource } from './drift-effects.js';
-import {
-  createVehicleCollisionProfile,
-  type VehicleCollisionProfile,
-} from './obstacle-collision.js';
 import type { RacerSnapshot } from './race-model.js';
+import { createVehicleCollisionProfile } from './vehicle-collision-profile.js';
 const yawQuaternion = new THREE.Quaternion();
 const pitchQuaternion = new THREE.Quaternion();
 const worldQuaternion = new THREE.Quaternion();

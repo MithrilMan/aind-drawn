@@ -1,0 +1,25 @@
+{
+  "name": "@mithrilman/aind-game-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Renderer-neutral input, simulation, and arcade movement primitives for AIND experiments and games.",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./browser": {
+      "types": "./src/browser.ts",
+      "import": "./src/browser.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\""
+  }
+}

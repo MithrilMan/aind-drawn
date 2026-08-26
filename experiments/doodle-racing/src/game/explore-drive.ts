@@ -2,20 +2,17 @@ import * as THREE from 'three';
 
 import {
   createArcadeVehicleState,
+  resolveObstacleCollisions,
   stepArcadeVehicle,
   vehicleSpeed,
   type ArcadeVehicleState,
-} from './arcade-vehicle-physics.js';
+  type VehicleCollisionProfile,
+} from '@mithrilman/aind-game-runtime';
 import {
   nearestCoursePoint,
   sampleCourseAt,
   type CourseLayout,
 } from './course.js';
-import {
-  createVehicleCollisionProfile,
-  resolveObstacleCollisions,
-  type VehicleCollisionProfile,
-} from './obstacle-collision.js';
 import { resolveJumpRamps } from './race-jump.js';
 import type { ExploreInput, RacerSnapshot } from './race-model.js';
 import type { RaceWorldLayout } from './race-world.js';
@@ -25,6 +22,7 @@ import {
   type ExploreVehicleEntry,
   type PaperCircuitVehicleId,
 } from './vehicle-field.js';
+import { createVehicleCollisionProfile } from './vehicle-collision-profile.js';
 
 const PARKING_PROGRESS = Object.freeze([0.046, 0.032, 0.018, 0.004]);
 const PARKING_LANE_OFFSET = Object.freeze([-1.35, 1.35, -1.35, 1.35]);

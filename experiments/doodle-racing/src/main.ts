@@ -10,7 +10,7 @@ import { InputController } from './game/input-controller.js';
 import type { ExploreEntrancePhase } from './game/explore-entrance.js';
 import { MenuCharacterPreview } from './game/menu-character-preview.js';
 import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
-import { createVehicleCollisionProfile } from './game/obstacle-collision.js';
+import { createVehicleCollisionProfile } from './game/vehicle-collision-profile.js';
 import { RaceHud } from './game/race-hud.js';
 import { RaceMinimap } from './game/race-minimap.js';
 import {

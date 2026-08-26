@@ -204,6 +204,12 @@ family IDs.
 - Keep local layer order within the asset; use runtime draw ranks globally.
 - Expose gameplay through the shared `AssetSemanticManifest`, attached colliders
   and sockets, and representation-specific interaction bindings; never inspect textures.
+- Keep gameplay input and simulation in the sibling `@mithrilman/aind-game-runtime`
+  package when the behavior is renderer-neutral and reusable. Keep the adapter
+  from asset identity, manifest, colliders, sockets, or capabilities in the
+  consuming experiment or a dedicated integration package. The dependency is
+  `game state -> consumer adapter -> public asset API`; the game runtime never
+  imports rigs, scene graphs, Three.js, textures, or asset-family internals.
 - Validate every interaction state, sensor, socket, layer, and layer-state binding.
 - Dispose runtime GPU resources through `SpriteRig.dispose()`.
 - Keep smooth-solid geometry and `SemanticSurfaceSpec` values serialisable and

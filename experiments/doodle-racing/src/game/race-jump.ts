@@ -1,4 +1,4 @@
-import { vehicleSpeed, type ArcadeVehicleState } from './arcade-vehicle-physics.js';
+import { vehicleSpeed, type ArcadeVehicleState } from '@mithrilman/aind-game-runtime';
 
 export type JumpRamp = Readonly<{
   id: string;

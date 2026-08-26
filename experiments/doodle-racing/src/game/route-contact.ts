@@ -1,6 +1,8 @@
-import type { ArcadeVehicleState } from './arcade-vehicle-physics.js';
+import type {
+  ArcadeVehicleState,
+  VehicleCollisionProfile,
+} from '@mithrilman/aind-game-runtime';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
-import type { VehicleCollisionProfile } from './obstacle-collision.js';
 
 type VehiclePose = Pick<ArcadeVehicleState, 'x' | 'z' | 'heading'>;
 

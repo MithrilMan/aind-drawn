@@ -13,6 +13,10 @@ src/contracts/                      shared raster, solid, and capability contrac
 src/extensions/                     family-agnostic asset extension compiler
 src/projections/inked-solid/        representation blueprint, policy, and runtime
 src/runtime/                        family-agnostic renderer infrastructure
+
+packages/game-runtime/             renderer-neutral input and simulation primitives
+  |-- src/                          pure controls, time, motion, and collision math
+  `-- src/browser.ts                explicit browser input adapter entry point
 ```
 
 The repository is organized by semantic family first. Representation and
@@ -26,12 +30,28 @@ The physical vertical slices do not relax dependency direction:
 - raster and solid adapters depend on their identity and shared asset contracts;
 - family runtimes depend on their family plus the generic rigs in `src/runtime`;
 - generic runtimes depend on core, materials, and asset contracts, never on a family;
-- experiments depend only on the public barrel exported by `src/index.ts`.
+- experiments consume drawing features only through `src/index.ts` and reusable
+  simulation through `@mithrilman/aind-game-runtime`.
 
 `core`, `materials`, asset recipes, layouts, and blueprints do not import
 Three.js. Only runtime adapters consume immutable asset blueprints and own GPU
 resources.
-Experiments may depend only on the public barrel exported by `src/index.ts`.
+Experiments may depend on the drawing library only through the public barrel
+exported by `src/index.ts`. They may also consume the sibling game-runtime
+package; the package does not depend back on experiments or drawing internals.
+
+`@mithrilman/aind-game-runtime` owns renderer-neutral control schemas, standard
+gamepad mapping, a bounded fixed-step clock, arcade vehicle motion, and
+structural collision math. Its root entry point has no Three.js, DOM, or AIND
+asset dependency. `@mithrilman/aind-game-runtime/browser` is a separate adapter
+for keyboard, pointer, touch, and browser gamepad events.
+
+Product rules remain in their product. Paper Circuit owns race flow, scoring,
+jumps, course semantics, camera, audio, and the adapter from
+`VehicleIdentityRecipe` to the generic `VehicleCollisionProfile`. Gameplay state
+may drive public asset capabilities through an experiment adapter; the game
+runtime never inspects rigs, meshes, textures, or semantic scene nodes. See
+[`game-runtime.md`](game-runtime.md) for the complete boundary.
 
 Projection Studio keeps customization, playback, camera, and renderer state
 outside the drawing library. Asset construction crosses the boundary through a

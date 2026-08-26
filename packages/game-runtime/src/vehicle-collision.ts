@@ -1,8 +1,5 @@
-import * as THREE from 'three';
-
-import type { VehicleIdentityRecipe } from '../../../../src/index.js';
-import type { ArcadeVehicleState } from './arcade-vehicle-physics.js';
-import type { RaceObstacle, SegmentObstacle } from './race-world.js';
+import type { ArcadeVehicleState } from './arcade-vehicle.js';
+import { clamp, lerp, shortestAngleDelta, smoothstep } from './scalar.js';
 
 export type VehicleCollisionProfile = Readonly<{
   halfLength: number;
@@ -13,6 +10,25 @@ export type VehicleCollisionProfile = Readonly<{
   wheelHalfWidth: number;
   groundClearance: number;
 }>;
+
+export type SegmentObstacle = Readonly<{
+  id: string;
+  startX: number;
+  startZ: number;
+  endX: number;
+  endZ: number;
+  radius: number;
+  height: number;
+}>;
+
+export type CircleObstacle = Readonly<{
+  id: string;
+  x: number;
+  z: number;
+  radius: number;
+}>;
+
+export type CollisionObstacle = SegmentObstacle | CircleObstacle;
 
 export type CollisionResult = Readonly<{
   state: ArcadeVehicleState;
@@ -32,21 +48,8 @@ type Contact = Readonly<{
 const SWEEP_SPACING = 0.12;
 const CONTACT_MARGIN = 0.015;
 
-export function createVehicleCollisionProfile(
-  identity: VehicleIdentityRecipe,
-): VehicleCollisionProfile {
-  const halfLength = identity.dimensions.length * 0.5;
-  const halfWidth = identity.dimensions.width * 0.5 + identity.wheels.width * 0.32;
-  const axleInset = identity.dimensions.length * (1 - identity.wheels.wheelbaseRatio) * 0.5;
-  return Object.freeze({
-    halfLength,
-    halfWidth,
-    rearAxle: -halfLength + axleInset,
-    frontAxle: halfLength - axleInset,
-    wheelRadius: identity.wheels.radius,
-    wheelHalfWidth: identity.wheels.width * 0.5,
-    groundClearance: identity.dimensions.groundClearance,
-  });
+function isSegmentObstacle(obstacle: CollisionObstacle): obstacle is SegmentObstacle {
+  return 'startX' in obstacle;
 }
 
 function vehicleSegment(
@@ -72,7 +75,7 @@ function closestOnSegment(point: Point, segment: SegmentPair): Point {
   const deltaX = segment.second.x - segment.first.x;
   const deltaZ = segment.second.z - segment.first.z;
   const lengthSquared = deltaX * deltaX + deltaZ * deltaZ;
-  const amount = THREE.MathUtils.clamp(
+  const amount = clamp(
     ((point.x - segment.first.x) * deltaX + (point.z - segment.first.z) * deltaZ)
       / Math.max(1e-9, lengthSquared),
     0,
@@ -90,18 +93,22 @@ function squaredDistance(first: Point, second: Point): number {
   return deltaX * deltaX + deltaZ * deltaZ;
 }
 
-/** Signed horizontal clearance between the authored vehicle footprint and an obstacle. */
+function obstacleSegment(obstacle: SegmentObstacle): SegmentPair {
+  return Object.freeze({
+    first: Object.freeze({ x: obstacle.startX, z: obstacle.startZ }),
+    second: Object.freeze({ x: obstacle.endX, z: obstacle.endZ }),
+  });
+}
+
+/** Signed horizontal clearance between one vehicle capsule and an obstacle. */
 export function obstacleClearance(
   state: ArcadeVehicleState,
-  obstacle: RaceObstacle,
+  obstacle: CollisionObstacle,
   profile: VehicleCollisionProfile,
 ): number {
   const footprint = vehicleSegment(state, profile);
-  if (obstacle.kind === 'barrier') {
-    const pair = closestBetweenSegments(footprint, Object.freeze({
-      first: Object.freeze({ x: obstacle.startX, z: obstacle.startZ }),
-      second: Object.freeze({ x: obstacle.endX, z: obstacle.endZ }),
-    }));
+  if (isSegmentObstacle(obstacle)) {
+    const pair = closestBetweenSegments(footprint, obstacleSegment(obstacle));
     return Math.sqrt(squaredDistance(pair.first, pair.second))
       - profile.halfWidth
       - obstacle.radius;
@@ -175,26 +182,21 @@ function fallbackNormal(
 
 function contactAt(
   state: ArcadeVehicleState,
-  obstacle: RaceObstacle,
+  obstacle: CollisionObstacle,
   profile: VehicleCollisionProfile,
 ): Contact | null {
   const footprint = vehicleSegment(state, profile);
   let vehiclePoint: Point;
   let obstaclePoint: Point;
-  let minimum: number;
-  if (obstacle.kind === 'barrier') {
-    const pair = closestBetweenSegments(footprint, Object.freeze({
-      first: Object.freeze({ x: obstacle.startX, z: obstacle.startZ }),
-      second: Object.freeze({ x: obstacle.endX, z: obstacle.endZ }),
-    }));
+  if (isSegmentObstacle(obstacle)) {
+    const pair = closestBetweenSegments(footprint, obstacleSegment(obstacle));
     vehiclePoint = pair.first;
     obstaclePoint = pair.second;
-    minimum = profile.halfWidth + obstacle.radius;
   } else {
     obstaclePoint = Object.freeze({ x: obstacle.x, z: obstacle.z });
     vehiclePoint = closestOnSegment(obstaclePoint, footprint);
-    minimum = profile.halfWidth + obstacle.radius;
   }
+  const minimum = profile.halfWidth + obstacle.radius;
   const offsetX = vehiclePoint.x - obstaclePoint.x;
   const offsetZ = vehiclePoint.z - obstaclePoint.z;
   const distance = Math.hypot(offsetX, offsetZ);
@@ -207,7 +209,7 @@ function contactAt(
       penetration: minimum - distance,
     });
   }
-  const fallback = obstacle.kind === 'barrier'
+  const fallback = isSegmentObstacle(obstacle)
     ? fallbackNormal(state, obstacle)
     : (() => {
       const speed = Math.hypot(state.velocityX, state.velocityZ);
@@ -228,15 +230,11 @@ function interpolatedState(
   after: ArcadeVehicleState,
   amount: number,
 ): ArcadeVehicleState {
-  const headingDelta = THREE.MathUtils.euclideanModulo(
-    after.heading - before.heading + Math.PI,
-    Math.PI * 2,
-  ) - Math.PI;
   return Object.freeze({
     ...after,
-    x: THREE.MathUtils.lerp(before.x, after.x, amount),
-    z: THREE.MathUtils.lerp(before.z, after.z, amount),
-    heading: before.heading + headingDelta * amount,
+    x: lerp(before.x, after.x, amount),
+    z: lerp(before.z, after.z, amount),
+    heading: before.heading + shortestAngleDelta(before.heading, after.heading) * amount,
   });
 }
 
@@ -246,11 +244,8 @@ function sweepSteps(
   profile: VehicleCollisionProfile,
 ): number {
   const translation = Math.hypot(after.x - before.x, after.z - before.z);
-  const headingDelta = Math.abs(THREE.MathUtils.euclideanModulo(
-    after.heading - before.heading + Math.PI,
-    Math.PI * 2,
-  ) - Math.PI);
-  return THREE.MathUtils.clamp(
+  const headingDelta = Math.abs(shortestAngleDelta(before.heading, after.heading));
+  return clamp(
     Math.ceil((translation + headingDelta * profile.halfLength) / SWEEP_SPACING),
     1,
     24,
@@ -260,7 +255,7 @@ function sweepSteps(
 function sweptContact(
   before: ArcadeVehicleState,
   after: ArcadeVehicleState,
-  obstacle: RaceObstacle,
+  obstacle: CollisionObstacle,
   profile: VehicleCollisionProfile,
 ): Contact | null {
   const steps = sweepSteps(before, after, profile);
@@ -275,14 +270,14 @@ function sweptContact(
 function couldReachObstacle(
   before: ArcadeVehicleState,
   after: ArcadeVehicleState,
-  obstacle: RaceObstacle,
+  obstacle: CollisionObstacle,
   profile: VehicleCollisionProfile,
 ): boolean {
   const minimumX = Math.min(before.x, after.x) - profile.halfLength;
   const maximumX = Math.max(before.x, after.x) + profile.halfLength;
   const minimumZ = Math.min(before.z, after.z) - profile.halfLength;
   const maximumZ = Math.max(before.z, after.z) + profile.halfLength;
-  if (obstacle.kind === 'barrier') {
+  if (isSegmentObstacle(obstacle)) {
     return Math.max(obstacle.startX, obstacle.endX) + obstacle.radius >= minimumX
       && Math.min(obstacle.startX, obstacle.endX) - obstacle.radius <= maximumX
       && Math.max(obstacle.startZ, obstacle.endZ) + obstacle.radius >= minimumZ
@@ -295,10 +290,7 @@ function couldReachObstacle(
 }
 
 function distanceToBarrier(point: Point, obstacle: SegmentObstacle): number {
-  const closest = closestOnSegment(point, Object.freeze({
-    first: Object.freeze({ x: obstacle.startX, z: obstacle.startZ }),
-    second: Object.freeze({ x: obstacle.endX, z: obstacle.endZ }),
-  }));
+  const closest = closestOnSegment(point, obstacleSegment(obstacle));
   return Math.hypot(point.x - closest.x, point.z - closest.z);
 }
 
@@ -318,8 +310,7 @@ function axleSupport(
   ));
   const distance = Math.max(0, distanceToBarrier(point, obstacle) - obstacle.radius);
   if (climbReach < 1e-6 || distance >= climbReach) return 0;
-  const progress = THREE.MathUtils.smoothstep(1 - distance / climbReach, 0, 1);
-  return obstacle.height * progress;
+  return obstacle.height * smoothstep(1 - distance / climbReach, 0, 1);
 }
 
 function climbSupport(
@@ -375,7 +366,7 @@ function canClimb(
 export function resolveObstacleCollisions(
   before: ArcadeVehicleState,
   proposed: ArcadeVehicleState,
-  obstacles: readonly RaceObstacle[],
+  obstacles: readonly CollisionObstacle[],
   profile: VehicleCollisionProfile,
 ): CollisionResult {
   let current = proposed;
@@ -385,13 +376,13 @@ export function resolveObstacleCollisions(
     if (!couldReachObstacle(before, current, obstacle, profile)) continue;
     const contact = sweptContact(before, current, obstacle, profile);
     if (contact === null) continue;
-    if (obstacle.kind === 'barrier' && canClimb(before, obstacle, contact, profile)) {
+    if (isSegmentObstacle(obstacle) && canClimb(before, obstacle, contact, profile)) {
       const support = climbSupport(before, current, obstacle, profile);
       const inwardVelocity = current.velocityX * contact.normalX
         + current.velocityZ * contact.normalZ;
       const normalImpactSpeed = Math.max(0, -inwardVelocity);
       const impactStarted = before.curbPenalty <= 0.05;
-      const impactStrength = THREE.MathUtils.clamp(normalImpactSpeed / 12, 0.42, 1);
+      const impactStrength = clamp(normalImpactSpeed / 12, 0.42, 1);
       const tangentVelocityX = current.velocityX - contact.normalX * inwardVelocity;
       const tangentVelocityZ = current.velocityZ - contact.normalZ * inwardVelocity;
       const impactState = support.entryState ?? contact.state;
@@ -441,7 +432,7 @@ export function resolveObstacleCollisions(
         + (current.velocityX * contact.normalZ - current.velocityZ * contact.normalX) * 0.045,
       slipAngle: 0,
       drifting: false,
-      impact: Math.max(current.impact, THREE.MathUtils.clamp(severity / 18, 0, 1)),
+      impact: Math.max(current.impact, clamp(severity / 18, 0, 1)),
       elevation: 0,
       verticalVelocity: 0,
       airborne: false,

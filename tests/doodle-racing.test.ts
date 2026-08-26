@@ -2,6 +2,18 @@ import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 
 import {
+  applyGamepadDeadzone,
+  controlAction,
+  createArcadeVehicleState,
+  resolveObstacleCollisions,
+  stepArcadeVehicle,
+  vehicleSpeed,
+  type ArcadeVehicleState,
+  type StandardGamepadSample,
+  type VehicleCollisionProfile,
+} from '@mithrilman/aind-game-runtime';
+
+import {
   createVehicleIdentity,
   validateSolidAssetBlueprint,
   type InkedSolidSceneRegistration,
@@ -9,12 +21,6 @@ import {
 } from '../src/index.js';
 import { createCourseBlueprint } from '../experiments/doodle-racing/src/game/course-blueprint.js';
 import { createRouteDebugBlueprint } from '../experiments/doodle-racing/src/game/route-debug-overlay.js';
-import {
-  createArcadeVehicleState,
-  stepArcadeVehicle,
-  vehicleSpeed,
-  type ArcadeVehicleState,
-} from '../experiments/doodle-racing/src/game/arcade-vehicle-physics.js';
 import {
   CoursePathValidationError,
   compileCourseStroke,
@@ -36,24 +42,15 @@ import { ExploreDriveController } from '../experiments/doodle-racing/src/game/ex
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
 import {
   CONTROL_ACTION_IDS,
-  controlAction,
   toDriveInput,
   toExploreInput,
   type ControlSnapshot,
 } from '../experiments/doodle-racing/src/game/controls.js';
-import {
-  applyGamepadDeadzone,
-  standardGamepadControls,
-  type StandardGamepadSample,
-} from '../experiments/doodle-racing/src/game/input-controller.js';
+import { standardGamepadControls } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
 import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
 import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
-import {
-  createVehicleCollisionProfile,
-  resolveObstacleCollisions,
-  type VehicleCollisionProfile,
-} from '../experiments/doodle-racing/src/game/obstacle-collision.js';
+import { createVehicleCollisionProfile } from '../experiments/doodle-racing/src/game/vehicle-collision-profile.js';
 import { RaceFlowController } from '../experiments/doodle-racing/src/game/race-flow.js';
 import {
   resolveJumpRamps,

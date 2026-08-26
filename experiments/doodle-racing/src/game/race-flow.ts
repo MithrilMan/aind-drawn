@@ -1,12 +1,10 @@
 import {
+  obstacleClearance,
   vehicleSpeed,
   type ArcadeDriveInput,
   type ArcadeVehicleState,
-} from './arcade-vehicle-physics.js';
-import {
-  obstacleClearance,
   type VehicleCollisionProfile,
-} from './obstacle-collision.js';
+} from '@mithrilman/aind-game-runtime';
 import type { RaceObstacle } from './race-world.js';
 
 export type FlowEventKind =

@@ -2,11 +2,13 @@ import * as THREE from 'three';
 
 import {
   createArcadeVehicleState,
+  resolveObstacleCollisions,
   stepArcadeVehicle,
   vehicleSpeed,
   type ArcadeDriveInput,
   type ArcadeVehicleState,
-} from './arcade-vehicle-physics.js';
+  type VehicleCollisionProfile,
+} from '@mithrilman/aind-game-runtime';
 import {
   nearestCoursePoint,
   sampleCourseAt,
@@ -22,11 +24,6 @@ import {
   type RaceRouteProgress,
 } from './race-progress.js';
 import {
-  createVehicleCollisionProfile,
-  resolveObstacleCollisions,
-  type VehicleCollisionProfile,
-} from './obstacle-collision.js';
-import {
   RaceFlowController,
   type FlowEvent,
   type FlowVehicle,
@@ -34,6 +31,7 @@ import {
 import { resolveJumpRamps } from './race-jump.js';
 import type { RaceWorldLayout } from './race-world.js';
 import { vehicleWheelsTouchRoute } from './route-contact.js';
+import { createVehicleCollisionProfile } from './vehicle-collision-profile.js';
 import {
   PAPER_CIRCUIT_VEHICLES,
   createPaperCircuitVehicleIdentity,

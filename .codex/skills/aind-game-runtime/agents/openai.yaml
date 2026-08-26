@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIND game runtime"
+  short_description: "Build reusable game runtime primitives"
+  default_prompt: "Use $aind-game-runtime to design or improve a reusable game runtime boundary in aind-drawn."

@@ -12,6 +12,7 @@ Purpose: Reusable findings from project investigations and experiment reviews.
 - [Art direction and semantic surfaces](art-direction-surfaces-2026-08-25.md): orthogonal appearance model, renderer integration, caches, reveal, and measured costs.
 - [Character dance motion](character-dance-2026-08-24.md): shared `dance` pose, projection constraints, and verification notes.
 - [Doodle race review](doodle-race-analysis-2026-08-24.md): architecture, gameplay, menu viewport, and measured renderer costs.
+- [Game runtime boundary](game-runtime-boundary-2026-08-26.md): reusable input/simulation package, product and asset adapter boundaries, fixed-step constraint, and benchmark workload.
 - [Experiment boot screen](ui-boot-screen.md): shared reveal contract and critical inline loading shell for Vite experiments.
 - [GitHub Pages landing](github-pages-landing.md): multi-app Pages packaging, graphite landing direction, and live public-pipeline specimens.
 - [KinderGrimm update](kindergrimm-update-2026-08-25.md): reference pin, new upstream rendering/style ideas, and adaptation boundaries.

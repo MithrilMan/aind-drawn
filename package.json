@@ -6,7 +6,8 @@
   "description": "Deterministic procedural assets with hand-drawn sprite and semantic solid runtimes.",
   "packageManager": "pnpm@11.19.0",
   "scripts": {
-    "build": "node scripts/clean.mjs && tsc -p tsconfig.lib.json && pnpm build:experiments",
+    "build": "node scripts/clean.mjs && pnpm build:game-runtime && tsc -p tsconfig.lib.json && pnpm build:experiments",
+    "build:game-runtime": "pnpm --filter @mithrilman/aind-game-runtime build",
     "build:lib": "tsc -p tsconfig.lib.json",
     "build:experiments": "pnpm build:landing && pnpm build:projection-studio && pnpm build:doodle-racing",
     "build:doodle-racing": "vite build --config experiments/doodle-racing/vite.config.ts",
@@ -14,6 +15,7 @@
     "build:landing": "vite build --config experiments/landing/vite.config.ts",
     "build:projection-studio": "vite build --config experiments/projection-studio/vite.config.ts",
     "benchmark:inked-solid": "vitest bench --run benchmarks/inked-solid-scene.bench.ts",
+    "benchmark:game-runtime": "vitest bench --run benchmarks/game-runtime.bench.ts",
     "benchmark:raster-runtime": "vitest bench --run benchmarks/raster-runtime.bench.ts",
     "benchmark:solid-runtime": "vitest bench --run benchmarks/solid-runtime.bench.ts",
     "clean": "node scripts/clean.mjs",
@@ -27,9 +29,10 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify:artifact": "node scripts/verify-library.mjs",
-    "verify": "tsc -p tsconfig.json --noEmit && eslint . && vitest run && node scripts/clean.mjs && tsc -p tsconfig.lib.json && node scripts/verify-library.mjs && pnpm build:experiments"
+    "verify": "tsc -p tsconfig.json --noEmit && eslint . && vitest run && node scripts/clean.mjs && pnpm build:game-runtime && tsc -p tsconfig.lib.json && node scripts/verify-library.mjs && pnpm build:experiments"
   },
   "dependencies": {
+    "@mithrilman/aind-game-runtime": "workspace:*",
     "three": "0.185.1"
   },
   "devDependencies": {

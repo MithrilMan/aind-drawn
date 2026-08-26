@@ -805,8 +805,12 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   shell.classList.toggle('is-exploring', mode === 'explore');
   touchBackButton.textContent = mode === 'explore' ? 'Back' : 'Brake';
   touchBackButton.setAttribute('aria-label', mode === 'explore' ? 'Move backward' : 'Brake');
+  touchPrimaryButton.dataset.control = mode === 'race' ? 'drift-drive' : 'primary';
   touchPrimaryButton.textContent = mode === 'explore' ? 'Jump' : 'Drift';
-  touchPrimaryButton.setAttribute('aria-label', mode === 'explore' ? 'Jump' : 'Drift');
+  touchPrimaryButton.setAttribute(
+    'aria-label',
+    mode === 'explore' ? 'Jump' : 'Drift while accelerating',
+  );
   gameMenu.hidden = mode !== 'menu';
   openPauseButton.hidden = mode === 'menu';
   exploreHud.hidden = mode !== 'explore';

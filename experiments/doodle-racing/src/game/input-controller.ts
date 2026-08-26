@@ -58,7 +58,13 @@ const CONTROL_HINTS: Readonly<Record<ControlHintMode, Readonly<Record<ControlHin
     }),
   });
 
-export type DigitalControlId = 'forward' | 'reverse' | 'left' | 'right' | ControlActionId;
+export type DigitalControlId =
+  | 'forward'
+  | 'reverse'
+  | 'left'
+  | 'right'
+  | 'drift-drive'
+  | ControlActionId;
 
 export type StandardGamepadControls = StandardGamepadFrame<ControlAxisId, ControlActionId>;
 
@@ -98,6 +104,11 @@ const DIGITAL_CONTROLS: readonly DigitalControlBinding<ControlAxisId, ControlAct
   Object.freeze({ id: 'right', axes: Object.freeze([
     Object.freeze({ axis: 'turn', value: -1 }),
   ]) }),
+  Object.freeze({
+    id: 'drift-drive',
+    axes: Object.freeze([Object.freeze({ axis: 'throttle', value: 1 })]),
+    actions: Object.freeze(['primary' as const]),
+  }),
   ...CONTROL_ACTION_IDS.map((action) => Object.freeze({
     id: action,
     actions: Object.freeze([action]),
@@ -133,6 +144,7 @@ const TOUCH_CONTROL_IDS: readonly DigitalControlId[] = Object.freeze([
   'reverse',
   'left',
   'right',
+  'drift-drive',
   'primary',
   'sprint',
   'interact',

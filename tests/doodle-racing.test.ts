@@ -33,6 +33,11 @@ import {
   CrowdField,
   createCrowdMotionTiming,
 } from '../experiments/doodle-racing/src/game/crowd-field.js';
+import {
+  crowdCelebrationTarget,
+  stepCrowdPursuit,
+  tracksideReactionFor,
+} from '../experiments/doodle-racing/src/game/crowd-steering.js';
 import { DoodleAssetRegistry } from '../experiments/doodle-racing/src/game/doodle-asset-registry.js';
 import {
   DriftEffects,
@@ -64,6 +69,10 @@ import {
 } from '../experiments/doodle-racing/src/game/menu-settings.js';
 import { MusicController } from '../experiments/doodle-racing/src/game/music-controller.js';
 import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
+import {
+  createPaperCircuitRaceFlagIdentity,
+  createSolidPaperCircuitRaceFlagBlueprint,
+} from '../experiments/doodle-racing/src/extensions/paper-circuit-race-flag/index.js';
 import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
 import { createVehicleCollisionProfile } from '../experiments/doodle-racing/src/game/vehicle-collision-profile.js';
 import { RaceFlowController } from '../experiments/doodle-racing/src/game/race-flow.js';
@@ -83,6 +92,7 @@ import {
 } from '../experiments/doodle-racing/src/game/race-minimap.js';
 import {
   engineParametersFor,
+  opponentEngineMixFor,
   selectEngineGear,
   selectEngineLoopWindow,
 } from '../experiments/doodle-racing/src/game/race-engine-audio.js';
@@ -116,6 +126,8 @@ import {
 } from '../experiments/doodle-racing/src/game/vehicle-field.js';
 import { SmokeBurst } from '../experiments/doodle-racing/src/game/smoke-burst.js';
 import { SoundController } from '../experiments/doodle-racing/src/game/sound-controller.js';
+import { StartMarshal } from '../experiments/doodle-racing/src/game/start-marshal.js';
+import { TracksideCrowdField } from '../experiments/doodle-racing/src/game/trackside-crowd-field.js';
 import {
   groundCollidersFor,
   resolveGroundMotion,
@@ -748,7 +760,8 @@ describe('Paper Circuit experiment', () => {
         y: snapshot.y,
         z: snapshot.z - 0.4,
       }),
-      Object.freeze({ x: snapshot.x - 0.6, z: snapshot.z }),
+      Object.freeze({ x: snapshot.x - 0.15, y: snapshot.y + 0.62, z: snapshot.z - 0.18 }),
+      Object.freeze({ x: snapshot.x - 0.6, z: snapshot.z, heading: 0.3 }),
     );
     let closeupDistance = 0;
     let frame = director.snapshot();
@@ -778,17 +791,23 @@ describe('Paper Circuit experiment', () => {
     explorer.setVisible(true);
     const source = explorer.snapshot();
     const target = Object.freeze({ x: source.x + 0.6, y: source.y, z: source.z + 0.2 });
+    const driverTarget = Object.freeze({ x: source.x - 0.72, y: source.y + 0.68, z: source.z });
     const entry = Object.freeze({ vehicleId: 'you' as const, side: 'left' as const, distance: 0 });
-    const vehicle = Object.freeze({ x: source.x - 0.8, z: source.z });
-    const director = new ExploreVehicleEntryDirector(entry, source, target, vehicle);
+    const vehicle = Object.freeze({ x: source.x - 0.8, z: source.z, heading: 0.34 });
+    const director = new ExploreVehicleEntryDirector(
+      entry, source, target, driverTarget, vehicle,
+    );
     const phases = new Set<string>();
     let sawWink = false;
     let sawEquip = false;
     let sawOpenDoor = false;
+    let sawSeatedTurn = false;
+    let sawRapidIngress = false;
     let openingDistanceFromVehicle = 0;
     let frame = director.snapshot();
 
-    expect(explorer.helmetItemRig.root.visible).toBe(true);
+    expect(explorer.backpackRig.root.visible).toBe(true);
+    expect(explorer.helmetItemRig.root.visible).toBe(false);
     for (let index = 0; index < 100 && !frame.complete; index += 1) {
       frame = director.update(0.05);
       explorer.updateCinematic(0.05, frame);
@@ -796,6 +815,12 @@ describe('Paper Circuit experiment', () => {
       sawWink ||= frame.wink === 'left';
       sawEquip ||= frame.helmetCarryAmount > 0.8;
       sawOpenDoor ||= frame.doorOpen;
+      sawSeatedTurn ||= frame.phase === 'boarding'
+        && frame.pose === 'sit'
+        && Math.abs(frame.heading - frame.cameraHeading) > 0.2;
+      sawRapidIngress ||= frame.phase === 'boarding'
+        && frame.phaseProgress > 0.72
+        && Math.hypot(frame.x - driverTarget.x, frame.z - driverTarget.z) < 0.45;
       if (frame.phase === 'opening') {
         openingDistanceFromVehicle = Math.max(
           openingDistanceFromVehicle,
@@ -811,13 +836,18 @@ describe('Paper Circuit experiment', () => {
     expect(sawWink).toBe(true);
     expect(sawEquip).toBe(true);
     expect(sawOpenDoor).toBe(true);
+    expect(sawSeatedTurn).toBe(true);
+    expect(sawRapidIngress).toBe(true);
     expect(openingDistanceFromVehicle).toBeGreaterThan(
       Math.hypot(source.x - vehicle.x, source.z - vehicle.z) + 0.7,
     );
     expect(frame.complete).toBe(true);
     expect(frame.expression).toBe('smirk');
     expect(frame.cameraHeading).toBeCloseTo(Math.PI * 0.5, 6);
-    expect(frame.heading).toBeCloseTo(frame.cameraHeading, 6);
+    expect(frame.heading).toBeCloseTo(vehicle.heading + Math.PI * 0.5, 6);
+    expect(frame.x).toBeCloseTo(driverTarget.x, 6);
+    expect(frame.z).toBeCloseTo(driverTarget.z, 6);
+    expect(frame.actorVisible).toBe(false);
     expect(explorer.helmetItemRig.root.visible).toBe(false);
     explorer.dispose();
   });
@@ -828,9 +858,12 @@ describe('Paper Circuit experiment', () => {
     const explorer = new GrandstandExplorer(world.grandstand, layout, 24_613);
     const source = explorer.snapshot();
     const target = Object.freeze({ x: source.x, y: source.y, z: source.z });
-    const vehicle = Object.freeze({ x: source.x, z: source.z - 1 });
+    const driverTarget = Object.freeze({ x: source.x, y: source.y + 0.6, z: source.z - 0.4 });
+    const vehicle = Object.freeze({ x: source.x, z: source.z - 1, heading: -0.2 });
     const entry = Object.freeze({ vehicleId: 'you' as const, side: 'right' as const, distance: 0 });
-    const variant = new ExploreVehicleEntryDirector(entry, source, target, vehicle, 1);
+    const variant = new ExploreVehicleEntryDirector(
+      entry, source, target, driverTarget, vehicle, 1,
+    );
     let frame = variant.snapshot();
     let sawHappy = false;
     let sawRightWink = false;
@@ -945,13 +978,19 @@ describe('Paper Circuit experiment', () => {
     expect(world.barriers.length).toBeGreaterThan(20);
     expect(world.ramps).toHaveLength(3);
     expect(world.trees).toHaveLength(16);
-    expect(world.grandstand.spectators.length).toBeGreaterThanOrEqual(12);
-    expect(world.grandstand.spectators.length).toBeLessThanOrEqual(16);
+    expect(world.grandstand.spectators.length).toBeGreaterThanOrEqual(24);
+    expect(world.grandstand.spectators.length).toBeLessThanOrEqual(32);
+    expect(world.tracksideSpectators).toHaveLength(10);
+    for (const spectator of world.tracksideSpectators) {
+      expect(nearestCoursePoint(layout, spectator.x, spectator.z).distanceFromCentre)
+        .toBeGreaterThan(layout.trackWidth * 0.5 + 1.2);
+    }
     expect(scenery.colliders.map(({ id }) => id).sort()).toEqual(
       [
         ...world.barriers,
         ...world.tyreStacks,
         ...world.cones,
+        ...world.grandstandObstacles,
         { id: 'grandstand:post:left' },
         { id: 'grandstand:post:right' },
       ].map(({ id }) => id).sort(),
@@ -992,6 +1031,49 @@ describe('Paper Circuit experiment', () => {
     expect(scenery.colliders.filter(({ id }) => id.startsWith('cone:'))).toHaveLength(5);
     expect(scenery.colliders.filter(({ id }) => id.startsWith('grandstand:post:')))
       .toHaveLength(2);
+    expect(scenery.colliders.filter(({ id }) => id.startsWith('grandstand:step:')))
+      .toHaveLength(world.grandstand.rows);
+  });
+
+  it('keeps vehicles outside the visible grandstand volume', () => {
+    const course = createCourseLayout();
+    const world = createRaceWorldLayout(course);
+    const obstacle = world.grandstandObstacles[0];
+    if (obstacle === undefined) throw new Error('Expected a grandstand obstacle');
+    const centreX = (obstacle.startX + obstacle.endX) * 0.5;
+    const centreZ = (obstacle.startZ + obstacle.endZ) * 0.5;
+    const awayX = Math.sin(world.grandstand.heading);
+    const awayZ = Math.cos(world.grandstand.heading);
+    const heading = Math.atan2(-awayZ, awayX);
+    const before = Object.freeze({
+      ...createArcadeVehicleState(
+        centreX - awayX * 3,
+        centreZ - awayZ * 3,
+        heading,
+      ),
+      velocityX: awayX * 16,
+      velocityZ: awayZ * 16,
+    });
+    const proposed = Object.freeze({ ...before, x: centreX, z: centreZ });
+    const profile: VehicleCollisionProfile = Object.freeze({
+      halfLength: 1,
+      halfWidth: 0.45,
+      frontAxle: 0.65,
+      rearAxle: -0.65,
+      wheelRadius: 0.32,
+      wheelHalfWidth: 0.12,
+      groundClearance: 0.14,
+    });
+    const collision = resolveObstacleCollisions(
+      before,
+      proposed,
+      world.grandstandObstacles,
+      profile,
+    );
+
+    expect(collision.obstacleId).toBe(obstacle.id);
+    expect(Math.hypot(collision.state.x - centreX, collision.state.z - centreZ))
+      .toBeGreaterThan(0.5);
   });
 
   it('authors grandstand rows without coplanar overlapping end faces', () => {
@@ -1021,8 +1103,8 @@ describe('Paper Circuit experiment', () => {
   it('keeps every seeded crowd animation valid across repeated cue changes', () => {
     const layout = createCourseLayout();
     const crowd = new CrowdField(createRaceWorldLayout(layout));
-    expect(crowd.doodleAssets().length).toBeGreaterThanOrEqual(12);
-    expect(crowd.doodleAssets().length).toBeLessThanOrEqual(16);
+    expect(crowd.doodleAssets().length).toBeGreaterThanOrEqual(24);
+    expect(crowd.doodleAssets().length).toBeLessThanOrEqual(32);
     expect(() => {
       for (const time of [0, 0.8, 1.9, 3.4, 6.2, 12.8]) crowd.update(time);
       crowd.setCelebrating(true, 13.4);
@@ -1050,15 +1132,15 @@ describe('Paper Circuit experiment', () => {
     expect(createPaperCircuitPersonIdentity(41_001).species).toBe('human');
     for (const row of Array.from({ length: first.rows }, (_, index) => index)) {
       const spectators = first.spectators.filter((spectator) => spectator.row === row);
-      expect(spectators.length).toBeGreaterThanOrEqual(3);
-      expect(spectators.length).toBeLessThanOrEqual(4);
+      expect(spectators.length).toBeGreaterThanOrEqual(6);
+      expect(spectators.length).toBeLessThanOrEqual(8);
       const along = spectators.map((spectator) => {
         const deltaX = spectator.x - first.x;
         const deltaZ = spectator.z - first.z;
         return deltaX * Math.cos(first.heading) - deltaZ * Math.sin(first.heading);
       }).sort((left, right) => left - right);
       for (let index = 1; index < along.length; index += 1) {
-        expect((along[index] as number) - (along[index - 1] as number)).toBeGreaterThan(2);
+        expect((along[index] as number) - (along[index - 1] as number)).toBeGreaterThan(1.5);
       }
     }
   });
@@ -1072,6 +1154,124 @@ describe('Paper Circuit experiment', () => {
       .toBe(timings.length);
     expect(new Set(timings.map(({ motionTimeScale }) => motionTimeScale)).size)
       .toBe(timings.length);
+  });
+
+  it('places reactive spectators behind guardrails and sends them away from a projected hit', () => {
+    const course = createCourseLayout();
+    const placement = createRaceWorldLayout(course, 62_441).tracksideSpectators[0];
+    if (placement === undefined) throw new Error('Trackside spectator fixture is missing');
+    const racer = (overrides: Partial<RacerSnapshot>): RacerSnapshot => Object.freeze({
+      id: 'you',
+      name: 'You',
+      isPlayer: true,
+      x: placement.x - placement.outwardX * 5,
+      z: placement.z - placement.outwardZ * 5,
+      heading: Math.atan2(-placement.outwardZ, placement.outwardX),
+      speed: 10,
+      steering: 0,
+      travelDistance: 0,
+      lap: 0,
+      progress: 0,
+      raceScore: 0,
+      slipAngle: 0,
+      drifting: false,
+      impact: 0,
+      elevation: 0,
+      airborne: false,
+      pitch: 0,
+      curbImpact: 0,
+      curbPenalty: 0,
+      ...overrides,
+    });
+
+    const threat = tracksideReactionFor(placement, placement.x, placement.z, [racer({})]);
+    expect(threat.mode).toBe('fleeing');
+    expect(threat.vehicleId).toBe('you');
+    expect(Math.sin(threat.heading)).toBeCloseTo(placement.outwardX, 5);
+    expect(Math.cos(threat.heading)).toBeCloseTo(placement.outwardZ, 5);
+
+    const watching = tracksideReactionFor(placement, placement.x, placement.z, [racer({
+      x: placement.x + 2,
+      z: placement.z,
+      speed: 0,
+    })]);
+    expect(watching.mode).toBe('watching');
+  });
+
+  it('steers an invading crowd member around a car crossing the pursuit line', () => {
+    const crossingCar: RacerSnapshot = Object.freeze({
+      id: 'rook', name: 'Rook', isPlayer: false,
+      x: 0.5, z: -4, heading: -Math.PI * 0.5, speed: 8,
+      steering: 0, travelDistance: 0, lap: 0, progress: 0, raceScore: 0,
+      slipAngle: 0, drifting: false, impact: 0, elevation: 0,
+      airborne: false, pitch: 0, curbImpact: 0, curbPenalty: 0,
+    });
+    const step = stepCrowdPursuit(
+      Object.freeze({ x: 0, z: 0 }),
+      Object.freeze({ x: 10, z: 0 }),
+      [crossingCar],
+      4,
+      0.5,
+    );
+
+    expect(step.moving).toBe(true);
+    expect(step.x).toBeLessThan(0);
+  });
+
+  it('assigns captured-winner celebrants distinct collision-safe destinations', () => {
+    const targets = Array.from(
+      { length: 42 },
+      (_, slot) => crowdCelebrationTarget(Object.freeze({ x: 4, z: -2 }), slot),
+    );
+    let minimumDistance = Number.POSITIVE_INFINITY;
+    for (let first = 0; first < targets.length; first += 1) {
+      for (let second = first + 1; second < targets.length; second += 1) {
+        const a = targets[first];
+        const b = targets[second];
+        if (a === undefined || b === undefined) continue;
+        minimumDistance = Math.min(minimumDistance, Math.hypot(a.x - b.x, a.z - b.z));
+      }
+    }
+    expect(minimumDistance).toBeGreaterThan(0.72);
+  });
+
+  it('authors the start marshal flag as articulated solid volume', () => {
+    const flag = createSolidPaperCircuitRaceFlagBlueprint(
+      createPaperCircuitRaceFlagIdentity(74_032),
+    );
+    expect(validateSolidAssetBlueprint(flag)).toBe(flag);
+    expect(flag.parts.filter(({ semanticPartId }) => semanticPartId === 'cloth')).not.toHaveLength(0);
+    expect(flag.nodes.filter(({ id }) => id.startsWith('cloth:'))).toHaveLength(3);
+  });
+
+  it('keeps trackside reactions and the start marshal finite across race phases', () => {
+    const course = createCourseLayout();
+    const world = createRaceWorldLayout(course, 74_031);
+    const trackside = new TracksideCrowdField(course, world);
+    const marshal = new StartMarshal(course);
+    const simulation = new RaceSimulation(course, world);
+    simulation.start({ laps: 3 });
+    const intro = simulation.snapshot();
+    trackside.update(0.5, 0.05, intro.racers);
+    marshal.update(intro);
+    for (let index = 0; index < 190; index += 1) simulation.update(0.05, IDLE);
+    const countdown = simulation.snapshot();
+    marshal.update(countdown);
+    trackside.beginInvasion(countdown.presentationTime);
+    trackside.update(
+      countdown.presentationTime + 2,
+      0.05,
+      countdown.racers,
+      Object.freeze({ x: world.grandstand.x, z: world.grandstand.z }),
+    );
+    for (const { rig } of [...trackside.doodleAssets(), ...marshal.doodleAssets()]) {
+      rig.root.updateWorldMatrix(true, true);
+      rig.root.traverse((object) => {
+        expect(object.matrixWorld.elements.every(Number.isFinite)).toBe(true);
+      });
+    }
+    trackside.dispose();
+    marshal.dispose();
   });
 
   it('opens the menu character preview with the shared dance pose', () => {
@@ -1348,6 +1548,28 @@ describe('Paper Circuit experiment', () => {
     expect(throttle.filterFrequency).toBeGreaterThan(braking.filterFrequency);
   });
 
+  it('makes a nearby opponent engine substantially louder than a distant one', () => {
+    const course = createCourseLayout();
+    const simulation = new RaceSimulation(course, createRaceWorldLayout(course));
+    const base = simulation.snapshot();
+    const player = base.racers.find(({ isPlayer }) => isPlayer);
+    const opponent = base.racers.find(({ isPlayer }) => !isPlayer);
+    if (player === undefined || opponent === undefined) throw new Error('Race audio fixture is incomplete');
+    const snapshotAt = (distance: number) => Object.freeze({
+      ...base,
+      racers: Object.freeze(base.racers.map((racer) => racer.id === opponent.id
+        ? Object.freeze({ ...racer, x: player.x + distance, z: player.z })
+        : racer)),
+    });
+    const nearby = snapshotAt(3);
+    const distant = snapshotAt(34);
+    const nearbyOpponent = nearby.racers.find(({ id }) => id === opponent.id) as RacerSnapshot;
+    const distantOpponent = distant.racers.find(({ id }) => id === opponent.id) as RacerSnapshot;
+
+    expect(opponentEngineMixFor(nearbyOpponent, nearby))
+      .toBeGreaterThan(opponentEngineMixFor(distantOpponent, distant) * 3);
+  });
+
   it('makes speed audible as rising revs with a distinct hysteretic upshift', () => {
     const racer = (speed: number): RacerSnapshot => Object.freeze({
       id: 'you',
@@ -1434,14 +1656,17 @@ describe('Paper Circuit experiment', () => {
     explorer.setPreviewMode(true);
     explorer.setVisible(true);
 
-    explorer.holdPreviewHelmetOnBack();
+    explorer.holdPreviewHelmetStored();
     for (let index = 0; index < 60; index += 1) explorer.updatePreview(0.05);
-    expect(explorer.helmetItemRig.root.visible).toBe(true);
+    expect(explorer.backpackRig.root.visible).toBe(true);
+    expect(explorer.helmetItemRig.root.visible).toBe(false);
 
     explorer.schedulePreviewHelmetEquip(2);
     for (let index = 0; index < 39; index += 1) explorer.updatePreview(0.05);
+    expect(explorer.helmetItemRig.root.visible).toBe(false);
+    for (let index = 0; index < 6; index += 1) explorer.updatePreview(0.05);
     expect(explorer.helmetItemRig.root.visible).toBe(true);
-    for (let index = 0; index < 18; index += 1) explorer.updatePreview(0.05);
+    for (let index = 0; index < 12; index += 1) explorer.updatePreview(0.05);
     expect(explorer.helmetItemRig.root.visible).toBe(false);
     explorer.dispose();
   });

@@ -144,6 +144,14 @@ export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCh
           Object.freeze([0, 1, 0, 0] as const),
         ),
       }),
+      Object.freeze({
+        id: 'backpack',
+        node: 'torso',
+        localPose: rotatedPose(
+          point(0, torsoHeight * 0.5, -torsoDepth * 0.72),
+          Object.freeze([0, 1, 0, 0] as const),
+        ),
+      }),
       Object.freeze({ id: 'hand:left', node: 'arm:left', localPose: pose(point(0, -armLength, 0)) }),
       Object.freeze({ id: 'hand:right', node: 'arm:right', localPose: pose(point(0, -armLength, 0)) }),
       Object.freeze({

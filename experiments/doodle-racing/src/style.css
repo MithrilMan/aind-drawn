@@ -1100,6 +1100,31 @@ canvas {
   display: none !important;
 }
 
+.debug-performance {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-start: 8px;
+  padding-block-start: 7px;
+  border-block-start: 1px solid rgb(244 230 195 / 24%);
+  color: var(--paper-muted);
+  font-size: .62rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.debug-performance[hidden] {
+  display: none !important;
+}
+
+.debug-performance strong {
+  color: var(--paper);
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-size: .95rem;
+}
+
 .route-debug-legend span {
   display: flex;
   align-items: center;

@@ -10,6 +10,7 @@ import {
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
 import { RaceCameraController } from '../experiments/doodle-racing/src/game/race-camera.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
+import { SmokeBurst } from '../experiments/doodle-racing/src/game/smoke-burst.js';
 
 describe('Explore entrance', () => {
   it('authors a reusable smoke spawn and approach path in the world layout', () => {
@@ -112,9 +113,18 @@ describe('Explore entrance', () => {
     expect(observedHiddenActor).toBe(true);
     expect(observedVisibleActor).toBe(true);
     expect(observedCough).toBe(true);
+    expect(sampleExploreEntrance(spawn, 1.25)).toMatchObject({
+      phase: 'materializing',
+      pose: 'idle',
+    });
+    expect(sampleExploreEntrance(spawn, 1.35)).toMatchObject({
+      phase: 'coughing',
+      pose: 'cough',
+      actorVisible: true,
+    });
     expect(sampleExploreEntrance(spawn, 2.45).phase).toBe('coughing');
-    expect(sampleExploreEntrance(spawn, 6.7).phase).toBe('discovering');
-    expect(sampleExploreEntrance(spawn, 7.05).phase).toBe('celebrating');
+    expect(sampleExploreEntrance(spawn, 5.7).phase).toBe('discovering');
+    expect(sampleExploreEntrance(spawn, 6.05).phase).toBe('celebrating');
     expect(minimumDiscoveryHeading).toBeLessThan(spawn.heading - 0.6);
     expect(maximumDiscoveryHeading).toBeGreaterThan(spawn.heading + 0.55);
     expect(maximumHopHeight).toBeGreaterThan(spawn.y + 0.34);
@@ -127,6 +137,21 @@ describe('Explore entrance', () => {
     expect(finalFrame.x).toBeCloseTo(destination.x, 6);
     expect(finalFrame.y).toBeCloseTo(destination.y, 6);
     expect(finalFrame.z).toBeCloseTo(destination.z, 6);
+  });
+
+  it('starts coughing while the entrance smoke is still active', () => {
+    const spawn = createRaceWorldLayout(createCourseLayout()).explorerSpawn;
+    const smoke = new SmokeBurst();
+    smoke.trigger(spawn, 41_819);
+    for (let index = 0; index < 27; index += 1) smoke.update(0.05);
+
+    expect(smoke.isActive).toBe(true);
+    expect(sampleExploreEntrance(spawn, 1.35)).toMatchObject({
+      phase: 'coughing',
+      pose: 'cough',
+      actorVisible: true,
+    });
+    smoke.dispose();
   });
 
   it('uses public character motion throughout the entrance and hands off the camera without a cut', () => {

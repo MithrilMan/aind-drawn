@@ -136,8 +136,8 @@ export function engineParametersFor(
   const playbackRate = individuality * (
     0.68 + rpm * 0.82 + accelerating * 0.15 - braking * 0.11 + airborneRev
   );
-  const gainBase = racer.isPlayer ? 0.105 : 0.024;
-  const gainRange = racer.isPlayer ? 0.105 : 0.032;
+  const gainBase = racer.isPlayer ? 0.105 : 0.045;
+  const gainRange = racer.isPlayer ? 0.105 : 0.052;
   return Object.freeze({
     gear,
     rpm,
@@ -151,6 +151,18 @@ export function engineParametersFor(
       4_200,
     ),
   });
+}
+
+/** Keeps nearby opponents clearly audible without turning distant cars into a flat wall of noise. */
+export function opponentEngineMixFor(
+  racer: RacerSnapshot,
+  snapshot: RaceSnapshot,
+): number {
+  if (racer.isPlayer) return 1;
+  const player = snapshot.racers.find(({ isPlayer }) => isPlayer);
+  if (player === undefined) return 0.35;
+  const distance = Math.hypot(racer.x - player.x, racer.z - player.z);
+  return clamp(1 - Math.max(0, distance - 3) / 34, 0.18, 1);
 }
 
 /** Selects an engine gear with overlap between bands to prevent shift chatter. */
@@ -277,6 +289,7 @@ export class RaceEngineAudioController {
     const activePhase = snapshot.phase === 'intro'
       || snapshot.phase === 'countdown'
       || snapshot.phase === 'running'
+      || snapshot.phase === 'finished'
       || snapshot.phase === 'paused';
     if (!activePhase) {
       this.stopRace();
@@ -320,7 +333,12 @@ export class RaceEngineAudioController {
       voice.source.playbackRate.setTargetAtTime(parameters.playbackRate + boost * 0.14, now, shiftResponse);
       voice.tone.frequency.setTargetAtTime(parameters.toneFrequency + boost * 28, now, shiftResponse);
       voice.toneGain.gain.setTargetAtTime(parameters.toneGain, now, 0.055);
-      voice.gain.gain.setTargetAtTime(parameters.gain + boost * 0.018, now, input.brake ? 0.045 : 0.095);
+      const mix = opponentEngineMixFor(racer, snapshot);
+      voice.gain.gain.setTargetAtTime(
+        (parameters.gain + boost * 0.018) * mix,
+        now,
+        input.brake ? 0.045 : 0.095,
+      );
       voice.filter.frequency.setTargetAtTime(parameters.filterFrequency + boost * 780, now, 0.08);
       voice.panner?.pan.setTargetAtTime(this.panFor(racer, snapshot), now, 0.09);
     });

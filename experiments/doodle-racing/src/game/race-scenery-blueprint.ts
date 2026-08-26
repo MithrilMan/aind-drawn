@@ -281,6 +281,7 @@ export function createRaceSceneryBlueprint(
     ...world.barriers.map(({ id }) => id),
     ...world.tyreStacks.map(({ id }) => id),
     ...world.cones.map(({ id }) => id),
+    ...world.grandstandObstacles.map(({ id }) => id),
     ...standPostAlong.map((along) => `grandstand:post:${along < 0 ? 'left' : 'right'}`),
   ]);
   return Object.freeze({
@@ -375,6 +376,29 @@ export function createRaceSceneryBlueprint(
         length: 0.26,
         axis: 'y' as const,
       })),
+      ...world.grandstandObstacles.map((obstacle, row) => {
+        const span = grandstandStepSpan(row, stand.rows);
+        return Object.freeze({
+          id: obstacle.id,
+          kind: 'solid' as const,
+          shape: 'box' as const,
+          node: 'root',
+          localPose: Object.freeze({
+            position: standPoint(
+              world,
+              0,
+              span.centreAway,
+              obstacle.height * 0.5,
+            ),
+            rotation: yawQuaternion(stand.heading),
+          }),
+          size: Object.freeze([
+            stand.length,
+            obstacle.height,
+            span.depth,
+          ] as const),
+        });
+      }),
       ...standPostAlong.map((along) => {
         const postHeight = roofHeight - 0.1;
         return Object.freeze({

@@ -21,6 +21,14 @@ import {
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
 import {
+  applySolidPaperCircuitBackpackMotion,
+  createPaperCircuitBackpackIdentity,
+  createPaperCircuitBackpackInkStrokes,
+  createSolidPaperCircuitBackpackBlueprint,
+  paperCircuitBackpackOpenAmount,
+  type PaperCircuitBackpackIdentity,
+} from '../extensions/paper-circuit-backpack/index.js';
+import {
   PAPER_CIRCUIT_EXTENSION_REGISTRY,
   applySolidPaperCircuitHelmetGripMotion,
   applySolidPaperCircuitHelmetItemVisorMotion,
@@ -32,6 +40,7 @@ import {
   createPaperCircuitVisorMotionState,
   createSolidPaperCircuitHelmetBlueprint,
   interpolatePaperCircuitHelmetCarryPose,
+  PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT,
   paperCircuitHelmetGripAmountForCarry,
   samplePaperCircuitVisorMotion,
   samplePaperCircuitVisorReachMotion,
@@ -69,6 +78,7 @@ const GRAVITY = 16;
 const JUMP_SPEED = 5.9;
 const MAX_STEP_UP = Math.max(GRANDSTAND_STEP_BASE_HEIGHT, GRANDSTAND_STEP_HEIGHT_RISE) + 0.04;
 const MAX_JUMP_STEP_UP = 0.74;
+const HELMET_STOW_SECONDS = 0.92;
 
 type LocalBounds = Readonly<{
   minAlong: number;
@@ -174,8 +184,11 @@ function visorPosition(
 export class GrandstandExplorer {
   public readonly identity: ExtendedAssetIdentity<PaperCircuitPersonIdentity>;
   public readonly helmet: PaperCircuitHelmetIdentity;
+  public readonly backpack: PaperCircuitBackpackIdentity;
   public readonly solid: SolidAssetBlueprint<'character'>;
   public readonly rig: SolidRig;
+  public readonly backpackSolid: SolidAssetBlueprint<'paper-circuit-backpack'>;
+  public readonly backpackRig: SolidRig;
   public readonly helmetItemSolid: SolidAssetBlueprint<'paper-circuit-helmet'>;
   public readonly helmetItemRig: SolidRig;
 
@@ -187,6 +200,7 @@ export class GrandstandExplorer {
   private visorAmount = 0;
   private helmetCarryAmount = 0;
   private helmetWorn: boolean | null = null;
+  private helmetStowStartedAt: number | null = null;
   private actorVisible = false;
   private elapsed = 0;
   private along = 0;
@@ -230,6 +244,7 @@ export class GrandstandExplorer {
       : mapLocalBounds(course, stand);
     const person = createPaperCircuitPersonIdentity(seed);
     this.helmet = createPaperCircuitHelmetIdentity(person);
+    this.backpack = createPaperCircuitBackpackIdentity(person);
     this.identity = extendAssetIdentity(person, [this.helmet]);
     const previewRandom = new SeedTree(seed).random('paper-circuit:explorer:preview');
     const previewPoses = Object.freeze<CharacterPose[]>([
@@ -261,6 +276,12 @@ export class GrandstandExplorer {
     );
     this.solid = extendSolidAssetBlueprint(baseSolid, extensionPlan);
     this.rig = new SolidRig(this.solid, { instanceId: 'paper-circuit:explorer' });
+    this.backpackSolid = createSolidPaperCircuitBackpackBlueprint(this.backpack, {
+      artDirection: this.solid.appearance.artDirection,
+    });
+    this.backpackRig = new SolidRig(this.backpackSolid, {
+      instanceId: 'paper-circuit:explorer:backpack',
+    });
     this.helmetItemSolid = createSolidPaperCircuitHelmetBlueprint(this.helmet.data.item, {
       artDirection: this.solid.appearance.artDirection,
     });
@@ -285,12 +306,17 @@ export class GrandstandExplorer {
     this.y = surface.height;
     this.surfaceRow = surface.row;
     this.rig.root.visible = false;
+    this.backpackRig.root.visible = false;
     this.helmetItemRig.root.visible = false;
     this.applyPose();
   }
 
   public doodleAssets(): readonly DoodleSceneAsset[] {
     return Object.freeze([Object.freeze({
+      solid: this.backpackSolid,
+      rig: this.backpackRig,
+      strokes: createPaperCircuitBackpackInkStrokes(this.backpackSolid, this.backpack),
+    }), Object.freeze({
       solid: this.solid,
       rig: this.rig,
       strokes: Object.freeze([
@@ -305,7 +331,7 @@ export class GrandstandExplorer {
   }
 
   public doodleAsset(): DoodleSceneAsset {
-    return this.doodleAssets()[0] as DoodleSceneAsset;
+    return this.doodleAssets()[1] as DoodleSceneAsset;
   }
 
   public snapshot(): GrandstandExplorerSnapshot {
@@ -340,7 +366,15 @@ export class GrandstandExplorer {
     if (this.previewMode) return this.updatePreview(deltaSeconds);
     const delta = clamp(deltaSeconds, 0, 0.05);
     this.elapsed += delta;
-    const turn = clamp(
+    const helmetStowing = this.helmetStowStartedAt !== null;
+    if (this.helmetStowStartedAt !== null) {
+      const stowProgress = smoothStep(
+        (this.elapsed - this.helmetStowStartedAt) / HELMET_STOW_SECONDS,
+      );
+      this.helmetCarryAmount = 1 - stowProgress;
+      if (stowProgress >= 1) this.helmetStowStartedAt = null;
+    }
+    const turn = helmetStowing ? 0 : clamp(
       input.steeringAxis ?? Number(input.left) - Number(input.right),
       -1,
       1,
@@ -349,7 +383,7 @@ export class GrandstandExplorer {
     // keeps visual rotation and the movement convention in sync.
     this.heading += turn * TURN_SPEED * delta;
 
-    const direction = clamp(
+    const direction = helmetStowing ? 0 : clamp(
       (input.throttle ?? Number(input.accelerate))
         - (input.brakePressure ?? Number(input.brake)),
       -1,
@@ -435,7 +469,9 @@ export class GrandstandExplorer {
       : emoteRequested
       ? 'play'
       : direction === 0 ? 'idle' : isRunning ? 'run' : 'walk';
-    const expression: CharacterExpression = emoteRequested || airborne ? 'happy' : 'idle';
+    const expression: CharacterExpression = helmetStowing || emoteRequested || airborne
+      ? 'happy'
+      : 'idle';
     if (pose !== this.activePose || expression !== this.activeExpression) {
       this.activePose = pose;
       this.activeExpression = expression;
@@ -495,7 +531,10 @@ export class GrandstandExplorer {
         facing: 1,
       }, this.elapsed);
     }
-    if (frame.helmetCarryAmount !== undefined) this.helmetCarryAmount = frame.helmetCarryAmount;
+    if (frame.helmetCarryAmount !== undefined) {
+      this.helmetStowStartedAt = null;
+      this.helmetCarryAmount = frame.helmetCarryAmount;
+    }
     this.applyPose();
     return this.snapshot();
   }
@@ -515,6 +554,7 @@ export class GrandstandExplorer {
     this.activeExpression = 'idle';
     this.activeWink = null;
     this.helmetCarryAmount = 0;
+    this.helmetStowStartedAt = null;
     this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
     this.visorMotion = createPaperCircuitVisorMotionState();
     this.applyPose();
@@ -544,6 +584,7 @@ export class GrandstandExplorer {
     this.activePose = 'idle';
     this.activeExpression = 'idle';
     this.activeWink = null;
+    this.helmetStowStartedAt = null;
     this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
     this.visorMotion = createPaperCircuitVisorMotionState();
     this.applyPose();
@@ -552,7 +593,8 @@ export class GrandstandExplorer {
   public setVisible(visible: boolean): void {
     this.actorVisible = visible;
     this.rig.root.visible = visible;
-    this.helmetItemRig.root.visible = visible && this.helmetWorn !== true;
+    this.backpackRig.root.visible = visible;
+    this.helmetItemRig.root.visible = this.shouldShowHelmetItem();
   }
 
   public setPreviewTransform(position: WorldPosition, heading: number): void {
@@ -619,7 +661,7 @@ export class GrandstandExplorer {
     return this.snapshot();
   }
 
-  public holdPreviewHelmetOnBack(): void {
+  public holdPreviewHelmetStored(): void {
     if (!this.previewMode) throw new Error('Preview helmet timing requires preview mode');
     this.previewHelmetEquipAt = null;
     this.helmetCarryAmount = 0;
@@ -634,8 +676,16 @@ export class GrandstandExplorer {
     this.previewHelmetEquipAt = this.elapsed + delaySeconds;
   }
 
+  public stowHelmetInBackpack(): void {
+    this.previewMode = false;
+    this.helmetCarryAmount = 1;
+    this.helmetStowStartedAt = this.elapsed;
+    this.applyPose();
+  }
+
   public dispose(): void {
     this.rig.dispose();
+    this.backpackRig.dispose();
     this.helmetItemRig.dispose();
   }
 
@@ -654,14 +704,22 @@ export class GrandstandExplorer {
       this.rig,
       sampleCharacterMotion(this.identity, this.motion, this.elapsed),
     );
-    const backPose = this.rig.getSocketWorldPose('back');
+    const backpackPose = this.rig.getSocketWorldPose('backpack');
     const handPose = this.rig.getSocketWorldPose('hand:right');
     const headPose = this.rig.getSocketWorldPose('head');
-    if (backPose === null || handPose === null || headPose === null) {
-      throw new Error('Paper Circuit helmet carry motion requires back, hand, and head sockets');
+    if (backpackPose === null || handPose === null || headPose === null) {
+      throw new Error('Paper Circuit helmet carry motion requires backpack, hand, and head sockets');
     }
+    this.backpackRig.setWorldPose(backpackPose);
+    this.backpackRig.root.scale.setScalar(actorScale * 0.92);
+    applySolidPaperCircuitBackpackMotion(
+      this.backpackRig,
+      paperCircuitBackpackOpenAmount(this.helmetCarryAmount),
+    );
+    const storagePose = this.backpackRig.getSocketWorldPose('helmet-storage');
+    if (storagePose === null) throw new Error('Paper Circuit backpack requires helmet storage');
     this.helmetItemRig.setWorldPose(interpolatePaperCircuitHelmetCarryPose(
-      backPose,
+      storagePose,
       handPose,
       headPose,
       this.helmetCarryAmount,
@@ -672,8 +730,11 @@ export class GrandstandExplorer {
     ));
     const fitScale = mount?.restScale?.[0];
     if (fitScale === undefined) throw new Error('Paper Circuit helmet mount has no fit scale');
-    const backpackScale = 0.42;
-    const carryScale = backpackScale + (1 - backpackScale) * smoothStep(this.helmetCarryAmount);
+    const storedScale = 0.62;
+    const handScale = smoothStep(
+      this.helmetCarryAmount / PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT,
+    );
+    const carryScale = storedScale + (1 - storedScale) * handScale;
     this.helmetItemRig.root.scale.setScalar(fitScale * actorScale * carryScale);
     applySolidPaperCircuitHelmetGripMotion(
       this.helmetItemRig,
@@ -714,7 +775,7 @@ export class GrandstandExplorer {
 
   private setHelmetWorn(worn: boolean): void {
     if (this.helmetWorn === worn) {
-      this.helmetItemRig.root.visible = this.actorVisible && !worn;
+      this.helmetItemRig.root.visible = this.shouldShowHelmetItem();
       return;
     }
     this.helmetWorn = worn;
@@ -726,7 +787,11 @@ export class GrandstandExplorer {
     if (this.rig.containmentIds.includes(containmentId)) {
       this.rig.setContainmentState(containmentId, worn);
     }
-    this.helmetItemRig.root.visible = this.actorVisible && !worn;
+    this.helmetItemRig.root.visible = this.shouldShowHelmetItem();
+  }
+
+  private shouldShowHelmetItem(): boolean {
+    return this.actorVisible && this.helmetWorn !== true && this.helmetCarryAmount > 0.015;
   }
 
 }

@@ -253,6 +253,10 @@ describe('asset extensions', () => {
       'experiments/doodle-racing/src/extensions/paper-circuit-helmet/equip-motion.ts',
       'experiments/doodle-racing/src/extensions/paper-circuit-helmet/ink-strokes.ts',
       'experiments/doodle-racing/src/extensions/paper-circuit-helmet/object-blueprint.ts',
+      'experiments/doodle-racing/src/extensions/paper-circuit-backpack/identity.ts',
+      'experiments/doodle-racing/src/extensions/paper-circuit-backpack/object-blueprint.ts',
+      'experiments/doodle-racing/src/extensions/paper-circuit-backpack/motion.ts',
+      'experiments/doodle-racing/src/extensions/paper-circuit-backpack/ink-strokes.ts',
     ]) {
       const content = source(file);
       expect(content, file).not.toMatch(/from ['"][^'"]*src\/(?!index\.js)/);
@@ -274,9 +278,12 @@ describe('asset extensions', () => {
     explorer.setPreviewMode(true);
     explorer.setVisible(true);
     explorer.updatePreview(0.05);
-    expect(explorer.helmetItemRig.root.visible).toBe(true);
+    expect(explorer.backpackRig.root.visible).toBe(true);
+    expect(explorer.helmetItemRig.root.visible).toBe(false);
     expect(explorer.rig.getPart(scope.id('part:helmet'))?.visible).toBe(false);
-    for (let index = 0; index < 57; index += 1) explorer.updatePreview(0.05);
+    for (let index = 0; index < 43; index += 1) explorer.updatePreview(0.05);
+    expect(explorer.helmetItemRig.root.visible).toBe(true);
+    for (let index = 0; index < 14; index += 1) explorer.updatePreview(0.05);
     expect(explorer.helmetItemRig.root.visible).toBe(false);
     expect(explorer.rig.getPart(scope.id('part:helmet'))?.visible).toBe(true);
     expect(explorer.rig.containmentIds).toEqual([scope.id('containment:helmet')]);

@@ -354,6 +354,15 @@ export class VehicleField {
     return Object.freeze({ x: pose.position[0], y: pose.position[1], z: pose.position[2] });
   }
 
+  public driverPosition(
+    vehicleId: string,
+  ): Readonly<{ x: number; y: number; z: number }> | null {
+    const pose = this.vehicles.get(vehicleId as PaperCircuitVehicleId)
+      ?.rig.getSocketWorldPose('driver');
+    if (pose === null || pose === undefined) return null;
+    return Object.freeze({ x: pose.position[0], y: pose.position[1], z: pose.position[2] });
+  }
+
   public dispose(): void {
     for (const { rig } of this.vehicles.values()) rig.dispose();
     this.vehicles.clear();

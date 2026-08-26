@@ -205,8 +205,9 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 - Explore now starts with a map-authored cinematic entrance. `RaceWorldLayout.explorerSpawn` owns
   the smoke entrance, initial transform, and approach waypoints; the pure entrance director owns
   materialization, a three-impulse cough, surprised discovery, two happy hops, the run, and the
-  explicit control handoff. The camera descends and rotates into a close-up during smoke, holds the
-  cough plus discovery acting for 4.6 seconds after the smoke clears, then blends into the exact
+  explicit control handoff. The camera descends and rotates into a close-up during smoke; the cough
+  now starts at 1.3 seconds, just past the midpoint of the 2.3-second cloud, rather than waiting for
+  it to clear. The sequence then blends into the exact
   default Explore orbit without a cut. Character pose still flows through the public shared motion
   runtime; the reusable `cough` pose coordinates three body accents with a slightly open mouth and
   closed eyes at each peak. Orbit, reroll, and vehicle interaction remain
@@ -219,9 +220,12 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 - Explore vehicle entry is an explicit deterministic vignette rather than an immediate drive-state
   toggle. It captures the current camera, turns the actor outward so the vehicle sits behind them,
   varies a short pre-smirk reaction and wink side, equips the helmet, moves the actor outside the
-  authored door arc before opening it, boards, and restores the captured view exactly. The helmet's
-  non-worn state uses the shared character `back` socket as a compact upper-back prop and follows a
-  back-to-hand-to-head path; this avoids both ground penetration and a full-body-sized backpack.
+  authored door arc before opening it, turns toward the steering wheel while sitting, moves quickly
+  to the authored driver socket, and restores the captured view exactly. The helmet's non-worn state
+  lives inside a separate solid-only backpack mounted through the character's public `backpack`
+  socket. The articulated flap follows a storage-to-hand-to-head path and reverses after vehicle
+  exit. Rally, roll-top, and courier identities produce structurally different volumes without
+  modifying the base character blueprint.
 - Menu preview helmet timing is relative to smoke completion, not character replacement. Rerolled
   characters hold the backpack state while smoke remains active, then wait two seconds before the
   equip transition. The first menu character uses the same two-second delay from preview start.
@@ -239,17 +243,51 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   audio, drawing medium, resume, and main-menu exit remain shared. Keyboard `Escape` maps to both
   semantic back and pause actions so overlays close before gameplay pauses. Native dialog Escape
   handling suppresses the matching action snapshot for one frame to prevent close/reopen bounce.
+- Race debug mode now pairs the route overlay with a compact FPS/frame-time readout. The rolling,
+  suspended-tab-safe measurement lives in renderer-neutral `FrameRateMeter`; Paper Circuit owns only
+  the opt-in HUD presentation and ties its visibility to the existing debug toggle.
 - Background music is scene-aware but remains one persisted `Music` category. `main-song.opus`
   plays only on the initial menu, `explore-song.opus` plays only in Explore, and races select the
   silent scene. Both tracks are lazy-loaded 80 kbps VBR Opus clips and share the same user volume,
   enabled state, and pause attenuation rather than introducing mode-specific settings.
+- Crowd density now ranges from 24 to 32 grandstand characters plus ten deterministic trackside
+  spectators placed beyond authored guardrail runs. Trackside behavior uses a short closest-approach
+  prediction against the vehicle heading/speed convention: nearby cars attract gaze, while a projected
+  corridor hit triggers an outward run. This remains a Paper Circuit product rule, not a generic runtime
+  primitive, until another game needs the same spectator semantics.
+- Finish celebration is a product-owned playable epilogue. Opponents keep moving, the winner vehicle
+  brakes, the shared explorer character exits and accepts the existing movement/run bindings, and both
+  crowd fields pursue while predictive steering repels them from moving opponent footprints. Catching
+  the winner swaps control for a deterministic airborne toss and an orbiting camera. The green starter
+  flag is a separate solid-only asset mounted to the marshal's public `hand:right` socket; its three
+  shallow-volume cloth panels remain articulated instead of masquerading as a flat UI illustration.
+- Race engine audio already owned four voices, but opponent gain was low enough to disappear in play.
+  Opponent loops now use a stronger base voice multiplied by distance-aware audibility, and engine
+  synchronization remains active during the moving finish epilogue.
+- Dynamic crowd mechanics now reuse renderer-neutral primitives from
+  `@mithrilman/aind-game-runtime`: `SpatialHash2D` provides caller-owned-output broad-phase queries,
+  `discSeparationInto(...)` prevents soft-disc overlap, and `fixedRateUpdateTick(...)` staggers
+  presentation-heavy motion sampling. Paper Circuit still owns pursuit, panic, participation, and
+  concentric captured-winner slots. Do not replace this with dozens of Three.js colliders; that would
+  couple simulation to rendering and increase the exact load the separation is intended to remove.
+- The inked-solid scene pass now performs animation-expanded carrier AABB/frustum rejection before
+  descendant matrix, anchor, stroke, or proxy synchronization, and leaves per-proxy Three.js frustum
+  culling enabled for partially visible carriers. `visibleInstances` and `submittedProxyMeshes` expose
+  the last-frame submission budget. This belongs to the reusable projection runtime, not a character
+  asset or Paper Circuit camera adapter.
+- Grandstand gameplay collision is derived from the same row spans used to author the visible step
+  boxes. Each row contributes one capsule-like segment obstacle to vehicle simulation and one matching
+  box collider to the scenery blueprint. Scenery that can stop a vehicle must not remain a render-only
+  prop; visible geometry and collision should share one layout source.
 
 ## Performance evidence
 
 - The earlier fixed 20-person crowd measured 43 registered instances, 1,509 carrier parts,
-  588 semantic stroke meshes, and 8,388 compositor proxies. Treat that as a historical upper
-  baseline: the seeded 12-16-person crowd now varies these totals per race. The shared pass uses
-  four G-buffers and a composite render call sequence.
+  588 semantic stroke meshes, and 8,388 compositor proxies. The current 24-32 grandstand plus ten
+  trackside spectators, marshal, and flag registered 68 scene assets in the local browser; initial
+  sync measured about 98 ms and a full seeded crowd replacement added 42/removes 43 in about 67 ms.
+  This stays under the 128-registration policy capacity, but the larger crowd is now the dominant
+  reroll cost. The shared pass uses four G-buffers and a composite render call sequence.
 - The bounded race-effects field adds one registration, 93 carrier parts, and 372 proxies. Its 512
   skid decals share one mutable carrier mesh, so decal history grows in vertex updates rather than
   scene registrations or part count.
@@ -257,6 +295,12 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   CPU time per render in this environment, with zero steady-state per-mesh allocations. This is
   not a GPU frame-time guarantee; profile the target desktop GPU before changing pixel ratio or
   reducing scene fidelity.
+- Before carrier frustum rejection, the same 48-instance benchmark measured 7.64 ms mean CPU time;
+  after rejection/root-only precheck it measured 6.77 ms (about 11% lower even though most benchmark
+  instances remain visible). Rebuilding and radius-querying the new 48-agent spatial hash measured
+  roughly 0.011 ms, so broad-phase crowd separation is not a meaningful frame-budget contributor.
+  In the local 1280x720 browser the race canvas runs at DPR 1, so lowering the DPR cap would provide
+  no benefit on that target; culling and animation budgeting were the appropriate first levers.
 - Before incremental registration, one character reroll called `DoodleScene.setAssets()` and
   rebuilt the whole 45-asset pass, measuring about 484–526 ms in the local browser. The
   `DoodleAssetRegistry` now keeps unchanged registrations resident and replaces only the matching

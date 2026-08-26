@@ -269,6 +269,7 @@ export class RaceSimulation {
         FINISH_CINEMATIC_SECONDS,
         this.finishElapsed + delta,
       );
+      this.updateFinishVehicles(delta);
     }
     return this.snapshot();
   }
@@ -429,7 +430,7 @@ export class RaceSimulation {
     this.impactObstacleId = 'respawn';
   }
 
-  private updateOpponents(delta: number): void {
+  private updateOpponents(delta: number, trackProgress = true): void {
     for (const racer of this.racers) {
       if (racer.isPlayer) continue;
       const previousVehicle = racer.vehicle;
@@ -468,27 +469,53 @@ export class RaceSimulation {
       ).state;
       racer.vehicle = resolveJumpRamps(previousVehicle, collision, this.world.ramps).state;
       const nextProjection = nearestCoursePoint(this.course, racer.vehicle.x, racer.vehicle.z);
-      racer.route = advanceRaceRouteProgress(
-        this.course,
-        racer.route,
-        Object.freeze({
-          previous: previousVehicle,
-          current: racer.vehicle,
-          previousProjection: projection,
-          currentProjection: nextProjection,
-          previousTouchesRoute: vehicleWheelsTouchRoute(
-            this.course,
-            previousVehicle,
-            this.collisionProfile(racer.id),
-          ),
-          currentTouchesRoute: vehicleWheelsTouchRoute(
-            this.course,
-            racer.vehicle,
-            this.collisionProfile(racer.id),
-          ),
-        }),
-      );
+      if (trackProgress) {
+        racer.route = advanceRaceRouteProgress(
+          this.course,
+          racer.route,
+          Object.freeze({
+            previous: previousVehicle,
+            current: racer.vehicle,
+            previousProjection: projection,
+            currentProjection: nextProjection,
+            previousTouchesRoute: vehicleWheelsTouchRoute(
+              this.course,
+              previousVehicle,
+              this.collisionProfile(racer.id),
+            ),
+            currentTouchesRoute: vehicleWheelsTouchRoute(
+              this.course,
+              racer.vehicle,
+              this.collisionProfile(racer.id),
+            ),
+          }),
+        );
+      }
     }
+  }
+
+  private updateFinishVehicles(delta: number): void {
+    const player = this.player();
+    const previous = player.vehicle;
+    const projection = nearestCoursePoint(this.course, previous.x, previous.z);
+    const surface = projection.distanceFromCentre <= this.course.trackWidth * 0.5 - 0.34
+      ? 'road'
+      : 'off-road';
+    const slowed = stepArcadeVehicle(previous, Object.freeze({
+      accelerate: false,
+      brake: true,
+      left: false,
+      right: false,
+      handbrake: false,
+    }), surface, delta);
+    const collision = resolveObstacleCollisions(
+      previous,
+      slowed,
+      this.world.obstacles,
+      this.collisionProfile(player.id),
+    ).state;
+    player.vehicle = resolveJumpRamps(previous, collision, this.world.ramps).state;
+    this.updateOpponents(delta, false);
   }
 
   private player(): MutableRacer {

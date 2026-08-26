@@ -265,6 +265,31 @@ export class RaceCameraController {
     this.updateProjection(this.explorerGroundProjectionOffset());
   }
 
+  public updateWinnerToss(
+    snapshot: GrandstandExplorerSnapshot,
+    elapsedSeconds: number,
+    deltaSeconds: number,
+  ): void {
+    const orbit = elapsedSeconds * 0.58 - 0.75;
+    const actorTarget = new THREE.Vector3(snapshot.x, snapshot.y + 0.92, snapshot.z);
+    const desiredPosition = actorTarget.clone().add(new THREE.Vector3(
+      Math.sin(orbit) * 4.65,
+      2.45 + Math.sin(elapsedSeconds * 0.9) * 0.2,
+      Math.cos(orbit) * 4.65,
+    ));
+    this.target.lerp(actorTarget, 1 - Math.exp(-10 * deltaSeconds));
+    this.camera.position.lerp(desiredPosition, 1 - Math.exp(-7.4 * deltaSeconds));
+    this.viewSize = THREE.MathUtils.lerp(
+      this.viewSize,
+      6.35,
+      1 - Math.exp(-6.8 * deltaSeconds),
+    );
+    this.orientCamera(
+      this.reducedMotion ? 0 : Math.sin(elapsedSeconds * 2.4) * 0.018,
+    );
+    this.updateProjection();
+  }
+
   public updateExplorerEntrance(
     snapshot: GrandstandExplorerSnapshot,
     frame: ExploreEntranceFrame,

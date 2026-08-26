@@ -8,7 +8,7 @@ package shared by games and experiments in this repository. It lives beside
 
 ```text
 @mithrilman/aind-game-runtime core
-  controls, gamepad mapping, fixed-step clock, arcade motion, collision math
+  controls, fixed-step/update budgets, spatial broad phase, motion, collision math
               ^
               |
 product rules and adapters in experiments/
@@ -47,6 +47,15 @@ or scene graph.
   browser input; games may use it for hints, but never to select gameplay rules.
 - `FixedStepClock` bounds catch-up work, reports discarded time, and exposes an
   interpolation alpha. It does not own rendering or simulation state.
+- `fixedRateUpdateTick(...)` gives presentation-heavy work a deterministic
+  lower-rate budget without coupling it to render frames. `SpatialHash2D`
+  provides a reusable caller-owned-output broad phase for dynamic 2D agents;
+  `discSeparationInto(...)` layers soft-disc separation over those candidates.
+  The package owns the mechanics, while products still own pursuit targets,
+  participation, reactions, and animation choices.
+- `FrameRateMeter` aggregates caller-supplied frame durations without renderer
+  or browser dependencies, ignores long suspended-tab gaps, and exposes FPS and
+  frame time without allocating a per-frame snapshot.
 - Arcade vehicle motion and swept obstacle collision are immutable pure
   functions over structural data. They allocate no renderer resources and read
   no asset internals.
@@ -92,9 +101,11 @@ non-interpolated rendering trades numerical stability for visible judder.
 ## Performance contract
 
 Hot-path APIs use numbers, readonly structural records, and caller-owned arrays.
-Broad-phase collision rejection runs before swept narrow-phase sampling. Core
-modules must remain free of renderer allocations, DOM queries, and asset
-construction.
+Broad-phase collision rejection runs before swept narrow-phase sampling. The
+dynamic spatial hash reuses buckets and writes queries into caller-owned arrays;
+the fixed-rate tick lets consumers skip expensive presentation sampling between
+budgeted updates. Core modules must remain free of renderer allocations, DOM
+queries, and asset construction.
 
 Use `pnpm benchmark:game-runtime` to measure a repeatable multi-vehicle motion
 and collision workload. The benchmark is a regression signal, not a universal

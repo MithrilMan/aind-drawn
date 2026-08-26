@@ -38,9 +38,11 @@ export type InkedSolidSceneRegistration = Readonly<{
 
 export type InkedSolidSceneDiagnostics = Readonly<{
   registeredInstances: number;
+  visibleInstances: number;
   carrierParts: number;
   semanticStrokeMeshes: number;
   proxyMeshes: number;
+  submittedProxyMeshes: number;
   passMaterials: number;
   renderTargets: 4;
   renderCalls: number;
@@ -112,6 +114,8 @@ export class InkedSolidScenePass {
   private readonly compositor: InkedSolidCompositor;
   private readonly registrations = new Map<AssetInstanceId, RegistrationRecord>();
   private readonly occupiedSlots = new Uint8Array(INKED_SOLID_POLICY_CAPACITY);
+  private readonly viewProjection = new THREE.Matrix4();
+  private readonly viewFrustum = new THREE.Frustum();
   private readonly depthOnlyMaterial = new THREE.MeshDepthMaterial({
     depthPacking: THREE.BasicDepthPacking,
   });
@@ -183,7 +187,11 @@ export class InkedSolidScenePass {
     const previousShadowAutoUpdate = this.renderer.shadowMap.autoUpdate;
 
     camera.updateMatrixWorld(true);
-    for (const { carrier } of this.registrations.values()) carrier.sync(camera);
+    this.viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+    this.viewFrustum.setFromProjectionMatrix(this.viewProjection);
+    for (const { carrier } of this.registrations.values()) {
+      carrier.sync(camera, this.viewFrustum);
+    }
     this.carrierScenes.setAlbedoBackground(previousBackground);
 
     try {
@@ -211,18 +219,26 @@ export class InkedSolidScenePass {
     let carrierParts = 0;
     let semanticStrokeMeshes = 0;
     let proxyMeshes = 0;
+    let visibleInstances = 0;
+    let submittedProxyMeshes = 0;
     let passMaterials = 0;
     for (const { carrier } of this.registrations.values()) {
       carrierParts += carrier.partCount;
       semanticStrokeMeshes += carrier.strokeMeshCount;
       proxyMeshes += carrier.proxyMeshCount;
+      if (carrier.wasVisibleLastSync) {
+        visibleInstances += 1;
+        submittedProxyMeshes += carrier.proxyMeshCount;
+      }
       passMaterials += carrier.materialCount;
     }
     return Object.freeze({
       registeredInstances: this.registrations.size,
+      visibleInstances,
       carrierParts,
       semanticStrokeMeshes,
       proxyMeshes,
+      submittedProxyMeshes,
       passMaterials,
       renderTargets: 4,
       renderCalls: this.unregisteredOcclusion === 'depth-only' ? 9 : 5,

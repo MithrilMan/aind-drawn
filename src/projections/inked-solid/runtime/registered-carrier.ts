@@ -89,7 +89,10 @@ export class RegisteredInkedSolidCarrier {
   private readonly strokes: StrokeRecord[] = [];
   private readonly projectedAnchor = new THREE.Vector3();
   private readonly proxies: THREE.Mesh[] = [];
+  private readonly localBounds: THREE.Box3;
+  private readonly worldBounds = new THREE.Box3();
   private proxiesVisible = true;
+  private visibleLastSync = true;
   private disposed = false;
 
   public constructor(
@@ -99,6 +102,14 @@ export class RegisteredInkedSolidCarrier {
     private readonly scenes: InkedSolidCarrierScenes,
     policySlot: number,
   ) {
+    const bounds = blueprint.solid.bounds;
+    this.localBounds = new THREE.Box3(
+      new THREE.Vector3(...bounds.minimum),
+      new THREE.Vector3(...bounds.maximum),
+    );
+    const extent = this.localBounds.getSize(new THREE.Vector3());
+    const animationMargin = Math.max(extent.x, extent.y, extent.z) * 0.18;
+    this.localBounds.expandByScalar(animationMargin);
     this.strokeRig = new InkedSolidStrokeRig(blueprint, rig);
     this.materialCache = new InkedSolidCarrierMaterialCache(policySlot, blueprint.solid.appearance);
     this.strokeRig.visible = false;
@@ -165,6 +176,10 @@ export class RegisteredInkedSolidCarrier {
     return this.proxies.length;
   }
 
+  public get wasVisibleLastSync(): boolean {
+    return this.visibleLastSync;
+  }
+
   public setStrokeReveal(progress: number): void {
     this.assertAlive();
     if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
@@ -173,18 +188,21 @@ export class RegisteredInkedSolidCarrier {
     for (const record of this.strokes) record.materials.revealProgress.value = progress;
   }
 
-  public sync(camera: THREE.Camera): void {
+  public sync(camera: THREE.Camera, frustum: THREE.Frustum): void {
     this.assertAlive();
-    if (!this.rig.root.visible) {
-      if (this.proxiesVisible) {
-        for (const record of this.parts) syncProxySet(record.source, record.proxies, false);
-        for (const record of this.strokes) syncProxySet(record.source, record.proxies, false);
-        this.proxiesVisible = false;
-      }
+    if (!visibleInHierarchy(this.rig.root)) {
+      this.hideProxies();
       return;
     }
+    this.rig.root.updateWorldMatrix(true, false);
+    this.worldBounds.copy(this.localBounds).applyMatrix4(this.rig.root.matrixWorld);
+    if (!frustum.intersectsBox(this.worldBounds)) {
+      this.hideProxies();
+      return;
+    }
+    this.visibleLastSync = true;
     this.proxiesVisible = true;
-    this.rig.root.updateWorldMatrix(true, true);
+    this.rig.root.updateWorldMatrix(false, true);
     for (const record of this.parts) {
       const visible = visibleInHierarchy(record.source);
       syncProxySet(record.source, record.proxies, visible);
@@ -217,7 +235,7 @@ export class RegisteredInkedSolidCarrier {
       const proxy = new THREE.Mesh(source.geometry, material);
       proxy.name = `inked-proxy:${this.instanceId}:${source.name}`;
       proxy.matrixAutoUpdate = false;
-      proxy.frustumCulled = false;
+      proxy.frustumCulled = true;
       proxy.renderOrder = source.renderOrder;
       scene.add(proxy);
       this.proxies.push(proxy);
@@ -233,5 +251,13 @@ export class RegisteredInkedSolidCarrier {
 
   private assertAlive(): void {
     if (this.disposed) throw new Error('Registered inked-solid carrier has been disposed');
+  }
+
+  private hideProxies(): void {
+    this.visibleLastSync = false;
+    if (!this.proxiesVisible) return;
+    for (const record of this.parts) syncProxySet(record.source, record.proxies, false);
+    for (const record of this.strokes) syncProxySet(record.source, record.proxies, false);
+    this.proxiesVisible = false;
   }
 }

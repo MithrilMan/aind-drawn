@@ -49,6 +49,61 @@ function containsStroke(root: THREE.Object3D): boolean {
 }
 
 describe('multi-instance inked-solid scene rendering', () => {
+  it('skips carrier synchronization and submission outside the camera frustum', () => {
+    const solid = createSolidCharacterBlueprint(createCharacterIdentity(7_099));
+    const inked = createInkedSolidBlueprint(solid, {
+      medium: 'graphite',
+      strokes: createSolidCharacterInkStrokes(solid),
+    });
+    const visibleRig = new SolidRig(solid, { instanceId: 'character:visible' });
+    const hiddenRig = new SolidRig(solid, { instanceId: 'character:offscreen' });
+    hiddenRig.root.position.x = 100;
+    const scene = new THREE.Scene();
+    scene.add(visibleRig.root, hiddenRig.root);
+    const camera = new THREE.PerspectiveCamera(45, 16 / 9, 0.1, 200);
+    camera.position.set(0, 0, 10);
+    camera.lookAt(0, 0, 0);
+    camera.updateProjectionMatrix();
+    const renderer = new RecordingRenderer();
+    const pass = new InkedSolidScenePass(asWebGlRenderer(renderer));
+    const visibleRegistration = pass.register({
+      instanceId: visibleRig.instanceId,
+      blueprint: inked,
+      rig: visibleRig,
+    });
+    const hiddenRegistration = pass.register({
+      instanceId: hiddenRig.instanceId,
+      blueprint: inked,
+      rig: hiddenRig,
+    });
+
+    pass.render(scene, camera, 0);
+    const firstCarrierScene = renderer.calls[0]?.scene;
+    if (firstCarrierScene === undefined) throw new Error('Expected the albedo carrier pass');
+    const offscreenProxies = firstCarrierScene.children.filter(({ name }) => (
+      name.includes('character:offscreen')
+    ));
+    expect(offscreenProxies.length).toBeGreaterThan(0);
+    expect(offscreenProxies.every(({ visible }) => !visible)).toBe(true);
+    expect(pass.getDiagnostics()).toMatchObject({
+      registeredInstances: 2,
+      visibleInstances: 1,
+      submittedProxyMeshes: pass.getDiagnostics().proxyMeshes / 2,
+    });
+
+    hiddenRig.root.position.x = 1;
+    pass.render(scene, camera, 1 / 60);
+    expect(offscreenProxies.some(({ visible }) => visible)).toBe(true);
+    expect(pass.getDiagnostics().visibleInstances).toBe(2);
+    expect(pass.getDiagnostics().submittedProxyMeshes).toBe(pass.getDiagnostics().proxyMeshes);
+
+    hiddenRegistration.dispose();
+    visibleRegistration.dispose();
+    pass.dispose();
+    hiddenRig.dispose();
+    visibleRig.dispose();
+  });
+
   it('keeps transparent parts out of the opaque carrier while preserving their strokes', () => {
     const solid = createSolidBuildingBlueprint(createBuildingIdentity(7_100));
     const transparentPart = solid.parts[0];

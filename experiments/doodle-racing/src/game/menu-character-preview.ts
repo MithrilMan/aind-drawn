@@ -91,7 +91,7 @@ export class MenuCharacterPreview {
     if (seed === null || !this.smoke.isCovered) return;
     const previous = this.explorer;
     this.explorer = this.createExplorer(seed);
-    this.explorer.holdPreviewHelmetOnBack();
+    this.explorer.holdPreviewHelmetStored();
     this.waitingForSmokeEnd = true;
     this.doodle.setAssets(this.sceneAssets());
     previous.dispose();

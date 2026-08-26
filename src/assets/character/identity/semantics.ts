@@ -39,7 +39,7 @@ export const CHARACTER_SEMANTIC_MANIFEST: AssetSemanticManifest<'character'> = O
   family: 'character',
   parts: PARTS,
   socketIds: Object.freeze([
-    'feet', 'head', 'crown', 'face', 'back', 'hand:left', 'hand:right', 'tail',
+    'feet', 'head', 'crown', 'face', 'back', 'backpack', 'hand:left', 'hand:right', 'tail',
   ]),
   colliderIds: Object.freeze(['body', 'head']),
   interactions: Object.freeze([]),

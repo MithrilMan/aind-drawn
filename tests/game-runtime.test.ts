@@ -3,11 +3,15 @@ import { describe, expect, it } from 'vitest';
 
 import {
   FixedStepClock,
+  FrameRateMeter,
+  SpatialHash2D,
   createArcadeVehicleState,
   createControlSchema,
+  discSeparationInto,
   mapStandardGamepad,
   resolveObstacleCollisions,
   stepArcadeVehicle,
+  fixedRateUpdateTick,
   type ArcadeVehicleState,
   type VehicleCollisionProfile,
 } from '@mithrilman/aind-game-runtime';
@@ -72,6 +76,42 @@ describe('@mithrilman/aind-game-runtime', () => {
     expect(overloaded.droppedSeconds).toBeCloseTo(0.18, 12);
   });
 
+  it('reuses a spatial broad phase and deterministic lower-rate update ticks', () => {
+    const points = Object.freeze([
+      Object.freeze({ id: 'near', x: 0.4, z: 0.3 }),
+      Object.freeze({ id: 'edge', x: -0.8, z: 0.6 }),
+      Object.freeze({ id: 'far', x: 12, z: -4 }),
+    ]);
+    const hash = new SpatialHash2D<(typeof points)[number]>(1);
+    const output: (typeof points)[number][] = [];
+    hash.rebuild(points);
+    expect(hash.queryRadiusInto(0, 0, 1, output).map(({ id }) => id).sort())
+      .toEqual(['edge', 'near']);
+    expect(hash.queryRadiusInto(12, -4, 0.25, output)).toEqual([points[2]]);
+    const sourcePoint = points[0];
+    if (sourcePoint === undefined) throw new Error('Expected a source point');
+    const separation = discSeparationInto(sourcePoint, points, 1.5, { x: 0, z: 0 });
+    expect(Math.hypot(separation.x, separation.z)).toBeGreaterThan(0);
+    expect(fixedRateUpdateTick(1.001, 20, 0.01)).toBe(20);
+    expect(fixedRateUpdateTick(1.049, 20, 0.01)).toBe(21);
+    expect(() => new SpatialHash2D(0)).toThrow(/positive finite/u);
+  });
+
+  it('measures rolling frame rate without counting suspended-tab gaps', () => {
+    const meter = new FrameRateMeter({ sampleSeconds: 0.5, maximumFrameSeconds: 0.2 });
+    let updated = false;
+    for (let frame = 0; frame < 30; frame += 1) {
+      updated = meter.sampleFrame(1 / 60) || updated;
+    }
+    expect(updated).toBe(true);
+    expect(meter.framesPerSecond).toBeCloseTo(60, 8);
+    expect(meter.frameTimeMilliseconds).toBeCloseTo(1000 / 60, 8);
+    expect(meter.sampleFrame(1)).toBe(false);
+    meter.reset();
+    expect(meter.framesPerSecond).toBe(0);
+    expect(() => meter.sampleFrame(-0.1)).toThrow(/non-negative/u);
+  });
+
   it('keeps arcade simulation repeatable and resolves swept structural collisions', () => {
     const run = (): ArcadeVehicleState => {
       let state = createArcadeVehicleState(0, 0, 0);
@@ -126,6 +166,9 @@ describe('@mithrilman/aind-game-runtime', () => {
       'fixed-step.ts',
       'arcade-vehicle.ts',
       'vehicle-collision.ts',
+      'spatial-hash-2d.ts',
+      'update-budget.ts',
+      'frame-rate-meter.ts',
       'index.ts',
     ];
     for (const file of coreFiles) {

@@ -7,7 +7,9 @@ import type {
   ExplorerSpawnWaypoint,
 } from './race-world.js';
 
-const MATERIALIZE_SECONDS = 2.3;
+// The smoke lasts 2.3 seconds. Start the performance just past its midpoint so
+// the first cough is already visible through the thinning cloud.
+const COUGH_START_SECONDS = 1.3;
 const COUGH_SECONDS = 1.6;
 const DISCOVER_SECONDS = 3;
 const CELEBRATE_SECONDS = 1.15;
@@ -81,7 +83,7 @@ function timingFor(spawn: ExplorerSpawnPlacement): EntranceTiming {
   );
   return Object.freeze({
     approachSeconds,
-    totalSeconds: MATERIALIZE_SECONDS
+    totalSeconds: COUGH_START_SECONDS
       + COUGH_SECONDS
       + DISCOVER_SECONDS
       + CELEBRATE_SECONDS
@@ -168,10 +170,10 @@ export function sampleExploreEntrance(
   const progress = clamp01(elapsed / timing.totalSeconds);
   const actorVisible = elapsed >= ACTOR_REVEAL_SECONDS;
 
-  if (elapsed < MATERIALIZE_SECONDS) {
+  if (elapsed < COUGH_START_SECONDS) {
     return Object.freeze({
       phase: 'materializing',
-      phaseProgress: clamp01(elapsed / MATERIALIZE_SECONDS),
+      phaseProgress: clamp01(elapsed / COUGH_START_SECONDS),
       progress,
       approachProgress: 0,
       actorVisible,
@@ -185,7 +187,7 @@ export function sampleExploreEntrance(
     });
   }
 
-  const discoveryElapsed = elapsed - MATERIALIZE_SECONDS;
+  const discoveryElapsed = elapsed - COUGH_START_SECONDS;
   if (discoveryElapsed < COUGH_SECONDS) {
     return Object.freeze({
       phase: 'coughing',

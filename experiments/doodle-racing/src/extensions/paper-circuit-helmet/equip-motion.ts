@@ -41,7 +41,7 @@ export function interpolatePaperCircuitHelmetEquipPose(
   });
 }
 
-const HELMET_HAND_CARRY_PROGRESS = 0.38;
+export const PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT = 0.38;
 
 export function interpolatePaperCircuitHelmetCarryPose(
   back: Pose3,
@@ -51,11 +51,11 @@ export function interpolatePaperCircuitHelmetCarryPose(
   arcHeight = 0,
 ): Pose3 {
   const progress = Math.max(0, Math.min(1, amount));
-  if (progress <= HELMET_HAND_CARRY_PROGRESS) {
+  if (progress <= PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT) {
     return interpolatePaperCircuitHelmetEquipPose(
       back,
       hand,
-      smoothStep(progress / HELMET_HAND_CARRY_PROGRESS),
+      smoothStep(progress / PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT),
       arcHeight * 0.42,
     );
   }
@@ -63,7 +63,8 @@ export function interpolatePaperCircuitHelmetCarryPose(
     hand,
     head,
     smoothStep(
-      (progress - HELMET_HAND_CARRY_PROGRESS) / (1 - HELMET_HAND_CARRY_PROGRESS),
+      (progress - PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT)
+        / (1 - PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT),
     ),
     arcHeight,
   );
@@ -71,11 +72,12 @@ export function interpolatePaperCircuitHelmetCarryPose(
 
 export function paperCircuitHelmetGripAmountForCarry(amount: number): number {
   const progress = Math.max(0, Math.min(1, amount));
-  if (progress <= HELMET_HAND_CARRY_PROGRESS) {
-    return 1 - smoothStep(progress / HELMET_HAND_CARRY_PROGRESS);
+  if (progress <= PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT) {
+    return 1 - smoothStep(progress / PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT);
   }
   return smoothStep(
-    (progress - HELMET_HAND_CARRY_PROGRESS) / (1 - HELMET_HAND_CARRY_PROGRESS),
+    (progress - PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT)
+      / (1 - PAPER_CIRCUIT_HELMET_HAND_CARRY_AMOUNT),
   );
 }
 

@@ -50,11 +50,12 @@ export type ExploreVehicleEntryFrame = Readonly<{
   wink: CharacterWink;
   helmetCarryAmount: number;
   doorOpen: boolean;
+  actorVisible: boolean;
   complete: boolean;
 }>;
 
 type EntryTarget = Readonly<{ x: number; y: number; z: number }>;
-type VehicleAnchor = Readonly<{ x: number; z: number }>;
+type VehicleAnchor = Readonly<{ x: number; z: number; heading: number }>;
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
@@ -75,7 +76,8 @@ function phaseFrame(
   phaseProgress: number,
   elapsed: number,
   source: GrandstandExplorerSnapshot,
-  target: EntryTarget,
+  doorTarget: EntryTarget,
+  driverTarget: EntryTarget,
   vehicle: VehicleAnchor,
   variant: number,
 ): ExploreVehicleEntryFrame {
@@ -101,14 +103,21 @@ function phaseFrame(
   });
   const clearingProgress = smoothStep(clamp01(clearingElapsed / CLEAR_SECONDS));
   const boardingElapsed = clearingElapsed - CLEAR_SECONDS - OPEN_SECONDS;
-  const boardingProgress = smoothStep(clamp01(boardingElapsed / BOARD_SECONDS));
+  const boardingPhaseProgress = clamp01(boardingElapsed / BOARD_SECONDS);
+  const doorApproachProgress = smoothStep(clamp01(boardingPhaseProgress / 0.68));
+  const ingressProgress = smoothStep(clamp01((boardingPhaseProgress - 0.68) / 0.32));
   const clearingOrLater = phase === 'clearing' || phase === 'opening'
     || phase === 'boarding' || phase === 'returning' || phase === 'complete';
   const boardingOrLater = phase === 'boarding' || phase === 'returning' || phase === 'complete';
   const stagedX = source.x + (staging.x - source.x) * (clearingOrLater ? clearingProgress : 0);
   const stagedY = source.y + (staging.y - source.y) * (clearingOrLater ? clearingProgress : 0);
   const stagedZ = source.z + (staging.z - source.z) * (clearingOrLater ? clearingProgress : 0);
-  const actorProgress = boardingOrLater ? boardingProgress : 0;
+  const doorX = stagedX + (doorTarget.x - stagedX) * (boardingOrLater ? doorApproachProgress : 0);
+  const doorY = stagedY + (doorTarget.y - stagedY - 0.12)
+    * (boardingOrLater ? doorApproachProgress : 0);
+  const doorZ = stagedZ + (doorTarget.z - stagedZ) * (boardingOrLater ? doorApproachProgress : 0);
+  const seatedHeading = vehicle.heading + Math.PI * 0.5;
+  const seatingTurn = smoothStep(clamp01((boardingPhaseProgress - 0.08) / 0.54));
   const helmetCarryAmount = phase === 'equipping'
     ? smoothStep(phaseProgress)
     : phase === 'clearing' || phase === 'opening' || boardingOrLater ? 1 : 0;
@@ -129,24 +138,32 @@ function phaseFrame(
       ? smoothStep(phaseProgress)
       : 0,
     cameraHeading,
-    x: stagedX + (target.x - stagedX) * actorProgress,
-    y: stagedY + (target.y - stagedY - 0.28) * actorProgress,
-    z: stagedZ + (target.z - stagedZ) * actorProgress,
-    heading: interpolateAngle(source.heading, cameraHeading, cameraCloseAmount),
-    pose: phase === 'clearing' ? 'walk' : actorProgress > 0.42 ? 'sit' : 'idle',
+    x: doorX + (driverTarget.x - doorX) * ingressProgress,
+    y: doorY + (Math.max(0, driverTarget.y - 0.52) - doorY) * ingressProgress,
+    z: doorZ + (driverTarget.z - doorZ) * ingressProgress,
+    heading: boardingOrLater
+      ? interpolateAngle(cameraHeading, seatedHeading, seatingTurn)
+      : interpolateAngle(source.heading, cameraHeading, cameraCloseAmount),
+    pose: phase === 'clearing'
+      ? 'walk'
+      : phase === 'boarding' && phaseProgress >= 0.26 || phase === 'returning'
+        ? 'sit'
+        : 'idle',
     expression,
     wink: phase === 'winking' && phaseProgress > 0.16 && phaseProgress < 0.82
       ? variant % 2 === 0 ? 'left' : 'right'
       : null,
     helmetCarryAmount,
     doorOpen: phase === 'opening' || phase === 'boarding' || phase === 'returning',
+    actorVisible: phase !== 'returning' && phase !== 'complete',
     complete: phase === 'complete',
   });
 }
 
 export function sampleExploreVehicleEntry(
   source: GrandstandExplorerSnapshot,
-  target: EntryTarget,
+  doorTarget: EntryTarget,
+  driverTarget: EntryTarget,
   vehicle: VehicleAnchor,
   elapsedSeconds: number,
   variant = 0,
@@ -154,37 +171,37 @@ export function sampleExploreVehicleEntry(
   const elapsed = Math.max(0, elapsedSeconds);
   let local = elapsed;
   if (local < FOCUS_SECONDS) {
-    return phaseFrame('focusing', local / FOCUS_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('focusing', local / FOCUS_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= FOCUS_SECONDS;
   if (local < SMIRK_SECONDS) {
-    return phaseFrame('smirking', local / SMIRK_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('smirking', local / SMIRK_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= SMIRK_SECONDS;
   if (local < WINK_SECONDS) {
-    return phaseFrame('winking', local / WINK_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('winking', local / WINK_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= WINK_SECONDS;
   if (local < EQUIP_SECONDS) {
-    return phaseFrame('equipping', local / EQUIP_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('equipping', local / EQUIP_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= EQUIP_SECONDS;
   if (local < CLEAR_SECONDS) {
-    return phaseFrame('clearing', local / CLEAR_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('clearing', local / CLEAR_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= CLEAR_SECONDS;
   if (local < OPEN_SECONDS) {
-    return phaseFrame('opening', local / OPEN_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('opening', local / OPEN_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= OPEN_SECONDS;
   if (local < BOARD_SECONDS) {
-    return phaseFrame('boarding', local / BOARD_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('boarding', local / BOARD_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
   local -= BOARD_SECONDS;
   if (local < RETURN_SECONDS) {
-    return phaseFrame('returning', local / RETURN_SECONDS, elapsed, source, target, vehicle, variant);
+    return phaseFrame('returning', local / RETURN_SECONDS, elapsed, source, doorTarget, driverTarget, vehicle, variant);
   }
-  return phaseFrame('complete', 1, TOTAL_SECONDS, source, target, vehicle, variant);
+  return phaseFrame('complete', 1, TOTAL_SECONDS, source, doorTarget, driverTarget, vehicle, variant);
 }
 
 export class ExploreVehicleEntryDirector {
@@ -193,7 +210,8 @@ export class ExploreVehicleEntryDirector {
   public constructor(
     public readonly entry: ExploreVehicleEntry,
     private readonly source: GrandstandExplorerSnapshot,
-    private readonly target: EntryTarget,
+    private readonly doorTarget: EntryTarget,
+    private readonly driverTarget: EntryTarget,
     private readonly vehicle: VehicleAnchor,
     private readonly variant = 0,
   ) {}
@@ -201,7 +219,8 @@ export class ExploreVehicleEntryDirector {
   public snapshot(): ExploreVehicleEntryFrame {
     return sampleExploreVehicleEntry(
       this.source,
-      this.target,
+      this.doorTarget,
+      this.driverTarget,
       this.vehicle,
       this.elapsed,
       this.variant,

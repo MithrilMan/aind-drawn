@@ -26,7 +26,7 @@
     "coreCapabilities": [
       { "id": "capability.arcade-drive", "description": "Accelerate hard, brake or reverse, steer, handbrake, drift, collide with visible barriers, and recover explicitly." },
       { "id": "capability.race", "description": "Run a grandstand intro, countdown, deterministic opponents, lap order, finish celebration, pause, and restart." },
-      { "id": "capability.world", "description": "Render a wide technical track with procedural trees, race fixtures, a grandstand, and twenty animated character spectators." },
+      { "id": "capability.world", "description": "Render a wide technical track with procedural trees, race fixtures, a dense grandstand, reactive trackside spectators, and a start marshal." },
       { "id": "capability.camera", "description": "Use automatic close drone shots of the crowd before and after racing, a speed-reactive quasi-isometric follow camera, or a complete circuit map without resetting play." },
       { "id": "capability.medium", "description": "Reproject the same live world through any public drawing medium, with Oil selected initially." },
       { "id": "capability.recovery", "description": "Expose renderer retry and explicit vehicle respawn without hidden physics corrections." }
@@ -107,7 +107,7 @@
   ],
   "traits": [
     { "id": "composition.game-first", "priority": "critical", "instruction": "The live world is the background and primary surface at every viewport; opaque UI exists only in clipped edge plates and never forms a page header, sidebar, or card grid." },
-    { "id": "world.technical-spectacle", "priority": "critical", "instruction": "The wide course visibly changes direction and hazard rhythm; trees and a twenty-character grandstand frame the action without hiding the racing line." },
+    { "id": "world.technical-spectacle", "priority": "critical", "instruction": "The wide course visibly changes direction and hazard rhythm; trees, a 24-to-32-character grandstand, and ten guardrail spectators frame the action without hiding the racing line." },
     { "id": "feedback.sideways", "priority": "critical", "instruction": "Speed, slip, drift chain, collision, and countdown appear as strong arcade events with non-colour text cues and immediate motion response." },
     { "id": "surface.paper-ink", "priority": "critical", "instruction": "Pair luminous procedural paper and imperfect pigment with angular near-black plates, oxide danger accents, and no glossy generic game chrome." },
     { "id": "responsive.touch-rig", "priority": "critical", "instruction": "On narrow coarse pointers, five large drive targets overlay the lower field while telemetry compresses to essentials; the page does not become a vertical settings form." }
@@ -151,7 +151,7 @@
       ],
       "representativeBecause": {
         "realTask": "Oil race seed 4115 covers crowd intro, countdown, high-speed driving, drifting, visible collision, lap progression, finish, and crowd celebration against three opponents.",
-        "typicalAndDense": "Four racers, multiple tree instances, race fixtures, and a twenty-character crowd exercise a materially populated shared Doodle scene.",
+        "typicalAndDense": "Four racers, multiple tree instances, race fixtures, a 24-to-32-character grandstand, ten reactive trackside spectators, and a marshal exercise a materially populated shared Doodle scene.",
         "adverseState": "Off-road grip, impact, explicit respawn, pause, and recoverable WebGL startup failure are represented without hidden correction.",
         "coreCapabilitiesWork": "Every declared arcade, race, world, camera, medium, and recovery capability connects to live state or a live control.",
         "noPlaceholders": true

@@ -31,8 +31,9 @@ road keeps route progress valid, including when the vehicle centre is already be
 Ranking freezes only after every tyre leaves the road, and respawn returns the racer to the last safe
 projection. A lap requires at least 85% route coverage and rejects any contiguous missed section
 longer than three track widths. The optional route-debug overlay uses the exact gameplay segments:
-amber shows valid road and green shows the road covered during the current lap. The finish stripe is
-the only permanent route marker.
+amber shows valid road and green shows the road covered during the current lap. Enabling that same
+debug mode reveals a rolling FPS/frame-time readout backed by the renderer-neutral game-runtime
+meter. The finish stripe is the only permanent route marker.
 
 ## Run locally
 
@@ -64,8 +65,8 @@ wheel-bearing root stays level with the road.
 The menu also opens `Explore grandstand`. This is a separate presentation mode: a seeded random
 character first materializes inside the existing Doodle smoke burst while the camera descends and
 settles into a low, front-facing close-up whose horizontal composition remains locked while the
-character looks around. Once the smoke clears, the character coughs three times with a covering
-arm, partly open mouth, and closed eyes, then spends the rest of a 4.6-second close performance
+character looks around. About halfway through the smoke, the character coughs three times with a
+covering arm, partly open mouth, and closed eyes, then continues the close performance
 looking around in surprise. They hop twice and run toward the grandstand before camera and movement
 control pass to the player without a cut.
 Camera orbit, character reroll, and vehicle interaction remain locked during that entrance. Every
@@ -89,11 +90,13 @@ while exploring. The four race vehicles remain parked near the start line. Appro
 door sensor exposes a focused callout rendered from that exact procedural door; pressing `E` opens
 an entry vignette: the character turns with their back to the car, the camera moves to a face-level
 close-up, and a deterministic reaction varies the pre-smirk expression and wink side. They equip
-the helmet carried on their upper back, step clear of the authored door swing, wait for the door to
-open, and board. The camera then restores the exact orbit held when the interaction started before
-free arcade driving begins with engine audio, collisions, skid marks, smoke, and dust. It remains
+the helmet stored in an articulated backpack, step clear of the authored door swing, wait for the
+door to open, turn toward the steering wheel while sitting, and move quickly to the authored driver
+socket. The camera then restores the exact orbit held when the interaction started before free
+arcade driving begins with engine audio, collisions, skid marks, smoke, and dust. It remains
 orbitable and pulls farther back as vehicle speed increases. Press
-`E` again near standstill to exit at the door's authored entry socket. Standing at the authored
+`E` again near standstill to exit at the door's authored entry socket; the helmet then returns from
+head to hand and into the backpack. Standing at the authored
 service socket in front of the hood exposes the hood-only callout; pressing `E` opens it and launches
 an accessible under-hood configurator. The dialog owns a separate Doodle 3D viewport showing the
 complete selected vehicle with its hood open, so scenery and the Explore camera cannot occlude the
@@ -164,21 +167,36 @@ always opens its seed-specific animation script with the shared `dance` pose, th
 actions before automatically swapping to a fresh character with the same smoke-burst transition.
 `N` and the visible `New driver` control reroll the preview, and entering Explore materializes the
 exact seed currently shown in that viewport.
-The standalone helmet starts as a compact upper-back prop. For a rerolled menu character it remains
-there throughout the smoke and for two full seconds after the smoke finishes, then follows the
-authored back-to-hand-to-head equip path; the initial preview uses the same two-second delay.
+The standalone helmet starts inside a solid-only backpack with a padded back panel, deep main
+compartment, base, front storage and three deterministic silhouettes: rally, roll-top, and courier.
+For a rerolled menu character it remains stored throughout the smoke and for two full seconds after
+the smoke finishes; the flap then opens while the helmet follows the authored storage-to-hand-to-head
+equip path. The initial preview uses the same two-second delay.
 Rerolls do not reset the camera orbit in Explore. Every playable character and spectator is human.
-Each race rebuilds a sparser 12-to-16-person grandstand from a fresh seed, with continuous placement
-along each row instead of a fixed seating grid. Spectators also own independent animation clocks,
-cue durations, and phases. When the race finishes, the grandstand enters a dance celebration without
-collapsing back into one synchronized chorus line.
+Each race rebuilds a 24-to-32-person grandstand from a fresh seed, with continuous placement along
+each row instead of a fixed seating grid. Ten more spectators stand beyond authored guardrail runs:
+they turn toward nearby cars, predict short-horizon impacts, and sprint farther away from the road
+when a vehicle leaves the racing line toward them. A procedural start marshal holds an articulated
+solid-volume green flag and waves through the countdown and launch. Spectators also own independent
+animation clocks, cue durations, and phases.
+
+The finish remains playable. The opponents continue around the circuit while the player's car brakes,
+the driver exits, stows the helmet, and can run using the Explore movement bindings. Grandstand and
+trackside spectators invade the circuit, steer around moving cars, and pursue the driver. Invaders use
+the shared game-runtime spatial broad phase and soft-disc separation, while the captured-winner crowd
+settles into deterministic concentric celebration slots instead of converging on one point. A bounded
+subset invades while the remainder celebrates in place, preserving the scale of the audience without
+turning every visible grandstand actor into a finish-line simulation. If they get close enough, control
+hands over to a short orbiting cinematic in which the mob repeatedly tosses the driver into the air
+before settling into its celebration.
 
 The menu and race use local WAV and Opus sound effects selected or generated in ElevenLabs: a UI
 click, character poof, arcade GO cue, looping drift skid, gravel/off-road layer, and finish applause.
 Each of the four racers owns one variant from the same rally-car ignition generation. At runtime the
 engine controller extracts a stable crossfaded rev from each matching ignition, then continuously
 modulates playback rate, low-pass filtering, gain, and stereo position from speed, acceleration, and
-braking. A separate steady engine clip remains available as a decode/loop fallback, and synthesized
+braking. Opponent voices use distance-aware gain so nearby rivals remain clearly audible without
+turning distant cars into a constant engine wall. A separate steady engine clip remains available as a decode/loop fallback, and synthesized
 3-2-1 ticks lead into the authored GO cue. Audio stays lazy until the first user gesture. Sound
 effects and engine audio share the `SFX` category. The bundled `main-song.opus` theme plays on the
 initial menu, while `explore-song.opus` plays only in Explore; both route through the independent
@@ -193,9 +211,11 @@ the apparent chatter and jumps are authored character runtime animation rather t
 Per-spectator time scale and offset keep identical pose families from sharing the same limb phase.
 
 Scene-level instance and carrier counts vary with the seeded crowd size. The inked-solid pass uses
-four G-buffers plus the composite pass; hidden rigs now short-circuit matrix and anchor
-synchronisation, which keeps the exploration mode from paying for the parked cars. The remaining
-high-impact performance lever is reducing visible scene complexity or lowering the render pixel
-ratio after profiling on the target desktop GPU, not adding per-frame allocations to the asset
-runtime. Character rerolls use incremental pass registration: only the replaced character is
-unregistered and compiled while every unrelated race or preview asset remains resident.
+four G-buffers plus the composite pass. Hidden rigs and whole carriers outside the camera frustum now
+short-circuit child-matrix, anchor, stroke, and proxy synchronisation; visible carriers retain
+per-proxy frustum culling. Crowd root locomotion remains smooth, while expensive character motion is
+sampled on staggered deterministic 20 Hz ticks from `@mithrilman/aind-game-runtime`. Character rerolls
+use incremental pass registration: only the replaced character is unregistered and compiled while
+every unrelated race or preview asset remains resident. The authored grandstand steps now also own
+matching gameplay obstacles and solid colliders, so race and Explore vehicles cannot pass through
+the seating volume.

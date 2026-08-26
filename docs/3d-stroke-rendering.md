@@ -112,6 +112,13 @@ Multiple instances of one solid blueprint and different media may share one pass
 single scene-level policy and never depends on registration order. Dispose the registration
 before its borrowed `SolidRig`, and dispose the pass when the drawing surface is torn down.
 
+Each registration also retains an animation-expanded local carrier bound. Before synchronising
+child matrices, anchors, strokes, or G-buffer proxies, the pass transforms that bound by the rig
+root and rejects it against the camera frustum. Rejected carriers hide their shared-pass proxies;
+visible carriers additionally leave per-proxy Three.js frustum culling enabled. Diagnostics report
+both total and last-frame visible instances and proxy submissions, so a registered off-camera asset
+does not silently become four G-buffer workloads.
+
 ## Rendering pipeline
 
 ### 1. Invisible carrier and view synthesis

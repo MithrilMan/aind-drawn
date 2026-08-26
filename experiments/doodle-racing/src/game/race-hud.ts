@@ -171,7 +171,7 @@ export class RaceHud {
       detail = 'Live from the Paper Circuit grandstand';
     } else if (snapshot.phase === 'finished') {
       title = `P${snapshot.playerPosition} — finish!`;
-      detail = `${formatTime(snapshot.elapsed)} · the crowd gets the last word`;
+      detail = `${formatTime(snapshot.elapsed)} · move + hold B: outrun the victory mob`;
     } else if (snapshot.respawning) {
       title = 'Reset!';
       detail = 'Back to the last safe line';

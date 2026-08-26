@@ -19,7 +19,7 @@
     "speed": "142 km/h",
     "drift": "Drift chain x2.4, 860 points",
     "time": "00:18.4",
-    "world": ["wide technical circuit", "visible barriers", "tyre stacks", "cones", "procedural trees", "grandstand", "twenty procedural character spectators"],
+    "world": ["wide technical circuit", "visible barriers", "tyre stacks", "cones", "procedural trees", "dense grandstand", "reactive guardrail spectators", "start marshal"],
     "controls": ["Accelerate", "Brake / reverse", "Steer left", "Steer right", "Handbrake / drift", "Pause", "Contextual back", "Camera", "Medium", "Music", "Sound effects", "Main menu"]
   },
   "states": {
@@ -31,7 +31,7 @@
     "offRoad": "Loose ground. Grip reduced.",
     "respawning": "Resetting to the last safe track point.",
     "paused": "Game paused with controller-navigable session and audio controls",
-    "finished": "Finished with a close crowd celebration and final pull-back",
+    "finished": "Playable crowd invasion, winner chase, and airborne toss cinematic",
     "rendererError": "The Doodle track could not start. Your race settings are still here."
   }
 }

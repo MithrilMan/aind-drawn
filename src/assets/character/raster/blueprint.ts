@@ -1064,6 +1064,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
         localPose: pose(Object.freeze({ x: 0, y: 0 })),
       }),
       Object.freeze({
+        id: 'backpack', bone: 'torso',
+        localPose: pose(Object.freeze({ x: 0, y: 0 })),
+      }),
+      Object.freeze({
         id: 'hand:left', bone: 'arm:left',
         localPose: pose(Object.freeze({
           x: -layout.limbs.armLengthPixels * 0.24 / pixelsPerUnit,

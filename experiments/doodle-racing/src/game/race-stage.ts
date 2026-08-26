@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SpatialHash2D } from '@mithrilman/aind-game-runtime';
 
 import type {
   InkedSolidSceneDiagnostics,
@@ -8,6 +9,7 @@ import type {
 import type { ExploreCameraInput } from './controls.js';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
 import { CrowdField } from './crowd-field.js';
+import type { CrowdSeparationAgent } from './crowd-steering.js';
 import { DoodleScene } from './doodle-scene.js';
 import { DriftEffects } from './drift-effects.js';
 import { ExploreDriveController } from './explore-drive.js';
@@ -29,6 +31,8 @@ import { RouteDebugOverlay } from './route-debug-overlay.js';
 import { GRANDSTAND_ROW_SPACING, type RaceWorldLayout } from './race-world.js';
 import { SceneryField } from './scenery-field.js';
 import { SmokeBurst } from './smoke-burst.js';
+import { StartMarshal } from './start-marshal.js';
+import { TracksideCrowdField } from './trackside-crowd-field.js';
 import {
   groundCollidersFor,
   type GroundCollider,
@@ -87,6 +91,10 @@ export class RaceStage {
   private readonly scenery: SceneryField;
   private readonly vehicles: VehicleField;
   private crowd: CrowdField;
+  private tracksideCrowd: TracksideCrowdField;
+  private readonly finishCrowdSeparation = new SpatialHash2D<CrowdSeparationAgent>(1);
+  private finishCrowdAgents: readonly CrowdSeparationAgent[] = Object.freeze([]);
+  private readonly startMarshal: StartMarshal;
   private readonly effects: DriftEffects;
   private readonly routeDebug: RouteDebugOverlay;
   private readonly smoke: SmokeBurst;
@@ -110,6 +118,11 @@ export class RaceStage {
     side: 'left' | 'right';
     remaining: number;
   }> | null = null;
+  private finishCelebrationStartedAt: number | null = null;
+  private finishRunnerStartedAt = 0;
+  private finishRunnerActive = false;
+  private finishCaughtAt: number | null = null;
+  private finishCatchPoint: Readonly<{ x: number; z: number; heading: number }> | null = null;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -128,6 +141,9 @@ export class RaceStage {
     this.scenery = new SceneryField(course, world);
     this.vehicles = new VehicleField(vehicleSeeds);
     this.crowd = new CrowdField(world);
+    this.tracksideCrowd = new TracksideCrowdField(course, world);
+    this.refreshFinishCrowdAgents();
+    this.startMarshal = new StartMarshal(course);
     this.effects = new DriftEffects(course);
     this.routeDebug = new RouteDebugOverlay(course);
     this.smoke = new SmokeBurst();
@@ -156,11 +172,17 @@ export class RaceStage {
 
   public rerollCrowd(seed: number): void {
     const previous = this.crowd;
+    const previousTrackside = this.tracksideCrowd;
     const replacement = new CrowdField(this.world, seed);
+    const tracksideReplacement = new TracksideCrowdField(this.course, this.world, seed);
     replacement.setVisible(this.mode !== 'menu');
+    tracksideReplacement.setVisible(this.mode !== 'menu');
     this.crowd = replacement;
+    this.tracksideCrowd = tracksideReplacement;
+    this.refreshFinishCrowdAgents();
     this.doodle.setAssets(this.sceneAssets());
     previous.dispose();
+    previousTrackside.dispose();
   }
 
   public diagnostics(): InkedSolidSceneDiagnostics | null {
@@ -206,6 +228,7 @@ export class RaceStage {
     if (enteringExplore || leavingExplore) this.exploreInteractLatch = false;
     this.mode = mode;
     if (enteringRace) this.effects.reset();
+    if (enteringRace) this.resetFinishCelebration();
     if (enteringExplore) {
       this.exploreVehicleEntry = null;
       this.exploreVehicleEntryCount = 0;
@@ -219,6 +242,8 @@ export class RaceStage {
     this.effects.setVisible(mode === 'race' || mode === 'explore');
     this.scenery.setVisible(true);
     this.crowd.setVisible(mode !== 'menu');
+    this.tracksideCrowd.setVisible(mode !== 'menu');
+    this.startMarshal.setVisible(mode !== 'menu');
     this.explorer.setPreviewMode(mode === 'menu');
     this.camera.setMenuActive(mode === 'menu');
     if (mode !== 'explore') this.explorer.reset();
@@ -323,7 +348,11 @@ export class RaceStage {
     this.camera.setExplorerActive(this.mode === 'explore' && this.exploreEntrance === null);
   }
 
-  public render(snapshot: RaceSnapshot, deltaSeconds: number): GrandstandExplorerSnapshot | null {
+  public render(
+    snapshot: RaceSnapshot,
+    deltaSeconds: number,
+    finishInput: ExploreInput = EXPLORE_IDLE_INPUT,
+  ): GrandstandExplorerSnapshot | null {
     this.smoke.update(deltaSeconds);
     this.completePendingExplorerChange();
     if (this.mode === 'menu') {
@@ -334,8 +363,17 @@ export class RaceStage {
     }
     const effectSources = this.vehicles.update(snapshot.racers, snapshot.presentationTime);
     this.effects.update(effectSources, deltaSeconds, snapshot.phase === 'running');
-    this.crowd.setCelebrating(snapshot.phase === 'finished', snapshot.presentationTime);
+    this.startMarshal.update(snapshot);
+    if (snapshot.phase === 'finished') {
+      return this.renderFinishCelebration(snapshot, finishInput, deltaSeconds);
+    }
+    this.crowd.setCelebrating(false, snapshot.presentationTime);
     this.crowd.update(snapshot.presentationTime);
+    this.tracksideCrowd.update(
+      snapshot.presentationTime,
+      deltaSeconds,
+      snapshot.racers,
+    );
     this.camera.update(snapshot, deltaSeconds, snapshot.presentationTime);
     if (this.routeDebugVisible && this.mode === 'race') {
       this.routeDebug.update(snapshot.routeCoverageWords);
@@ -389,9 +427,10 @@ export class RaceStage {
       : null;
     if (nearbyEntry !== null && interactPressed) {
       const target = this.vehicles.entryPosition(nearbyEntry.vehicleId, nearbyEntry.side);
+      const driver = this.vehicles.driverPosition(nearbyEntry.vehicleId);
       const vehicle = beforeDrive.racers.find(({ id }) => id === nearbyEntry.vehicleId);
-      if (target !== null && vehicle !== undefined) {
-        this.startExplorerVehicleEntry(nearbyEntry, explorer, target, vehicle);
+      if (target !== null && driver !== null && vehicle !== undefined) {
+        this.startExplorerVehicleEntry(nearbyEntry, explorer, target, driver, vehicle);
         return this.renderExplorerVehicleEntry(input, 0);
       }
     }
@@ -416,12 +455,15 @@ export class RaceStage {
           z: exit.z,
           heading: vehicle.heading + Math.PI * 0.5,
         }));
+        this.explorer.stowHelmetInBackpack();
       }
     }
     this.updateActiveDoor(deltaSeconds);
     this.explorer.setVisible(drive.activeRacer === null);
     this.effects.update(effectSources, deltaSeconds, drive.activeRacer !== null);
     this.crowd.update(explorer.elapsed);
+    this.tracksideCrowd.update(explorer.elapsed, deltaSeconds, drive.racers);
+    this.startMarshal.updateIdle(explorer.elapsed);
     const cameraSubject = drive.activeRacer === null
       ? this.explorer.snapshot()
       : Object.freeze({
@@ -467,6 +509,8 @@ export class RaceStage {
     this.effects.dispose();
     this.routeDebug.dispose();
     this.crowd.dispose();
+    this.tracksideCrowd.dispose();
+    this.startMarshal.dispose();
     this.vehicles.dispose();
     this.scenery.dispose();
   }
@@ -480,6 +524,8 @@ export class RaceStage {
       this.effects.doodleAsset(),
       ...this.vehicles.doodleAssets(),
       ...this.crowd.doodleAssets(),
+      ...this.tracksideCrowd.doodleAssets(),
+      ...this.startMarshal.doodleAssets(),
       ...this.explorer.doodleAssets(),
       this.smoke.doodleAsset(),
     ]);
@@ -516,6 +562,12 @@ export class RaceStage {
     const effectSources = this.vehicles.update(this.exploreDrive.frame().racers, explorer.elapsed);
     this.effects.update(effectSources, deltaSeconds, false);
     this.crowd.update(explorer.elapsed);
+    this.tracksideCrowd.update(
+      explorer.elapsed,
+      deltaSeconds,
+      this.exploreDrive.frame().racers,
+    );
+    this.startMarshal.updateIdle(explorer.elapsed);
     this.camera.updateExplorerEntrance(explorer, frame);
     this.doodle.render(explorer.elapsed);
     if (frame.controlsEnabled) {
@@ -537,7 +589,8 @@ export class RaceStage {
     entry: ExploreVehicleEntry,
     explorer: GrandstandExplorerSnapshot,
     target: Readonly<{ x: number; y: number; z: number }>,
-    vehicle: Readonly<{ x: number; z: number }>,
+    driver: Readonly<{ x: number; y: number; z: number }>,
+    vehicle: Readonly<{ x: number; z: number; heading: number }>,
   ): void {
     this.closeActiveDoor();
     this.exploreVehicleEntry = {
@@ -545,6 +598,7 @@ export class RaceStage {
         entry,
         explorer,
         target,
+        driver,
         vehicle,
         this.exploreVehicleEntryCount,
       ),
@@ -579,9 +633,11 @@ export class RaceStage {
       this.openVehicleDoor(active.director.entry.vehicleId, active.director.entry.side);
     }
     const effectSources = this.vehicles.update(drive.racers, explorer.elapsed);
-    this.explorer.setVisible(!frame.complete);
+    this.explorer.setVisible(frame.actorVisible);
     this.effects.update(effectSources, deltaSeconds, false);
     this.crowd.update(explorer.elapsed);
+    this.tracksideCrowd.update(explorer.elapsed, deltaSeconds, drive.racers);
+    this.startMarshal.updateIdle(explorer.elapsed);
     this.camera.updateExplorerVehicleEntry(explorer, frame, active.cameraView);
     this.doodle.render(explorer.elapsed);
     if (frame.complete) {
@@ -596,6 +652,135 @@ export class RaceStage {
       entrancePhase: null,
       controlsEnabled: false,
     });
+  }
+
+  private renderFinishCelebration(
+    snapshot: RaceSnapshot,
+    input: ExploreInput,
+    deltaSeconds: number,
+  ): GrandstandExplorerSnapshot | null {
+    const player = snapshot.racers.find(({ isPlayer }) => isPlayer);
+    if (player === undefined) return null;
+    if (this.finishCelebrationStartedAt === null) {
+      this.finishCelebrationStartedAt = snapshot.presentationTime;
+      this.crowd.beginInvasion(snapshot.presentationTime);
+      this.tracksideCrowd.beginInvasion(snapshot.presentationTime);
+      this.crowd.setCelebrating(false, snapshot.presentationTime);
+    }
+    const finishElapsed = snapshot.presentationTime - this.finishCelebrationStartedAt;
+    if (!this.finishRunnerActive && finishElapsed >= 1.25 && player.speed <= 8) {
+      const sideX = Math.sin(player.heading);
+      const sideZ = Math.cos(player.heading);
+      this.explorer.placeAt(Object.freeze({
+        x: player.x + sideX * 1.18,
+        y: 0,
+        z: player.z + sideZ * 1.18,
+        heading: Math.atan2(sideX, sideZ),
+      }));
+      this.explorer.stowHelmetInBackpack();
+      this.explorer.setVisible(true);
+      this.finishRunnerActive = true;
+      this.finishRunnerStartedAt = snapshot.presentationTime;
+      this.camera.resetExplorer();
+    }
+
+    let runner = this.finishRunnerActive ? this.explorer.snapshot() : null;
+    if (runner !== null && this.finishCaughtAt === null) {
+      const vehicleColliders = groundCollidersFor(this.vehicles.collisionRigs())
+        .filter(({ id }) => id === 'vehicle:body');
+      runner = this.explorer.update(
+        deltaSeconds,
+        snapshot.presentationTime - this.finishRunnerStartedAt >= 0.82
+          ? input
+          : EXPLORE_IDLE_INPUT,
+        Object.freeze([...this.staticExploreColliders, ...vehicleColliders]),
+      );
+    } else if (runner !== null && this.finishCaughtAt !== null) {
+      const caughtElapsed = snapshot.presentationTime - this.finishCaughtAt;
+      const catchPoint = this.finishCatchPoint;
+      if (catchPoint === null) throw new Error('Finish catch has no authored point');
+      const tossWindow = Math.min(1, caughtElapsed / 3.35);
+      const tossHeight = Math.abs(Math.sin(caughtElapsed * Math.PI * 0.92))
+        * 2.25
+        * (1 - Math.max(0, tossWindow - 0.8) / 0.2);
+      runner = this.explorer.updateCinematic(deltaSeconds, Object.freeze({
+        x: catchPoint.x,
+        y: 0.22 + tossHeight,
+        z: catchPoint.z,
+        heading: catchPoint.heading + Math.sin(caughtElapsed * 1.7) * 0.22,
+        pose: tossHeight > 0.34 ? 'airborne' : 'play',
+        expression: caughtElapsed < 0.55 ? 'scared' : 'happy',
+        helmetCarryAmount: 0,
+      }));
+    }
+
+    const target = runner ?? Object.freeze({ x: player.x, z: player.z });
+    const caught = this.finishCaughtAt !== null;
+    const movingHazards = this.finishRunnerActive
+      ? snapshot.racers.filter(({ isPlayer }) => !isPlayer)
+      : snapshot.racers;
+    this.finishCrowdSeparation.rebuild(this.finishCrowdAgents);
+    this.crowd.updateInvasion(
+      snapshot.presentationTime,
+      deltaSeconds,
+      target,
+      movingHazards,
+      caught,
+      this.finishCrowdSeparation,
+    );
+    this.tracksideCrowd.update(
+      snapshot.presentationTime,
+      deltaSeconds,
+      movingHazards,
+      target,
+      caught,
+      this.finishCrowdSeparation,
+    );
+    if (
+      runner !== null
+      && this.finishCaughtAt === null
+      && snapshot.presentationTime - this.finishRunnerStartedAt >= 1.2
+      && Math.min(
+        this.crowd.nearestDistanceTo(runner.x, runner.z),
+        this.tracksideCrowd.nearestDistanceTo(runner.x, runner.z),
+      ) <= 0.9
+    ) {
+      this.finishCaughtAt = snapshot.presentationTime;
+      this.finishCatchPoint = Object.freeze({
+        x: runner.x,
+        z: runner.z,
+        heading: runner.heading,
+      });
+    }
+
+    if (runner === null) {
+      this.camera.update(snapshot, deltaSeconds, snapshot.presentationTime);
+    } else if (this.finishCaughtAt === null) {
+      this.camera.updateExplorer(runner, deltaSeconds, false);
+    } else {
+      this.camera.updateWinnerToss(
+        runner,
+        snapshot.presentationTime - this.finishCaughtAt,
+        deltaSeconds,
+      );
+    }
+    this.doodle.render(snapshot.presentationTime);
+    return runner;
+  }
+
+  private resetFinishCelebration(): void {
+    this.finishCelebrationStartedAt = null;
+    this.finishRunnerStartedAt = 0;
+    this.finishRunnerActive = false;
+    this.finishCaughtAt = null;
+    this.finishCatchPoint = null;
+  }
+
+  private refreshFinishCrowdAgents(): void {
+    this.finishCrowdAgents = Object.freeze([
+      ...this.crowd.invasionAgents(),
+      ...this.tracksideCrowd.invasionAgents(),
+    ]);
   }
 
   private completePendingExplorerChange(): void {

@@ -1,4 +1,5 @@
 import type { MediumId } from '../../../src/index.js';
+import { FrameRateMeter } from '@mithrilman/aind-game-runtime';
 import {
   CONTROL_ACTION_IDS,
   toDriveInput,
@@ -148,6 +149,9 @@ const pauseDebugButton = requireElement('[data-pause-debug]', HTMLButtonElement)
 const touchBackButton = requireElement('[data-touch-back]', HTMLButtonElement);
 const touchPrimaryButton = requireElement('[data-touch-primary]', HTMLButtonElement);
 const routeDebugLegend = requireElement('[data-route-debug-legend]', HTMLElement);
+const debugPerformance = requireElement('[data-debug-performance]', HTMLOutputElement);
+const debugFps = requireElement('[data-debug-fps]', HTMLElement);
+const debugFrameTime = requireElement('[data-debug-frame-time]', HTMLElement);
 
 const course = createCourseLayout();
 const world = createRaceWorldLayout(course);
@@ -156,6 +160,7 @@ const input = new InputController(shell, canvas);
 const focusNavigator = new ControlFocusNavigator();
 const controlHints = new ControlHintPresenter(shell);
 const hud = new RaceHud(shell);
+const frameRate = new FrameRateMeter();
 const minimap = new RaceMinimap(course, minimapCanvas);
 const menuSettings = new MenuSettingsStore();
 const savedMenuSettings = menuSettings.load();
@@ -319,7 +324,9 @@ function restoreGameplayFocus(): void {
 }
 
 function renderRouteDebugState(): void {
-  routeDebugLegend.hidden = !routeDebugEnabled;
+  const debugActive = routeDebugEnabled && appMode === 'race';
+  routeDebugLegend.hidden = !debugActive;
+  debugPerformance.hidden = !debugActive;
   pauseDebugButton.textContent = `Debug path: ${routeDebugEnabled ? 'On' : 'Off'}`;
 }
 
@@ -681,8 +688,13 @@ function handleEscapeKey(event: KeyboardEvent): void {
 
 function frame(now: number): void {
   if (!active) return;
-  const delta = Math.min(0.05, Math.max(0, (now - previousTime) / 1000));
+  const frameDelta = Math.max(0, (now - previousTime) / 1000);
+  const delta = Math.min(0.05, frameDelta);
   previousTime = now;
+  if (frameRate.sampleFrame(frameDelta)) {
+    debugFps.textContent = Math.round(frameRate.framesPerSecond).toString();
+    debugFrameTime.textContent = frameRate.frameTimeMilliseconds.toFixed(1);
+  }
   try {
     const controls = input.snapshot();
     if (!audioUnlocked && CONTROL_ACTION_IDS.some((action) => controls.actions[action].pressed)) {
@@ -762,7 +774,7 @@ function frame(now: number): void {
       engineSound.sync(snapshot, driveInput, delta);
       hud.render(snapshot);
       minimap.render(snapshot);
-      stage?.render(snapshot, delta);
+      stage?.render(snapshot, delta, toExploreInput(controls));
       const preview = appMode === 'menu' ? menuPreview?.render(delta) : null;
       if (appMode === 'menu' && preview !== null && preview !== undefined) {
         menuCharacter.textContent = 'Random person';
@@ -818,6 +830,7 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   activateCurrentFocusSurface();
   if (mode !== 'explore') renderVehicleInteraction(null, 0);
   stage?.setMode(mode);
+  renderRouteDebugState();
 }
 
 function selectedLapCount(): RaceLapCount {

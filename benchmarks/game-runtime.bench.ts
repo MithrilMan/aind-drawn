@@ -1,6 +1,7 @@
 import { bench, describe } from 'vitest';
 
 import {
+  SpatialHash2D,
   createArcadeVehicleState,
   resolveObstacleCollisions,
   stepArcadeVehicle,
@@ -39,6 +40,12 @@ const OBSTACLES: readonly CollisionObstacle[] = Object.freeze(Array.from(
     radius: 0.8,
   }),
 ));
+const CROWD = Object.freeze(Array.from({ length: 48 }, (_, index) => Object.freeze({
+  x: index % 8 * 0.72,
+  z: Math.floor(index / 8) * 0.72,
+})));
+const CROWD_HASH = new SpatialHash2D<(typeof CROWD)[number]>(1);
+const CROWD_NEIGHBOURS: (typeof CROWD)[number][] = [];
 
 function simulateField(): readonly ArcadeVehicleState[] {
   const vehicles = Array.from(
@@ -58,5 +65,12 @@ function simulateField(): readonly ArcadeVehicleState[] {
 describe('game runtime hot path', () => {
   bench('steps a 12-vehicle field with structural collision broad phase', () => {
     simulateField();
+  });
+
+  bench('rebuilds and queries a 48-agent spatial broad phase', () => {
+    CROWD_HASH.rebuild(CROWD);
+    for (const agent of CROWD) {
+      CROWD_HASH.queryRadiusInto(agent.x, agent.z, 0.9, CROWD_NEIGHBOURS);
+    }
   });
 });

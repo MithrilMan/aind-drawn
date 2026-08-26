@@ -4,7 +4,7 @@ import type { JumpRamp } from './race-jump.js';
 
 export type SegmentObstacle = Readonly<{
   id: string;
-  kind: 'barrier';
+  kind: 'barrier' | 'grandstand';
   startX: number;
   startZ: number;
   endX: number;
@@ -48,6 +48,19 @@ export type SpectatorPlacement = Readonly<{
   row: number;
 }>;
 
+export type TracksideSpectatorPlacement = Readonly<{
+  id: string;
+  seed: number;
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  progress: number;
+  side: -1 | 1;
+  outwardX: number;
+  outwardZ: number;
+}>;
+
 export type GrandstandLayout = Readonly<{
   x: number;
   z: number;
@@ -84,6 +97,8 @@ export type RaceWorldLayout = Readonly<{
   ramps: readonly JumpRamp[];
   trees: readonly TreePlacement[];
   grandstand: GrandstandLayout;
+  grandstandObstacles: readonly SegmentObstacle[];
+  tracksideSpectators: readonly TracksideSpectatorPlacement[];
   explorerSpawn: ExplorerSpawnPlacement;
   obstacles: readonly RaceObstacle[];
 }>;
@@ -94,10 +109,10 @@ export const GRANDSTAND_STEP_BASE_HEIGHT = 0.34;
 export const GRANDSTAND_STEP_HEIGHT_RISE = 0.25;
 export const TRACK_BARRIER_HEIGHT = 0.56;
 const DEFAULT_CROWD_SEED = 8_200;
-const SPECTATORS_PER_ROW_MINIMUM = 3;
-const SPECTATORS_PER_ROW_MAXIMUM = 4;
+const SPECTATORS_PER_ROW_MINIMUM = 6;
+const SPECTATORS_PER_ROW_MAXIMUM = 8;
 const SPECTATOR_EDGE_MARGIN = 1.1;
-const SPECTATOR_MINIMUM_SPACING = 2.05;
+const SPECTATOR_MINIMUM_SPACING = 1.55;
 
 export type GrandstandSurface = Readonly<{
   height: number;
@@ -178,6 +193,41 @@ const BARRIER_RUNS = Object.freeze([
   Object.freeze({ start: 0.565, end: 0.665, side: -1 }),
   Object.freeze({ start: 0.82, end: 0.92, side: 1 }),
 ] as const);
+
+export function createTracksideSpectators(
+  course: CourseLayout,
+  seed: number,
+): readonly TracksideSpectatorPlacement[] {
+  const tree = new SeedTree(seed);
+  const placements: TracksideSpectatorPlacement[] = [];
+  const roadsideDistance = course.trackWidth * 0.5 + 1.34;
+  for (const [runIndex, run] of BARRIER_RUNS.entries()) {
+    const random = tree.random(`paper-circuit:trackside-crowd:run:${runIndex}`);
+    for (let member = 0; member < 2; member += 1) {
+      const progress = run.start + (run.end - run.start) * (
+        member === 0 ? random.float(0.25, 0.4) : random.float(0.6, 0.77)
+      );
+      const sample = sampleCourseAt(course, progress);
+      const outwardX = sample.normalX * run.side;
+      const outwardZ = sample.normalZ * run.side;
+      const x = sample.x + outwardX * roadsideDistance;
+      const z = sample.z + outwardZ * roadsideDistance;
+      placements.push(Object.freeze({
+        id: `trackside-spectator:${runIndex}:${member}`,
+        seed: tree.seed(`paper-circuit:trackside-identity:${runIndex}:${member}`),
+        x,
+        y: 0,
+        z,
+        heading: Math.atan2(-outwardX, -outwardZ),
+        progress,
+        side: run.side,
+        outwardX,
+        outwardZ,
+      }));
+    }
+  }
+  return Object.freeze(placements);
+}
 
 function createBarriers(course: CourseLayout): readonly SegmentObstacle[] {
   const barriers: SegmentObstacle[] = [];
@@ -296,40 +346,15 @@ export function createGrandstandSpectators(
   for (let row = 0; row < stand.rows; row += 1) {
     const random = tree.random(`paper-circuit:crowd-layout:row:${row}`);
     const count = random.integer(SPECTATORS_PER_ROW_MINIMUM, SPECTATORS_PER_ROW_MAXIMUM);
-    const alongPositions: number[] = [];
-    for (let spectator = 0; spectator < count; spectator += 1) {
-      let along = 0;
-      let accepted = false;
-      for (let attempt = 0; attempt < 24; attempt += 1) {
-        const candidate = random.float(
-          -stand.length * 0.5 + SPECTATOR_EDGE_MARGIN,
-          stand.length * 0.5 - SPECTATOR_EDGE_MARGIN,
-        );
-        along = candidate;
-        if (alongPositions.every((position) => (
-          Math.abs(candidate - position) >= SPECTATOR_MINIMUM_SPACING
-        ))) {
-          accepted = true;
-          break;
-        }
-      }
-      if (!accepted) {
-        const minimum = -stand.length * 0.5 + SPECTATOR_EDGE_MARGIN;
-        const maximum = stand.length * 0.5 - SPECTATOR_EDGE_MARGIN;
-        along = Array.from({ length: 129 }, (_, index) => (
-          minimum + (maximum - minimum) * index / 128
-        )).reduce((best, candidate) => {
-          const clearance = Math.min(...alongPositions.map((position) => (
-            Math.abs(candidate - position)
-          )));
-          const bestClearance = Math.min(...alongPositions.map((position) => (
-            Math.abs(best - position)
-          )));
-          return clearance > bestClearance ? candidate : best;
-        }, minimum);
-      }
-      alongPositions.push(along);
-    }
+    const minimum = -stand.length * 0.5 + SPECTATOR_EDGE_MARGIN;
+    const maximum = stand.length * 0.5 - SPECTATOR_EDGE_MARGIN;
+    const baseSpacing = (maximum - minimum) / Math.max(1, count - 1);
+    const jitter = Math.min(0.12, Math.max(0, baseSpacing - SPECTATOR_MINIMUM_SPACING) * 0.35);
+    const alongPositions = Array.from({ length: count }, (_, spectator) => (
+      minimum
+        + (maximum - minimum) * spectator / Math.max(1, count - 1)
+        + random.float(-jitter, jitter)
+    ));
     alongPositions.sort((left, right) => left - right);
     for (const [spectator, along] of alongPositions.entries()) {
       const away = row * GRANDSTAND_ROW_SPACING + random.float(-0.16, 0.16);
@@ -359,6 +384,25 @@ function createGrandstand(course: CourseLayout, crowdSeed: number): GrandstandLa
   const rows = 4;
   const spectators = createGrandstandSpectators({ x, z, heading, length, rows }, crowdSeed);
   return Object.freeze({ x, z, heading, length, rows, spectators: Object.freeze(spectators) });
+}
+
+function createGrandstandObstacles(stand: GrandstandLayout): readonly SegmentObstacle[] {
+  return Object.freeze(Array.from({ length: stand.rows }, (_, row) => {
+    const span = grandstandStepSpan(row, stand.rows);
+    const halfSegment = Math.max(0, stand.length * 0.5 - span.depth * 0.5);
+    const first = grandstandLocalPoint(stand, -halfSegment, span.centreAway);
+    const second = grandstandLocalPoint(stand, halfSegment, span.centreAway);
+    return Object.freeze({
+      id: `grandstand:step:${row}`,
+      kind: 'grandstand' as const,
+      startX: first.x,
+      startZ: first.z,
+      endX: second.x,
+      endZ: second.z,
+      radius: span.depth * 0.5,
+      height: grandstandStepHeight(row),
+    });
+  }));
 }
 
 function insetCoursePoint(
@@ -444,6 +488,8 @@ export function createRaceWorldLayout(
   const barriers = createBarriers(course);
   const tyreStacks = createTyreStacks(course);
   const grandstand = createGrandstand(course, crowdSeed);
+  const grandstandObstacles = createGrandstandObstacles(grandstand);
+  const tracksideSpectators = createTracksideSpectators(course, crowdSeed);
   const trees = createTrees(course, grandstand);
   const treeObstacles: readonly CircleObstacle[] = Object.freeze(trees.map((tree) => Object.freeze({
     id: tree.id,
@@ -459,7 +505,14 @@ export function createRaceWorldLayout(
     ramps: createJumpRamps(course),
     trees,
     grandstand,
+    grandstandObstacles,
+    tracksideSpectators,
     explorerSpawn: createExplorerSpawn(course, grandstand),
-    obstacles: Object.freeze([...barriers, ...tyreStacks, ...treeObstacles]),
+    obstacles: Object.freeze([
+      ...barriers,
+      ...tyreStacks,
+      ...treeObstacles,
+      ...grandstandObstacles,
+    ]),
   });
 }

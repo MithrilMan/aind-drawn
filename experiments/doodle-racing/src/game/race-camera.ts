@@ -4,7 +4,7 @@ import type { ExploreCameraInput } from './controls.js';
 import type { CourseLayout } from './course.js';
 import type { ExploreEntranceFrame } from './explore-entrance.js';
 import type { ExploreVehicleEntryFrame } from './explore-vehicle-entry.js';
-import type { GrandstandExplorerSnapshot } from './grandstand-explorer.js';
+import type { GrandstandExplorerSnapshot } from './characters/explorer/grandstand-explorer.js';
 import type { RaceSnapshot } from './race-model.js';
 import { grandstandSurfaceAt, type RaceWorldLayout } from './race-world.js';
 
@@ -19,7 +19,9 @@ const EXPLORER_MAX_DISTANCE = 12.4;
 const EXPLORER_ANALOG_YAW_SPEED = 2.2;
 const EXPLORER_ANALOG_PITCH_SPEED = 1.5;
 const EXPLORER_ANALOG_ZOOM_SPEED = 4.8;
-const FOLLOW_DEFAULT_VIEW_SIZE = 16.5;
+const FOLLOW_DEFAULT_VIEW_SIZE = 18.5;
+const FOLLOW_MOBILE_MIN_HORIZONTAL_VIEW_SIZE = 13;
+const FOLLOW_MAX_BASE_VIEW_SIZE = 28.5;
 const FOLLOW_CAMERA_OFFSET_X = -10.8;
 const FOLLOW_CAMERA_OFFSET_Y = 17.5;
 const FOLLOW_CAMERA_OFFSET_Z = 13.6;
@@ -34,6 +36,9 @@ const AERIAL_MINIMUM_VIEW_SIZE = 52;
 const AERIAL_SPEED_VIEW_SIZE = 8;
 const AERIAL_REFERENCE_SPEED = 29;
 const AERIAL_CAMERA_HEIGHT = 70;
+const FINISH_ESCAPE_HANDOFF_SECONDS = 0.46;
+const FINISH_ESCAPE_VIEW_SIZE = 8.2;
+const FINISH_ESCAPE_CAMERA_RESPONSE = 12;
 
 export type GroundedOrthographicFraming = Readonly<{
   cameraY: number;
@@ -87,12 +92,24 @@ export function aerialRaceViewSize(speed: number): number {
   return AERIAL_MINIMUM_VIEW_SIZE + speedRatio * AERIAL_SPEED_VIEW_SIZE;
 }
 
+export function followRaceBaseViewSize(viewportWidth: number, viewportHeight: number): number {
+  const aspect = Math.max(0.25, viewportWidth / Math.max(1, viewportHeight));
+  return THREE.MathUtils.clamp(
+    FOLLOW_MOBILE_MIN_HORIZONTAL_VIEW_SIZE / aspect,
+    FOLLOW_DEFAULT_VIEW_SIZE,
+    FOLLOW_MAX_BASE_VIEW_SIZE,
+  );
+}
+
 export class RaceCameraController {
   private readonly target = new THREE.Vector3();
   private readonly explorerTarget = new THREE.Vector3();
   private readonly explorerDesiredPosition = new THREE.Vector3();
   private readonly cameraUpDirection = new THREE.Vector3();
   private readonly cameraForwardDirection = new THREE.Vector3();
+  private readonly finishEscapeStartPosition = new THREE.Vector3();
+  private readonly finishEscapeStartTarget = new THREE.Vector3();
+  private finishEscapeStartViewSize = FOLLOW_DEFAULT_VIEW_SIZE;
   private viewSize = 18;
   private mode: RaceCameraMode = 'follow';
   private aerialInitialized = false;
@@ -205,9 +222,10 @@ export class RaceCameraController {
       player.z - Math.sin(trajectoryHeading) * velocityLead,
     );
     this.target.lerp(desiredTarget, 1 - Math.exp(-7.2 * deltaSeconds));
+    const { width, height } = this.viewportSize();
     this.viewSize = THREE.MathUtils.lerp(
       this.viewSize,
-      FOLLOW_DEFAULT_VIEW_SIZE
+      followRaceBaseViewSize(width, height)
         + speedRatio * 6.2
         + snapshot.boostIntensity * 1.35
         + (player.airborne ? 0.55 : 0),
@@ -263,6 +281,52 @@ export class RaceCameraController {
     );
     this.orientCamera(0);
     this.updateProjection(this.explorerGroundProjectionOffset());
+  }
+
+  public beginFinishEscape(): void {
+    this.finishEscapeStartPosition.copy(this.camera.position);
+    this.finishEscapeStartTarget.copy(this.target);
+    this.finishEscapeStartViewSize = this.viewSize;
+  }
+
+  public updateFinishEscape(
+    snapshot: GrandstandExplorerSnapshot,
+    elapsedSeconds: number,
+    deltaSeconds: number,
+  ): void {
+    const forwardX = Math.sin(snapshot.heading);
+    const forwardZ = Math.cos(snapshot.heading);
+    const rightX = Math.cos(snapshot.heading);
+    const rightZ = -Math.sin(snapshot.heading);
+    const chasePosition = this.explorerDesiredPosition.set(
+      snapshot.x - forwardX * 4.8 + rightX * 1.45,
+      snapshot.y + 3.05,
+      snapshot.z - forwardZ * 4.8 + rightZ * 1.45,
+    );
+    const chaseTarget = this.explorerTarget.set(
+      snapshot.x + forwardX * 1.35,
+      snapshot.y + 0.82,
+      snapshot.z + forwardZ * 1.35,
+    );
+    const handoff = this.reducedMotion
+      ? 1
+      : THREE.MathUtils.smoothstep(elapsedSeconds, 0, FINISH_ESCAPE_HANDOFF_SECONDS);
+    if (handoff < 1) {
+      this.camera.position.copy(this.finishEscapeStartPosition).lerp(chasePosition, handoff);
+      this.target.copy(this.finishEscapeStartTarget).lerp(chaseTarget, handoff);
+      this.viewSize = THREE.MathUtils.lerp(
+        this.finishEscapeStartViewSize,
+        FINISH_ESCAPE_VIEW_SIZE,
+        handoff,
+      );
+    } else {
+      const response = 1 - Math.exp(-FINISH_ESCAPE_CAMERA_RESPONSE * deltaSeconds);
+      this.camera.position.lerp(chasePosition, response);
+      this.target.lerp(chaseTarget, response);
+      this.viewSize = THREE.MathUtils.lerp(this.viewSize, FINISH_ESCAPE_VIEW_SIZE, response);
+    }
+    this.orientCamera(0);
+    this.updateProjection();
   }
 
   public updateWinnerToss(
@@ -472,7 +536,7 @@ export class RaceCameraController {
     const player = snapshot.racers.find(({ isPlayer }) => isPlayer);
     if (player === undefined) return;
     const progress = THREE.MathUtils.clamp(snapshot.finishCinematicProgress, 0, 1);
-    const arrival = THREE.MathUtils.smoothstep(progress, 0, 0.2);
+    const arrival = THREE.MathUtils.smoothstep(progress, 0, 0.07);
     const sweep = THREE.MathUtils.smoothstep(progress, 0.08, 0.74);
     const pullBack = THREE.MathUtils.smoothstep(progress, 0.72, 1);
     const stand = this.world.grandstand;

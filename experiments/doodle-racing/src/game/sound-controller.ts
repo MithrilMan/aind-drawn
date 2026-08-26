@@ -172,6 +172,11 @@ export class SoundController {
     void clip.play().catch(() => undefined);
   }
 
+  public stop(effect: SoundEffectId): void {
+    const clip = this.clips.get(effect);
+    if (clip !== undefined) this.stopClip(clip);
+  }
+
   public syncDrift(active: boolean): void {
     if (active === this.driftActive) return;
     this.driftActive = active;

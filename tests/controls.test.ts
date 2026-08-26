@@ -17,6 +17,7 @@ import {
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
 import {
   MENU_GAME_STATE,
+  RESULTS_GAME_STATE,
   exploreGameState,
   pausedGameState,
   raceGameState,
@@ -75,6 +76,8 @@ describe('controller-agnostic gameplay controls', () => {
   it('routes abstract global actions through explicit game state', () => {
     expect(resolveGlobalControlCommand(MENU_GAME_STATE, 'reroll')).toBe('reroll');
     expect(resolveGlobalControlCommand(MENU_GAME_STATE, 'back')).toBe('none');
+    expect(resolveGlobalControlCommand(RESULTS_GAME_STATE, 'back')).toBe('main-menu');
+    expect(resolveGlobalControlCommand(RESULTS_GAME_STATE, 'pause')).toBe('none');
     expect(resolveGlobalControlCommand(raceGameState('running'), 'pause')).toBe('pause');
     expect(resolveGlobalControlCommand(raceGameState('running'), 'back')).toBe('none');
     expect(resolveGlobalControlCommand(exploreGameState('on-foot'), 'reroll')).toBe('reroll');

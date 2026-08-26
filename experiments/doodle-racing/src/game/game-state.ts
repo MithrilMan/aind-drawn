@@ -18,6 +18,7 @@ export type ExploreGameState = Readonly<{
 export type PaperCircuitGameState =
   | Readonly<{ mode: 'menu' }>
   | Readonly<{ mode: 'race'; phase: RacePhase }>
+  | Readonly<{ mode: 'results' }>
   | ExploreGameState
   | Readonly<{ mode: 'paused'; returnMode: 'race' | 'explore' }>;
 
@@ -31,10 +32,12 @@ export type GlobalControlCommand =
   | 'resume'
   | 'pause'
   | 'close-overlay'
+  | 'main-menu'
   | 'camera'
   | 'reroll';
 
 export const MENU_GAME_STATE: PaperCircuitGameState = Object.freeze({ mode: 'menu' });
+export const RESULTS_GAME_STATE: PaperCircuitGameState = Object.freeze({ mode: 'results' });
 
 export function raceGameState(phase: RacePhase): PaperCircuitGameState {
   return Object.freeze({ mode: 'race', phase });
@@ -62,6 +65,7 @@ export function resolveGlobalControlCommand(
     return action === 'back' || action === 'pause' ? 'resume' : 'none';
   }
   if (state.mode === 'menu') return action === 'reroll' ? 'reroll' : 'none';
+  if (state.mode === 'results') return action === 'back' ? 'main-menu' : 'none';
   if (state.mode === 'race') {
     if (action === 'pause') return 'pause';
     return action === 'camera' ? 'camera' : 'none';

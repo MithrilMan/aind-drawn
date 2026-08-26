@@ -16,7 +16,10 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 - Live browser QA at the desktop viewport confirms the initial `Graphite`/`5 laps` menu, a 10-lap
   start, the fixed-world Aerial camera, and a random-character grandstand walk with `idle`/`walk` state.
 - At 320px, the brand/settings plates overlap and the fixed-size touch controls overlap adjacent targets. At 390px, the running-order plate overlaps the drift HUD.
-- Follow remains the close oblique camera. Aerial is a marker-free, perfectly vertical,
+- Follow remains the oblique camera, widened from 16.5 to 18.5 world units for more forward context
+  without changing its angle or speed lead. Portrait viewports then increase the base field up to
+  28.5 units to preserve at least 13 horizontal world units; this corrects the exaggerated close-up
+  produced when a fixed orthographic vertical field met a narrow mobile aspect. Aerial is a marker-free, perfectly vertical,
   fixed-world driving view that follows the player across a 52-60 world-unit vertical field instead
   of shrinking the complete circuit into one frame.
 
@@ -255,12 +258,47 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   prediction against the vehicle heading/speed convention: nearby cars attract gaze, while a projected
   corridor hit triggers an outward run. This remains a Paper Circuit product rule, not a generic runtime
   primitive, until another game needs the same spectator semantics.
+- Trackside panic is reversible: an actor repeatedly replans an away/outward/tangential escape vector
+  while the threatening vehicle remains on an interception course, holds the last plan briefly, then
+  enters an explicit `returning` walk until reaching the authored guardrail position. Returning is not
+  gated on an `idle` reaction, because a safe nearby car may still attract gaze and previously stranded
+  displaced actors forever. Role orchestration now lives under `game/characters/{explorer,grandstand,
+  trackside,marshal}`, with shared human identity and renderer-neutral steering kept in
+  `game/characters/shared`; reusable spatial indexing, separation, and fixed-rate ticking remain in
+  `@mithrilman/aind-game-runtime`.
 - Finish celebration is a product-owned playable epilogue. Opponents keep moving, the winner vehicle
   brakes, the shared explorer character exits and accepts the existing movement/run bindings, and both
   crowd fields pursue while predictive steering repels them from moving opponent footprints. Catching
   the winner swaps control for a deterministic airborne toss and an orbiting camera. The green starter
   flag is a separate solid-only asset mounted to the marshal's public `hand:right` socket; its three
   shallow-volume cloth panels remain articulated instead of masquerading as a flat UI illustration.
+- Finish escape camera choreography uses a fast grandstand flash, then a `0.46`-second handoff to a
+  smoothed rear three-quarter chase view: 4.8 units behind, 1.45 units laterally offset, and 3.05 units
+  above the runner, with an 8.2-unit orthographic field. The earlier eye-point POV was rejected because
+  near-plane/carrier composition corrupted the view and hid the escape context. Crowd pursuit is
+  scheduled two seconds after runner control unlocks; before the runner exists, the crowd stays in its
+  normal presentation loop instead of pursuing the stopped car.
+- The modal result surface is capture-driven, not tied to the bounded eight-second race-camera clock.
+  It appears only after the `3.35`-second airborne toss has completed, so a successful escape is never
+  interrupted. It reports final position and elapsed time, then reuses the shared focus navigator for
+  `Race again` and `Main menu`; contextual back resolves to the menu only in this terminal product
+  state. Restart keeps the configured laps, medium, vehicle seeds, and persisted audio settings, while
+  either exit path stops the applause clip.
+- A same-mode race restart must call `RaceStage.prepareRaceStart()` explicitly. `setMode('race')`
+  cannot infer a new session when the previous session also ended in Race; using mode entry as the
+  lifecycle boundary left `finishResultsAvailable` set and reopened the result dialog over the next
+  intro. The UI guard also requires the simulation phase to be `finished`, so stale presentation state
+  cannot freeze an intro even if a future lifecycle reset regresses.
+- Periodic mobile menu stalls correlate with eager vehicle-preview prewarming, not the menu character
+  pose loop. `startRenderer()` immediately starts two `VehicleInteractionPreview` queues; on a busy
+  mobile main thread their `requestIdleCallback` budget stays below 4 ms until the 800 ms timeout forces
+  one procedural rig build, asset-registry sync, and hidden render. Desktop browser logs show staggered
+  `+1` asset syncs every roughly 0.8 seconds for about ten seconds (typically 6-9 ms each), which can
+  become visible long tasks on mobile and create follow-on GC pauses. The preview character also rerolls
+  every 10.8 seconds with a `+3/-3` sync, a secondary spike rather than the reported short cadence.
+  Prefer deferring those caches until Explore/configurator intent, or running bounded compilation only
+  when a genuine idle budget exists; the full hidden race scene is a high baseline cost but does not
+  explain the periodic rhythm by itself.
 - Race engine audio already owned four voices, but opponent gain was low enough to disappear in play.
   Opponent loops now use a stronger base voice multiplied by distance-aware audibility, and engine
   synchronization remains active during the moving finish epilogue.
@@ -306,6 +344,22 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   `DoodleAssetRegistry` now keeps unchanged registrations resident and replaces only the matching
   instance ID: Explore/menu rerolls measured about 1.3–4.4 ms. Cache generated stroke definitions
   on long-lived crowd and vehicle assets; recreating equivalent arrays defeats identity-based diffing.
+- A forced two-lap route profile at 390x844, DPR 1, divided the course into 32 segments. Excluding one
+  startup-contaminated segment, render CPU time correlated 0.976 with actual Three.js draw calls and
+  0.958 with submitted proxy count. The grandstand exit at 3.125-6.25% progress averaged 36.29 ms
+  render CPU, 4,148 draw calls, 1.73 million triangles, 29 visible instances, and 7,868 submitted
+  proxies; the lightest segment averaged 12.84 ms, 1,100 calls, 398k triangles, six visible instances,
+  and 1,820 submitted proxies. Scene density, not route curvature, is the primary spatial cost signal.
+- On viewports up to 760 CSS pixels, the full race renderer is suspended while the menu is active:
+  its canvas and four inked-solid targets shrink to 1x1 and race rendering becomes a no-op while the
+  dedicated character preview remains live. This removes the hidden full-scene GPU/pixel cost without
+  destroying and rebuilding world rigs on every menu transition.
+- Asset compilation is worthwhile only if its runtime IR changes submission topology. Prefer packed
+  typed-array carrier/stroke meshes with part/surface/bone tables, bounds, anchors, colliders, LODs,
+  compiler version, and a content fingerprint; then prepare renderer-specific buffers and a single
+  MRT geometry pass. Serializing the current per-part/proxy object graph improves cold load but leaves
+  steady-state draw cost intact. Prove the in-memory IR and target-device benchmark before choosing a
+  file container.
 
 ## Reuse When
 

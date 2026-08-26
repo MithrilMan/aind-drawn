@@ -10,7 +10,7 @@ import {
   type RgbColor,
   type Seed,
 } from '../../../../../src/index.js';
-import type { PaperCircuitPersonIdentity } from '../../game/paper-circuit-person.js';
+import type { PaperCircuitPersonIdentity } from '../../game/characters/shared/paper-circuit-person.js';
 
 export const PAPER_CIRCUIT_HELMET_EXTENSION_ID = 'doodle-racing/paper-circuit-helmet';
 export const PAPER_CIRCUIT_HELMET_FAMILY = 'paper-circuit-helmet';

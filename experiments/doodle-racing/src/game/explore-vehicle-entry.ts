@@ -3,7 +3,7 @@ import type {
   CharacterPose,
   CharacterWink,
 } from '../../../../src/index.js';
-import type { GrandstandExplorerSnapshot } from './grandstand-explorer.js';
+import type { GrandstandExplorerSnapshot } from './characters/explorer/grandstand-explorer.js';
 import type { ExploreVehicleEntry } from './vehicle-field.js';
 
 const FOCUS_SECONDS = 0.48;

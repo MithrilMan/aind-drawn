@@ -3,7 +3,10 @@ import * as THREE from 'three';
 import type { InkedSolidSceneDiagnostics, MediumId } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
 import { DoodleScene } from './doodle-scene.js';
-import { GrandstandExplorer, type GrandstandExplorerSnapshot } from './grandstand-explorer.js';
+import {
+  GrandstandExplorer,
+  type GrandstandExplorerSnapshot,
+} from './characters/explorer/grandstand-explorer.js';
 import { MenuPreviewBackdrop } from './menu-preview-backdrop.js';
 import type { GrandstandLayout } from './race-world.js';
 import { SmokeBurst } from './smoke-burst.js';

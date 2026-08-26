@@ -53,7 +53,8 @@ and independent category volumes. Inside a nested dialog or the vehicle configur
 a contextual back action; gamepad `B` closes the active surface or resumes from pause. Neither ejects
 a running game directly to the main menu.
 
-The default camera follows the player with speed lead; `Aerial` tracks the player from directly
+The default camera follows the player with speed lead across an 18.5-unit desktop base field and
+widens adaptively on portrait screens to preserve at least 13 horizontal world units; `Aerial` tracks the player from directly
 above with a wider, fixed-world view of the surrounding circuit. Graphite is
 the default medium; Graphite, Ink, and Oil are available, and changing medium rebuilds only the shared drawing policy while preserving
 race state. Aerial deliberately omits racer labels so the road and nearby vehicles remain readable
@@ -180,15 +181,20 @@ when a vehicle leaves the racing line toward them. A procedural start marshal ho
 solid-volume green flag and waves through the countdown and launch. Spectators also own independent
 animation clocks, cue durations, and phases.
 
-The finish remains playable. The opponents continue around the circuit while the player's car brakes,
-the driver exits, stows the helmet, and can run using the Explore movement bindings. Grandstand and
-trackside spectators invade the circuit, steer around moving cars, and pursue the driver. Invaders use
+The finish remains playable. The opponents continue around the circuit while the player's car brakes.
+The camera flashes across the grandstand, whips toward the driver during the exit, and settles into a
+smoothed rear three-quarter chase view. The driver stows the helmet and can run using the Explore movement
+bindings. Grandstand and trackside spectators wait until two seconds after control unlocks, then invade
+the circuit, steer around moving cars, and pursue the driver. Invaders use
 the shared game-runtime spatial broad phase and soft-disc separation, while the captured-winner crowd
 settles into deterministic concentric celebration slots instead of converging on one point. A bounded
 subset invades while the remainder celebrates in place, preserving the scale of the audience without
 turning every visible grandstand actor into a finish-line simulation. If they get close enough, control
-hands over to a short orbiting cinematic in which the mob repeatedly tosses the driver into the air
-before settling into its celebration.
+hands over to a short orbiting cinematic in which the mob repeatedly tosses the driver into the air.
+Only after that capture cinematic settles does an accessible result dialog report position and elapsed
+time, then offer `Race again` with the current setup or an explicit return to the main menu. Escaping
+indefinitely never triggers the dialog. Keyboard and gamepad navigation use the same focus policy as
+the other menus; `Esc` or gamepad back returns to the main menu from this terminal state.
 
 The menu and race use local WAV and Opus sound effects selected or generated in ElevenLabs: a UI
 click, character poof, arcade GO cue, looping drift skid, gravel/off-road layer, and finish applause.
@@ -209,6 +215,11 @@ Spectators are not static props. Their seeded cue loops mix `idle`, `play`, `dan
 poses, happy/surprised/idle expressions, autonomous blink and gaze, and a talking mouth command;
 the apparent chatter and jumps are authored character runtime animation rather than camera noise.
 Per-spectator time scale and offset keep identical pose families from sharing the same limb phase.
+Roadside spectators replan their escape direction while a threatening car keeps pursuing them, hold
+the panic briefly after it passes, then walk back to their authored guardrail position even when another
+safe car is still close enough to watch. Their product-specific state machine lives beside the trackside
+role under `game/characters/trackside`; explorer, grandstand crowd, and marshal code have matching role
+folders, while identity and steering primitives remain under `game/characters/shared`.
 
 Scene-level instance and carrier counts vary with the seeded crowd size. The inked-solid pass uses
 four G-buffers plus the composite pass. Hidden rigs and whole carriers outside the camera frustum now
@@ -219,3 +230,13 @@ use incremental pass registration: only the replaced character is unregistered a
 every unrelated race or preview asset remains resident. The authored grandstand steps now also own
 matching gameplay obstacles and solid colliders, so race and Explore vehicles cannot pass through
 the seating volume.
+
+On narrow viewports, the full race renderer is suspended while the menu is open. Its canvas and
+inked-solid render targets shrink to one pixel and no race frame is submitted; the dedicated menu
+character preview remains active. Starting a race or entering Explore restores the race renderer.
+
+Development builds expose a deterministic route profiler at `?route-profile=1`. It skips preview
+prewarming, starts a race automatically, forces all four cars along precompiled course poses for two
+measured laps, and logs per-segment frame time, render CPU time, real renderer draw calls, triangles,
+visible instances, and submitted proxy meshes as `Paper Circuit route performance`. The probe is
+excluded from production behavior.

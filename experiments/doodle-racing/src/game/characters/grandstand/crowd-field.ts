@@ -12,25 +12,25 @@ import {
   type CharacterMotionState,
   type CharacterPose,
   type SolidAssetBlueprint,
-} from '../../../../src/index.js';
+} from '../../../../../../src/index.js';
 import {
   SpatialHash2D,
   discSeparationInto,
   fixedRateUpdateTick,
 } from '@mithrilman/aind-game-runtime';
-import type { DoodleSceneAsset } from './doodle-scene.js';
+import type { DoodleSceneAsset } from '../../doodle-scene.js';
 import {
   crowdCelebrationTarget,
   stepCrowdPursuit,
   type CrowdSeparationAgent,
-} from './crowd-steering.js';
-import { createPaperCircuitPersonIdentity } from './paper-circuit-person.js';
-import type { RacerSnapshot } from './race-model.js';
+} from '../shared/crowd-steering.js';
+import { createPaperCircuitPersonIdentity } from '../shared/paper-circuit-person.js';
+import type { RacerSnapshot } from '../../race-model.js';
 import {
   createGrandstandSpectators,
   type RaceWorldLayout,
   type SpectatorPlacement,
-} from './race-world.js';
+} from '../../race-world.js';
 
 type SpectatorAsset = {
   placement: SpectatorPlacement;

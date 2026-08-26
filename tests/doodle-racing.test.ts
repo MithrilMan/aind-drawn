@@ -22,6 +22,12 @@ import {
 import { createCourseBlueprint } from '../experiments/doodle-racing/src/game/course-blueprint.js';
 import { createRouteDebugBlueprint } from '../experiments/doodle-racing/src/game/route-debug-overlay.js';
 import {
+  finishPursuitStartsAt,
+  formatRaceResultTime,
+  finishResultsReady,
+  shouldOpenFinishResults,
+} from '../experiments/doodle-racing/src/game/race-results.js';
+import {
   CoursePathValidationError,
   compileCourseStroke,
   createCourseLayout,
@@ -32,12 +38,12 @@ import {
 import {
   CrowdField,
   createCrowdMotionTiming,
-} from '../experiments/doodle-racing/src/game/crowd-field.js';
+} from '../experiments/doodle-racing/src/game/characters/grandstand/crowd-field.js';
 import {
   crowdCelebrationTarget,
   stepCrowdPursuit,
   tracksideReactionFor,
-} from '../experiments/doodle-racing/src/game/crowd-steering.js';
+} from '../experiments/doodle-racing/src/game/characters/shared/crowd-steering.js';
 import { DoodleAssetRegistry } from '../experiments/doodle-racing/src/game/doodle-asset-registry.js';
 import {
   DriftEffects,
@@ -47,7 +53,7 @@ import { ExploreDriveController } from '../experiments/doodle-racing/src/game/ex
 import {
   ExploreVehicleEntryDirector,
 } from '../experiments/doodle-racing/src/game/explore-vehicle-entry.js';
-import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
+import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/characters/explorer/grandstand-explorer.js';
 import {
   DEFAULT_PAPER_CIRCUIT_MEDIUM,
   PAPER_CIRCUIT_MEDIUM_IDS,
@@ -68,7 +74,7 @@ import {
   MenuSettingsStore,
 } from '../experiments/doodle-racing/src/game/menu-settings.js';
 import { MusicController } from '../experiments/doodle-racing/src/game/music-controller.js';
-import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
+import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/characters/shared/paper-circuit-person.js';
 import {
   createPaperCircuitRaceFlagIdentity,
   createSolidPaperCircuitRaceFlagBlueprint,
@@ -84,6 +90,7 @@ import {
   RaceCameraController,
   aerialRaceViewSize,
   exploreDrivingViewSize,
+  followRaceBaseViewSize,
   groundedOrthographicVerticalOffset,
 } from '../experiments/doodle-racing/src/game/race-camera.js';
 import {
@@ -126,8 +133,9 @@ import {
 } from '../experiments/doodle-racing/src/game/vehicle-field.js';
 import { SmokeBurst } from '../experiments/doodle-racing/src/game/smoke-burst.js';
 import { SoundController } from '../experiments/doodle-racing/src/game/sound-controller.js';
-import { StartMarshal } from '../experiments/doodle-racing/src/game/start-marshal.js';
-import { TracksideCrowdField } from '../experiments/doodle-racing/src/game/trackside-crowd-field.js';
+import { StartMarshal } from '../experiments/doodle-racing/src/game/characters/marshal/start-marshal.js';
+import { TracksideCrowdField } from '../experiments/doodle-racing/src/game/characters/trackside/trackside-crowd-field.js';
+import { TracksideSpectatorBehavior } from '../experiments/doodle-racing/src/game/characters/trackside/trackside-spectator.js';
 import {
   groundCollidersFor,
   resolveGroundMotion,
@@ -559,7 +567,7 @@ describe('Paper Circuit experiment', () => {
     expect(simulation.snapshot().phase).toBe('countdown');
   });
 
-  it('gives intro and finish their own moving close-range crowd shots', () => {
+  it('cuts rapidly to the finish crowd, then whips into a rear three-quarter chase view', () => {
     const layout = createCourseLayout();
     const world = createRaceWorldLayout(layout);
     const simulation = new RaceSimulation(layout, world);
@@ -584,10 +592,18 @@ describe('Paper Circuit experiment', () => {
       ...base,
       phase: 'finished' as const,
       introProgress: 1,
-      finishCinematicProgress: 0.24,
+      finishCinematicProgress: 0.01,
     }), 0.05, 30);
+    const finishStart = camera.position.clone();
+    controller.update(Object.freeze({
+      ...base,
+      phase: 'finished' as const,
+      introProgress: 1,
+      finishCinematicProgress: 0.08,
+    }), 0.05, 30.5);
     const finishClose = camera.position.clone();
     const closeQuaternion = camera.quaternion.clone();
+    expect(finishClose.distanceTo(finishStart)).toBeGreaterThan(6);
     expect(camera.top).toBeGreaterThan(3.2);
     controller.update(Object.freeze({
       ...base,
@@ -598,9 +614,42 @@ describe('Paper Circuit experiment', () => {
     expect(camera.position.distanceTo(finishClose)).toBeGreaterThan(6);
     expect(camera.quaternion.angleTo(closeQuaternion)).toBeGreaterThan(0.04);
     expect(camera.top).toBeGreaterThan(5.5);
+
+    const explorer = new GrandstandExplorer(world.grandstand, layout, 9_012);
+    const runner = explorer.snapshot();
+    controller.beginFinishEscape();
+    controller.updateFinishEscape(runner, 0.45, 0.05);
+    controller.updateFinishEscape(runner, 0.46, 0.05);
+    const forwardX = Math.sin(runner.heading);
+    const forwardZ = Math.cos(runner.heading);
+    const rightX = Math.cos(runner.heading);
+    const rightZ = -Math.sin(runner.heading);
+    expect(camera.position.x).toBeCloseTo(runner.x - forwardX * 4.8 + rightX * 1.45, 1);
+    expect(camera.position.y).toBeCloseTo(runner.y + 3.05, 1);
+    expect(camera.position.z).toBeCloseTo(runner.z - forwardZ * 4.8 + rightZ * 1.45, 1);
+    expect(camera.position.distanceTo(new THREE.Vector3(runner.x, runner.y, runner.z)))
+      .toBeGreaterThan(5);
+    const forward = camera.getWorldDirection(new THREE.Vector3());
+    expect(forward.dot(new THREE.Vector3(forwardX, -0.2, forwardZ).normalize()))
+      .toBeGreaterThan(0.94);
+    expect(camera.top).toBeCloseTo(4.1, 1);
+    explorer.dispose();
+  });
+
+  it('grants an escape head start and reveals results only after capture', () => {
+    expect(finishPursuitStartsAt(10)).toBeCloseTo(12.82);
+    expect(finishResultsReady(null)).toBe(false);
+    expect(finishResultsReady(3.34)).toBe(false);
+    expect(finishResultsReady(3.35)).toBe(true);
+    expect(shouldOpenFinishResults('intro', true)).toBe(false);
+    expect(shouldOpenFinishResults('finished', true)).toBe(true);
+    expect(formatRaceResultTime(78.46)).toBe('01:18.5');
+    expect(formatRaceResultTime(59.96)).toBe('01:00.0');
   });
 
   it('keeps the Aerial driving camera vertical, local, and substantially wider than Follow', () => {
+    expect(followRaceBaseViewSize(1440, 900)).toBe(18.5);
+    expect(followRaceBaseViewSize(390, 844)).toBeCloseTo(28.13, 2);
     const layout = createCourseLayout();
     const world = createRaceWorldLayout(layout);
     const simulation = new RaceSimulation(layout, world);
@@ -615,13 +664,19 @@ describe('Paper Circuit experiment', () => {
     const snapshot = simulation.snapshot();
     const player = snapshot.racers.find(({ isPlayer }) => isPlayer);
     if (player === undefined) throw new Error('Aerial camera requires the player racer');
-
-    controller.setMode('aerial');
-    controller.update(Object.freeze({
+    const running = Object.freeze({
       ...snapshot,
       phase: 'running' as const,
       introProgress: 1,
-    }), 0.05, 8);
+    });
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      controller.update(running, 0.05, frame * 0.05);
+    }
+    expect(camera.top - camera.bottom).toBeCloseTo(18.5, 1);
+
+    controller.setMode('aerial');
+    controller.update(running, 0.05, 8);
 
     const direction = new THREE.Vector3();
     camera.getWorldDirection(direction);
@@ -1198,6 +1253,63 @@ describe('Paper Circuit experiment', () => {
     expect(watching.mode).toBe('watching');
   });
 
+  it('replans a chased trackside spectator and walks them back to their authored spot', () => {
+    const course = createCourseLayout();
+    const placement = createRaceWorldLayout(course, 62_441).tracksideSpectators[0];
+    if (placement === undefined) throw new Error('Trackside spectator fixture is missing');
+    const spectator = new TracksideSpectatorBehavior(placement);
+    const chasingRacer = (x: number, z: number): RacerSnapshot => Object.freeze({
+      id: 'you',
+      name: 'You',
+      isPlayer: true,
+      x,
+      z,
+      heading: Math.atan2(-placement.outwardZ, placement.outwardX),
+      speed: 10,
+      steering: 0,
+      travelDistance: 0,
+      lap: 0,
+      progress: 0,
+      raceScore: 0,
+      slipAngle: 0,
+      drifting: false,
+      impact: 0,
+      elevation: 0,
+      airborne: false,
+      pitch: 0,
+      curbImpact: 0,
+      curbPenalty: 0,
+    });
+
+    const firstX = spectator.x;
+    const firstZ = spectator.z;
+    spectator.update(0, 0.1, [chasingRacer(
+      spectator.x - placement.outwardX * 5,
+      spectator.z - placement.outwardZ * 5,
+    )]);
+    const firstEscapeX = spectator.x - firstX;
+    const firstEscapeZ = spectator.z - firstZ;
+    const secondX = spectator.x;
+    const secondZ = spectator.z;
+    spectator.update(0.5, 0.1, [chasingRacer(
+      spectator.x - placement.outwardX * 5,
+      spectator.z - placement.outwardZ * 5,
+    )]);
+    const secondEscapeX = spectator.x - secondX;
+    const secondEscapeZ = spectator.z - secondZ;
+
+    expect(spectator.mode).toBe('fleeing');
+    expect(Math.abs(firstEscapeX * secondEscapeZ - firstEscapeZ * secondEscapeX))
+      .toBeGreaterThan(0.005);
+
+    for (let tick = 1; tick <= 120; tick += 1) {
+      spectator.update(0.5 + tick * 0.1, 0.1, []);
+    }
+    expect(spectator.mode).toBe('idle');
+    expect(spectator.x).toBeCloseTo(placement.x, 5);
+    expect(spectator.z).toBeCloseTo(placement.z, 5);
+  });
+
   it('steers an invading crowd member around a car crossing the pursuit line', () => {
     const crossingCar: RacerSnapshot = Object.freeze({
       id: 'rook', name: 'Rook', isPlayer: false,
@@ -1333,6 +1445,13 @@ describe('Paper Circuit experiment', () => {
     sound.syncCurbImpact(0);
     sound.syncCurbImpact(0.5);
     expect(curb?.playCount).toBe(2);
+
+    sound.play('crowd-applause');
+    const applause = clips.find((clip) => clip.source.includes('crowd-applause'));
+    expect(applause?.playCount).toBe(1);
+    sound.stop('crowd-applause');
+    expect(applause?.pauseCount).toBeGreaterThan(0);
+    expect(applause?.currentTime).toBe(0);
 
     sound.setEnabled(false);
     sound.play('race-go');

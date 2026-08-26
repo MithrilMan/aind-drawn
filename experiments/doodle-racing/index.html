@@ -396,6 +396,25 @@
           </div>
         </dialog>
 
+        <dialog class="pause-menu finish-menu" data-finish-menu aria-labelledby="finish-menu-title">
+          <div class="pause-menu-panel finish-menu-panel">
+            <p class="pause-menu-kicker">Paper Circuit / Results</p>
+            <h2 id="finish-menu-title">Race complete</h2>
+            <div class="finish-menu-summary" aria-label="Race result">
+              <span>Position <strong data-finish-position>P1</strong></span>
+              <span>Time <strong data-finish-time>00:00.0</strong></span>
+            </div>
+            <p class="pause-menu-copy">The mob has had its fun. Keep the same setup for another run or head back to race control.</p>
+            <div class="pause-menu-actions finish-menu-actions">
+              <button class="pause-menu-resume" type="button" data-finish-restart>
+                <strong>Race again</strong>
+                <span>Same setup</span>
+              </button>
+              <button class="pause-menu-exit" type="button" data-finish-main-menu>Main menu</button>
+            </div>
+          </div>
+        </dialog>
+
         <dialog class="pause-menu audio-settings" id="audio-settings" data-audio-settings aria-labelledby="audio-settings-title">
           <form class="pause-menu-panel audio-settings-panel" method="dialog">
             <p class="pause-menu-kicker">Paper Circuit / Mix</p>

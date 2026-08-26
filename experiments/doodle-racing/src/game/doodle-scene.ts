@@ -18,6 +18,13 @@ export type DoodleSceneOptions = Readonly<{
   preserveDrawingBuffer?: boolean;
 }>;
 
+export type DoodleRenderStats = Readonly<{
+  drawCalls: number;
+  triangles: number;
+  lines: number;
+  points: number;
+}>;
+
 export class DoodleScene {
   public readonly scene = new THREE.Scene();
   // Keep the near plane deliberately close: the Explore camera is allowed to
@@ -31,6 +38,7 @@ export class DoodleScene {
   private assets: readonly DoodleSceneAsset[] = Object.freeze([]);
   private pass: InkedSolidScenePass | null = null;
   private medium: MediumId;
+  private suspended = false;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -46,6 +54,7 @@ export class DoodleScene {
       preserveDrawingBuffer: options.preserveDrawingBuffer ?? false,
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.info.autoReset = false;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(0xe9ddbd, 1);
     this.observer = new ResizeObserver(this.resize);
@@ -82,8 +91,27 @@ export class DoodleScene {
     this.rebuildPass();
   }
 
+  /** Releases full-size render targets while an owning surface is not presented. */
+  public setSuspended(suspended: boolean): void {
+    if (suspended === this.suspended) return;
+    this.suspended = suspended;
+    this.resize();
+  }
+
   public render(elapsedSeconds: number): void {
+    if (this.suspended) return;
+    this.renderer.info.reset();
     this.pass?.render(this.scene, this.camera, elapsedSeconds);
+  }
+
+  public renderStats(): DoodleRenderStats {
+    const { render } = this.renderer.info;
+    return Object.freeze({
+      drawCalls: render.calls,
+      triangles: render.triangles,
+      lines: render.lines,
+      points: render.points,
+    });
   }
 
   public captureDataUrl(type = 'image/png', quality?: number): string {
@@ -128,6 +156,11 @@ export class DoodleScene {
   }
 
   private readonly resize = (): void => {
+    if (this.suspended) {
+      this.renderer.setSize(1, 1, false);
+      this.pass?.setSize(1, 1, 1);
+      return;
+    }
     const { width, height } = this.viewportSize();
     this.renderer.setSize(width, height, false);
     this.pass?.setSize(width, height, this.renderer.getPixelRatio());

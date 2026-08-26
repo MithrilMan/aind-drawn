@@ -8,9 +8,9 @@ import type {
 } from '../../../../src/index.js';
 import type { ExploreCameraInput } from './controls.js';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
-import { CrowdField } from './crowd-field.js';
-import type { CrowdSeparationAgent } from './crowd-steering.js';
-import { DoodleScene } from './doodle-scene.js';
+import { CrowdField } from './characters/grandstand/crowd-field.js';
+import type { CrowdSeparationAgent } from './characters/shared/crowd-steering.js';
+import { DoodleScene, type DoodleRenderStats } from './doodle-scene.js';
 import { DriftEffects } from './drift-effects.js';
 import { ExploreDriveController } from './explore-drive.js';
 import {
@@ -19,7 +19,10 @@ import {
 } from './explore-entrance.js';
 import { ExploreVehicleEntryDirector } from './explore-vehicle-entry.js';
 import { exploreGameState, type ExploreGameState } from './game-state.js';
-import { GrandstandExplorer, type GrandstandExplorerSnapshot } from './grandstand-explorer.js';
+import {
+  GrandstandExplorer,
+  type GrandstandExplorerSnapshot,
+} from './characters/explorer/grandstand-explorer.js';
 import {
   RaceCameraController,
   type ExplorerCameraView,
@@ -27,12 +30,18 @@ import {
 } from './race-camera.js';
 import { localPreviewCameraOffsetDirection } from './preview-camera.js';
 import type { ExploreInput, RaceSnapshot } from './race-model.js';
+import {
+  FINISH_RUNNER_CONTROL_DELAY_SECONDS,
+  FINISH_TOSS_SECONDS,
+  finishPursuitStartsAt,
+  finishResultsReady,
+} from './race-results.js';
 import { RouteDebugOverlay } from './route-debug-overlay.js';
 import { GRANDSTAND_ROW_SPACING, type RaceWorldLayout } from './race-world.js';
 import { SceneryField } from './scenery-field.js';
 import { SmokeBurst } from './smoke-burst.js';
-import { StartMarshal } from './start-marshal.js';
-import { TracksideCrowdField } from './trackside-crowd-field.js';
+import { StartMarshal } from './characters/marshal/start-marshal.js';
+import { TracksideCrowdField } from './characters/trackside/trackside-crowd-field.js';
 import {
   groundCollidersFor,
   type GroundCollider,
@@ -123,6 +132,7 @@ export class RaceStage {
   private finishRunnerActive = false;
   private finishCaughtAt: number | null = null;
   private finishCatchPoint: Readonly<{ x: number; z: number; heading: number }> | null = null;
+  private finishResultsAvailable = false;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -189,6 +199,14 @@ export class RaceStage {
     return this.doodle.diagnostics();
   }
 
+  public setRenderingSuspended(suspended: boolean): void {
+    this.doodle.setSuspended(suspended);
+  }
+
+  public renderStats(): DoodleRenderStats {
+    return this.doodle.renderStats();
+  }
+
   public gameState(): ExploreGameState {
     if (this.mode !== 'explore') {
       throw new Error('Explore game state is only available while the stage is exploring');
@@ -213,9 +231,17 @@ export class RaceStage {
     this.doodle.setAssets(this.sceneAssets());
   }
 
+  public get finishResultsReady(): boolean {
+    return this.finishResultsAvailable;
+  }
+
+  public prepareRaceStart(): void {
+    this.effects.reset();
+    this.resetFinishCelebration();
+  }
+
   public setMode(mode: RaceStageMode): void {
     const routeDebugWasRegistered = this.routeDebugVisible && this.mode === 'race';
-    const enteringRace = mode === 'race' && this.mode !== 'race';
     const enteringExplore = mode === 'explore' && this.mode !== 'explore';
     const leavingExplore = mode !== 'explore' && this.mode === 'explore';
     if (leavingExplore) {
@@ -227,8 +253,6 @@ export class RaceStage {
     }
     if (enteringExplore || leavingExplore) this.exploreInteractLatch = false;
     this.mode = mode;
-    if (enteringRace) this.effects.reset();
-    if (enteringRace) this.resetFinishCelebration();
     if (enteringExplore) {
       this.exploreVehicleEntry = null;
       this.exploreVehicleEntryCount = 0;
@@ -663,8 +687,6 @@ export class RaceStage {
     if (player === undefined) return null;
     if (this.finishCelebrationStartedAt === null) {
       this.finishCelebrationStartedAt = snapshot.presentationTime;
-      this.crowd.beginInvasion(snapshot.presentationTime);
-      this.tracksideCrowd.beginInvasion(snapshot.presentationTime);
       this.crowd.setCelebrating(false, snapshot.presentationTime);
     }
     const finishElapsed = snapshot.presentationTime - this.finishCelebrationStartedAt;
@@ -681,7 +703,10 @@ export class RaceStage {
       this.explorer.setVisible(true);
       this.finishRunnerActive = true;
       this.finishRunnerStartedAt = snapshot.presentationTime;
-      this.camera.resetExplorer();
+      const pursuitStartsAt = finishPursuitStartsAt(this.finishRunnerStartedAt);
+      this.crowd.beginInvasion(pursuitStartsAt);
+      this.tracksideCrowd.beginInvasion(pursuitStartsAt);
+      this.camera.beginFinishEscape();
     }
 
     let runner = this.finishRunnerActive ? this.explorer.snapshot() : null;
@@ -690,7 +715,8 @@ export class RaceStage {
         .filter(({ id }) => id === 'vehicle:body');
       runner = this.explorer.update(
         deltaSeconds,
-        snapshot.presentationTime - this.finishRunnerStartedAt >= 0.82
+        snapshot.presentationTime - this.finishRunnerStartedAt
+          >= FINISH_RUNNER_CONTROL_DELAY_SECONDS
           ? input
           : EXPLORE_IDLE_INPUT,
         Object.freeze([...this.staticExploreColliders, ...vehicleColliders]),
@@ -699,7 +725,7 @@ export class RaceStage {
       const caughtElapsed = snapshot.presentationTime - this.finishCaughtAt;
       const catchPoint = this.finishCatchPoint;
       if (catchPoint === null) throw new Error('Finish catch has no authored point');
-      const tossWindow = Math.min(1, caughtElapsed / 3.35);
+      const tossWindow = Math.min(1, caughtElapsed / FINISH_TOSS_SECONDS);
       const tossHeight = Math.abs(Math.sin(caughtElapsed * Math.PI * 0.92))
         * 2.25
         * (1 - Math.max(0, tossWindow - 0.8) / 0.2);
@@ -719,27 +745,32 @@ export class RaceStage {
     const movingHazards = this.finishRunnerActive
       ? snapshot.racers.filter(({ isPlayer }) => !isPlayer)
       : snapshot.racers;
-    this.finishCrowdSeparation.rebuild(this.finishCrowdAgents);
-    this.crowd.updateInvasion(
-      snapshot.presentationTime,
-      deltaSeconds,
-      target,
-      movingHazards,
-      caught,
-      this.finishCrowdSeparation,
-    );
-    this.tracksideCrowd.update(
-      snapshot.presentationTime,
-      deltaSeconds,
-      movingHazards,
-      target,
-      caught,
-      this.finishCrowdSeparation,
-    );
+    if (this.finishRunnerActive) {
+      this.finishCrowdSeparation.rebuild(this.finishCrowdAgents);
+      this.crowd.updateInvasion(
+        snapshot.presentationTime,
+        deltaSeconds,
+        target,
+        movingHazards,
+        caught,
+        this.finishCrowdSeparation,
+      );
+      this.tracksideCrowd.update(
+        snapshot.presentationTime,
+        deltaSeconds,
+        movingHazards,
+        target,
+        caught,
+        this.finishCrowdSeparation,
+      );
+    } else {
+      this.crowd.update(snapshot.presentationTime);
+      this.tracksideCrowd.update(snapshot.presentationTime, deltaSeconds, movingHazards);
+    }
     if (
       runner !== null
       && this.finishCaughtAt === null
-      && snapshot.presentationTime - this.finishRunnerStartedAt >= 1.2
+      && snapshot.presentationTime >= finishPursuitStartsAt(this.finishRunnerStartedAt)
       && Math.min(
         this.crowd.nearestDistanceTo(runner.x, runner.z),
         this.tracksideCrowd.nearestDistanceTo(runner.x, runner.z),
@@ -753,10 +784,18 @@ export class RaceStage {
       });
     }
 
+    this.finishResultsAvailable = finishResultsReady(
+      this.finishCaughtAt === null ? null : snapshot.presentationTime - this.finishCaughtAt,
+    );
+
     if (runner === null) {
       this.camera.update(snapshot, deltaSeconds, snapshot.presentationTime);
     } else if (this.finishCaughtAt === null) {
-      this.camera.updateExplorer(runner, deltaSeconds, false);
+      this.camera.updateFinishEscape(
+        runner,
+        snapshot.presentationTime - this.finishRunnerStartedAt,
+        deltaSeconds,
+      );
     } else {
       this.camera.updateWinnerToss(
         runner,
@@ -774,6 +813,7 @@ export class RaceStage {
     this.finishRunnerActive = false;
     this.finishCaughtAt = null;
     this.finishCatchPoint = null;
+    this.finishResultsAvailable = false;
   }
 
   private refreshFinishCrowdAgents(): void {

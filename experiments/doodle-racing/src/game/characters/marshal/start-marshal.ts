@@ -7,16 +7,16 @@ import {
   sampleCharacterMotion,
   setCharacterMotion,
   type CharacterMotionState,
-} from '../../../../src/index.js';
+} from '../../../../../../src/index.js';
 import {
   applySolidPaperCircuitRaceFlagMotion,
   createPaperCircuitRaceFlagIdentity,
   createSolidPaperCircuitRaceFlagBlueprint,
-} from '../extensions/paper-circuit-race-flag/index.js';
-import { sampleCourseAt, type CourseLayout } from './course.js';
-import type { DoodleSceneAsset } from './doodle-scene.js';
-import { createPaperCircuitPersonIdentity } from './paper-circuit-person.js';
-import type { RaceSnapshot } from './race-model.js';
+} from '../../../extensions/paper-circuit-race-flag/index.js';
+import { sampleCourseAt, type CourseLayout } from '../../course.js';
+import type { DoodleSceneAsset } from '../../doodle-scene.js';
+import { createPaperCircuitPersonIdentity } from '../shared/paper-circuit-person.js';
+import type { RaceSnapshot } from '../../race-model.js';
 
 const MARSHAL_SEED = 74_031;
 const MARSHAL_SCALE = 0.48;
@@ -114,4 +114,3 @@ export class StartMarshal {
     applySolidPaperCircuitRaceFlagMotion(this.flagRig, elapsedSeconds, flagIntensity);
   }
 }
-

@@ -129,7 +129,7 @@
         "cardinality": { "typical": 4, "dense": 6 },
         "essentialFields": ["lap", "position", "speed", "drift chain", "time", "race state", "medium", "camera mode", "running order"],
         "actions": ["accelerate", "brake or reverse", "steer left", "steer right", "handbrake", "pause", "resume", "contextual back", "switch camera", "change medium", "toggle music", "toggle sound effects", "open main menu", "retry renderer"],
-        "states": ["intro cinematic", "countdown", "running", "drifting", "collision", "off-road", "respawning", "paused", "finish cinematic", "renderer error"],
+        "states": ["intro cinematic", "countdown", "running", "drifting", "collision", "off-road", "respawning", "paused", "finish cinematic", "results dialog", "renderer error"],
         "permissions": ["anonymous local player may operate every control"],
         "errorAndFreshness": ["All state is local and current; renderer failure preserves settings and exposes Retry; leaving the world triggers an announced explicit respawn."],
         "coreCapabilityIds": ["capability.arcade-drive", "capability.race", "capability.world", "capability.camera", "capability.medium", "capability.recovery"]

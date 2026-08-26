@@ -19,7 +19,7 @@ import {
   type CharacterWink,
   type ExtendedAssetIdentity,
   type SolidAssetBlueprint,
-} from '../../../../src/index.js';
+} from '../../../../../../src/index.js';
 import {
   applySolidPaperCircuitBackpackMotion,
   createPaperCircuitBackpackIdentity,
@@ -27,7 +27,7 @@ import {
   createSolidPaperCircuitBackpackBlueprint,
   paperCircuitBackpackOpenAmount,
   type PaperCircuitBackpackIdentity,
-} from '../extensions/paper-circuit-backpack/index.js';
+} from '../../../extensions/paper-circuit-backpack/index.js';
 import {
   PAPER_CIRCUIT_EXTENSION_REGISTRY,
   applySolidPaperCircuitHelmetGripMotion,
@@ -48,18 +48,18 @@ import {
   type PaperCircuitHelmetIdentity,
   type PaperCircuitVisorMotionState,
   type PaperCircuitVisorPosition,
-} from '../extensions/paper-circuit-helmet/index.js';
-import type { DoodleSceneAsset } from './doodle-scene.js';
+} from '../../../extensions/paper-circuit-helmet/index.js';
+import type { DoodleSceneAsset } from '../../doodle-scene.js';
 import {
   createPaperCircuitPersonIdentity,
   type PaperCircuitPersonIdentity,
-} from './paper-circuit-person.js';
-import type { CourseLayout } from './course.js';
-import type { ExploreInput } from './race-model.js';
+} from '../shared/paper-circuit-person.js';
+import type { CourseLayout } from '../../course.js';
+import type { ExploreInput } from '../../race-model.js';
 import {
   resolveGroundMotion,
   type GroundCollider,
-} from './solid-ground-collision.js';
+} from '../../solid-ground-collision.js';
 import {
   GRANDSTAND_ROW_SPACING,
   GRANDSTAND_STEP_BASE_HEIGHT,
@@ -67,7 +67,7 @@ import {
   GRANDSTAND_STEP_HEIGHT_RISE,
   grandstandSurfaceAt,
   type GrandstandLayout,
-} from './race-world.js';
+} from '../../race-world.js';
 
 const WALK_SPEED = 3.25;
 const RUN_SPEED = 5.6;

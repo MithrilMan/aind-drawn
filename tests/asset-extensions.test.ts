@@ -35,9 +35,9 @@ import {
   setPaperCircuitVisorPosition,
   paperCircuitFaceOpeningHalfWidthAt,
 } from '../experiments/doodle-racing/src/extensions/paper-circuit-helmet/index.js';
-import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
+import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/characters/shared/paper-circuit-person.js';
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
-import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
+import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/characters/explorer/grandstand-explorer.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
 
 function source(path: string): string {

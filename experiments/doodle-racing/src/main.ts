@@ -10,6 +10,7 @@ import {
 import { createCourseLayout } from './game/course.js';
 import {
   MENU_GAME_STATE,
+  RESULTS_GAME_STATE,
   exploreGameState,
   pausedGameState,
   raceGameState,
@@ -39,7 +40,10 @@ import {
   RaceSimulation,
   type DriveInput,
   type RaceLapCount,
+  type RaceSnapshot,
 } from './game/race-model.js';
+import { formatRaceResultTime, shouldOpenFinishResults } from './game/race-results.js';
+import { RoutePerformanceProbe } from './game/route-performance-probe.js';
 import {
   RaceStage,
   type ExploreStageInteraction,
@@ -146,16 +150,26 @@ const pauseExploreCameraButton = requireElement('[data-pause-explore-camera]', H
 const pauseExploreRerollButton = requireElement('[data-pause-explore-reroll]', HTMLButtonElement);
 const pauseMediumButton = requireElement('[data-pause-medium]', HTMLButtonElement);
 const pauseDebugButton = requireElement('[data-pause-debug]', HTMLButtonElement);
+const finishMenu = requireElement('[data-finish-menu]', HTMLDialogElement);
+const finishRestartButton = requireElement('[data-finish-restart]', HTMLButtonElement);
+const finishMainMenuButton = requireElement('[data-finish-main-menu]', HTMLButtonElement);
+const finishPosition = requireElement('[data-finish-position]', HTMLElement);
+const finishTime = requireElement('[data-finish-time]', HTMLElement);
 const touchBackButton = requireElement('[data-touch-back]', HTMLButtonElement);
 const touchPrimaryButton = requireElement('[data-touch-primary]', HTMLButtonElement);
 const routeDebugLegend = requireElement('[data-route-debug-legend]', HTMLElement);
 const debugPerformance = requireElement('[data-debug-performance]', HTMLOutputElement);
 const debugFps = requireElement('[data-debug-fps]', HTMLElement);
 const debugFrameTime = requireElement('[data-debug-frame-time]', HTMLElement);
+const mobileMenuQuery = window.matchMedia('(max-width: 760px)');
 
 const course = createCourseLayout();
 const world = createRaceWorldLayout(course);
 const simulation = new RaceSimulation(course, world);
+const routePerformanceProbe = import.meta.env.DEV
+  && new URLSearchParams(window.location.search).has('route-profile')
+  ? new RoutePerformanceProbe(course)
+  : null;
 const input = new InputController(shell, canvas);
 const focusNavigator = new ControlFocusNavigator();
 const controlHints = new ControlHintPresenter(shell);
@@ -208,6 +222,10 @@ let audioSettingsOpener: HTMLButtonElement | null = null;
 let rendererRecoveryPauseMode: 'race' | 'explore' | null = null;
 let resumeRaceAfterRendererRecovery = false;
 let suppressNextGlobalAction = false;
+
+function syncStageRenderingSuspension(): void {
+  stage?.setRenderingSuspended(appMode === 'menu' && mobileMenuQuery.matches);
+}
 
 function playMenuClick(): void {
   sound.play('menu-click');
@@ -276,7 +294,7 @@ function renderMusicState(): void {
 }
 
 function openAudioSettings(opener: HTMLButtonElement): void {
-  if (audioSettingsDialog.open || rendererError.open || vehicleSelector.open) return;
+  if (audioSettingsDialog.open || rendererError.open || vehicleSelector.open || finishMenu.open) return;
   playMenuClick();
   audioSettingsOpener = opener;
   audioSettingsReturnSurface = pauseMenu.open ? 'pause' : 'menu';
@@ -317,6 +335,7 @@ function restoreGameplayFocus(): void {
     && !pauseMenu.open
     && !audioSettingsDialog.open
     && !vehicleSelector.open
+    && !finishMenu.open
     && !rendererError.open
   ) {
     canvas.focus({ preventScroll: true });
@@ -394,10 +413,13 @@ function startRenderer(): void {
         cacheCapacity: PAPER_CIRCUIT_VEHICLES.length,
       }),
     );
-    vehicleInteractionPreview.prewarm(stage.vehicleInteractionPreviews());
-    vehicleConfiguratorPreview.prewarm(stage.vehicleConfiguratorPreviews());
+    if (routePerformanceProbe === null) {
+      vehicleInteractionPreview.prewarm(stage.vehicleInteractionPreviews());
+      vehicleConfiguratorPreview.prewarm(stage.vehicleConfiguratorPreviews());
+    }
     stage.setCameraMode(cameraMode);
     stage.setMode(appMode);
+    syncStageRenderingSuspension();
     stage.setRouteDebugVisible(routeDebugEnabled);
     if (import.meta.env.DEV) {
       console.info('Paper Circuit render diagnostics', stage.diagnostics());
@@ -538,6 +560,7 @@ function exploreEntranceStatus(phase: ExploreEntrancePhase): string {
 }
 
 function currentGameState(): PaperCircuitGameState {
+  if (finishMenu.open) return RESULTS_GAME_STATE;
   if (pauseReturnMode !== null) return pausedGameState(pauseReturnMode);
   if (appMode === 'menu') return MENU_GAME_STATE;
   if (appMode === 'race') return raceGameState(simulation.currentPhase);
@@ -553,6 +576,8 @@ function activateCurrentFocusSurface(focus = true): void {
     );
   } else if (rendererError.open) {
     focusNavigator.activate(rendererError, retryButton, focus);
+  } else if (finishMenu.open) {
+    focusNavigator.activate(finishMenu, finishRestartButton, focus);
   } else if (pauseMenu.open) {
     focusNavigator.activate(pauseMenu, resumeButton, focus);
   } else if (vehicleSelector.open) {
@@ -576,7 +601,13 @@ function renderPauseSettings(): void {
 }
 
 function openPauseMenu(): void {
-  if (appMode === 'menu' || rendererError.open || pauseMenu.open || audioSettingsDialog.open) return;
+  if (
+    appMode === 'menu'
+    || rendererError.open
+    || pauseMenu.open
+    || audioSettingsDialog.open
+    || finishMenu.open
+  ) return;
   if (vehicleSelector.open) closeVehicleSelector(false);
   pauseReturnMode = appMode;
   if (appMode === 'race') simulation.pause();
@@ -590,6 +621,35 @@ function openPauseMenu(): void {
   pauseMenu.showModal();
   focusNavigator.activate(pauseMenu, resumeButton, !document.hidden);
   hud.announce('Game paused. Resume, adjust audio, or return to the main menu.');
+}
+
+function openFinishMenu(snapshot: RaceSnapshot): void {
+  if (
+    finishMenu.open
+    || appMode !== 'race'
+    || snapshot.phase !== 'finished'
+    || rendererError.open
+  ) return;
+  sound.syncDrift(false);
+  sound.syncOffRoad(false);
+  sound.syncCurbImpact(0);
+  engineSound.setPaused(true);
+  finishPosition.textContent = `P${snapshot.playerPosition}`;
+  finishTime.textContent = formatRaceResultTime(snapshot.elapsed);
+  shell.classList.add('is-results');
+  finishMenu.showModal();
+  focusNavigator.activate(finishMenu, finishRestartButton, !document.hidden);
+  hud.announce(
+    `Race complete in position ${snapshot.playerPosition}. Race again or return to the main menu.`,
+  );
+}
+
+function closeFinishMenu(restoreFocus = false): void {
+  if (finishMenu.open) finishMenu.close();
+  shell.classList.remove('is-results');
+  engineSound.setPaused(false);
+  if (restoreFocus) restoreGameplayFocus();
+  else focusNavigator.reset();
 }
 
 function closePauseMenu(restoreFocus = true): void {
@@ -653,6 +713,10 @@ function handleControlActions(controls: ControlSnapshot): boolean {
       openPauseMenu();
       return true;
     }
+    if (command === 'main-menu') {
+      openMenu();
+      return true;
+    }
     if (command === 'close-overlay') {
       closeVehicleSelector();
       return true;
@@ -675,6 +739,10 @@ function handleEscapeKey(event: KeyboardEvent): void {
     event.preventDefault();
     suppressNextGlobalAction = true;
     closeAudioSettings();
+  } else if (finishMenu.open) {
+    event.preventDefault();
+    suppressNextGlobalAction = true;
+    openMenu();
   } else if (pauseMenu.open) {
     event.preventDefault();
     suppressNextGlobalAction = true;
@@ -703,7 +771,7 @@ function frame(now: number): void {
     controlHints.update(input.lastActiveDevice);
     const surfaceChanged = handleControlActions(controls);
     if (!surfaceChanged) focusNavigator.update(controls, delta);
-    if (audioSettingsDialog.open || pauseMenu.open || rendererError.open) {
+    if (audioSettingsDialog.open || pauseMenu.open || finishMenu.open || rendererError.open) {
       animationFrame = requestAnimationFrame(frame);
       return;
     }
@@ -758,7 +826,10 @@ function frame(now: number): void {
     } else {
       const driveInput = appMode === 'race' ? toDriveInput(controls) : IDLE_INPUT;
       renderVehicleInteraction(null, delta);
-      const snapshot = simulation.update(delta, driveInput);
+      let snapshot = simulation.update(delta, driveInput);
+      if (routePerformanceProbe !== null) {
+        snapshot = routePerformanceProbe.force(snapshot, now);
+      }
       if (snapshot.phase !== previousRacePhase) {
         if (snapshot.phase === 'running') sound.play('race-go');
         else if (snapshot.phase === 'finished') sound.play('crowd-applause');
@@ -774,7 +845,31 @@ function frame(now: number): void {
       engineSound.sync(snapshot, driveInput, delta);
       hud.render(snapshot);
       minimap.render(snapshot);
+      const stageRenderStartedAt = routePerformanceProbe === null ? 0 : performance.now();
       stage?.render(snapshot, delta, toExploreInput(controls));
+      if (routePerformanceProbe !== null && stage !== null) {
+        const renderCpuMilliseconds = performance.now() - stageRenderStartedAt;
+        const diagnostics = routePerformanceProbe.shouldSampleDiagnostics()
+          ? stage.diagnostics()
+          : null;
+        routePerformanceProbe.record(
+          frameDelta * 1_000,
+          renderCpuMilliseconds,
+          stage.renderStats(),
+          diagnostics,
+        );
+        const report = routePerformanceProbe.report();
+        if (report !== null) {
+          console.info(`Paper Circuit route performance ${JSON.stringify({
+            viewport: Object.freeze({ width: viewport.clientWidth, height: viewport.clientHeight }),
+            devicePixelRatio: window.devicePixelRatio,
+            report,
+          })}`);
+        }
+      }
+      if (shouldOpenFinishResults(snapshot.phase, stage?.finishResultsReady === true)) {
+        openFinishMenu(snapshot);
+      }
       const preview = appMode === 'menu' ? menuPreview?.render(delta) : null;
       if (appMode === 'menu' && preview !== null && preview !== undefined) {
         menuCharacter.textContent = 'Random person';
@@ -830,6 +925,7 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   activateCurrentFocusSurface();
   if (mode !== 'explore') renderVehicleInteraction(null, 0);
   stage?.setMode(mode);
+  syncStageRenderingSuspension();
   renderRouteDebugState();
 }
 
@@ -845,8 +941,10 @@ function renderLapSelection(): void {
 }
 
 function openMenu(): void {
+  if (finishMenu.open) closeFinishMenu(false);
   if (pauseMenu.open) closePauseMenu(false);
   if (vehicleSelector.open) closeVehicleSelector(false);
+  sound.stop('crowd-applause');
   playMenuClick();
   simulation.openMenu();
   engineSound.stopRace();
@@ -860,12 +958,15 @@ function startRace(): void {
   const laps = selectedLapCount();
   try {
     stage?.rerollCrowd(createRandomSeed());
+    stage?.prepareRaceStart();
   } catch (error) {
     showRendererError();
     hud.announce('The crowd failed to rebuild. Retry is available.');
     console.error(error);
     return;
   }
+  if (finishMenu.open) closeFinishMenu(false);
+  sound.stop('crowd-applause');
   simulation.start({ laps });
   engineSound.startRace();
   setAppMode('race');
@@ -919,8 +1020,10 @@ function dispose(): void {
   if (!active) return;
   active = false;
   window.removeEventListener('keydown', handleEscapeKey, { capture: true });
+  mobileMenuQuery.removeEventListener('change', syncStageRenderingSuspension);
   if (vehicleSelector.open) vehicleSelector.close();
   if (pauseMenu.open) pauseMenu.close();
+  if (finishMenu.open) finishMenu.close();
   if (audioSettingsDialog.open) audioSettingsDialog.close();
   if (rendererError.open) rendererError.close();
   cancelAnimationFrame(animationFrame);
@@ -1044,6 +1147,13 @@ pauseMenu.addEventListener('cancel', (event) => {
   suppressNextGlobalAction = true;
   closePauseMenu();
 });
+finishRestartButton.addEventListener('click', startRace);
+finishMainMenuButton.addEventListener('click', openMenu);
+finishMenu.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  suppressNextGlobalAction = true;
+  openMenu();
+});
 audioSettingsDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   suppressNextGlobalAction = true;
@@ -1106,7 +1216,9 @@ renderLapSelection();
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) openPauseMenu();
   else if (pauseMenu.open) focusNavigator.activate(pauseMenu, resumeButton);
+  else if (finishMenu.open) focusNavigator.activate(finishMenu, finishRestartButton);
 });
+mobileMenuQuery.addEventListener('change', syncStageRenderingSuspension);
 
 retryButton.addEventListener('click', () => {
   playMenuClick();
@@ -1117,6 +1229,10 @@ if (import.meta.hot !== undefined) import.meta.hot.dispose(dispose);
 
 startRenderer();
 setAppMode('menu');
+if (routePerformanceProbe !== null) {
+  simulation.start({ laps: DEFAULT_RACE_LAPS });
+  setAppMode('race');
+}
 controlHints.update(input.lastActiveDevice);
 hud.render(simulation.snapshot());
 minimap.render(simulation.snapshot());

@@ -1872,6 +1872,34 @@ canvas {
   line-height: 1.55;
 }
 
+.finish-menu-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.finish-menu-summary > span {
+  display: grid;
+  gap: 3px;
+  min-block-size: 68px;
+  padding: 10px 13px;
+  border: 1px solid rgb(244 230 195 / 24%);
+  background: rgb(13 15 14 / 48%);
+  color: var(--paper-muted);
+  font-size: .58rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.finish-menu-summary strong {
+  color: var(--paper);
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-size: 1.7rem;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 .pause-menu-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2266,6 +2294,10 @@ canvas {
   }
 
   .pause-menu-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .finish-menu-summary {
     grid-template-columns: 1fr;
   }
 

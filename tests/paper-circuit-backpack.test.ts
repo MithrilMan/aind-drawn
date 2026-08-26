@@ -10,8 +10,8 @@ import {
   type PaperCircuitBackpackStyle,
 } from '../experiments/doodle-racing/src/extensions/paper-circuit-backpack/index.js';
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
-import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
-import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
+import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/characters/explorer/grandstand-explorer.js';
+import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/characters/shared/paper-circuit-person.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
 
 describe('Paper Circuit backpack', () => {

@@ -1,5 +1,5 @@
-import type { RacerSnapshot } from './race-model.js';
-import type { TracksideSpectatorPlacement } from './race-world.js';
+import type { RacerSnapshot } from '../../race-model.js';
+import type { TracksideSpectatorPlacement } from '../../race-world.js';
 
 const WATCH_RADIUS = 12;
 const PANIC_HORIZON_SECONDS = 1.15;

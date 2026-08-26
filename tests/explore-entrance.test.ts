@@ -7,7 +7,7 @@ import {
   sampleExploreEntrance,
   type ExploreEntrancePhase,
 } from '../experiments/doodle-racing/src/game/explore-entrance.js';
-import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
+import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/characters/explorer/grandstand-explorer.js';
 import { RaceCameraController } from '../experiments/doodle-racing/src/game/race-camera.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
 import { SmokeBurst } from '../experiments/doodle-racing/src/game/smoke-burst.js';

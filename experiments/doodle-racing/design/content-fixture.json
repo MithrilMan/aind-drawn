@@ -31,7 +31,7 @@
     "offRoad": "Loose ground. Grip reduced.",
     "respawning": "Resetting to the last safe track point.",
     "paused": "Game paused with controller-navigable session and audio controls",
-    "finished": "Playable crowd invasion, winner chase, and airborne toss cinematic",
+    "finished": "Rear three-quarter crowd escape with a two-second head start; capture and toss unlock race-again and main-menu results actions",
     "rendererError": "The Doodle track could not start. Your race settings are still here."
   }
 }

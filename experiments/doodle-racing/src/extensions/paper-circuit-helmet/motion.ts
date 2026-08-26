@@ -7,7 +7,7 @@ import {
   type SolidRig,
   type SpriteRig,
 } from '../../../../../src/index.js';
-import type { PaperCircuitPersonIdentity } from '../../game/paper-circuit-person.js';
+import type { PaperCircuitPersonIdentity } from '../../game/characters/shared/paper-circuit-person.js';
 import type {
   PaperCircuitHelmetIdentity,
   PaperCircuitHelmetItemIdentity,

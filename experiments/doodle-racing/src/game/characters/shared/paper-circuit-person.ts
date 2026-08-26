@@ -2,7 +2,7 @@ import {
   createCharacterIdentity,
   type CharacterIdentityOptions,
   type CharacterIdentityRecipe,
-} from '../../../../src/index.js';
+} from '../../../../../../src/index.js';
 
 export type PaperCircuitPersonIdentity = CharacterIdentityRecipe & Readonly<{
   species: 'human';

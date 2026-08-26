@@ -156,6 +156,10 @@ export class SmokeBurst {
     return this.rig.root.visible && this.elapsed / SMOKE_DURATION >= SMOKE_COVER_PROGRESS;
   }
 
+  public get isActive(): boolean {
+    return this.rig.root.visible;
+  }
+
   public update(deltaSeconds: number): void {
     if (!this.rig.root.visible) return;
     this.elapsed += Math.max(0, Math.min(0.05, deltaSeconds));

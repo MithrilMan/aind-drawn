@@ -41,6 +41,44 @@ export function interpolatePaperCircuitHelmetEquipPose(
   });
 }
 
+const HELMET_HAND_CARRY_PROGRESS = 0.38;
+
+export function interpolatePaperCircuitHelmetCarryPose(
+  back: Pose3,
+  hand: Pose3,
+  head: Pose3,
+  amount: number,
+  arcHeight = 0,
+): Pose3 {
+  const progress = Math.max(0, Math.min(1, amount));
+  if (progress <= HELMET_HAND_CARRY_PROGRESS) {
+    return interpolatePaperCircuitHelmetEquipPose(
+      back,
+      hand,
+      smoothStep(progress / HELMET_HAND_CARRY_PROGRESS),
+      arcHeight * 0.42,
+    );
+  }
+  return interpolatePaperCircuitHelmetEquipPose(
+    hand,
+    head,
+    smoothStep(
+      (progress - HELMET_HAND_CARRY_PROGRESS) / (1 - HELMET_HAND_CARRY_PROGRESS),
+    ),
+    arcHeight,
+  );
+}
+
+export function paperCircuitHelmetGripAmountForCarry(amount: number): number {
+  const progress = Math.max(0, Math.min(1, amount));
+  if (progress <= HELMET_HAND_CARRY_PROGRESS) {
+    return 1 - smoothStep(progress / HELMET_HAND_CARRY_PROGRESS);
+  }
+  return smoothStep(
+    (progress - HELMET_HAND_CARRY_PROGRESS) / (1 - HELMET_HAND_CARRY_PROGRESS),
+  );
+}
+
 /** Game-only grip pose. At one the standalone item matches its worn projection. */
 export function applySolidPaperCircuitHelmetGripMotion(
   rig: SolidRig,

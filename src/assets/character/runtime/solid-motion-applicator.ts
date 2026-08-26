@@ -44,11 +44,13 @@ function applyFacePart(
   if (part === null) return;
   rig.resetPartPose(definition.id);
   if (binding.kind === 'eye') {
+    const winkAmount = sample.face.wink === (binding.side < 0 ? 'left' : 'right') ? 0.08 : 1;
     part.translateX(sample.face.gaze.x * binding.gazeTravel[0] * sample.face.blink);
     part.translateY(sample.face.gaze.y * binding.gazeTravel[1] * sample.face.blink);
     part.scale.x *= sample.face.eyeScale;
     part.scale.y *= sample.face.eyeScale
       * sample.face.eyeOpenness
+      * winkAmount
       * Math.max(binding.blink.minimumScaleY, sample.face.blink);
   } else if (binding.kind === 'brow') {
     part.translateX(sample.face.gaze.x * unit * 0.04);

@@ -24,6 +24,7 @@ import {
 } from '../experiments/doodle-racing/src/game/game-state.js';
 import {
   controlHint,
+  keyboardControlsForCode,
   standardGamepadControls,
 } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { ControlAxisRepeater } from '../experiments/doodle-racing/src/game/control-focus-navigator.js';
@@ -101,6 +102,8 @@ describe('controller-agnostic gameplay controls', () => {
     }));
     expect(back.actions.back).toMatchObject({ active: true, pressed: true });
     expect(back.actions.pause.active).toBe(false);
+    expect(toExploreInput(back).run).toBe(true);
+    expect(toDriveInput(back).handbrake).toBe(false);
     const pauseButtons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
     pauseButtons[9] = { pressed: true, value: 1 };
     const paused = gamepadSnapshot(Object.freeze({
@@ -112,6 +115,9 @@ describe('controller-agnostic gameplay controls', () => {
     expect(controlHint('back', 'gamepad')).toBe('B');
     expect(controlHint('pause', 'gamepad')).toBe('Menu');
     expect(controlHint('interact', 'keyboard')).toBe('E');
+    expect(controlHint('pause', 'keyboard')).toBe('Esc');
+    expect(keyboardControlsForCode('Escape')).toEqual(['back', 'pause']);
+    expect(keyboardControlsForCode('KeyP')).toEqual([]);
     expect(controlHintModeFor('gamepad')).toBe('gamepad');
     expect(controlHintModeFor('touch')).toBe('keyboard');
   });

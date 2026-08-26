@@ -14,3 +14,7 @@ original focused event roles.
 `Insert_Coin_to_Ride_2026-08-26T154247.mp3`. It was transcoded from a 192 kbps MP3
 to 80 kbps variable-bitrate Opus for looped playback through the independent
 `Music` category.
+
+`explore-song.opus` is the Explore background theme supplied as
+`Paper_Blueprints_2026-08-26T162910.mp3`. It was transcoded from a 192 kbps MP3
+to 80 kbps variable-bitrate Opus and shares the persisted `Music` category mix.

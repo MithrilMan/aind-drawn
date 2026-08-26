@@ -18,6 +18,7 @@ export class MenuCharacterPreview {
   private readonly smoke = new SmokeBurst();
   private explorer: GrandstandExplorer;
   private pendingSeed: number | null = null;
+  private waitingForSmokeEnd = false;
 
   public constructor(
     canvas: HTMLCanvasElement,
@@ -29,6 +30,7 @@ export class MenuCharacterPreview {
   ) {
     this.doodle = new DoodleScene(canvas, viewport, medium);
     this.explorer = this.createExplorer(seed);
+    this.explorer.schedulePreviewHelmetEquip(2);
     this.backdrop.setVisible(true);
     this.doodle.setAssets(this.sceneAssets());
     this.updateCamera();
@@ -54,6 +56,10 @@ export class MenuCharacterPreview {
   public render(deltaSeconds: number): GrandstandExplorerSnapshot {
     this.smoke.update(deltaSeconds);
     this.completePendingChange();
+    if (this.waitingForSmokeEnd && !this.smoke.isActive) {
+      this.waitingForSmokeEnd = false;
+      this.explorer.schedulePreviewHelmetEquip(2);
+    }
     const snapshot = this.explorer.updatePreview(deltaSeconds);
     this.updateCamera();
     this.backdrop.update(this.doodle.camera, snapshot);
@@ -85,6 +91,8 @@ export class MenuCharacterPreview {
     if (seed === null || !this.smoke.isCovered) return;
     const previous = this.explorer;
     this.explorer = this.createExplorer(seed);
+    this.explorer.holdPreviewHelmetOnBack();
+    this.waitingForSmokeEnd = true;
     this.doodle.setAssets(this.sceneAssets());
     previous.dispose();
     this.pendingSeed = null;

@@ -222,46 +222,23 @@
             data-route-meter
           ><i data-route-meter-fill></i></div>
           <small>Largest gap <b data-route-gap>0.0</b> / <span data-route-gap-limit>0</span> m</small>
-          <button
-            class="route-debug-toggle"
-            type="button"
-            aria-pressed="false"
-            data-route-debug
-          >Debug path</button>
           <small class="route-debug-legend" data-route-debug-legend hidden>
             <span><i class="route-valid-swatch"></i>Valid road</span>
             <span><i class="route-covered-swatch"></i>Covered this lap</span>
           </small>
         </section>
 
-        <form class="game-settings" aria-label="Race settings">
-          <label class="medium-control">
-            <span class="visually-hidden">Drawing medium</span>
-            <select name="medium" data-medium>
-              <option value="graphite">Graphite</option>
-              <option value="ink">Ink</option>
-              <option value="oil">Oil</option>
-            </select>
-          </label>
-          <div class="camera-control" role="group" aria-label="Camera mode">
-            <button type="button" aria-pressed="true" data-camera="follow">Follow</button>
-            <button type="button" aria-pressed="false" data-camera="aerial">Aerial</button>
-          </div>
-          <button class="sound-toggle game-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
-          <button class="pause-button" type="button" aria-pressed="false" data-pause>Pause</button>
-          <button class="restart-button" type="button" data-new-race aria-label="Open race menu">↻</button>
-        </form>
+        <button class="game-options-button" type="button" data-open-pause aria-label="Open pause menu" hidden>
+          <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
+            <path d="M7 5.5h3.5v13H7zm6.5 0H17v13h-3.5z"></path>
+          </svg>
+        </button>
 
         <section class="explore-hud" aria-label="Grandstand exploration" data-explore-hud hidden>
           <div class="explore-status-card">
             <span class="explore-kicker">Explore</span>
             <strong data-explore-character>Random character</strong>
             <span data-explore-status>Idle</span>
-          </div>
-          <div class="explore-actions">
-            <button type="button" data-reset-explore-camera>Camera <kbd data-control-hint="camera"></kbd></button>
-            <button type="button" data-reroll-explore>Driver <kbd data-control-hint="reroll"></kbd></button>
-            <button type="button" data-open-pause>Pause <kbd data-control-hint="pause"></kbd></button>
           </div>
         </section>
 
@@ -397,11 +374,13 @@
               </button>
               <button type="button" aria-haspopup="dialog" aria-controls="audio-settings" data-open-audio-settings>Audio settings</button>
               <button type="button" data-pause-camera>Camera: Follow</button>
+              <button type="button" data-pause-explore-camera hidden>Reset camera</button>
+              <button type="button" data-pause-explore-reroll hidden>New driver</button>
               <button type="button" data-pause-medium>Medium: Graphite</button>
               <button type="button" data-pause-debug>Debug path: Off</button>
               <button class="pause-menu-exit" type="button" data-pause-main-menu>Main menu</button>
             </div>
-            <p class="pause-menu-help"><kbd data-control-hint="back"></kbd> also resumes</p>
+            <p class="pause-menu-help"><kbd data-control-hint="pause"></kbd> toggles pause</p>
           </div>
         </dialog>
 
@@ -409,11 +388,11 @@
           <form class="pause-menu-panel audio-settings-panel" method="dialog">
             <p class="pause-menu-kicker">Paper Circuit / Mix</p>
             <h2 id="audio-settings-title">Audio</h2>
-            <p class="pause-menu-copy">Set the menu music and game sound mix. Choices stay on this device.</p>
+            <p class="pause-menu-copy">Set the background music and game sound mix. Choices stay on this device.</p>
             <div class="audio-channel-list">
               <section class="audio-channel" aria-labelledby="music-channel-title">
                 <div class="audio-channel-heading">
-                  <span><strong id="music-channel-title">Music</strong><small>Menu only</small></span>
+                  <span><strong id="music-channel-title">Music</strong><small>Menu and Explore</small></span>
                   <button type="button" data-music-toggle aria-pressed="true">Music on</button>
                 </div>
                 <label for="music-volume"><span>Volume</span><output for="music-volume" data-music-volume-output>100%</output></label>

@@ -89,6 +89,7 @@ export function sampleCharacterFaceMotion(
     mouth,
     mouthOpenness: coughImpulse > 0.08 ? 0.68 : 1,
     eyeState,
+    wink: state.command.wink,
     eyeScale: profile.eyes.scale,
     eyeOpenness: profile.eyes.openness,
     blink,

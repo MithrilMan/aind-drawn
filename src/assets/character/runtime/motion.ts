@@ -22,6 +22,8 @@ export type CharacterGazeIntent = Readonly<{
   headFollow: number;
 }>;
 
+export type CharacterWink = 'left' | 'right' | null;
+
 /** Partial command accepted by the immutable character motion state reducer. */
 export type CharacterMotion = Readonly<{
   pose?: CharacterPose;
@@ -31,6 +33,8 @@ export type CharacterMotion = Readonly<{
   expression?: CharacterExpression;
   /** `null` clears a manual gaze and returns control to autonomous motion. */
   gaze?: CharacterGazeIntent | null;
+  /** `null` releases an authored wink and returns both eyes to normal motion. */
+  wink?: CharacterWink;
 }>;
 
 export type CharacterMotionCommand = Readonly<{
@@ -40,6 +44,7 @@ export type CharacterMotionCommand = Readonly<{
   talking: boolean;
   expression: CharacterExpression;
   gaze: CharacterGazeIntent | null;
+  wink: CharacterWink;
 }>;
 
 export type CharacterMotionOptions = Readonly<{
@@ -92,6 +97,7 @@ export type CharacterFaceMotionSample = Readonly<{
   /** Relative vertical scale for the selected mouth state. */
   mouthOpenness: number;
   eyeState: 'open' | 'closed' | 'left' | 'right';
+  wink: CharacterWink;
   eyeScale: number;
   eyeOpenness: number;
   blink: number;

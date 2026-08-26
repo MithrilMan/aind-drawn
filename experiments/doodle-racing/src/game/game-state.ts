@@ -4,6 +4,7 @@ import type { RacePhase } from './race-model.js';
 export type ExploreGameActivity =
   | 'unavailable'
   | 'entrance'
+  | 'vehicle-entry'
   | 'on-foot'
   | 'driving'
   | 'vehicle-customizer';

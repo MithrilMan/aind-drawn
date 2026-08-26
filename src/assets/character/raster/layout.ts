@@ -129,6 +129,10 @@ export function buildCharacterLayout(recipe: CharacterRecipe): CharacterLayout {
     sockets: Object.freeze({
       feet: Object.freeze({ x: 0, y: 0 }),
       head: Object.freeze({ x: 0, y: headCenterPixels / PIXELS_PER_UNIT }),
+      back: Object.freeze({
+        x: torsoWidth * 0.26 / PIXELS_PER_UNIT,
+        y: (hipYPixels + torsoHeight * 0.64) / PIXELS_PER_UNIT,
+      }),
       'hand:left': Object.freeze({
         x: -(shoulderX + armLength * 0.24) / PIXELS_PER_UNIT,
         y: handY,

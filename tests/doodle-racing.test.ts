@@ -39,6 +39,9 @@ import {
   type VehicleEffectSource,
 } from '../experiments/doodle-racing/src/game/drift-effects.js';
 import { ExploreDriveController } from '../experiments/doodle-racing/src/game/explore-drive.js';
+import {
+  ExploreVehicleEntryDirector,
+} from '../experiments/doodle-racing/src/game/explore-vehicle-entry.js';
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
 import {
   DEFAULT_PAPER_CIRCUIT_MEDIUM,
@@ -707,6 +710,141 @@ describe('Paper Circuit experiment', () => {
     controller.dispose();
   });
 
+  it('returns the Explore camera to the exact pre-entry view after the close-up', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 220);
+    const controller = new RaceCameraController(
+      camera,
+      layout,
+      world,
+      () => Object.freeze({ width: 1440, height: 900 }),
+    );
+    const snapshot = Object.freeze({
+      species: 'human' as const,
+      x: 18,
+      y: 0.15,
+      z: -11,
+      heading: 2.4,
+      speed: 0,
+      along: 0,
+      away: 0,
+      row: -1,
+      pose: 'sit' as const,
+      expression: 'idle' as const,
+      elapsed: 0,
+    });
+
+    for (let index = 0; index < 80; index += 1) {
+      controller.updateExplorer(snapshot, 0.05, false, 0);
+    }
+    const initialView = controller.captureExplorerView();
+    const entry = Object.freeze({ vehicleId: 'you' as const, side: 'left' as const, distance: 0 });
+    const director = new ExploreVehicleEntryDirector(
+      entry,
+      snapshot,
+      Object.freeze({
+        x: snapshot.x + 0.8,
+        y: snapshot.y,
+        z: snapshot.z - 0.4,
+      }),
+      Object.freeze({ x: snapshot.x - 0.6, z: snapshot.z }),
+    );
+    let closeupDistance = 0;
+    let frame = director.snapshot();
+    for (let index = 0; index < 100 && !frame.complete; index += 1) {
+      frame = director.update(0.05);
+      const actor = Object.freeze({ ...snapshot, x: frame.x, y: frame.y, z: frame.z });
+      controller.updateExplorerVehicleEntry(actor, frame, initialView);
+      if (frame.phase === 'smirking') {
+        closeupDistance = Math.max(
+          closeupDistance,
+          camera.position.distanceTo(new THREE.Vector3(...initialView.position)),
+        );
+      }
+    }
+
+    expect(closeupDistance).toBeGreaterThan(1);
+    expect(frame.complete).toBe(true);
+    expect(camera.position.toArray()).toEqual(initialView.position);
+    expect(camera.top - camera.bottom).toBeCloseTo(initialView.viewSize, 8);
+    controller.dispose();
+  });
+
+  it('directs the Explore vehicle entry through smirk, wink, helmet, and boarding beats', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const explorer = new GrandstandExplorer(world.grandstand, layout, 24_612);
+    explorer.setVisible(true);
+    const source = explorer.snapshot();
+    const target = Object.freeze({ x: source.x + 0.6, y: source.y, z: source.z + 0.2 });
+    const entry = Object.freeze({ vehicleId: 'you' as const, side: 'left' as const, distance: 0 });
+    const vehicle = Object.freeze({ x: source.x - 0.8, z: source.z });
+    const director = new ExploreVehicleEntryDirector(entry, source, target, vehicle);
+    const phases = new Set<string>();
+    let sawWink = false;
+    let sawEquip = false;
+    let sawOpenDoor = false;
+    let openingDistanceFromVehicle = 0;
+    let frame = director.snapshot();
+
+    expect(explorer.helmetItemRig.root.visible).toBe(true);
+    for (let index = 0; index < 100 && !frame.complete; index += 1) {
+      frame = director.update(0.05);
+      explorer.updateCinematic(0.05, frame);
+      phases.add(frame.phase);
+      sawWink ||= frame.wink === 'left';
+      sawEquip ||= frame.helmetCarryAmount > 0.8;
+      sawOpenDoor ||= frame.doorOpen;
+      if (frame.phase === 'opening') {
+        openingDistanceFromVehicle = Math.max(
+          openingDistanceFromVehicle,
+          Math.hypot(frame.x - vehicle.x, frame.z - vehicle.z),
+        );
+      }
+    }
+
+    expect([...phases]).toEqual(expect.arrayContaining([
+      'focusing', 'smirking', 'winking', 'equipping', 'clearing', 'opening',
+      'boarding', 'returning',
+    ]));
+    expect(sawWink).toBe(true);
+    expect(sawEquip).toBe(true);
+    expect(sawOpenDoor).toBe(true);
+    expect(openingDistanceFromVehicle).toBeGreaterThan(
+      Math.hypot(source.x - vehicle.x, source.z - vehicle.z) + 0.7,
+    );
+    expect(frame.complete).toBe(true);
+    expect(frame.expression).toBe('smirk');
+    expect(frame.cameraHeading).toBeCloseTo(Math.PI * 0.5, 6);
+    expect(frame.heading).toBeCloseTo(frame.cameraHeading, 6);
+    expect(explorer.helmetItemRig.root.visible).toBe(false);
+    explorer.dispose();
+  });
+
+  it('varies the pre-smirk reaction and wink side without losing the final expression', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const explorer = new GrandstandExplorer(world.grandstand, layout, 24_613);
+    const source = explorer.snapshot();
+    const target = Object.freeze({ x: source.x, y: source.y, z: source.z });
+    const vehicle = Object.freeze({ x: source.x, z: source.z - 1 });
+    const entry = Object.freeze({ vehicleId: 'you' as const, side: 'right' as const, distance: 0 });
+    const variant = new ExploreVehicleEntryDirector(entry, source, target, vehicle, 1);
+    let frame = variant.snapshot();
+    let sawHappy = false;
+    let sawRightWink = false;
+    for (let index = 0; index < 100 && !frame.complete; index += 1) {
+      frame = variant.update(0.05);
+      sawHappy ||= frame.expression === 'happy';
+      sawRightWink ||= frame.wink === 'right';
+    }
+    expect(sawHappy).toBe(true);
+    expect(sawRightWink).toBe(true);
+    expect(frame.expression).toBe('smirk');
+    explorer.dispose();
+  });
+
   it('keeps the ground inside a very low Explore camera projection', () => {
     const pitch = 0.06;
     const distance = 12.4;
@@ -1002,7 +1140,7 @@ describe('Paper Circuit experiment', () => {
     sound.dispose();
   });
 
-  it('keeps the bundled main song loop independent from sound effects', () => {
+  it('routes the bundled menu and Explore loops independently from sound effects', () => {
     const clips: FakeAudio[] = [];
     const music = new MusicController((source) => {
       const clip = new FakeAudio(source);
@@ -1010,30 +1148,37 @@ describe('Paper Circuit experiment', () => {
       return clip as unknown as HTMLAudioElement;
     });
 
-    expect(clips).toHaveLength(1);
-    const clip = clips[0] as FakeAudio;
-    expect(clip.source).toContain('main-song.opus');
-    expect(clip.loop).toBe(true);
+    expect(clips).toHaveLength(2);
+    const menuClip = clips.find(({ source }) => source.includes('main-song.opus')) as FakeAudio;
+    const exploreClip = clips.find(({ source }) => source.includes('explore-song.opus')) as FakeAudio;
+    expect(menuClip.loop).toBe(true);
+    expect(exploreClip.loop).toBe(true);
     music.unlock();
-    expect(clip.loadCount).toBe(1);
-    expect(clip.playCount).toBe(1);
-    const runningVolume = clip.volume;
+    expect(menuClip.loadCount).toBe(1);
+    expect(exploreClip.loadCount).toBe(0);
+    expect(menuClip.playCount).toBe(1);
+    const runningVolume = menuClip.volume;
     music.setPaused(true);
-    expect(clip.volume).toBeLessThan(runningVolume);
+    expect(menuClip.volume).toBeLessThan(runningVolume);
     expect(music.toggle()).toBe(false);
-    expect(clip.pauseCount).toBeGreaterThan(0);
+    expect(menuClip.pauseCount).toBeGreaterThan(0);
     expect(music.toggle()).toBe(true);
-    expect(clip.playCount).toBe(2);
+    expect(menuClip.playCount).toBe(2);
     music.setVolume(0.4);
-    expect(clip.volume).toBeCloseTo(0.4 * 0.055);
-    music.setMenuActive(false);
-    expect(clip.pauseCount).toBeGreaterThan(1);
-    const inactivePlayCount = clip.playCount;
+    expect(menuClip.volume).toBeCloseTo(0.4 * 0.055);
+    expect(exploreClip.volume).toBeCloseTo(0.4 * 0.055);
+    music.setPaused(false);
+    music.setScene('explore');
+    expect(exploreClip.loadCount).toBe(1);
+    expect(exploreClip.playCount).toBe(1);
+    expect(menuClip.pauseCount).toBeGreaterThan(1);
+    music.setScene('off');
+    const inactivePlayCount = exploreClip.playCount;
     expect(music.toggle()).toBe(false);
     expect(music.toggle()).toBe(true);
-    expect(clip.playCount).toBe(inactivePlayCount);
-    music.setMenuActive(true);
-    expect(clip.playCount).toBe(3);
+    expect(exploreClip.playCount).toBe(inactivePlayCount);
+    music.setScene('menu');
+    expect(menuClip.playCount).toBe(3);
     music.dispose();
   });
 
@@ -1282,6 +1427,25 @@ describe('Paper Circuit experiment', () => {
     second.dispose();
   });
 
+  it('waits two seconds after smoke clears before equipping the menu helmet', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const explorer = new GrandstandExplorer(world.grandstand, layout, 12_346);
+    explorer.setPreviewMode(true);
+    explorer.setVisible(true);
+
+    explorer.holdPreviewHelmetOnBack();
+    for (let index = 0; index < 60; index += 1) explorer.updatePreview(0.05);
+    expect(explorer.helmetItemRig.root.visible).toBe(true);
+
+    explorer.schedulePreviewHelmetEquip(2);
+    for (let index = 0; index < 39; index += 1) explorer.updatePreview(0.05);
+    expect(explorer.helmetItemRig.root.visible).toBe(true);
+    for (let index = 0; index < 18; index += 1) explorer.updatePreview(0.05);
+    expect(explorer.helmetItemRig.root.visible).toBe(false);
+    explorer.dispose();
+  });
+
   it('moves Explore forward along the character front and turns left intuitively', () => {
     const layout = createCourseLayout();
     const world = createRaceWorldLayout(layout);
@@ -1334,6 +1498,9 @@ describe('Paper Circuit experiment', () => {
     const running = explorer.update(0.05, runningInput);
     expect(running.pose).toBe('run');
     expect(running.speed).toBeGreaterThan(0.9);
+    explorer.helmetItemRig.root.updateWorldMatrix(true, true);
+    const backpackBounds = new THREE.Box3().setFromObject(explorer.helmetItemRig.root);
+    expect(backpackBounds.min.y).toBeGreaterThan(running.y + 0.04);
 
     explorer.reset();
     const beforeJump = explorer.snapshot();

@@ -16,6 +16,7 @@ import {
   type CharacterExpression,
   type CharacterMotionState,
   type CharacterPose,
+  type CharacterWink,
   type ExtendedAssetIdentity,
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
@@ -30,8 +31,8 @@ import {
   createPaperCircuitHelmetItemInkStrokes,
   createPaperCircuitVisorMotionState,
   createSolidPaperCircuitHelmetBlueprint,
-  interpolatePaperCircuitHelmetEquipPose,
-  samplePaperCircuitHelmetEquipMotion,
+  interpolatePaperCircuitHelmetCarryPose,
+  paperCircuitHelmetGripAmountForCarry,
   samplePaperCircuitVisorMotion,
   samplePaperCircuitVisorReachMotion,
   setPaperCircuitVisorPosition,
@@ -40,7 +41,6 @@ import {
   type PaperCircuitVisorPosition,
 } from '../extensions/paper-circuit-helmet/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
-import type { ExploreEntranceFrame } from './explore-entrance.js';
 import {
   createPaperCircuitPersonIdentity,
   type PaperCircuitPersonIdentity,
@@ -94,8 +94,24 @@ export type GrandstandExplorerSnapshot = Readonly<{
   elapsed: number;
 }>;
 
+export type GrandstandExplorerCinematicFrame = Readonly<{
+  x: number;
+  y: number;
+  z: number;
+  heading: number;
+  pose: CharacterPose;
+  expression: CharacterExpression;
+  wink?: CharacterWink;
+  helmetCarryAmount?: number;
+}>;
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
+}
+
+function smoothStep(value: number): number {
+  const amount = clamp(value, 0, 1);
+  return amount * amount * (3 - 2 * amount);
 }
 
 function localPosition(
@@ -169,7 +185,7 @@ export class GrandstandExplorer {
   });
   private visorMotion: PaperCircuitVisorMotionState = createPaperCircuitVisorMotionState();
   private visorAmount = 0;
-  private helmetEquipAmount = 0;
+  private helmetCarryAmount = 0;
   private helmetWorn: boolean | null = null;
   private actorVisible = false;
   private elapsed = 0;
@@ -189,8 +205,10 @@ export class GrandstandExplorer {
   private heading: number;
   private activePose: CharacterPose = 'idle';
   private activeExpression: CharacterExpression = 'idle';
+  private activeWink: CharacterWink = null;
   private jumpLatch = false;
   private previewMode = false;
+  private previewHelmetEquipAt: number | null = 2;
   private previewPosition: WorldPosition | null = null;
   private previewHeading = 0;
 
@@ -436,7 +454,7 @@ export class GrandstandExplorer {
 
   public updateCinematic(
     deltaSeconds: number,
-    frame: ExploreEntranceFrame,
+    frame: GrandstandExplorerCinematicFrame,
   ): GrandstandExplorerSnapshot {
     this.previewMode = false;
     this.elapsed += clamp(deltaSeconds, 0, 0.05);
@@ -458,18 +476,26 @@ export class GrandstandExplorer {
     this.surfaceRow = surface.row;
     this.heading = frame.heading;
     this.jumpLatch = false;
-    if (frame.pose !== this.activePose || frame.expression !== this.activeExpression) {
+    const wink = frame.wink ?? null;
+    if (
+      frame.pose !== this.activePose
+      || frame.expression !== this.activeExpression
+      || wink !== this.activeWink
+    ) {
       this.activePose = frame.pose;
       this.activeExpression = frame.expression;
+      this.activeWink = wink;
       this.motion = setCharacterMotion(this.motion, {
         pose: frame.pose,
         speed: frame.pose === 'run' ? 0.98
           : frame.pose === 'airborne' || frame.pose === 'play' ? 0.9 : 0,
         expression: frame.expression,
-      talking: false,
+        talking: false,
+        wink,
         facing: 1,
       }, this.elapsed);
     }
+    if (frame.helmetCarryAmount !== undefined) this.helmetCarryAmount = frame.helmetCarryAmount;
     this.applyPose();
     return this.snapshot();
   }
@@ -487,6 +513,8 @@ export class GrandstandExplorer {
     this.previewMode = false;
     this.activePose = 'idle';
     this.activeExpression = 'idle';
+    this.activeWink = null;
+    this.helmetCarryAmount = 0;
     this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
     this.visorMotion = createPaperCircuitVisorMotionState();
     this.applyPose();
@@ -515,6 +543,7 @@ export class GrandstandExplorer {
     this.jumpLatch = false;
     this.activePose = 'idle';
     this.activeExpression = 'idle';
+    this.activeWink = null;
     this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
     this.visorMotion = createPaperCircuitVisorMotionState();
     this.applyPose();
@@ -538,6 +567,9 @@ export class GrandstandExplorer {
       this.elapsed = 0;
       this.activePose = 'idle';
       this.activeExpression = 'idle';
+      this.activeWink = null;
+      this.helmetCarryAmount = 0;
+      this.previewHelmetEquipAt = 2;
       this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
       this.visorMotion = createPaperCircuitVisorMotionState();
       this.applyPose();
@@ -550,6 +582,10 @@ export class GrandstandExplorer {
     if (!this.previewMode) this.setPreviewMode(true);
     const delta = clamp(deltaSeconds, 0, 0.05);
     this.elapsed += delta;
+    this.helmetCarryAmount = this.previewHelmetEquipAt === null
+      ? 0
+      : smoothStep((this.elapsed - this.previewHelmetEquipAt) / 0.82);
+    const helmetTransitioning = this.helmetCarryAmount > 0 && this.helmetCarryAmount < 1;
     let cycle = this.elapsed % this.previewLoopDuration;
     let pose = this.previewSequence[this.previewSequence.length - 1] as CharacterPose;
     let expression = this.previewExpressions[
@@ -564,6 +600,10 @@ export class GrandstandExplorer {
       }
       cycle -= duration;
     }
+    if (helmetTransitioning) {
+      pose = 'idle';
+      expression = 'happy';
+    }
     if (pose !== this.activePose || expression !== this.activeExpression) {
       this.activePose = pose;
       this.activeExpression = expression;
@@ -577,6 +617,21 @@ export class GrandstandExplorer {
     this.heading = this.previewHeading + Math.sin(this.elapsed * 0.9) * 0.08;
     this.applyPose();
     return this.snapshot();
+  }
+
+  public holdPreviewHelmetOnBack(): void {
+    if (!this.previewMode) throw new Error('Preview helmet timing requires preview mode');
+    this.previewHelmetEquipAt = null;
+    this.helmetCarryAmount = 0;
+    this.applyPose();
+  }
+
+  public schedulePreviewHelmetEquip(delaySeconds = 2): void {
+    if (!this.previewMode) throw new Error('Preview helmet timing requires preview mode');
+    if (!(delaySeconds >= 0) || !Number.isFinite(delaySeconds)) {
+      throw new RangeError('Preview helmet delay must be a non-negative finite number');
+    }
+    this.previewHelmetEquipAt = this.elapsed + delaySeconds;
   }
 
   public dispose(): void {
@@ -599,16 +654,17 @@ export class GrandstandExplorer {
       this.rig,
       sampleCharacterMotion(this.identity, this.motion, this.elapsed),
     );
-    this.helmetEquipAmount = samplePaperCircuitHelmetEquipMotion(this.elapsed);
+    const backPose = this.rig.getSocketWorldPose('back');
     const handPose = this.rig.getSocketWorldPose('hand:right');
     const headPose = this.rig.getSocketWorldPose('head');
-    if (handPose === null || headPose === null) {
-      throw new Error('Paper Circuit helmet equip motion requires hand and head sockets');
+    if (backPose === null || handPose === null || headPose === null) {
+      throw new Error('Paper Circuit helmet carry motion requires back, hand, and head sockets');
     }
-    this.helmetItemRig.setWorldPose(interpolatePaperCircuitHelmetEquipPose(
+    this.helmetItemRig.setWorldPose(interpolatePaperCircuitHelmetCarryPose(
+      backPose,
       handPose,
       headPose,
-      this.helmetEquipAmount,
+      this.helmetCarryAmount,
       this.identity.head.height * actorScale * 0.86,
     ));
     const mount = this.solid.nodes.find((node) => (
@@ -616,22 +672,24 @@ export class GrandstandExplorer {
     ));
     const fitScale = mount?.restScale?.[0];
     if (fitScale === undefined) throw new Error('Paper Circuit helmet mount has no fit scale');
-    this.helmetItemRig.root.scale.setScalar(fitScale * actorScale);
+    const backpackScale = 0.42;
+    const carryScale = backpackScale + (1 - backpackScale) * smoothStep(this.helmetCarryAmount);
+    this.helmetItemRig.root.scale.setScalar(fitScale * actorScale * carryScale);
     applySolidPaperCircuitHelmetGripMotion(
       this.helmetItemRig,
       this.helmet.data.item,
-      this.helmetEquipAmount,
+      paperCircuitHelmetGripAmountForCarry(this.helmetCarryAmount),
     );
     applySolidPaperCircuitHelmetItemVisorMotion(
       this.helmetItemRig,
       this.helmet.data.item,
       0,
     );
-    this.setHelmetWorn(this.helmetEquipAmount >= 1);
+    this.setHelmetWorn(this.helmetCarryAmount >= 1);
     this.visorMotion = setPaperCircuitVisorPosition(
       this.visorMotion,
       this.helmet,
-      this.helmetEquipAmount < 1
+      this.helmetCarryAmount < 1
         ? 'down'
         : visorPosition(this.activePose, this.activeExpression),
       this.elapsed,

@@ -198,8 +198,10 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   entering Explore or when the user requests a camera reset. Re-enabling input after closing the
   configurator therefore preserves the exact pre-dialog yaw, pitch, and distance.
 - Free-drive Explore framing adds an orthographic zoom-out baseline on entry and a further monotonic
-  speed term capped at the 24-world-unit reference speed. Walking keeps the existing orbit framing;
-  the transition remains smoothed by the camera controller.
+  speed term capped at the 24-world-unit reference speed. Entering a car preserves yaw, pitch,
+  distance, target, projection size, and world position across the entry vignette; after the exact
+  view is restored, the driving zoom expands from that orbit as speed rises. Walking keeps the same
+  orbit framing.
 - Explore now starts with a map-authored cinematic entrance. `RaceWorldLayout.explorerSpawn` owns
   the smoke entrance, initial transform, and approach waypoints; the pure entrance director owns
   materialization, a three-impulse cough, surprised discovery, two happy hops, the run, and the
@@ -210,11 +212,37 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   closed eyes at each peak. Orbit, reroll, and vehicle interaction remain
   locked until handoff. A bicycle or scooter entrance is a promising future proprietary vehicle
   family and integration example, but should not be faked before that articulated asset exists.
+- The Explore entrance camera must not derive its close composition from the character's animated
+  discovery heading. It now uses the map-authored spawn heading, a fixed lateral offset, and zero
+  roll; looking around therefore moves the actor without oscillating the camera. Only the final
+  approach blends into the default player orbit.
+- Explore vehicle entry is an explicit deterministic vignette rather than an immediate drive-state
+  toggle. It captures the current camera, turns the actor outward so the vehicle sits behind them,
+  varies a short pre-smirk reaction and wink side, equips the helmet, moves the actor outside the
+  authored door arc before opening it, boards, and restores the captured view exactly. The helmet's
+  non-worn state uses the shared character `back` socket as a compact upper-back prop and follows a
+  back-to-hand-to-head path; this avoids both ground penetration and a full-body-sized backpack.
+- Menu preview helmet timing is relative to smoke completion, not character replacement. Rerolled
+  characters hold the backpack state while smoke remains active, then wait two seconds before the
+  equip transition. The first menu character uses the same two-second delay from preview start.
+- Standard gamepad `B` is contextual: it runs while Explore has gameplay focus, but remains the
+  semantic back/resume action for dialogs and pause. The drive adapter does not reinterpret it as
+  the vehicle handbrake.
 - Input bindings remain an experiment concern rather than an asset-library concern. The local
   action/axis snapshot records keyboard, mouse, standard gamepad, and touch provenance; axes also
   retain digital/analogue kind and continuous/delta time semantics. Race and Explore adapt that one
   snapshot into vehicle or character commands, and the Explore camera consumes the same abstraction.
   Extract it into a sibling game-input package only after a second consumer validates the contract.
+- Race and Explore now share one top-right pause icon instead of maintaining duplicate in-world
+  option toolbars. The pause dialog owns the complete contextual command surface: race camera and
+  route debug appear only in Race, while camera reset and character reroll appear only in Explore;
+  audio, drawing medium, resume, and main-menu exit remain shared. Keyboard `Escape` maps to both
+  semantic back and pause actions so overlays close before gameplay pauses. Native dialog Escape
+  handling suppresses the matching action snapshot for one frame to prevent close/reopen bounce.
+- Background music is scene-aware but remains one persisted `Music` category. `main-song.opus`
+  plays only on the initial menu, `explore-song.opus` plays only in Explore, and races select the
+  silent scene. Both tracks are lazy-loaded 80 kbps VBR Opus clips and share the same user volume,
+  enabled state, and pause attenuation rather than introducing mode-specific settings.
 
 ## Performance evidence
 

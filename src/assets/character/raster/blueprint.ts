@@ -531,7 +531,8 @@ function drawMouth(
   const centerX = MOUTH_CANVAS.width / 2;
   const centerY = MOUTH_CANVAS.height / 2;
   const expression = state === 'open' ? 'surprised' : state;
-  const resolvedExpression = expression === 'happy' || expression === 'angry'
+  const resolvedExpression = expression === 'happy' || expression === 'smirk'
+    || expression === 'angry'
     || expression === 'sad' || expression === 'surprised' || expression === 'scared'
     || expression === 'crying' || expression === 'sleeping'
     ? expression
@@ -1056,6 +1057,10 @@ export function createCharacterBlueprint(recipe: CharacterRecipe): AssetBlueprin
       }),
       Object.freeze({
         id: 'face', bone: 'head',
+        localPose: pose(Object.freeze({ x: 0, y: 0 })),
+      }),
+      Object.freeze({
+        id: 'back', bone: 'torso',
         localPose: pose(Object.freeze({ x: 0, y: 0 })),
       }),
       Object.freeze({

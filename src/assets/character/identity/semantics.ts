@@ -38,7 +38,9 @@ const PARTS: readonly SemanticPartSpec[] = Object.freeze([
 export const CHARACTER_SEMANTIC_MANIFEST: AssetSemanticManifest<'character'> = Object.freeze({
   family: 'character',
   parts: PARTS,
-  socketIds: Object.freeze(['feet', 'head', 'crown', 'face', 'hand:left', 'hand:right', 'tail']),
+  socketIds: Object.freeze([
+    'feet', 'head', 'crown', 'face', 'back', 'hand:left', 'hand:right', 'tail',
+  ]),
   colliderIds: Object.freeze(['body', 'head']),
   interactions: Object.freeze([]),
 });

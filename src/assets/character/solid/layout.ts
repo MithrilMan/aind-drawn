@@ -40,6 +40,10 @@ function pose(position: Point3): Pose3 {
   });
 }
 
+function rotatedPose(position: Point3, rotation: Pose3['rotation']): Pose3 {
+  return Object.freeze({ position, rotation });
+}
+
 export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCharacterLayout {
   const identity = recipe.identity;
   const face = buildSolidFaceLayout(recipe);
@@ -132,6 +136,14 @@ export function buildSolidCharacterLayout(recipe: SolidCharacterRecipe): SolidCh
       Object.freeze({ id: 'head', node: 'head', localPose: pose(point(0, 0)) }),
       Object.freeze({ id: 'crown', node: 'head', localPose: pose(point(0, headRadiusY, 0)) }),
       Object.freeze({ id: 'face', node: 'head', localPose: pose(point(0, 0, headRadiusZ)) }),
+      Object.freeze({
+        id: 'back',
+        node: 'torso',
+        localPose: rotatedPose(
+          point(torsoWidth * 0.26, torsoHeight * 0.64, -torsoDepth * 0.72),
+          Object.freeze([0, 1, 0, 0] as const),
+        ),
+      }),
       Object.freeze({ id: 'hand:left', node: 'arm:left', localPose: pose(point(0, -armLength, 0)) }),
       Object.freeze({ id: 'hand:right', node: 'arm:right', localPose: pose(point(0, -armLength, 0)) }),
       Object.freeze({

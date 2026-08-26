@@ -15,9 +15,14 @@ import {
   ExploreEntranceDirector,
   type ExploreEntrancePhase,
 } from './explore-entrance.js';
+import { ExploreVehicleEntryDirector } from './explore-vehicle-entry.js';
 import { exploreGameState, type ExploreGameState } from './game-state.js';
 import { GrandstandExplorer, type GrandstandExplorerSnapshot } from './grandstand-explorer.js';
-import { RaceCameraController, type RaceCameraMode } from './race-camera.js';
+import {
+  RaceCameraController,
+  type ExplorerCameraView,
+  type RaceCameraMode,
+} from './race-camera.js';
 import { localPreviewCameraOffsetDirection } from './preview-camera.js';
 import type { ExploreInput, RaceSnapshot } from './race-model.js';
 import { RouteDebugOverlay } from './route-debug-overlay.js';
@@ -32,6 +37,7 @@ import {
   DEFAULT_VEHICLE_SEEDS,
   VehicleField,
   type ExploreVehicleInteraction,
+  type ExploreVehicleEntry,
   type PaperCircuitVehicleId,
   type VehicleInteractionPreviewSource,
   type VehicleSeedSelection,
@@ -70,6 +76,12 @@ type PendingExplorerChange = Readonly<{
   snapshot: Readonly<Pick<GrandstandExplorerSnapshot, 'x' | 'y' | 'z' | 'heading'>>;
 }>;
 
+type ActiveExploreVehicleEntry = {
+  director: ExploreVehicleEntryDirector;
+  cameraView: ExplorerCameraView;
+  doorOpened: boolean;
+};
+
 export class RaceStage {
   private readonly doodle: DoodleScene;
   private readonly scenery: SceneryField;
@@ -90,6 +102,8 @@ export class RaceStage {
   private customizingVehicleId: PaperCircuitVehicleId | null = null;
   private exploreInteractLatch = false;
   private exploreEntrance: ExploreEntranceDirector | null = null;
+  private exploreVehicleEntry: ActiveExploreVehicleEntry | null = null;
+  private exploreVehicleEntryCount = 0;
   private pendingExplorerChange: PendingExplorerChange | null = null;
   private activeDoor: Readonly<{
     vehicleId: string;
@@ -159,6 +173,7 @@ export class RaceStage {
     }
     const activeVehicleId = this.exploreDrive.drivenVehicleId;
     if (this.exploreEntrance !== null) return exploreGameState('entrance');
+    if (this.exploreVehicleEntry !== null) return exploreGameState('vehicle-entry');
     if (this.customizingVehicleId !== null) {
       return exploreGameState('vehicle-customizer', this.customizingVehicleId);
     }
@@ -185,12 +200,15 @@ export class RaceStage {
       this.closeActiveDoor();
       this.closeVehicleCustomizer();
       this.exploreEntrance = null;
+      this.exploreVehicleEntry = null;
       this.smoke.cancel();
     }
     if (enteringExplore || leavingExplore) this.exploreInteractLatch = false;
     this.mode = mode;
     if (enteringRace) this.effects.reset();
     if (enteringExplore) {
+      this.exploreVehicleEntry = null;
+      this.exploreVehicleEntryCount = 0;
       this.exploreDrive.reset();
       this.effects.reset();
       this.vehicles.update(this.exploreDrive.frame().racers, 0);
@@ -336,6 +354,9 @@ export class RaceStage {
     if (this.exploreEntrance !== null) {
       return this.renderExplorerEntrance(deltaSeconds);
     }
+    if (this.exploreVehicleEntry !== null) {
+      return this.renderExplorerVehicleEntry(input, deltaSeconds);
+    }
     const interactRequested = input.interact === true;
     const interactPressed = interactRequested && !this.exploreInteractLatch;
     this.exploreInteractLatch = interactRequested;
@@ -366,6 +387,14 @@ export class RaceStage {
         distance: nearbyInteraction.distance,
       })
       : null;
+    if (nearbyEntry !== null && interactPressed) {
+      const target = this.vehicles.entryPosition(nearbyEntry.vehicleId, nearbyEntry.side);
+      const vehicle = beforeDrive.racers.find(({ id }) => id === nearbyEntry.vehicleId);
+      if (target !== null && vehicle !== undefined) {
+        this.startExplorerVehicleEntry(nearbyEntry, explorer, target, vehicle);
+        return this.renderExplorerVehicleEntry(input, 0);
+      }
+    }
     const driveInput = this.customizingVehicleId !== null
       ? EXPLORE_IDLE_INPUT
       : nearbyInteraction?.kind === 'hood' && effectiveInput.interact === true
@@ -504,6 +533,71 @@ export class RaceStage {
     });
   }
 
+  private startExplorerVehicleEntry(
+    entry: ExploreVehicleEntry,
+    explorer: GrandstandExplorerSnapshot,
+    target: Readonly<{ x: number; y: number; z: number }>,
+    vehicle: Readonly<{ x: number; z: number }>,
+  ): void {
+    this.closeActiveDoor();
+    this.exploreVehicleEntry = {
+      director: new ExploreVehicleEntryDirector(
+        entry,
+        explorer,
+        target,
+        vehicle,
+        this.exploreVehicleEntryCount,
+      ),
+      cameraView: this.camera.captureExplorerView(),
+      doorOpened: false,
+    };
+    this.exploreVehicleEntryCount += 1;
+    this.camera.setExplorerActive(false);
+  }
+
+  private renderExplorerVehicleEntry(
+    input: ExploreInput,
+    deltaSeconds: number,
+  ): ExploreStageSnapshot {
+    const active = this.exploreVehicleEntry;
+    if (active === null) throw new Error('Explore vehicle entry is not active');
+    this.exploreInteractLatch = input.interact === true;
+    const frame = active.director.update(deltaSeconds);
+    const explorer = this.explorer.updateCinematic(deltaSeconds, frame);
+    if (frame.doorOpen && !active.doorOpened) {
+      this.openVehicleDoor(active.director.entry.vehicleId, active.director.entry.side, 1.3);
+      active.doorOpened = true;
+    }
+
+    let drive = this.exploreDrive.frame();
+    if (frame.complete) {
+      drive = this.exploreDrive.update(
+        0,
+        Object.freeze({ ...EXPLORE_IDLE_INPUT, interact: true }),
+        active.director.entry,
+      );
+      this.openVehicleDoor(active.director.entry.vehicleId, active.director.entry.side);
+    }
+    const effectSources = this.vehicles.update(drive.racers, explorer.elapsed);
+    this.explorer.setVisible(!frame.complete);
+    this.effects.update(effectSources, deltaSeconds, false);
+    this.crowd.update(explorer.elapsed);
+    this.camera.updateExplorerVehicleEntry(explorer, frame, active.cameraView);
+    this.doodle.render(explorer.elapsed);
+    if (frame.complete) {
+      this.exploreVehicleEntry = null;
+      this.camera.setExplorerActive(true);
+    }
+    return Object.freeze({
+      explorer,
+      drivingRacer: drive.activeRacer,
+      drivingOffRoad: false,
+      interaction: null,
+      entrancePhase: null,
+      controlsEnabled: false,
+    });
+  }
+
   private completePendingExplorerChange(): void {
     const pending = this.pendingExplorerChange;
     if (pending === null || !this.smoke.isCovered) return;
@@ -525,10 +619,14 @@ export class RaceStage {
     this.explorer.setVisible(this.mode === 'explore');
   }
 
-  private openVehicleDoor(vehicleId: string, side: 'left' | 'right'): void {
+  private openVehicleDoor(
+    vehicleId: string,
+    side: 'left' | 'right',
+    duration = 0.62,
+  ): void {
     this.closeActiveDoor();
     this.vehicles.setDoorOpen(vehicleId, side, true);
-    this.activeDoor = Object.freeze({ vehicleId, side, remaining: 0.62 });
+    this.activeDoor = Object.freeze({ vehicleId, side, remaining: duration });
   }
 
   private updateActiveDoor(deltaSeconds: number): void {

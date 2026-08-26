@@ -1,6 +1,7 @@
 export const CHARACTER_EXPRESSIONS = [
   'idle',
   'happy',
+  'smirk',
   'angry',
   'sad',
   'surprised',
@@ -47,6 +48,7 @@ const CHARACTER_EXPRESSION_PROFILES: Readonly<Record<
 >> = Object.freeze({
   idle: profile('idle', 1, 1, 0, 0),
   happy: profile('happy', 1, 0.78, 0.1, 0),
+  smirk: profile('smirk', 1, 0.82, 0.12, -0.06),
   // Anger is carried by a compressed eye and lowered inner brow endpoints.
   // The brow centre remains above the eye instead of intersecting the pupil.
   angry: profile('angry', 1, 0.76, 0.08, -0.28),

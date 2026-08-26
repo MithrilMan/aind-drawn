@@ -44,11 +44,13 @@ Open `http://127.0.0.1:4176`. The intro menu defaults to the Graphite medium and
 three, five, ten, and twenty laps available. A selected race begins with a six-second seeded
 grandstand camera pass, then a three-second starting countdown. Drive with the arrow keys, WASD, or
 a standard gamepad (left stick, triggers, and `A` or left-stick click for the handbrake). Use `Space` or `Shift` for the
-keyboard handbrake drift. `P` or the gamepad `Menu` button opens the pause dialog; it can resume,
-toggle music and sound effects, switch camera and medium, or return explicitly to the main menu.
+keyboard handbrake drift. `Esc` or the gamepad `Menu` button toggles the pause dialog; the sole
+top-right HUD button opens the same surface. It can resume, toggle music and sound effects, switch
+camera and medium, or return explicitly to the main menu.
 The initial menu and pause dialog both open the same second-level audio mixer for Music/SFX toggles
-and independent category volumes. `Esc` and gamepad `B` are contextual back actions: they close the active dialog or resume from
-pause, and never eject a running game directly to the main menu.
+and independent category volumes. Inside a nested dialog or the vehicle configurator, `Esc` remains
+a contextual back action; gamepad `B` closes the active surface or resumes from pause. Neither ejects
+a running game directly to the main menu.
 
 The default camera follows the player with speed lead; `Aerial` tracks the player from directly
 above with a wider, fixed-world view of the surrounding circuit. Graphite is
@@ -61,7 +63,8 @@ wheel-bearing root stays level with the road.
 
 The menu also opens `Explore grandstand`. This is a separate presentation mode: a seeded random
 character first materializes inside the existing Doodle smoke burst while the camera descends and
-rotates into a close-up. Once the smoke clears, the character coughs three times with a covering
+settles into a low, front-facing close-up whose horizontal composition remains locked while the
+character looks around. Once the smoke clears, the character coughs three times with a covering
 arm, partly open mouth, and closed eyes, then spends the rest of a 4.6-second close performance
 looking around in surprise. They hop twice and run toward the grandstand before camera and movement
 control pass to the player without a cut.
@@ -71,21 +74,25 @@ approach waypoints, so another course can place or redirect the sequence without
 runtime. After the handoff, the character can roam the full course map, climb authored row steps through changing floor height,
 with grounded gravity, maximum step-height collision, map-edge constraints, and collision against
 the world-space footprints of authored solid colliders on trees, barriers, tyres, cones, posts,
-and parked vehicles. Hold `Shift` to run, press `Space` to jump with the shared `airborne` motion,
-and use `N` or `New character` to reroll the character from a fresh
+and parked vehicles. Hold `Shift` or gamepad `B` to run, press `Space` to jump with the shared `airborne` motion,
+and use `N` or the pause menu's `New driver` action to reroll the character from a fresh
 Web Crypto seed. The reroll keeps the current world position and plays a volumetric smoke burst
 from the character's feet: it expands until the old figure is fully covered, swaps the character,
 then rises and shrinks into the air before leaving the scene. Walking up the high/back side of the
 grandstand is blocked by the authored maximum step height. The camera is a third-person orthographic
 orbit camera: drag with the mouse or one finger to orbit, use the wheel or pinch to zoom, and press
-`R` or `Reset camera` to restore the over-the-shoulder view. On a standard gamepad, the left stick
+`R` or the pause menu's `Reset camera` action to restore the over-the-shoulder view. On a standard gamepad, the left stick
 moves and turns, the right stick orbits, the shoulder buttons zoom, `A` jumps, left-stick click runs,
 `X` interacts, right-stick click resets the camera, and `Y` rerolls. Coarse-pointer layouts expose
 the same movement, jump, run, interaction, and camera gestures through touch controls. The race simulation is not advanced
 while exploring. The four race vehicles remain parked near the start line. Approaching an authored
 door sensor exposes a focused callout rendered from that exact procedural door; pressing `E` opens
-it, transfers control to the car, and enables free arcade driving with engine audio, collisions,
-skid marks, smoke, and dust. The Explore camera pulls farther back as vehicle speed increases. Press
+an entry vignette: the character turns with their back to the car, the camera moves to a face-level
+close-up, and a deterministic reaction varies the pre-smirk expression and wink side. They equip
+the helmet carried on their upper back, step clear of the authored door swing, wait for the door to
+open, and board. The camera then restores the exact orbit held when the interaction started before
+free arcade driving begins with engine audio, collisions, skid marks, smoke, and dust. It remains
+orbitable and pulls farther back as vehicle speed increases. Press
 `E` again near standstill to exit at the door's authored entry socket. Standing at the authored
 service socket in front of the hood exposes the hood-only callout; pressing `E` opens it and launches
 an accessible under-hood configurator. The dialog owns a separate Doodle 3D viewport showing the
@@ -157,6 +164,9 @@ always opens its seed-specific animation script with the shared `dance` pose, th
 actions before automatically swapping to a fresh character with the same smoke-burst transition.
 `N` and the visible `New driver` control reroll the preview, and entering Explore materializes the
 exact seed currently shown in that viewport.
+The standalone helmet starts as a compact upper-back prop. For a rerolled menu character it remains
+there throughout the smoke and for two full seconds after the smoke finishes, then follows the
+authored back-to-hand-to-head equip path; the initial preview uses the same two-second delay.
 Rerolls do not reset the camera orbit in Explore. Every playable character and spectator is human.
 Each race rebuilds a sparser 12-to-16-person grandstand from a fresh seed, with continuous placement
 along each row instead of a fixed seating grid. Spectators also own independent animation clocks,
@@ -170,8 +180,9 @@ engine controller extracts a stable crossfaded rev from each matching ignition, 
 modulates playback rate, low-pass filtering, gain, and stereo position from speed, acceleration, and
 braking. A separate steady engine clip remains available as a decode/loop fallback, and synthesized
 3-2-1 ticks lead into the authored GO cue. Audio stays lazy until the first user gesture. Sound
-effects and engine audio share the `SFX` category, while the bundled `main-song.opus` theme loops
-through an independent `Music` category only on the initial menu. Both categories expose on/off and
+effects and engine audio share the `SFX` category. The bundled `main-song.opus` theme plays on the
+initial menu, while `explore-song.opus` plays only in Explore; both route through the independent
+`Music` category and stop during races. Both categories expose on/off and
 volume controls through the shared controller-navigable audio mixer. Medium, lap count, and the
 complete audio mix persist together in browser storage on the device, making the last valid menu
 configuration the next launch default.

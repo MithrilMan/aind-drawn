@@ -157,6 +157,19 @@ describe('pure motion sampling', () => {
     })).toBe(true);
   });
 
+  it('samples a semantic smirk and a projection-neutral authored wink', () => {
+    const identity = createCharacterIdentity(6_212);
+    let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });
+    state = setCharacterMotion(state, { expression: 'smirk', wink: 'left' }, 0);
+    const sample = sampleCharacterMotion(identity, state, 0.5);
+
+    expect(sample.face.expression).toBe('smirk');
+    expect(sample.face.mouth).toBe('smirk');
+    expect(sample.face.wink).toBe('left');
+    expect(setCharacterMotion(state, { expression: 'smirk', wink: 'left' }, 1)).toBe(state);
+    expect(setCharacterMotion(state, { wink: null }, 1).command.wink).toBeNull();
+  });
+
   it('applies one character sample twice without accumulating raster or solid transforms', () => {
     const identity = createCharacterIdentity(6204, { species: 'cat' });
     let state = createCharacterMotionState({ autoBlink: false, autoGaze: false });

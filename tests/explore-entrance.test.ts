@@ -171,4 +171,45 @@ describe('Explore entrance', () => {
     controller.dispose();
     explorer.dispose();
   });
+
+  it('keeps the close entrance camera stable while the character looks around', () => {
+    const course = createCourseLayout();
+    const world = createRaceWorldLayout(course);
+    const explorer = new GrandstandExplorer(world.grandstand, course, 41_821);
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 220);
+    const controller = new RaceCameraController(
+      camera,
+      course,
+      world,
+      () => Object.freeze({ width: 1440, height: 900 }),
+    );
+    const base = explorer.snapshot();
+    const frame = Object.freeze({
+      phase: 'discovering' as const,
+      phaseProgress: 0.2,
+      progress: 0.5,
+      approachProgress: 0,
+      actorVisible: true,
+      controlsEnabled: false,
+      x: base.x,
+      y: base.y,
+      z: base.z,
+      heading: base.heading - 0.8,
+      pose: 'idle' as const,
+      expression: 'surprised' as const,
+    });
+
+    controller.updateExplorerEntrance({ ...base, heading: frame.heading }, frame);
+    const firstPosition = camera.position.clone();
+    const firstQuaternion = camera.quaternion.clone();
+    controller.updateExplorerEntrance(
+      { ...base, heading: base.heading + 0.9 },
+      { ...frame, phaseProgress: 0.8, heading: base.heading + 0.9 },
+    );
+
+    expect(camera.position.distanceTo(firstPosition)).toBeLessThan(1e-8);
+    expect(camera.quaternion.angleTo(firstQuaternion)).toBeLessThan(1e-8);
+    controller.dispose();
+    explorer.dispose();
+  });
 });

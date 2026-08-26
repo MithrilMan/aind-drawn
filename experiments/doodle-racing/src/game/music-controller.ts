@@ -1,7 +1,17 @@
 type AudioFactory = (source: string) => HTMLAudioElement;
 
-const MUSIC_SOURCE = new URL('../assets/audio/main-song.opus', import.meta.url).href;
-const MUSIC_VOLUME = 0.32;
+export type MusicScene = 'menu' | 'explore' | 'off';
+
+type AudibleMusicScene = Exclude<MusicScene, 'off'>;
+
+const MUSIC_SOURCES: Readonly<Record<AudibleMusicScene, string>> = Object.freeze({
+  menu: new URL('../assets/audio/main-song.opus', import.meta.url).href,
+  explore: new URL('../assets/audio/explore-song.opus', import.meta.url).href,
+});
+const MUSIC_VOLUMES: Readonly<Record<AudibleMusicScene, number>> = Object.freeze({
+  menu: 0.32,
+  explore: 0.32,
+});
 const PAUSED_MUSIC_VOLUME = 0.055;
 
 function clampVolume(volume: number): number {
@@ -9,19 +19,25 @@ function clampVolume(volume: number): number {
   return Math.max(0, Math.min(1, volume));
 }
 
-/** Bundled Paper Circuit score with an independent music mix. */
+/** Bundled Paper Circuit score with scene-aware playback and an independent music mix. */
 export class MusicController {
-  private readonly clip: HTMLAudioElement;
+  private readonly clips: Readonly<Record<AudibleMusicScene, HTMLAudioElement>>;
+  private readonly loadedScenes = new Set<AudibleMusicScene>();
   private unlocked = false;
   private enabled = true;
   private paused = false;
-  private menuActive = true;
+  private scene: MusicScene = 'menu';
   private volume = 1;
 
   public constructor(createAudio: AudioFactory = (source) => new Audio(source)) {
-    this.clip = createAudio(MUSIC_SOURCE);
-    this.clip.loop = true;
-    this.clip.preload = 'metadata';
+    this.clips = Object.freeze({
+      menu: createAudio(MUSIC_SOURCES.menu),
+      explore: createAudio(MUSIC_SOURCES.explore),
+    });
+    for (const clip of Object.values(this.clips)) {
+      clip.loop = true;
+      clip.preload = 'metadata';
+    }
     this.renderVolume();
   }
 
@@ -34,12 +50,8 @@ export class MusicController {
   }
 
   public unlock(): void {
-    if (!this.unlocked) {
-      this.unlocked = true;
-      this.clip.preload = 'auto';
-      this.clip.load();
-    }
-    if (this.enabled && this.menuActive) void this.clip.play().catch(() => undefined);
+    this.unlocked = true;
+    this.playActiveScene();
   }
 
   public toggle(): boolean {
@@ -50,15 +62,15 @@ export class MusicController {
   public setEnabled(enabled: boolean): void {
     if (enabled === this.enabled) return;
     this.enabled = enabled;
-    if (!enabled) this.clip.pause();
-    else if (this.unlocked && this.menuActive) void this.clip.play().catch(() => undefined);
+    if (!enabled) this.pauseAll();
+    else this.playActiveScene();
   }
 
-  public setMenuActive(active: boolean): void {
-    if (active === this.menuActive) return;
-    this.menuActive = active;
-    if (!active) this.clip.pause();
-    else if (this.enabled && this.unlocked) void this.clip.play().catch(() => undefined);
+  public setScene(scene: MusicScene): void {
+    if (scene === this.scene) return;
+    this.pauseAll();
+    this.scene = scene;
+    this.playActiveScene();
   }
 
   public setPaused(paused: boolean): void {
@@ -72,11 +84,30 @@ export class MusicController {
   }
 
   public dispose(): void {
-    this.clip.pause();
-    this.clip.currentTime = 0;
+    this.pauseAll();
+    for (const clip of Object.values(this.clips)) clip.currentTime = 0;
+  }
+
+  private playActiveScene(): void {
+    if (!this.enabled || !this.unlocked || this.scene === 'off') return;
+    const clip = this.clips[this.scene];
+    if (!this.loadedScenes.has(this.scene)) {
+      this.loadedScenes.add(this.scene);
+      clip.preload = 'auto';
+      clip.load();
+    }
+    void clip.play().catch(() => undefined);
+  }
+
+  private pauseAll(): void {
+    for (const clip of Object.values(this.clips)) clip.pause();
   }
 
   private renderVolume(): void {
-    this.clip.volume = this.volume * (this.paused ? PAUSED_MUSIC_VOLUME : MUSIC_VOLUME);
+    for (const scene of Object.keys(this.clips) as AudibleMusicScene[]) {
+      this.clips[scene].volume = this.volume * (
+        this.paused ? PAUSED_MUSIC_VOLUME : MUSIC_VOLUMES[scene]
+      );
+    }
   }
 }

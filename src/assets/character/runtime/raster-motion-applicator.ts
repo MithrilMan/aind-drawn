@@ -26,8 +26,10 @@ function poseFor(
     x += sample.face.gaze.x * 0.025;
     rotation -= sample.face.gaze.x * 0.075;
   } else if (id === 'eye:left' || id === 'eye:right') {
+    const side = id === 'eye:left' ? 'left' : 'right';
+    const winkAmount = sample.face.wink === side ? 0.08 : 1;
     scaleX *= sample.face.eyeScale;
-    scaleY *= sample.face.eyeScale * sample.face.eyeOpenness;
+    scaleY *= sample.face.eyeScale * sample.face.eyeOpenness * winkAmount;
   } else if (id === 'brow:left' || id === 'brow:right') {
     const side = id === 'brow:left' ? -1 : 1;
     y += sample.face.browLift * unit;
@@ -79,8 +81,8 @@ export function applyRasterCharacterMotion(
       scaleY: sample.face.mouthOpenness,
     });
   }
-  setLayerStateIfPresent(rig, 'eye:left', sample.face.eyeState);
-  setLayerStateIfPresent(rig, 'eye:right', sample.face.eyeState);
+  setLayerStateIfPresent(rig, 'eye:left', sample.face.wink === 'left' ? 'closed' : sample.face.eyeState);
+  setLayerStateIfPresent(rig, 'eye:right', sample.face.wink === 'right' ? 'closed' : sample.face.eyeState);
   setLayerStateIfPresent(rig, 'mouth', sample.face.mouth);
   for (const layer of rig.blueprint.layers) {
     const binding = characterFlowOf(layer);

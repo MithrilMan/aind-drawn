@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import type { ExploreCameraInput } from './controls.js';
 import type { CourseLayout } from './course.js';
 import type { ExploreEntranceFrame } from './explore-entrance.js';
+import type { ExploreVehicleEntryFrame } from './explore-vehicle-entry.js';
 import type { GrandstandExplorerSnapshot } from './grandstand-explorer.js';
 import type { RaceSnapshot } from './race-model.js';
 import { grandstandSurfaceAt, type RaceWorldLayout } from './race-world.js';
@@ -18,12 +19,17 @@ const EXPLORER_MAX_DISTANCE = 12.4;
 const EXPLORER_ANALOG_YAW_SPEED = 2.2;
 const EXPLORER_ANALOG_PITCH_SPEED = 1.5;
 const EXPLORER_ANALOG_ZOOM_SPEED = 4.8;
+const FOLLOW_DEFAULT_VIEW_SIZE = 16.5;
+const FOLLOW_CAMERA_OFFSET_X = -10.8;
+const FOLLOW_CAMERA_OFFSET_Y = 17.5;
+const FOLLOW_CAMERA_OFFSET_Z = 13.6;
 const MENU_CHARACTER_SCREEN_OFFSET = 1.12;
 const CINEMATIC_CLOSE_VIEW_SIZE = 7.2;
 const EXPLORE_MINIMUM_VISIBLE_GROUND_Y = 0.04;
 const EXPLORE_DRIVING_BASE_ZOOM_OUT = 2.8;
 const EXPLORE_DRIVING_SPEED_ZOOM_OUT = 8.2;
 const EXPLORE_DRIVING_REFERENCE_SPEED = 24;
+const EXPLORE_VIEW_SIZE_SCALE = 1.26;
 const AERIAL_MINIMUM_VIEW_SIZE = 52;
 const AERIAL_SPEED_VIEW_SIZE = 8;
 const AERIAL_REFERENCE_SPEED = 29;
@@ -36,6 +42,15 @@ export type GroundedOrthographicFraming = Readonly<{
   near: number;
   viewSize: number;
   minimumWorldY: number;
+}>;
+
+export type ExplorerCameraView = Readonly<{
+  position: readonly [number, number, number];
+  target: readonly [number, number, number];
+  viewSize: number;
+  yaw: number;
+  pitch: number;
+  distance: number;
 }>;
 
 export function groundedOrthographicVerticalOffset(
@@ -55,7 +70,7 @@ export function exploreDrivingViewSize(
   explorerDistance: number,
   drivingSpeed: number | null,
 ): number {
-  const walkingViewSize = explorerDistance * 1.26;
+  const walkingViewSize = explorerDistance * EXPLORE_VIEW_SIZE_SCALE;
   if (drivingSpeed === null) return walkingViewSize;
   const speedRatio = THREE.MathUtils.clamp(
     drivingSpeed / EXPLORE_DRIVING_REFERENCE_SPEED,
@@ -140,6 +155,21 @@ export class RaceCameraController {
     this.explorerInitialized = false;
   }
 
+  public captureExplorerView(): ExplorerCameraView {
+    return Object.freeze({
+      position: Object.freeze([
+        this.camera.position.x,
+        this.camera.position.y,
+        this.camera.position.z,
+      ] as const),
+      target: Object.freeze([this.target.x, this.target.y, this.target.z] as const),
+      viewSize: this.viewSize,
+      yaw: this.explorerYaw,
+      pitch: this.explorerPitch,
+      distance: this.explorerDistance,
+    });
+  }
+
   public resetMenu(): void {
     this.menuInitialized = false;
   }
@@ -177,7 +207,10 @@ export class RaceCameraController {
     this.target.lerp(desiredTarget, 1 - Math.exp(-7.2 * deltaSeconds));
     this.viewSize = THREE.MathUtils.lerp(
       this.viewSize,
-      16.5 + speedRatio * 6.2 + snapshot.boostIntensity * 1.35 + (player.airborne ? 0.55 : 0),
+      FOLLOW_DEFAULT_VIEW_SIZE
+        + speedRatio * 6.2
+        + snapshot.boostIntensity * 1.35
+        + (player.airborne ? 0.55 : 0),
       1 - Math.exp(-4 * deltaSeconds),
     );
 
@@ -185,9 +218,9 @@ export class RaceCameraController {
     const shakeX = Math.sin(elapsedSeconds * 47) * shake;
     const shakeZ = Math.cos(elapsedSeconds * 53) * shake;
     const offset = new THREE.Vector3(
-      -10.8 + shakeX,
-      17.5 + player.elevation * 0.22,
-      13.6 + shakeZ,
+      FOLLOW_CAMERA_OFFSET_X + shakeX,
+      FOLLOW_CAMERA_OFFSET_Y + player.elevation * 0.22,
+      FOLLOW_CAMERA_OFFSET_Z + shakeZ,
     );
     this.camera.position.copy(this.target).add(offset);
     const handlingRoll = this.reducedMotion
@@ -251,7 +284,12 @@ export class RaceCameraController {
     } else {
       forward.normalize();
     }
-    const side = new THREE.Vector3(forward.z, 0, -forward.x);
+    const cinematicFront = new THREE.Vector3(
+      Math.sin(spawn.heading),
+      0,
+      Math.cos(spawn.heading),
+    );
+    const side = new THREE.Vector3(cinematicFront.z, 0, -cinematicFront.x);
     const actorTarget = new THREE.Vector3(snapshot.x, snapshot.y + 1.02, snapshot.z);
     const destinationTarget = new THREE.Vector3(
       destination.x,
@@ -269,17 +307,13 @@ export class RaceCameraController {
     );
     const towardCourse = courseCentre.sub(compositionTarget).setY(0);
     if (side.dot(towardCourse) > 0) side.negate();
-    const closeSweep = frame.phase === 'coughing'
-      ? THREE.MathUtils.lerp(0.62, -0.35, frame.phaseProgress)
-      : frame.phase === 'discovering'
-        ? Math.sin(frame.phaseProgress * Math.PI * 1.5) * 0.9
-        : 0.62;
+    const closeSweep = 0.42;
     const closeCamera = actorTarget.clone()
-      .addScaledVector(forward, -3.9)
+      .addScaledVector(cinematicFront, 3.55)
       .addScaledVector(side, closeSweep)
-      .add(new THREE.Vector3(0, 2.25, 0));
+      .add(new THREE.Vector3(0, 0.42, 0));
     const openingCamera = actorTarget.clone()
-      .addScaledVector(forward, -7.4)
+      .addScaledVector(cinematicFront, 7.4)
       .addScaledVector(side, 4.6)
       .add(new THREE.Vector3(0, 8.2, 0));
     const descent = frame.phase === 'materializing'
@@ -287,7 +321,7 @@ export class RaceCameraController {
       : 1;
     const performingCamera = openingCamera.lerp(closeCamera, descent);
     const trackingCamera = compositionTarget.clone()
-      .addScaledVector(forward, -2.1)
+      .addScaledVector(forward, 2.1)
       .addScaledVector(side, 5.4)
       .add(new THREE.Vector3(0, 5.1, 0));
     const actionBlend = frame.phase === 'celebrating'
@@ -314,12 +348,38 @@ export class RaceCameraController {
       exploreDrivingViewSize(this.explorerDistance, null),
       handoff,
     );
-    const roll = this.reducedMotion
-      ? 0
-      : Math.sin(frame.progress * Math.PI * 5) * 0.025 * (1 - handoff);
-    this.orientCamera(roll);
+    this.orientCamera(0);
     this.updateProjection(this.explorerGroundProjectionOffset());
     if (frame.controlsEnabled) this.explorerInitialized = true;
+  }
+
+  public updateExplorerVehicleEntry(
+    snapshot: GrandstandExplorerSnapshot,
+    frame: ExploreVehicleEntryFrame,
+    previousView: ExplorerCameraView,
+  ): void {
+    const actorTarget = new THREE.Vector3(snapshot.x, snapshot.y + 1.22, snapshot.z);
+    const front = new THREE.Vector3(
+      Math.sin(frame.cameraHeading),
+      0,
+      Math.cos(frame.cameraHeading),
+    );
+    const side = new THREE.Vector3(front.z, 0, -front.x);
+    const closeTarget = actorTarget.clone().add(new THREE.Vector3(0, 0.08, 0));
+    const closeCamera = closeTarget.clone()
+      .addScaledVector(front, 3.05)
+      .addScaledVector(side, 0.34)
+      .add(new THREE.Vector3(0, 0.66, 0));
+    const closeAmount = frame.cameraCloseAmount * (1 - frame.cameraReturnAmount);
+    this.target.set(...previousView.target).lerp(closeTarget, closeAmount);
+    this.camera.position.set(...previousView.position).lerp(closeCamera, closeAmount);
+    this.viewSize = THREE.MathUtils.lerp(previousView.viewSize, 4.45, closeAmount);
+    this.explorerYaw = previousView.yaw;
+    this.explorerPitch = previousView.pitch;
+    this.explorerDistance = previousView.distance;
+    this.explorerInitialized = true;
+    this.orientCamera(this.reducedMotion ? 0 : Math.sin(frame.progress * Math.PI) * 0.018 * closeAmount);
+    this.updateProjection();
   }
 
   public updateMenu(snapshot: GrandstandExplorerSnapshot, deltaSeconds: number): void {
@@ -371,10 +431,14 @@ export class RaceCameraController {
       .addScaledVector(along, -0.55)
       .add(new THREE.Vector3(0, 1.48 + Math.sin(progress * Math.PI) * 0.28, 0));
     const followTarget = new THREE.Vector3(player.x, 0.25, player.z);
-    const followCamera = followTarget.clone().add(new THREE.Vector3(-10.8, 17.5, 13.6));
+    const followCamera = followTarget.clone().add(new THREE.Vector3(
+      FOLLOW_CAMERA_OFFSET_X,
+      FOLLOW_CAMERA_OFFSET_Y,
+      FOLLOW_CAMERA_OFFSET_Z,
+    ));
     this.target.copy(standTarget).lerp(followTarget, exit);
     this.camera.position.copy(standCamera).lerp(followCamera, exit);
-    this.viewSize = THREE.MathUtils.lerp(CINEMATIC_CLOSE_VIEW_SIZE, 16.5, exit);
+    this.viewSize = THREE.MathUtils.lerp(CINEMATIC_CLOSE_VIEW_SIZE, FOLLOW_DEFAULT_VIEW_SIZE, exit);
     this.orientCamera(Math.sin(progress * Math.PI * 2) * 0.055 * (1 - exit));
     this.updateProjection();
   }
@@ -407,11 +471,15 @@ export class RaceCameraController {
 
     const speedRatio = THREE.MathUtils.clamp(player.speed / 31, 0, 1);
     const startTarget = new THREE.Vector3(player.x, 0.25, player.z);
-    const startCamera = startTarget.clone().add(new THREE.Vector3(-10.8, 17.5, 13.6));
+    const startCamera = startTarget.clone().add(new THREE.Vector3(
+      FOLLOW_CAMERA_OFFSET_X,
+      FOLLOW_CAMERA_OFFSET_Y,
+      FOLLOW_CAMERA_OFFSET_Z,
+    ));
     this.target.copy(startTarget).lerp(crowdTarget, arrival);
     this.camera.position.copy(startCamera).lerp(crowdCamera, arrival);
     const closeView = THREE.MathUtils.lerp(
-      16.5 + speedRatio * 6.2,
+      FOLLOW_DEFAULT_VIEW_SIZE + speedRatio * 6.2,
       CINEMATIC_CLOSE_VIEW_SIZE,
       arrival,
     );

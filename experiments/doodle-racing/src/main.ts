@@ -73,7 +73,6 @@ const menuPreviewViewport = requireElement('[data-menu-preview-viewport]', HTMLE
 const menuPreviewCanvas = requireElement('[data-menu-preview-canvas]', HTMLCanvasElement);
 const mediumThumbnailViewport = requireElement('[data-medium-thumbnail-viewport]', HTMLElement);
 const mediumThumbnailCanvas = requireElement('[data-medium-thumbnail-canvas]', HTMLCanvasElement);
-const mediumSelect = requireElement('[data-medium]', HTMLSelectElement);
 const menuMediumInputs = [...document.querySelectorAll<HTMLInputElement>('[data-menu-medium]')];
 const mediumThumbnailImages = new Map<MediumId, HTMLImageElement>(
   [...document.querySelectorAll<HTMLImageElement>('[data-medium-thumbnail]')].map((image) => {
@@ -105,12 +104,7 @@ const vehicleInteractionCanvas = requireElement(
   '[data-vehicle-interaction-canvas]',
   HTMLCanvasElement,
 );
-const resetExploreCameraButton = requireElement('[data-reset-explore-camera]', HTMLButtonElement);
-const rerollExploreButton = requireElement('[data-reroll-explore]', HTMLButtonElement);
-const openPauseExploreButton = requireElement('[data-open-pause]', HTMLButtonElement);
-const cameraButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-camera]')];
-const newRaceButton = requireElement('[data-new-race]', HTMLButtonElement);
-const pauseButton = requireElement('[data-pause]', HTMLButtonElement);
+const openPauseButton = requireElement('[data-open-pause]', HTMLButtonElement);
 const rendererError = requireElement('[data-renderer-error]', HTMLDialogElement);
 const retryButton = requireElement('[data-retry]', HTMLButtonElement);
 const soundToggleButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-sound-toggle]')];
@@ -147,11 +141,12 @@ const pauseMenu = requireElement('[data-pause-menu]', HTMLDialogElement);
 const resumeButton = requireElement('[data-pause-resume]', HTMLButtonElement);
 const pauseMainMenuButton = requireElement('[data-pause-main-menu]', HTMLButtonElement);
 const pauseCameraButton = requireElement('[data-pause-camera]', HTMLButtonElement);
+const pauseExploreCameraButton = requireElement('[data-pause-explore-camera]', HTMLButtonElement);
+const pauseExploreRerollButton = requireElement('[data-pause-explore-reroll]', HTMLButtonElement);
 const pauseMediumButton = requireElement('[data-pause-medium]', HTMLButtonElement);
 const pauseDebugButton = requireElement('[data-pause-debug]', HTMLButtonElement);
 const touchBackButton = requireElement('[data-touch-back]', HTMLButtonElement);
 const touchPrimaryButton = requireElement('[data-touch-primary]', HTMLButtonElement);
-const routeDebugButton = requireElement('[data-route-debug]', HTMLButtonElement);
 const routeDebugLegend = requireElement('[data-route-debug-legend]', HTMLElement);
 
 const course = createCourseLayout();
@@ -207,6 +202,7 @@ let audioSettingsReturnSurface: 'menu' | 'pause' | null = null;
 let audioSettingsOpener: HTMLButtonElement | null = null;
 let rendererRecoveryPauseMode: 'race' | 'explore' | null = null;
 let resumeRaceAfterRendererRecovery = false;
+let suppressNextGlobalAction = false;
 
 function playMenuClick(): void {
   sound.play('menu-click');
@@ -323,8 +319,6 @@ function restoreGameplayFocus(): void {
 }
 
 function renderRouteDebugState(): void {
-  routeDebugButton.setAttribute('aria-pressed', String(routeDebugEnabled));
-  routeDebugButton.textContent = routeDebugEnabled ? 'Hide debug' : 'Debug path';
   routeDebugLegend.hidden = !routeDebugEnabled;
   pauseDebugButton.textContent = `Debug path: ${routeDebugEnabled ? 'On' : 'Off'}`;
 }
@@ -566,6 +560,10 @@ function activateCurrentFocusSurface(focus = true): void {
 function renderPauseSettings(): void {
   pauseCameraButton.hidden = appMode !== 'race';
   pauseDebugButton.hidden = appMode !== 'race';
+  pauseExploreCameraButton.hidden = appMode !== 'explore';
+  pauseExploreRerollButton.hidden = appMode !== 'explore';
+  pauseExploreCameraButton.disabled = !exploreControlsEnabled;
+  pauseExploreRerollButton.disabled = !exploreControlsEnabled || exploreEngineVehicleId !== null;
   pauseCameraButton.textContent = `Camera: ${cameraMode === 'follow' ? 'Follow' : 'Aerial'}`;
   pauseMediumButton.textContent = `Medium: ${titleCase(medium)}`;
 }
@@ -600,9 +598,6 @@ function closePauseMenu(restoreFocus = true): void {
 
 function setCameraMode(mode: RaceCameraMode): void {
   cameraMode = mode;
-  for (const candidate of cameraButtons) {
-    candidate.setAttribute('aria-pressed', String(candidate.dataset.camera === cameraMode));
-  }
   stage?.setCameraMode(cameraMode);
   renderPauseSettings();
   hud.announce(cameraMode === 'follow'
@@ -627,6 +622,10 @@ function cycleMedium(): void {
 
 function handleControlActions(controls: ControlSnapshot): boolean {
   if (rendererError.open) return false;
+  if (suppressNextGlobalAction) {
+    suppressNextGlobalAction = false;
+    if (controls.actions.back.pressed || controls.actions.pause.pressed) return true;
+  }
   if (audioSettingsDialog.open) {
     if (controls.actions.back.pressed || controls.actions.pause.pressed) {
       closeAudioSettings();
@@ -663,6 +662,23 @@ function handleControlActions(controls: ControlSnapshot): boolean {
   return false;
 }
 
+function handleEscapeKey(event: KeyboardEvent): void {
+  if (event.code !== 'Escape' || event.repeat || rendererError.open) return;
+  if (audioSettingsDialog.open) {
+    event.preventDefault();
+    suppressNextGlobalAction = true;
+    closeAudioSettings();
+  } else if (pauseMenu.open) {
+    event.preventDefault();
+    suppressNextGlobalAction = true;
+    closePauseMenu();
+  } else if (vehicleSelector.open) {
+    event.preventDefault();
+    suppressNextGlobalAction = true;
+    closeVehicleSelector();
+  }
+}
+
 function frame(now: number): void {
   if (!active) return;
   const delta = Math.min(0.05, Math.max(0, (now - previousTime) / 1000));
@@ -697,8 +713,6 @@ function frame(now: number): void {
           entrancePhase,
           controlsEnabled,
         } = exploreFrame;
-        resetExploreCameraButton.disabled = !controlsEnabled;
-        rerollExploreButton.disabled = !controlsEnabled || drivingRacer !== null;
         if (controlsEnabled && !exploreControlsEnabled) {
           hud.announce('You have control. Explore the grandstand or approach a car.');
           canvas.focus({ preventScroll: true });
@@ -780,7 +794,7 @@ function frame(now: number): void {
 function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   if (mode !== 'menu' || appMode !== 'menu') menuPreviewElapsed = 0;
   appMode = mode;
-  music.setMenuActive(mode === 'menu');
+  music.setScene(mode === 'race' ? 'off' : mode);
   if (mode !== 'explore' && vehicleSelector.open) closeVehicleSelector(false);
   if (mode !== 'explore') exploreEngineVehicleId = null;
   if (mode !== 'race') sound.syncDrift(false);
@@ -794,10 +808,9 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   touchPrimaryButton.textContent = mode === 'explore' ? 'Jump' : 'Drift';
   touchPrimaryButton.setAttribute('aria-label', mode === 'explore' ? 'Jump' : 'Drift');
   gameMenu.hidden = mode !== 'menu';
+  openPauseButton.hidden = mode === 'menu';
   exploreHud.hidden = mode !== 'explore';
   exploreControlsEnabled = false;
-  resetExploreCameraButton.disabled = mode === 'explore';
-  rerollExploreButton.disabled = mode === 'explore';
   activateCurrentFocusSurface();
   if (mode !== 'explore') renderVehicleInteraction(null, 0);
   stage?.setMode(mode);
@@ -871,7 +884,7 @@ function rerollExplorer(playSound = true): void {
   }
   sound.play('character-poof');
   hud.announce('A new random character is ready.');
-  if (appMode === 'explore') canvas.focus({ preventScroll: true });
+  if (appMode === 'explore') restoreGameplayFocus();
 }
 
 function resetExploreCamera(): void {
@@ -888,6 +901,7 @@ function resetExploreCamera(): void {
 function dispose(): void {
   if (!active) return;
   active = false;
+  window.removeEventListener('keydown', handleEscapeKey, { capture: true });
   if (vehicleSelector.open) vehicleSelector.close();
   if (pauseMenu.open) pauseMenu.close();
   if (audioSettingsDialog.open) audioSettingsDialog.close();
@@ -913,7 +927,6 @@ function applyMedium(selected: string, label: string): void {
   if (!isPaperCircuitMedium(selected)) return;
   medium = selected;
   playMenuClick();
-  mediumSelect.value = medium;
   for (const input of menuMediumInputs) input.checked = input.value === medium;
   try {
     stage?.setMedium(medium);
@@ -930,10 +943,6 @@ function applyMedium(selected: string, label: string): void {
   persistMenuSettings();
   restoreGameplayFocus();
 }
-
-mediumSelect.addEventListener('change', () => {
-  applyMedium(mediumSelect.value, mediumSelect.selectedOptions[0]?.textContent ?? 'Drawing');
-});
 
 for (const input of menuMediumInputs) {
   input.addEventListener('change', () => {
@@ -956,14 +965,10 @@ for (const input of lapInputs) {
 
 startRaceButton.addEventListener('click', startRace);
 exploreGrandstandButton.addEventListener('click', startExplorer);
-resetExploreCameraButton.addEventListener('click', resetExploreCamera);
-rerollExploreButton.addEventListener('click', () => {
-  rerollExplorer();
-});
 rerollMenuButton.addEventListener('click', () => {
   rerollExplorer();
 });
-openPauseExploreButton.addEventListener('click', openPauseMenu);
+openPauseButton.addEventListener('click', openPauseMenu);
 previousVehicleButton.addEventListener('click', () => {
   adjacentVehicleSeed(-1);
 });
@@ -985,6 +990,7 @@ keepVehicleButton.addEventListener('click', () => {
 });
 vehicleSelector.addEventListener('cancel', (event) => {
   event.preventDefault();
+  suppressNextGlobalAction = true;
   closeVehicleSelector();
 });
 vehicleSelector.addEventListener('close', () => {
@@ -1006,14 +1012,24 @@ pauseCameraButton.addEventListener('click', () => {
   playMenuClick();
   setCameraMode(cameraMode === 'follow' ? 'aerial' : 'follow');
 });
+pauseExploreCameraButton.addEventListener('click', () => {
+  resetExploreCamera();
+  renderPauseSettings();
+});
+pauseExploreRerollButton.addEventListener('click', () => {
+  rerollExplorer();
+  renderPauseSettings();
+});
 pauseMediumButton.addEventListener('click', cycleMedium);
 pauseDebugButton.addEventListener('click', toggleRouteDebug);
 pauseMenu.addEventListener('cancel', (event) => {
   event.preventDefault();
+  suppressNextGlobalAction = true;
   closePauseMenu();
 });
 audioSettingsDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
+  suppressNextGlobalAction = true;
   closeAudioSettings();
 });
 rendererError.addEventListener('cancel', (event) => {
@@ -1022,6 +1038,7 @@ rendererError.addEventListener('cancel', (event) => {
 
 shell.addEventListener('pointerdown', unlockAudio, { capture: true });
 window.addEventListener('keydown', unlockAudio, { capture: true, once: true });
+window.addEventListener('keydown', handleEscapeKey, { capture: true });
 for (const button of soundToggleButtons) {
   button.addEventListener('click', () => {
     if (sound.isEnabled) sound.play('menu-click');
@@ -1063,36 +1080,11 @@ sfxVolumeInput.addEventListener('input', () => {
   renderAudioSettingsState();
 });
 
-routeDebugButton.addEventListener('click', toggleRouteDebug);
 renderRouteDebugState();
 
-/* Keep the old direct selector out of the state machine: the menu is the
- * authoritative start surface, while the in-race selector remains a quick
- * medium switch for an already-running session. */
-if (mediumSelect.value !== medium) {
-  mediumSelect.value = medium;
-}
 for (const input of menuMediumInputs) input.checked = input.value === medium;
 for (const input of lapInputs) input.checked = input.value === savedMenuSettings.laps.toString();
 renderLapSelection();
-
-/* The HUD remains a pointer shortcut; the same operations are available as abstract actions. */
-for (const button of cameraButtons) {
-  button.addEventListener('click', () => {
-    if (appMode !== 'race') return;
-    playMenuClick();
-    setCameraMode(button.dataset.camera === 'aerial' ? 'aerial' : 'follow');
-    restoreGameplayFocus();
-  });
-}
-
-newRaceButton.addEventListener('click', openMenu);
-
-pauseButton.addEventListener('click', () => {
-  if (appMode !== 'race') return;
-  playMenuClick();
-  openPauseMenu();
-});
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) openPauseMenu();

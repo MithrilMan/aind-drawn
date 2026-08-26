@@ -193,6 +193,19 @@ export function createCharacterMouthProfile(
   expression: CharacterExpression = 'idle',
 ): CharacterMouthProfile {
   const baseWidth = mouth.width * (mouth.style === 'tiny' ? 0.58 : 1);
+  if (expression === 'smirk') {
+    const width = Math.max(0.15, baseWidth * 1.04);
+    const outline = band(
+      width,
+      Math.max(0.018, width * 0.075),
+      (normalizedX) => -width * (0.06 + 0.22 * Math.pow((normalizedX + 1) * 0.5, 2)),
+    );
+    return Object.freeze({
+      expression,
+      layers: Object.freeze([layer('lip', 'ink', outline)]),
+      strokes: Object.freeze([]),
+    });
+  }
   if (expression === 'angry') {
     const width = Math.max(0.15, baseWidth * 0.96);
     const height = Math.max(0.045, width * 0.18);

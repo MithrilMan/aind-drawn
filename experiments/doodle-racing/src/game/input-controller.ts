@@ -40,7 +40,7 @@ const CONTROL_HINTS: Readonly<Record<ControlHintMode, Readonly<Record<ControlHin
       drive: 'WASD / arrows',
       drift: 'Space / Shift',
       interact: 'E',
-      pause: 'P',
+      pause: 'Esc',
       back: 'Esc',
       camera: 'R',
       reroll: 'N',
@@ -58,7 +58,7 @@ const CONTROL_HINTS: Readonly<Record<ControlHintMode, Readonly<Record<ControlHin
     }),
   });
 
-type DigitalControlId = 'forward' | 'reverse' | 'left' | 'right' | ControlActionId;
+export type DigitalControlId = 'forward' | 'reverse' | 'left' | 'right' | ControlActionId;
 
 export type StandardGamepadControls = StandardGamepadFrame<ControlAxisId, ControlActionId>;
 
@@ -108,6 +108,8 @@ function keys(...controls: DigitalControlId[]): readonly DigitalControlId[] {
   return Object.freeze(controls);
 }
 
+const EMPTY_DIGITAL_CONTROLS: readonly DigitalControlId[] = Object.freeze([]);
+
 const KEY_CODE_BINDINGS: Readonly<Record<string, readonly DigitalControlId[]>> = Object.freeze({
   ArrowUp: keys('forward'),
   KeyW: keys('forward'),
@@ -121,8 +123,7 @@ const KEY_CODE_BINDINGS: Readonly<Record<string, readonly DigitalControlId[]>> =
   ShiftLeft: keys('sprint'),
   ShiftRight: keys('sprint'),
   KeyE: keys('interact'),
-  KeyP: keys('pause'),
-  Escape: keys('back'),
+  Escape: keys('back', 'pause'),
   KeyR: keys('camera'),
   KeyN: keys('reroll'),
 });
@@ -143,6 +144,10 @@ export function standardGamepadControls(gamepad: StandardGamepadSample): Standar
 
 export function controlHint(id: ControlHintId, mode: ControlHintMode): string {
   return CONTROL_HINTS[mode][id];
+}
+
+export function keyboardControlsForCode(code: string): readonly DigitalControlId[] {
+  return KEY_CODE_BINDINGS[code] ?? EMPTY_DIGITAL_CONTROLS;
 }
 
 /** Paper Circuit bindings over the reusable browser input adapter. */

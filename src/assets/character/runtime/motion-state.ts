@@ -11,6 +11,7 @@ import {
 } from './motion.js';
 
 const TRANSITION_SECONDS = 0.38;
+const CHARACTER_WINKS: readonly unknown[] = Object.freeze([null, 'left', 'right']);
 
 function finiteTime(time: number): void {
   if (!(time >= 0) || !Number.isFinite(time)) {
@@ -42,6 +43,9 @@ function validateCommand(command: CharacterMotionCommand): void {
   }
   if (!CHARACTER_EXPRESSIONS.includes(command.expression)) {
     throw new RangeError(`Unknown character expression: ${command.expression}`);
+  }
+  if (!CHARACTER_WINKS.includes(command.wink)) {
+    throw new RangeError(`Unknown character wink: ${String(command.wink)}`);
   }
 }
 
@@ -83,6 +87,7 @@ export function createCharacterMotionState(
     talking: false,
     expression: 'idle',
     gaze: null,
+    wink: null,
   });
   return Object.freeze({
     command,
@@ -111,6 +116,7 @@ export function setCharacterMotion(
     talking: motion.talking ?? state.command.talking,
     expression: motion.expression ?? state.command.expression,
     gaze: motion.gaze === undefined ? state.command.gaze : freezeGaze(motion.gaze),
+    wink: motion.wink === undefined ? state.command.wink : motion.wink,
   });
   validateCommand(command);
   const unchanged = command.pose === state.command.pose
@@ -121,7 +127,8 @@ export function setCharacterMotion(
     && command.gaze?.x === state.command.gaze?.x
     && command.gaze?.y === state.command.gaze?.y
     && command.gaze?.headFollow === state.command.gaze?.headFollow
-    && (command.gaze === null) === (state.command.gaze === null);
+    && (command.gaze === null) === (state.command.gaze === null)
+    && command.wink === state.command.wink;
   if (unchanged) return state;
   const transition = command.pose === state.command.pose
     ? state.transition

@@ -133,7 +133,7 @@ canvas {
 .game-brand,
 .race-telemetry,
 .route-validation,
-.game-settings,
+.game-options-button,
 .game-menu,
 .explore-hud,
 .vehicle-interaction-callout,
@@ -641,8 +641,7 @@ canvas {
   padding-block-start: 18px;
 }
 
-.menu-actions button,
-.explore-hud button {
+.menu-actions button {
   min-block-size: 44px;
   padding: 0 18px;
   border: 1px solid var(--paper-muted);
@@ -747,9 +746,7 @@ canvas {
 }
 
 .menu-actions button:hover,
-.menu-actions button:focus-visible,
-.explore-hud button:hover,
-.explore-hud button:focus-visible {
+.menu-actions button:focus-visible {
   border-color: var(--focus);
 }
 
@@ -779,15 +776,14 @@ canvas {
 }
 
 .explore-hud {
-  inset: 18px 18px auto auto;
+  inset: 82px 20px auto auto;
   z-index: 7;
   display: grid;
-  gap: 8px;
-  inline-size: 292px;
-  padding: 11px 12px 12px;
+  inline-size: 250px;
+  padding: 11px 12px;
   background: rgb(23 25 24 / 88%);
   clip-path: polygon(0 0, 100% 0, 100% 88%, 95% 100%, 0 100%);
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 .explore-status-card {
@@ -813,29 +809,6 @@ canvas {
   font-size: .56rem;
   letter-spacing: .05em;
   text-transform: uppercase;
-}
-
-.explore-hud button {
-  min-block-size: 28px;
-  padding-inline: 7px;
-  background: var(--ink-soft);
-  font-size: .52rem;
-}
-
-.explore-hud button kbd {
-  margin-inline-start: 3px;
-  color: var(--focus);
-  font: inherit;
-}
-
-.explore-actions {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-}
-
-.explore-actions button {
-  min-inline-size: 0;
 }
 
 .vehicle-interaction-callout {
@@ -916,7 +889,7 @@ canvas {
 
 .is-menu .race-telemetry,
 .is-menu .route-validation,
-.is-menu .game-settings,
+.is-menu .game-options-button,
 .is-menu .race-minimap,
 .is-menu .running-order,
 .is-menu .drift-hud,
@@ -927,7 +900,6 @@ canvas {
 .is-menu .touch-controls,
 .is-exploring .race-telemetry,
 .is-exploring .route-validation,
-.is-exploring .game-settings,
 .is-exploring .race-minimap,
 .is-exploring .running-order,
 .is-exploring .drift-hud,
@@ -1091,32 +1063,6 @@ canvas {
   font-weight: 600;
 }
 
-.route-debug-toggle {
-  inline-size: calc(100% - 8px);
-  min-block-size: 27px;
-  margin-block-start: 8px;
-  border: 1px solid #6f746b;
-  background: rgb(28 31 29 / 82%);
-  color: var(--paper-muted);
-  font-size: .56rem;
-  font-weight: 650;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  pointer-events: auto;
-}
-
-.route-debug-toggle:hover {
-  border-color: var(--paper-muted);
-  color: var(--paper);
-}
-
-.route-debug-toggle[aria-pressed='true'] {
-  border-color: #d39a45;
-  background: #495a43;
-  color: var(--paper);
-  box-shadow: inset 0 -3px #46a46f;
-}
-
 .route-debug-legend {
   display: grid !important;
   gap: 4px;
@@ -1157,72 +1103,37 @@ canvas {
   background: var(--oxide-hot);
 }
 
-.game-settings {
+.game-options-button {
   inset-block-start: 18px;
   inset-inline-end: 20px;
-  display: flex;
-  align-items: stretch;
-  min-block-size: 52px;
-  margin: 0;
-  padding: 6px 8px 6px 20px;
-  border: 0;
+  z-index: 8;
+  display: grid;
+  place-items: center;
+  inline-size: 52px;
+  block-size: 52px;
+  padding: 0;
+  border: 1px solid var(--rule);
   background: rgb(23 25 24 / 94%);
-  clip-path: polygon(7% 0, 100% 0, 100% 100%, 0 100%);
+  color: var(--paper);
+  clip-path: polygon(16% 0, 100% 0, 100% 84%, 84% 100%, 0 100%, 0 16%);
   pointer-events: auto;
 }
 
-.game-settings select,
-.game-settings button {
-  min-block-size: 40px;
-  border: 1px solid var(--rule);
-  background: var(--ink-soft);
-  color: var(--paper);
-  font-size: .67rem;
-  font-weight: 600;
-  text-transform: uppercase;
+.game-options-button[hidden] {
+  display: none;
 }
 
-.game-sound-toggle {
-  inline-size: 64px;
-  margin-inline-start: 7px;
+.game-options-button svg {
+  inline-size: 23px;
+  block-size: 23px;
+  fill: currentcolor;
 }
 
-.game-settings select {
-  inline-size: 108px;
-  padding-inline: 12px 24px;
-  color-scheme: dark;
-}
-
-.camera-control {
-  display: flex;
-}
-
-.camera-control button {
-  inline-size: 68px;
-  margin-inline-start: -1px;
-}
-
-.camera-control button[aria-pressed='true'] {
-  background: #3e503c;
-  box-shadow: inset 0 -3px var(--moss);
-}
-
-.pause-button {
-  inline-size: 72px;
-  margin-inline-start: 7px;
-}
-
-.restart-button {
-  inline-size: 43px;
-  margin-inline-start: -1px;
-  color: var(--oxide-hot) !important;
-  font-size: 1.1rem !important;
-}
-
-.game-settings button:hover,
-.game-settings select:hover {
+.game-options-button:hover,
+.game-options-button:focus-visible {
   border-color: var(--paper-muted);
-  background-color: #363a35;
+  background: #363a35;
+  color: var(--focus);
 }
 
 .race-minimap {
@@ -2257,14 +2168,11 @@ canvas {
     font-size: .5rem;
   }
 
-  .game-settings {
+  .game-options-button {
     inset-block-start: 8px;
     inset-inline-end: 8px;
-    display: grid;
-    grid-template-columns: 1fr 42px;
-    inline-size: 132px;
-    min-block-size: 64px;
-    padding: 5px;
+    inline-size: 48px;
+    block-size: 48px;
     clip-path: none;
   }
 
@@ -2290,41 +2198,6 @@ canvas {
 
   .race-minimap canvas {
     block-size: 105px;
-  }
-
-  .game-settings select,
-  .game-settings button {
-    min-block-size: 30px;
-    font-size: .54rem;
-  }
-
-  .game-settings select {
-    grid-column: 1;
-    inline-size: 82px;
-    padding-inline: 7px 14px;
-  }
-
-  .camera-control {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .camera-control button {
-    inline-size: 41px;
-  }
-
-  .pause-button {
-    grid-column: 2;
-    grid-row: 1;
-    inline-size: 40px;
-    margin: 0;
-  }
-
-  .restart-button {
-    grid-column: 2;
-    grid-row: 2;
-    inline-size: 40px;
-    margin: 0;
   }
 
   .race-telemetry {
@@ -2528,10 +2401,6 @@ canvas {
     inline-size: 238px;
   }
 
-  .game-settings {
-    inline-size: 126px;
-  }
-
   .race-minimap {
     inline-size: 126px;
   }
@@ -2566,19 +2435,6 @@ canvas {
 
   .game-brand h1 {
     font-size: 1.68rem;
-  }
-
-  .game-settings {
-    inline-size: 112px;
-  }
-
-  .game-settings select {
-    inline-size: 69px;
-  }
-
-  .camera-control button {
-    inline-size: 34px;
-    overflow: hidden;
   }
 
   .drift-hud {
@@ -2671,8 +2527,7 @@ canvas {
   .position-plate,
   .lap-plate,
   .route-validation,
-  .route-debug-toggle,
-  .game-settings,
+  .game-options-button,
   .race-minimap,
   .running-order,
   .drift-hud,

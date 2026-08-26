@@ -42,7 +42,6 @@ export class RaceHud {
   private readonly calloutTitle = requireElement(document, '[data-event-title]', HTMLElement);
   private readonly calloutDetail = requireElement(document, '[data-event-detail]', HTMLElement);
   private readonly liveStatus = requireElement(document, '[data-live-status]', HTMLElement);
-  private readonly pauseButton = requireElement(document, '[data-pause]', HTMLButtonElement);
 
   private previousPhase: RaceSnapshot['phase'] | null = null;
   private previousOffRoad = false;
@@ -159,8 +158,6 @@ export class RaceHud {
       }
       this.previousPhase = snapshot.phase;
     }
-    this.pauseButton.textContent = snapshot.phase === 'paused' ? 'Resume' : 'Pause';
-    this.pauseButton.setAttribute('aria-pressed', String(snapshot.phase === 'paused'));
   }
 
   private renderEvent(snapshot: RaceSnapshot): void {

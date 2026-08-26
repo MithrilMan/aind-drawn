@@ -72,7 +72,7 @@ export function toExploreInput(controls: ControlSnapshot): ExploreInput {
     steeringAxis: steering,
     throttle,
     brakePressure,
-    run: controls.actions.sprint.active,
+    run: controls.actions.sprint.active || controls.actions.back.active,
     jump: controls.actions.primary.active,
     interact: controls.actions.interact.active,
   });

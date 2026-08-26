@@ -211,7 +211,7 @@ describe('asset extensions', () => {
     const scope = assetExtensionScope(explorer.helmet);
     explorer.setPreviewMode(true);
     explorer.setVisible(true);
-    for (let index = 0; index < 48; index += 1) explorer.updatePreview(0.05);
+    for (let index = 0; index < 57; index += 1) explorer.updatePreview(0.05);
 
     expect(explorer.rig.containmentIds).toEqual([]);
     expect(explorer.rig.getPart(scope.id('part:helmet'))?.visible).toBe(true);
@@ -273,10 +273,10 @@ describe('asset extensions', () => {
     ).toBe(false);
     explorer.setPreviewMode(true);
     explorer.setVisible(true);
-    for (let index = 0; index < 20; index += 1) explorer.updatePreview(0.05);
+    explorer.updatePreview(0.05);
     expect(explorer.helmetItemRig.root.visible).toBe(true);
     expect(explorer.rig.getPart(scope.id('part:helmet'))?.visible).toBe(false);
-    for (let index = 0; index < 24; index += 1) explorer.updatePreview(0.05);
+    for (let index = 0; index < 57; index += 1) explorer.updatePreview(0.05);
     expect(explorer.helmetItemRig.root.visible).toBe(false);
     expect(explorer.rig.getPart(scope.id('part:helmet'))?.visible).toBe(true);
     expect(explorer.rig.containmentIds).toEqual([scope.id('containment:helmet')]);

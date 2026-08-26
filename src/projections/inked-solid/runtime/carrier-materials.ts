@@ -235,8 +235,12 @@ export class InkedSolidCarrierMaterialCache {
     const key = `${semanticPartId}:${spec.id}`;
     const cached = this.albedo.get(key);
     if (cached !== undefined) return cached;
+    const opacity = spec.physical.opacity ?? 1;
     const material = this.track(new THREE.MeshBasicMaterial({
       color: colorFromRgb(spec.color),
+      opacity,
+      transparent: opacity < 1,
+      depthWrite: opacity >= 1,
       fog: false,
       toneMapped: false,
     }));

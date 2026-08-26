@@ -8,6 +8,7 @@ import {
   createBuildingIdentity,
   createCharacterIdentity,
   createInkedSolidBlueprint,
+  createSemanticSurface,
   createSolidBuildingBlueprint,
   createSolidBuildingInkStrokes,
   createSolidCharacterBlueprint,
@@ -48,6 +49,59 @@ function containsStroke(root: THREE.Object3D): boolean {
 }
 
 describe('multi-instance inked-solid scene rendering', () => {
+  it('keeps transparent parts out of the opaque carrier while preserving their strokes', () => {
+    const solid = createSolidBuildingBlueprint(createBuildingIdentity(7_100));
+    const transparentPart = solid.parts[0];
+    if (transparentPart === undefined) throw new Error('Expected a building part');
+    const transparentSurface = createSemanticSurface({
+      id: transparentPart.surfaceId,
+      color: [180, 220, 230],
+      substance: 'glass',
+      drawing: Object.freeze({
+        application: 'glaze',
+        drawing: Object.freeze({ value: 'paper', gesture: 'quiet' }),
+      }),
+      physical: Object.freeze({ opacity: 0.35 }),
+    });
+    const transparentSolid = Object.freeze({
+      ...solid,
+      surfaces: Object.freeze(solid.surfaces.map((surface) => (
+        surface.id === transparentPart.surfaceId ? transparentSurface : surface
+      ))),
+    });
+    const stroke = Object.freeze({
+      id: 'glass-edge',
+      partId: transparentPart.id,
+      path: Object.freeze({
+        type: 'part-local' as const,
+        points: Object.freeze([
+          Object.freeze([0, 0, 0] as const),
+          Object.freeze([0.1, 0.1, 0] as const),
+        ]),
+      }),
+      radius: 0.01,
+    });
+    const inked = createInkedSolidBlueprint(transparentSolid, {
+      medium: 'ink',
+      strokes: Object.freeze([stroke]),
+    });
+    const rig = new SolidRig(transparentSolid, { instanceId: 'building:transparent' });
+    const pass = new InkedSolidScenePass(asWebGlRenderer(new RecordingRenderer()));
+    const registration = pass.register({ instanceId: rig.instanceId, blueprint: inked, rig });
+
+    expect(inked.carrierPartIds).not.toContain(transparentPart.id);
+    const diagnostics = pass.getDiagnostics();
+    expect(diagnostics.carrierParts).toBe(
+      solid.parts.length - solid.parts
+        .filter(({ surfaceId }) => surfaceId === transparentPart.surfaceId).length,
+    );
+    expect(diagnostics.semanticStrokeMeshes).toBeGreaterThan(0);
+
+    registration.dispose();
+    pass.dispose();
+    rig.dispose();
+  });
+
   it('allocates deterministic collision-free part owner keys', () => {
     const first = new InkedSolidCarrierOwnerKeys();
     const second = new InkedSolidCarrierOwnerKeys();

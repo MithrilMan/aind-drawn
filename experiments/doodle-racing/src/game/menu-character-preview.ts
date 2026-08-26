@@ -93,7 +93,7 @@ export class MenuCharacterPreview {
   private sceneAssets() {
     return Object.freeze([
       this.backdrop.doodleAsset(),
-      this.explorer.doodleAsset(),
+      ...this.explorer.doodleAssets(),
       this.smoke.doodleAsset(),
     ]);
   }

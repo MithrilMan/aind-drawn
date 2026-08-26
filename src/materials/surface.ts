@@ -77,6 +77,8 @@ export type PhysicalSurfaceTreatment = Readonly<{
   roughness?: number;
   metalness?: number;
   clearcoat?: number;
+  /** Physical coverage; values below one reveal surfaces behind this one. */
+  opacity?: number;
 }>;
 
 export type PhysicalSurfaceTreatmentOverride = Readonly<Partial<PhysicalSurfaceTreatment>>;

@@ -11,6 +11,11 @@ export * from './authoring/family-schema.js';
 export * from './authoring/raster-visual-audit.js';
 export * from './codecs/asset-identity.js';
 export * from './appearance/art-direction.js';
+export * from './extensions/identity.js';
+export * from './extensions/contracts.js';
+export * from './extensions/plan.js';
+export * from './extensions/blueprint.js';
+export * from './extensions/solid-containment.js';
 
 // Building family
 export * from './assets/building/identity/authoring.js';
@@ -58,6 +63,7 @@ export * from './assets/character/solid/face/capabilities.js';
 export * from './assets/character/solid/face/layout.js';
 export * from './assets/character/solid/face/recipe.js';
 export * from './assets/character/runtime/motion.js';
+export * from './assets/character/extensions/host.js';
 export { createCharacterMotionState, setCharacterMotion } from './assets/character/runtime/motion-state.js';
 export { sampleCharacterMotion } from './assets/character/runtime/motion-sampler.js';
 export { applyRasterCharacterMotion } from './assets/character/runtime/raster-motion-applicator.js';
@@ -119,5 +125,6 @@ export * from './runtime/raster-worker.js';
 export * from './runtime/solid-geometry.js';
 export * from './runtime/solid-surfaces.js';
 export * from './runtime/solid-part-focus.js';
+export * from './runtime/rig-pose-patch.js';
 export * from './runtime/solid-rig.js';
 export * from './runtime/sprite-rig.js';

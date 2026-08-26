@@ -54,6 +54,11 @@ describe('architectural boundaries', () => {
       'src/runtime/sprite-layer-renderer.ts',
       'src/runtime/sprite-rig.ts',
       'src/runtime/solid-rig.ts',
+      'src/runtime/rig-pose-patch.ts',
+      'src/extensions/identity.ts',
+      'src/extensions/contracts.ts',
+      'src/extensions/plan.ts',
+      'src/extensions/blueprint.ts',
       'src/authoring/raster-visual-audit.ts',
       'src/projections/inked-solid/runtime/pass.ts',
     ];

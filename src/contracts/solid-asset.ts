@@ -52,6 +52,8 @@ export type SolidNodeDefinition = Readonly<{
   id: string;
   parentNode?: string;
   restPose: Pose3;
+  /** Optional authored scale used for fitted mounts and reusable equipment. */
+  restScale?: Point3;
 }>;
 
 export type SolidPlacement = Readonly<{
@@ -136,6 +138,22 @@ export type SolidInteractionBinding = Readonly<{
   nodes: readonly SolidInteractionNodeBinding[];
 }>;
 
+export type SolidContainmentPartVariant = Readonly<{
+  sourcePartId: string;
+  /** Omitted when the source lies completely outside the containment volume. */
+  containedPartId?: string;
+}>;
+
+/**
+ * A precompiled geometry swap used when an equipped container constrains
+ * selected host parts. Both variants remain in the immutable blueprint;
+ * runtime state only selects which one is visible.
+ */
+export type SolidContainmentDefinition = Readonly<{
+  id: string;
+  variants: readonly SolidContainmentPartVariant[];
+}>;
+
 export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprintHeader<
   TFamily,
   'solid'
@@ -148,4 +166,5 @@ export type SolidAssetBlueprint<TFamily extends string = string> = AssetBlueprin
   colliders: readonly SolidColliderDefinition[];
   sockets: readonly SolidSocketDefinition[];
   interactionBindings: readonly SolidInteractionBinding[];
+  containments?: readonly SolidContainmentDefinition[];
 }>;

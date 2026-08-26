@@ -130,6 +130,7 @@ function surfaceKey(surface: ResolvedSemanticSurface): string {
     physical.roughness ?? '-',
     physical.metalness ?? '-',
     physical.clearcoat ?? '-',
+    physical.opacity ?? '-',
   ].join('|');
 }
 
@@ -208,6 +209,7 @@ export class SolidSurfaceResourceCache {
   private create(surface: ResolvedSemanticSurface, key: string): THREE.MeshPhysicalMaterial {
     const color = rgb(surface.color);
     const physical = surface.physical;
+    const opacity = physical.opacity ?? 1;
     const material = new THREE.MeshPhysicalMaterial({
       ...substrateParameters(physical.substrate, color),
       ...finishParameters(physical.finish),
@@ -216,6 +218,9 @@ export class SolidSurfaceResourceCache {
       ...(physical.roughness === undefined ? {} : { roughness: physical.roughness }),
       ...(physical.metalness === undefined ? {} : { metalness: physical.metalness }),
       ...(physical.clearcoat === undefined ? {} : { clearcoat: physical.clearcoat }),
+      opacity,
+      transparent: opacity < 1,
+      depthWrite: opacity >= 1,
       envMap: this.environmentMap ?? null,
     });
     const profile = textureProfile(surface);

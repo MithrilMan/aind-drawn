@@ -16,6 +16,13 @@ export type SkinOptions = Readonly<{
   scribble?: boolean;
 }>;
 
+export type GlazeOptions = Readonly<{
+  color?: RgbColor;
+  opacity?: number;
+  gap?: number;
+  angle?: number;
+}>;
+
 export type EdgeOptions = Readonly<{
   alpha?: number;
   ghost?: boolean;
@@ -33,6 +40,7 @@ export type Medium = Readonly<{
     color: RgbColor,
     options?: SkinOptions,
   ) => void;
+  glaze: (sketch: Sketch, points: readonly Point[], options?: GlazeOptions) => void;
   edge: (
     sketch: Sketch,
     points: readonly Point[],
@@ -104,6 +112,19 @@ export const MEDIA: Readonly<Record<MediumId, Medium>> = {
       }
       sketch.setInk(null);
     },
+    glaze(sketch, points, options = {}) {
+      const opacity = options.opacity ?? 0.22;
+      sketch.setInk(options.color ?? null);
+      sketch.inkFill(points, opacity * 0.18);
+      sketch.hatchFill(
+        points,
+        spacing(sketch, options.gap ?? 12),
+        options.angle ?? 0.78,
+        opacity * 1.65,
+        0.9,
+      );
+      sketch.setInk(null);
+    },
     edge(sketch, points, width, options = {}) {
       const resolved = strokeOptions(options, 1, true);
       sketch.brokenStroke(points, width * resolved.widthFactor * sketch.contourScale, resolved);
@@ -136,6 +157,19 @@ export const MEDIA: Readonly<Record<MediumId, Medium>> = {
       sketch.hatchFill(points, spacing(sketch, options.gap ?? 8), sketch.jitter(0.7, 1.5), 0.22, 1.2);
       sketch.setInk(null);
     },
+    glaze(sketch, points, options = {}) {
+      const opacity = options.opacity ?? 0.2;
+      sketch.setInk(options.color ?? null);
+      sketch.inkFill(points, opacity * 0.24);
+      sketch.hatchFill(
+        points,
+        spacing(sketch, options.gap ?? 14),
+        options.angle ?? 0.78,
+        opacity,
+        0.8,
+      );
+      sketch.setInk(null);
+    },
     edge(sketch, points, width, options = {}) {
       const resolved = strokeOptions(options, 1.25, true);
       sketch.brokenStroke(points, width * resolved.widthFactor * sketch.contourScale, resolved);
@@ -157,6 +191,26 @@ export const MEDIA: Readonly<Record<MediumId, Medium>> = {
     skin(sketch, points, color) {
       sketch.washFill(points, color, { layers: 2, alpha: 0.14, bleed: 1.2 });
     },
+    glaze(sketch, points, options = {}) {
+      const opacity = options.opacity ?? 0.18;
+      const color = options.color ?? [86, 130, 150];
+      sketch.washFill(points, color, {
+        layers: 2,
+        alpha: opacity * 0.28,
+        bleed: 0.35,
+        blooms: false,
+        rim: false,
+      });
+      sketch.setInk(color);
+      sketch.hatchFill(
+        points,
+        spacing(sketch, options.gap ?? 16),
+        options.angle ?? 0.78,
+        opacity * 0.62,
+        0.75,
+      );
+      sketch.setInk(null);
+    },
     edge(sketch, points, width, options = {}) {
       const resolved = strokeOptions(options, 0.8, false);
       sketch.brokenStroke(points, width * resolved.widthFactor * sketch.contourScale, {
@@ -176,6 +230,19 @@ export const MEDIA: Readonly<Record<MediumId, Medium>> = {
     },
     skin(sketch, points, color) {
       sketch.oilFill(points, color, { density: 1 });
+    },
+    glaze(sketch, points, options = {}) {
+      const opacity = options.opacity ?? 0.18;
+      sketch.setInk(options.color ?? null);
+      sketch.inkFill(points, opacity * 0.28);
+      sketch.hatchFill(
+        points,
+        spacing(sketch, options.gap ?? 15),
+        options.angle ?? 0.78,
+        opacity * 0.72,
+        1,
+      );
+      sketch.setInk(null);
     },
     edge(sketch, points, width, options = {}) {
       const resolved = strokeOptions(options, 0.85, false);
@@ -199,6 +266,20 @@ export const MEDIA: Readonly<Record<MediumId, Medium>> = {
     skin(sketch, points, color) {
       sketch.chalkFill(points, color, { alpha: 0.34, density: 0.7 });
     },
+    glaze(sketch, points, options = {}) {
+      const opacity = options.opacity ?? 0.2;
+      const color = options.color ?? [86, 130, 150];
+      sketch.chalkFill(points, color, { alpha: opacity * 0.32, density: 0.22 });
+      sketch.setInk(color);
+      sketch.hatchFill(
+        points,
+        spacing(sketch, options.gap ?? 13),
+        options.angle ?? 0.78,
+        opacity * 0.86,
+        1,
+      );
+      sketch.setInk(null);
+    },
     edge(sketch, points, width, options = {}) {
       const resolved = strokeOptions(options, 1.1, true);
       sketch.brokenStroke(points, width * resolved.widthFactor * sketch.contourScale, {
@@ -221,6 +302,20 @@ export const MEDIA: Readonly<Record<MediumId, Medium>> = {
     },
     skin(sketch, points, color) {
       sketch.markerFill(points, color, 0.22);
+    },
+    glaze(sketch, points, options = {}) {
+      const opacity = options.opacity ?? 0.16;
+      const color = options.color ?? [86, 130, 150];
+      sketch.markerFill(points, color, opacity * 0.28);
+      sketch.setInk(color);
+      sketch.hatchFill(
+        points,
+        spacing(sketch, options.gap ?? 17),
+        options.angle ?? 0.78,
+        opacity * 0.78,
+        1.1,
+      );
+      sketch.setInk(null);
     },
     edge(sketch, points, width, options = {}) {
       const resolved = strokeOptions(options, 1.15, false);

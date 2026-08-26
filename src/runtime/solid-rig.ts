@@ -60,6 +60,7 @@ export class SolidRig implements SolidAssetInstance {
   private readonly surfaceCache: SolidSurfaceResourceCache;
   private readonly ownsSurfaceCache: boolean;
   private readonly interactionStates = new Map<string, string>();
+  private readonly containmentStates = new Map<string, boolean>();
   private playbackTime = 0;
   private disposed = false;
 
@@ -138,6 +139,10 @@ export class SolidRig implements SolidAssetInstance {
         this.blueprint.manifest.interactions,
         this.blueprint.interactionBindings,
       );
+      for (const containment of this.blueprint.containments ?? []) {
+        this.containmentStates.set(containment.id, false);
+        this.applyContainmentState(containment.id, false);
+      }
     } catch (error) {
       this.dispose();
       throw error;
@@ -154,6 +159,10 @@ export class SolidRig implements SolidAssetInstance {
 
   public get interactionIds(): readonly string[] {
     return [...this.interactionStates.keys()];
+  }
+
+  public get containmentIds(): readonly string[] {
+    return [...this.containmentStates.keys()];
   }
 
   public getInstanceState(): AssetInstanceState<Pose3> {
@@ -183,6 +192,20 @@ export class SolidRig implements SolidAssetInstance {
     return this.parts.get(id) ?? null;
   }
 
+  public setPartVisible(id: string, visible: boolean): void {
+    const part = this.parts.get(id);
+    if (part === undefined) throw new Error(`Unknown solid part: ${id}`);
+    part.visible = visible;
+  }
+
+  /** Selects the original or precompiled contained geometry without changing identity. */
+  public setContainmentState(id: string, active: boolean): void {
+    if (!this.containmentStates.has(id)) throw new Error(`Unknown solid containment: ${id}`);
+    if (this.containmentStates.get(id) === active) return;
+    this.applyContainmentState(id, active);
+    this.containmentStates.set(id, active);
+  }
+
   /** Restores one authored node without disturbing unrelated interactions. */
   public resetNodePose(id: string): void {
     const node = this.requireNode(id);
@@ -202,6 +225,27 @@ export class SolidRig implements SolidAssetInstance {
     part.quaternion.copy(rest.quaternion);
     part.scale.copy(rest.scale);
     part.visible = rest.visible;
+  }
+
+  private applyContainmentState(id: string, active: boolean): void {
+    const containment = this.blueprint.containments?.find((candidate) => candidate.id === id);
+    if (containment === undefined) throw new Error(`Unknown solid containment: ${id}`);
+    for (const variant of containment.variants) {
+      const source = this.parts.get(variant.sourcePartId);
+      const contained = variant.containedPartId === undefined
+        ? undefined
+        : this.parts.get(variant.containedPartId);
+      const sourceRest = this.partRest.get(variant.sourcePartId);
+      if (
+        source === undefined
+        || (variant.containedPartId !== undefined && contained === undefined)
+        || sourceRest === undefined
+      ) {
+        throw new Error(`Solid containment ${id} references missing runtime geometry`);
+      }
+      source.visible = active ? false : sourceRest.visible;
+      if (contained !== undefined) contained.visible = active;
+    }
   }
 
   public getSocketWorldPose(id: string): Pose3 | null {
@@ -255,7 +299,7 @@ export class SolidRig implements SolidAssetInstance {
       if (nodeState === undefined) {
         throw new Error(`Solid interaction ${id} has no ${state} transform for ${binding.nodeId}`);
       }
-      this.applyNodeState(binding.nodeId, nodeState);
+      this.setNodeState(binding.nodeId, nodeState);
     }
     this.interactionStates.set(id, state);
   }
@@ -289,6 +333,7 @@ export class SolidRig implements SolidAssetInstance {
       node.name = `node:${id}`;
       node.position.set(...definition.restPose.position);
       node.quaternion.set(...definition.restPose.rotation);
+      if (definition.restScale !== undefined) node.scale.set(...definition.restScale);
       if (definition.parentNode === undefined) {
         this.root.add(node);
       } else {
@@ -353,14 +398,20 @@ export class SolidRig implements SolidAssetInstance {
       this.interactionStates.set(definition.id, definition.initialState);
       for (const binding of projection.nodes) {
         const state = binding.stateByInteractionState[definition.initialState];
-        if (state !== undefined) this.applyNodeState(binding.nodeId, state);
+        if (state !== undefined) this.setNodeState(binding.nodeId, state);
       }
     }
   }
 
-  private applyNodeState(id: string, state: SolidNodeState): void {
-    const node = this.requireNode(id);
+  /** Applies a rest-relative, idempotent node state without exposing renderer internals. */
+  public setNodeState(id: string, state: SolidNodeState): void {
     this.resetNodePose(id);
+    this.applyNodeStateDelta(id, state);
+  }
+
+  /** Layers a local transform delta over the node's current sampled pose. */
+  public applyNodeStateDelta(id: string, state: SolidNodeState): void {
+    const node = this.requireNode(id);
     if (state.translation !== undefined) node.position.add(new THREE.Vector3(...state.translation));
     if (state.rotation !== undefined) {
       node.quaternion.multiply(

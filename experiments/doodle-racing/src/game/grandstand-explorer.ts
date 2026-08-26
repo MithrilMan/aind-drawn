@@ -1,17 +1,44 @@
 import {
   SeedTree,
   SolidRig,
+  CHARACTER_ART_BINDINGS,
+  CHARACTER_EXTENSION_HOST,
   applySolidCharacterMotion,
+  assetExtensionScope,
+  createAssetExtensionPlan,
   createCharacterMotionState,
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
+  extendAssetIdentity,
+  extendSolidAssetBlueprint,
   sampleCharacterMotion,
   setCharacterMotion,
   type CharacterExpression,
   type CharacterMotionState,
   type CharacterPose,
+  type ExtendedAssetIdentity,
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
+import {
+  PAPER_CIRCUIT_EXTENSION_REGISTRY,
+  applySolidPaperCircuitHelmetGripMotion,
+  applySolidPaperCircuitHelmetItemVisorMotion,
+  applySolidPaperCircuitVisorReachMotion,
+  applySolidPaperCircuitVisorMotion,
+  createPaperCircuitHelmetIdentity,
+  createPaperCircuitHelmetInkStrokes,
+  createPaperCircuitHelmetItemInkStrokes,
+  createPaperCircuitVisorMotionState,
+  createSolidPaperCircuitHelmetBlueprint,
+  interpolatePaperCircuitHelmetEquipPose,
+  samplePaperCircuitHelmetEquipMotion,
+  samplePaperCircuitVisorMotion,
+  samplePaperCircuitVisorReachMotion,
+  setPaperCircuitVisorPosition,
+  type PaperCircuitHelmetIdentity,
+  type PaperCircuitVisorMotionState,
+  type PaperCircuitVisorPosition,
+} from '../extensions/paper-circuit-helmet/index.js';
 import type { DoodleSceneAsset } from './doodle-scene.js';
 import type { ExploreEntranceFrame } from './explore-entrance.js';
 import {
@@ -119,15 +146,32 @@ function previewExpression(pose: CharacterPose, beat: number): CharacterExpressi
   return beat % 2 === 0 ? 'happy' : 'idle';
 }
 
+function visorPosition(
+  pose: CharacterPose,
+  expression: CharacterExpression,
+): PaperCircuitVisorPosition {
+  return pose === 'walk' || pose === 'run' || pose === 'airborne' || expression === 'scared'
+    ? 'down'
+    : 'up';
+}
+
 export class GrandstandExplorer {
-  public readonly identity: PaperCircuitPersonIdentity;
+  public readonly identity: ExtendedAssetIdentity<PaperCircuitPersonIdentity>;
+  public readonly helmet: PaperCircuitHelmetIdentity;
   public readonly solid: SolidAssetBlueprint<'character'>;
   public readonly rig: SolidRig;
+  public readonly helmetItemSolid: SolidAssetBlueprint<'paper-circuit-helmet'>;
+  public readonly helmetItemRig: SolidRig;
 
   private motion: CharacterMotionState = createCharacterMotionState({
     autoBlink: true,
     autoGaze: true,
   });
+  private visorMotion: PaperCircuitVisorMotionState = createPaperCircuitVisorMotionState();
+  private visorAmount = 0;
+  private helmetEquipAmount = 0;
+  private helmetWorn: boolean | null = null;
+  private actorVisible = false;
   private elapsed = 0;
   private along = 0;
   private away = -0.9;
@@ -166,7 +210,9 @@ export class GrandstandExplorer {
           + GRANDSTAND_STEP_DEPTH * 0.5 + 1.15,
       })
       : mapLocalBounds(course, stand);
-    this.identity = createPaperCircuitPersonIdentity(seed);
+    const person = createPaperCircuitPersonIdentity(seed);
+    this.helmet = createPaperCircuitHelmetIdentity(person);
+    this.identity = extendAssetIdentity(person, [this.helmet]);
     const previewRandom = new SeedTree(seed).random('paper-circuit:explorer:preview');
     const previewPoses = Object.freeze<CharacterPose[]>([
       'walk', 'play', 'airborne', 'idle', 'run',
@@ -184,11 +230,25 @@ export class GrandstandExplorer {
       index === 0 ? previewRandom.float(1.15, 1.7) : previewRandom.float(0.8, 1.65)
     )));
     this.previewLoopDuration = this.previewDurations.reduce((sum, duration) => sum + duration, 0);
-    this.solid = createSolidCharacterBlueprint(this.identity, {
+    const baseSolid = createSolidCharacterBlueprint(this.identity, {
       artDirection: 'storybook',
       physical: Object.freeze({ finish: 'matte' }),
     });
+    const extensionPlan = createAssetExtensionPlan(
+      this.identity,
+      baseSolid.manifest,
+      CHARACTER_ART_BINDINGS,
+      CHARACTER_EXTENSION_HOST,
+      PAPER_CIRCUIT_EXTENSION_REGISTRY,
+    );
+    this.solid = extendSolidAssetBlueprint(baseSolid, extensionPlan);
     this.rig = new SolidRig(this.solid, { instanceId: 'paper-circuit:explorer' });
+    this.helmetItemSolid = createSolidPaperCircuitHelmetBlueprint(this.helmet.data.item, {
+      artDirection: this.solid.appearance.artDirection,
+    });
+    this.helmetItemRig = new SolidRig(this.helmetItemSolid, {
+      instanceId: 'paper-circuit:explorer:held-helmet',
+    });
     const xRadius = Math.max(
       Math.abs(this.solid.bounds.minimum[0]),
       Math.abs(this.solid.bounds.maximum[0]),
@@ -207,15 +267,27 @@ export class GrandstandExplorer {
     this.y = surface.height;
     this.surfaceRow = surface.row;
     this.rig.root.visible = false;
+    this.helmetItemRig.root.visible = false;
     this.applyPose();
   }
 
-  public doodleAsset(): DoodleSceneAsset {
-    return Object.freeze({
+  public doodleAssets(): readonly DoodleSceneAsset[] {
+    return Object.freeze([Object.freeze({
       solid: this.solid,
       rig: this.rig,
-      strokes: createSolidCharacterInkStrokes(this.solid),
-    });
+      strokes: Object.freeze([
+        ...createSolidCharacterInkStrokes(this.solid),
+        ...createPaperCircuitHelmetInkStrokes(this.solid, this.helmet),
+      ]),
+    }), Object.freeze({
+      solid: this.helmetItemSolid,
+      rig: this.helmetItemRig,
+      strokes: createPaperCircuitHelmetItemInkStrokes(this.helmetItemSolid),
+    })]);
+  }
+
+  public doodleAsset(): DoodleSceneAsset {
+    return this.doodleAssets()[0] as DoodleSceneAsset;
   }
 
   public snapshot(): GrandstandExplorerSnapshot {
@@ -416,6 +488,7 @@ export class GrandstandExplorer {
     this.activePose = 'idle';
     this.activeExpression = 'idle';
     this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
+    this.visorMotion = createPaperCircuitVisorMotionState();
     this.applyPose();
   }
 
@@ -443,11 +516,14 @@ export class GrandstandExplorer {
     this.activePose = 'idle';
     this.activeExpression = 'idle';
     this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
+    this.visorMotion = createPaperCircuitVisorMotionState();
     this.applyPose();
   }
 
   public setVisible(visible: boolean): void {
+    this.actorVisible = visible;
     this.rig.root.visible = visible;
+    this.helmetItemRig.root.visible = visible && this.helmetWorn !== true;
   }
 
   public setPreviewTransform(position: WorldPosition, heading: number): void {
@@ -463,6 +539,7 @@ export class GrandstandExplorer {
       this.activePose = 'idle';
       this.activeExpression = 'idle';
       this.motion = createCharacterMotionState({ autoBlink: true, autoGaze: true });
+      this.visorMotion = createPaperCircuitVisorMotionState();
       this.applyPose();
     } else {
       this.reset();
@@ -504,6 +581,7 @@ export class GrandstandExplorer {
 
   public dispose(): void {
     this.rig.dispose();
+    this.helmetItemRig.dispose();
   }
 
   private applyPose(): void {
@@ -515,11 +593,79 @@ export class GrandstandExplorer {
       position: Object.freeze([position.x, position.y, position.z] as const),
       rotation: Object.freeze([0, Math.sin(halfAngle), 0, Math.cos(halfAngle)] as const),
     }));
+    const actorScale = this.previewMode ? PREVIEW_SCALE : EXPLORER_SCALE;
+    this.rig.root.scale.setScalar(actorScale);
     applySolidCharacterMotion(
       this.rig,
       sampleCharacterMotion(this.identity, this.motion, this.elapsed),
     );
-    this.rig.root.scale.setScalar(this.previewMode ? PREVIEW_SCALE : EXPLORER_SCALE);
+    this.helmetEquipAmount = samplePaperCircuitHelmetEquipMotion(this.elapsed);
+    const handPose = this.rig.getSocketWorldPose('hand:right');
+    const headPose = this.rig.getSocketWorldPose('head');
+    if (handPose === null || headPose === null) {
+      throw new Error('Paper Circuit helmet equip motion requires hand and head sockets');
+    }
+    this.helmetItemRig.setWorldPose(interpolatePaperCircuitHelmetEquipPose(
+      handPose,
+      headPose,
+      this.helmetEquipAmount,
+      this.identity.head.height * actorScale * 0.86,
+    ));
+    const mount = this.solid.nodes.find((node) => (
+      node.id === assetExtensionScope(this.helmet).id('helmet')
+    ));
+    const fitScale = mount?.restScale?.[0];
+    if (fitScale === undefined) throw new Error('Paper Circuit helmet mount has no fit scale');
+    this.helmetItemRig.root.scale.setScalar(fitScale * actorScale);
+    applySolidPaperCircuitHelmetGripMotion(
+      this.helmetItemRig,
+      this.helmet.data.item,
+      this.helmetEquipAmount,
+    );
+    applySolidPaperCircuitHelmetItemVisorMotion(
+      this.helmetItemRig,
+      this.helmet.data.item,
+      0,
+    );
+    this.setHelmetWorn(this.helmetEquipAmount >= 1);
+    this.visorMotion = setPaperCircuitVisorPosition(
+      this.visorMotion,
+      this.helmet,
+      this.helmetEquipAmount < 1
+        ? 'down'
+        : visorPosition(this.activePose, this.activeExpression),
+      this.elapsed,
+    );
+    this.visorAmount = samplePaperCircuitVisorMotion(
+      this.visorMotion,
+      this.helmet,
+      this.elapsed,
+    );
+    applySolidPaperCircuitVisorMotion(this.rig, this.helmet, this.visorAmount);
+    applySolidPaperCircuitVisorReachMotion(
+      this.rig,
+      this.helmetWorn === true
+        ? samplePaperCircuitVisorReachMotion(
+          this.visorMotion,
+          this.helmet,
+          this.elapsed,
+        )
+        : 0,
+    );
+  }
+
+  private setHelmetWorn(worn: boolean): void {
+    if (this.helmetWorn === worn) {
+      this.helmetItemRig.root.visible = this.actorVisible && !worn;
+      return;
+    }
+    this.helmetWorn = worn;
+    const scope = assetExtensionScope(this.helmet);
+    for (const id of ['helmet', 'visor', 'hinge:left', 'hinge:right']) {
+      this.rig.setPartVisible(scope.id(`part:${id}`), worn);
+    }
+    this.rig.setContainmentState(scope.id('containment:helmet'), worn);
+    this.helmetItemRig.root.visible = this.actorVisible && !worn;
   }
 
 }

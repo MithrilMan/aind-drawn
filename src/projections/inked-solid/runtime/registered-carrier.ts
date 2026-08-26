@@ -109,7 +109,9 @@ export class RegisteredInkedSolidCarrier {
         `${mark.semanticPartId}:${mark.surfaceId}`,
         mark,
       ]));
+      const carrierPartIds = new Set(blueprint.carrierPartIds);
       for (const part of blueprint.solid.parts) {
+        if (!carrierPartIds.has(part.id)) continue;
         const source = rig.getPart(part.id);
         const surface = surfaces.get(part.surfaceId);
         const mark = marks.get(`${part.semanticPartId}:${part.surfaceId}`);

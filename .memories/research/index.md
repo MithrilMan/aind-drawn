@@ -8,6 +8,7 @@ Purpose: Reusable findings from project investigations and experiment reviews.
 
 ## Memory files
 
+- [Asset extensions and fitted wearables](asset-extensions-and-wearables-2026-08-26.md): typed registries, standalone equipment, containment, glaze projection, and geometry pitfalls.
 - [Art direction and semantic surfaces](art-direction-surfaces-2026-08-25.md): orthogonal appearance model, renderer integration, caches, reveal, and measured costs.
 - [Character dance motion](character-dance-2026-08-24.md): shared `dance` pose, projection constraints, and verification notes.
 - [Doodle race review](doodle-race-analysis-2026-08-24.md): architecture, gameplay, menu viewport, and measured renderer costs.

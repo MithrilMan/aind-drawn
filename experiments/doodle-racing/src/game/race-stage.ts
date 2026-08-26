@@ -429,7 +429,7 @@ export class RaceStage {
       this.effects.doodleAsset(),
       ...this.vehicles.doodleAssets(),
       ...this.crowd.doodleAssets(),
-      this.explorer.doodleAsset(),
+      ...this.explorer.doodleAssets(),
       this.smoke.doodleAsset(),
     ]);
   }

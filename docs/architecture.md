@@ -10,6 +10,7 @@ src/assets/
 `-- vehicle/{identity,raster,solid,runtime}
 
 src/contracts/                      shared raster, solid, and capability contracts
+src/extensions/                     family-agnostic asset extension compiler
 src/projections/inked-solid/        representation blueprint, policy, and runtime
 src/runtime/                        family-agnostic renderer infrastructure
 ```
@@ -44,6 +45,40 @@ and reader. Generic rigs carry those entries without interpreting them. This
 keeps expressions, rolling wheels, fluid effects, and future family vocabulary
 out of `AssetBlueprint`, `SolidAssetBlueprint`, `SpriteRig`, and `SolidRig`.
 
+Capabilities extend metadata on an existing concrete part. Structural asset
+extensions are a separate boundary: an `AssetExtensionIdentity` adds resolved,
+deterministic authored data to an `ExtendedAssetIdentity`; the family publishes
+typed attachment slots; and an explicit `AssetExtensionRegistry` supplies the
+semantic, raster, and solid projections. `createAssetExtensionPlan` validates
+family and slot ownership once, allocates collision-free scoped IDs, merges the
+semantic manifest and art bindings, and produces one immutable plan consumed by
+both blueprint composers. The original identity and blueprints remain unchanged.
+
+Registries are explicit values owned by the application or package assembly,
+never process-global mutation. A third-party extension can therefore depend only
+on `src/index.ts`, while the base family retains control over legal attachment
+points and cardinality. Missing projections fail during composition rather than
+silently producing raster/solid semantic drift.
+
+Structural extensions that require raster parts to interleave with the base
+asset are compiled into the same blueprint. `AssetComposition` remains the right
+tool for independently ordered whole assets. Reusable equipment may therefore
+exist as a standalone held rig and as the exact same geometry mounted by a worn
+extension; the product transition switches between those two ownership states.
+
+Fitted containers do not mutate or suppress host identity. Their authoring step
+precompiles original/contained geometry pairs selected by semantic part ID into
+the immutable solid blueprint. Runtime containment is a visibility swap only;
+parts completely outside the volume are hidden until containment is disabled.
+Uniform node rest scale fits authored equipment without deforming its design.
+
+The Inked Solid carrier is an opaque single-layer G-buffer. Transparent physical
+parts are deliberately omitted from that carrier so they cannot replace the
+face behind a visor with paper-colored albedo. Their paper presence comes from
+explicit semantic outline and glaze strokes; Smooth rendering still uses the
+same surface's physical opacity, roughness, and clearcoat. Raster projections use
+the corresponding medium-level `glaze` operation.
+
 Transparent layers are ordered in contiguous per-rig blocks. `drawRank` selects
 the block (background, terrain, props, actors); each blueprint layer order is
 local to that block. Raw layer orders must never be used as global scene order,
@@ -68,6 +103,9 @@ representation recipes expose `schemaVersion`; blueprints expose
 The package is currently greenfield and unpublished. Obsolete contracts are
 removed together with their call sites; compatibility factories, aliases, and
 legacy document migrations are not maintained before a released format exists.
+Extension identities intentionally have no speculative version field. Add a
+version and migration policy only when an incompatible persisted extension
+format actually exists; a hypothetical V2 is not architecture, it is stationery.
 
 For characters, `CharacterIdentityRecipe` owns semantic identity once. Raster
 and solid recipes reference that same immutable object and add only

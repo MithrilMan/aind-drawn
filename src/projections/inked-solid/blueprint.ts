@@ -29,6 +29,13 @@ export type InkedSolidBlueprint<TFamily extends string = string> = AssetBlueprin
 > & Readonly<{
   medium: MediumId;
   solid: SolidAssetBlueprint<TFamily>;
+  /**
+   * Parts that participate in the opaque G-buffer carrier. Physically
+   * transparent parts remain available to semantic strokes but cannot be
+   * flattened into the single opaque depth/normal layer without hiding the
+   * surfaces behind them.
+   */
+  carrierPartIds: readonly string[];
   contour: InkedSolidContourPolicy;
   deposition: InkedSolidDepositionPolicy;
   viewMarks: readonly InkedSolidViewMarkPolicy[];
@@ -156,6 +163,9 @@ export function createInkedSolidBlueprint<TFamily extends string>(
     }
   }
   const surfaces = new Map(solid.surfaces.map((surface) => [surface.id, surface]));
+  const carrierPartIds = Object.freeze(solid.parts
+    .filter((part) => (surfaces.get(part.surfaceId)?.physical.opacity ?? 1) >= 1)
+    .map(({ id }) => id));
   const markOwners = new Map<string, { surfaceId: string; semanticPartId: string }>();
   for (const part of solid.parts) {
     markOwners.set(`${part.semanticPartId}:${part.surfaceId}`, {
@@ -250,6 +260,7 @@ export function createInkedSolidBlueprint<TFamily extends string>(
     appearance: solid.appearance,
     medium: options.medium,
     solid,
+    carrierPartIds,
     contour: Object.freeze({
       color: color('contour.color', contour.color),
       width: positive('contour.width', contour.width),

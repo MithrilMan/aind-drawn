@@ -267,11 +267,11 @@ function validateSolidSurfaces(
     const physical = collector.object(
       surface.physical,
       [...path, 'physical'],
-      ['substrate', 'finish', 'roughness', 'metalness', 'clearcoat'],
+      ['substrate', 'finish', 'roughness', 'metalness', 'clearcoat', 'opacity'],
     );
     collector.oneOf(physical.substrate, [...path, 'physical', 'substrate'], PHYSICAL_SUBSTRATES);
     collector.oneOf(physical.finish, [...path, 'physical', 'finish'], PHYSICAL_FINISHES);
-    for (const key of ['roughness', 'metalness', 'clearcoat'] as const) {
+    for (const key of ['roughness', 'metalness', 'clearcoat', 'opacity'] as const) {
       if (key in physical) {
         collector.number(physical[key], [...path, 'physical', key], { minimum: 0, maximum: 1 });
       }
@@ -312,8 +312,15 @@ function validateSolidNodes(
   const parents = new Map<string, string | undefined>();
   const paths = new Map<string, ValidationPath>();
   for (const [id, entry] of indexed) {
-    const node = collector.object(entry.value, entry.path, ['id', 'parentNode', 'restPose']);
+    const node = collector.object(
+      entry.value,
+      entry.path,
+      ['id', 'parentNode', 'restPose', 'restScale'],
+    );
     validatePose3(node.restPose, [...entry.path, 'restPose'], collector);
+    if ('restScale' in node) {
+      positiveTuple(node.restScale, [...entry.path, 'restScale'], 3, collector);
+    }
     if ('parentNode' in node) collector.string(node.parentNode, [...entry.path, 'parentNode']);
     parents.set(id, typeof node.parentNode === 'string' ? node.parentNode : undefined);
     paths.set(id, entry.path);
@@ -565,6 +572,58 @@ function validateSolidInteractionBindings(
   }
 }
 
+function validateSolidContainments(
+  value: unknown,
+  partIds: ReadonlySet<string>,
+  collector: AssetValidationCollector,
+): void {
+  const containments = collector.array(value, ['containments']);
+  const indexed = indexById(containments, ['containments'], 'containment', collector);
+  const claimedParts = new Set<string>();
+  for (const entry of indexed.values()) {
+    const containment = collector.object(entry.value, entry.path, ['id', 'variants']);
+    const variants = collector.array(containment.variants, [...entry.path, 'variants']);
+    if (variants.length === 0) {
+      collector.issue(
+        [...entry.path, 'variants'],
+        'array.non_empty',
+        'A solid containment requires at least one part variant',
+      );
+    }
+    variants.forEach((value, index) => {
+      const path = [...entry.path, 'variants', index] as const;
+      const variant = collector.object(value, path, ['sourcePartId', 'containedPartId']);
+      for (const key of ['sourcePartId', 'containedPartId'] as const) {
+        if (key === 'containedPartId' && !(key in variant)) continue;
+        collector.string(variant[key], [...path, key]);
+        if (typeof variant[key] === 'string' && !partIds.has(variant[key])) {
+          collector.issue(
+            [...path, key],
+            'reference.missing',
+            `Unknown solid part ${variant[key]}`,
+          );
+        }
+      }
+      if (
+        typeof variant.sourcePartId === 'string'
+        && typeof variant.containedPartId === 'string'
+        && variant.sourcePartId === variant.containedPartId
+      ) {
+        collector.issue(path, 'containment.same_part', 'Containment variants must be distinct');
+      }
+      for (const key of ['sourcePartId', 'containedPartId'] as const) {
+        if (key === 'containedPartId' && !(key in variant)) continue;
+        const partId = variant[key];
+        if (typeof partId !== 'string') continue;
+        if (claimedParts.has(partId)) {
+          collector.issue([...path, key], 'containment.part_reused', `Part ${partId} is already contained`);
+        }
+        claimedParts.add(partId);
+      }
+    });
+  }
+}
+
 export function validateSolidAssetBlueprint<TFamily extends string>(
   blueprint: SolidAssetBlueprint<TFamily>,
 ): SolidAssetBlueprint<TFamily>;
@@ -573,7 +632,8 @@ export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBluep
   const collector = new AssetValidationCollector();
   const root = collector.object(blueprint, [], [
     'blueprintVersion', 'family', 'representation', 'assetId', 'seed', 'manifest',
-    'appearance', 'bounds', 'nodes', 'parts', 'surfaces', 'colliders', 'sockets', 'interactionBindings',
+    'appearance', 'bounds', 'nodes', 'parts', 'surfaces', 'colliders', 'sockets',
+    'interactionBindings', 'containments',
   ]);
   validateHeader(root, 'solid', collector);
   const manifest = validateSemanticManifest(
@@ -604,6 +664,18 @@ export function validateSolidAssetBlueprint(blueprint: unknown): SolidAssetBluep
     manifest.interactionStates,
     collector,
   );
+  if ('containments' in root) {
+    const parts = collector.array(root.parts, ['parts']);
+    validateSolidContainments(
+      root.containments,
+      new Set(parts.flatMap((part) => {
+        if (typeof part !== 'object' || part === null || Array.isArray(part)) return [];
+        const id = (part as { id?: unknown }).id;
+        return typeof id === 'string' ? [id] : [];
+      })),
+      collector,
+    );
+  }
   collector.finish();
   return blueprint as SolidAssetBlueprint;
 }

@@ -28,6 +28,77 @@ Shared blueprint contracts live under `src/contracts/`. Cross-family
 representation policy lives under `src/projections/`. Generic Three.js
 rigs remain under `src/runtime/`; a family animator belongs beside its family.
 
+## Extending an asset from another package
+
+Use a structural asset extension when a consumer needs to add semantic parts,
+geometry, surfaces, pivots, or motion without editing the base family. Do not use
+an untyped property bag, patch a generated blueprint in place, or register code
+in a global singleton.
+
+The base family publishes an `AssetExtensionHost` with named slots. A slot owns
+its semantic parent, raster bone and order anchor, solid node and order anchor,
+and cardinality. The character family currently exposes the `headwear` slot.
+The extension package then:
+
+1. creates a fully resolved `AssetExtensionIdentity`, applying defaults in its
+   constructor rather than inside a renderer;
+2. wraps the base identity with `extendAssetIdentity`;
+3. implements a typed definition with `defineAssetExtension`, contributing
+   semantic parts and art bindings plus every supported representation;
+4. assembles definitions in an explicit immutable `AssetExtensionRegistry`;
+5. compiles one `AssetExtensionPlan` and applies it to each base blueprint with
+   `extendRasterAssetBlueprint` or `extendSolidAssetBlueprint`.
+
+Every contributed ID must come from the supplied `AssetExtensionScope`. The
+scope includes extension and instance identity, so two independently authored
+packages cannot both seize a generic name such as `visor`. Slot cardinality
+handles semantic conflicts before blueprint validation. The composed `assetId`
+includes the deterministic extension fingerprint and remains equal across the
+raster and solid projections of the complete asset.
+
+Extension motion follows the same state/sampler/applicator split as family
+motion. Sample from immutable intent and absolute time, apply base motion first,
+then apply extension pose patches through `applyRasterRigPosePatch` or
+`applySolidRigPosePatch`. Patches are rest-relative and idempotent; extensions do
+not receive raw Three.js objects. A rigid child may share its host transform, but
+an articulated part such as a helmet visor owns a real child bone/node at its
+physical hinge.
+
+Use `applySolidRigPoseDelta` only for a gesture that intentionally layers over
+the current family pose, such as a hand reaching for a visor. The family motion
+still applies first; the extension delta is transient and must not accumulate.
+
+Reusable equipment owns a standalone identity and blueprint. A wearable
+extension mounts that exact blueprint rather than re-authoring an approximate
+copy. Fit it through a uniform node `restScale` when proportions must remain
+authored. While the object is held, it remains an independent rig attached to a
+hand socket; after the product-specific equip transition, hide that rig and show
+the structurally integrated extension. `AssetComposition` is appropriate for
+the held whole object, while the worn state belongs in the host blueprint.
+
+When a fitted shell must constrain host geometry, compile a
+`SolidContainmentDefinition`. The compiler clips selected semantic parts into
+immutable contained variants; a fully outside part has no contained variant and
+is hidden while containment is active. Runtime only swaps visibility, so hair,
+ears, and eyewear remain part of the original identity and return unchanged when
+the equipment is removed.
+
+Raster materials expose `Medium.glaze` for transparent drawn surfaces. It keeps
+the underlying layers visible and projects each medium with its own translucent
+deposit and diagonal marks. In Inked Solid, a physical surface with opacity
+below one is excluded from the opaque G-buffer carrier; author explicit semantic
+glaze strokes for that surface instead of painting an opaque proxy over the
+face.
+
+An extension belongs inside the base family only when it is universal family
+vocabulary or required to construct every identity. Product-specific wearables,
+game equipment, and downstream packages should remain external extensions. The
+Paper Circuit helmet under `experiments/doodle-racing/src/extensions/` is the
+reference: it adds a cut solid shell and matching visor volume derived from one
+face-aperture profile, medium-aware raster layers, deterministic identity
+defaults, compiled containment, standalone equipment, and shared visor motion
+state while importing only the public library entrypoint.
+
 ## Canonical envelopes
 
 Use the shared contracts from `contracts/asset-envelope.ts`; do not invent a

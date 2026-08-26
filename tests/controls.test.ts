@@ -15,7 +15,14 @@ import {
   type ExploreCameraInput,
 } from '../experiments/doodle-racing/src/game/controls.js';
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
+import {
+  MENU_GAME_STATE,
+  allowsGlobalControlAction,
+  exploreGameState,
+  raceGameState,
+} from '../experiments/doodle-racing/src/game/game-state.js';
 import { standardGamepadControls } from '../experiments/doodle-racing/src/game/input-controller.js';
+import { MenuAxisRepeater } from '../experiments/doodle-racing/src/game/menu-input-navigator.js';
 import { RaceCameraController } from '../experiments/doodle-racing/src/game/race-camera.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
 
@@ -31,6 +38,47 @@ function gamepadSnapshot(sample: StandardGamepadSample): ControlSnapshot {
 }
 
 describe('controller-agnostic gameplay controls', () => {
+  it('turns digital or analogue menu axes into bounded repeat steps', () => {
+    const digital = new MenuAxisRepeater();
+    const analogue = new MenuAxisRepeater();
+    expect(digital.update(1, 0.016)).toBe(1);
+    expect(analogue.update(0.72, 0.016)).toBe(1);
+    expect(digital.update(1, 0.3)).toBe(0);
+    expect(analogue.update(0.72, 0.3)).toBe(0);
+    expect(digital.update(1, 0.2)).toBe(1);
+    expect(analogue.update(0.72, 0.2)).toBe(1);
+    expect(digital.update(0, 0.016)).toBe(0);
+    expect(digital.update(-1, 0.016)).toBe(-1);
+    expect(analogue.update(0.3, 0.5)).toBe(0);
+  });
+
+  it('feeds standard gamepad menu input through abstract axes and actions', () => {
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    buttons[0] = { pressed: true, value: 1 };
+    buttons[13] = { pressed: true, value: 1 };
+    const controls = gamepadSnapshot(Object.freeze({
+      axes: Object.freeze([0, 0, 0, 0]),
+      buttons: Object.freeze(buttons),
+    }));
+    const repeater = new MenuAxisRepeater();
+
+    expect(repeater.update(controls.axes.move.value, 0.016)).toBe(-1);
+    expect(controls.actions.primary).toMatchObject({ active: true, pressed: true });
+  });
+
+  it('routes abstract global actions through explicit game state', () => {
+    expect(allowsGlobalControlAction(MENU_GAME_STATE, 'reroll')).toBe(true);
+    expect(allowsGlobalControlAction(raceGameState('running'), 'pause')).toBe(true);
+    expect(allowsGlobalControlAction(exploreGameState('on-foot'), 'reroll')).toBe(true);
+    expect(allowsGlobalControlAction(exploreGameState('driving', 'you'), 'reroll')).toBe(false);
+    expect(allowsGlobalControlAction(
+      exploreGameState('vehicle-customizer', 'you'),
+      'reroll',
+    )).toBe(false);
+    expect(allowsGlobalControlAction(exploreGameState('entrance'), 'reroll')).toBe(false);
+    expect(allowsGlobalControlAction(exploreGameState('driving', 'you'), 'reset-camera')).toBe(true);
+  });
+
   it('preserves device and analog provenance before mapping by gameplay context', () => {
     const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
     buttons[0] = { pressed: true, value: 1 };

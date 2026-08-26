@@ -61,15 +61,27 @@ draft slingshots, and active landings from authored low ramps.
 - Relevant references are linked in `experiments/doodle-racing/README.md`: Criterion's GDC vehicle
   feel talk, Ghost Games' NFS handling notes, an arcade-racing implementation survey, and Steve
   Swink's game-feel framework.
-- The interaction callout currently constructs a dedicated `SolidRig` synchronously when a vehicle
-  preview first appears and disposes it when the player leaves the activation radius. This is an
-  unmeasured but strong candidate for the reported proximity hitch. Profile before changing it;
-  likely durable fixes are idle-time prewarming or a bounded preview cache, with GPU memory and
-  asset replacement invalidation made explicit.
-- Current verification passes 227 tests, global typecheck and ESLint, the game-runtime package
+- Vehicle interaction callouts use a preview-scoped material cache and a bounded working set. All
+  authored hood and door previews are constructed and rendered one at a time during browser idle,
+  at reduced thumbnail tessellation, then retained registered but hidden. Entering an activation
+  radius only flips visibility and camera focus. Vehicle reseeding invalidates stale preview keys;
+  disposal releases compositor registrations before rigs and their shared surface resources.
+- Device bindings collapse into controller-agnostic action IDs and analogue axes before gameplay.
+  Paper Circuit owns an explicit game-state action policy; `reroll` is accepted in menu and Explore
+  on-foot state, but rejected during entrance, driving, and vehicle customization. The stage repeats
+  this invariant so UI state cannot authorize an invalid character mutation.
+- The initial menu consumes the same snapshot rather than browser/gamepad-specific events. Vertical
+  `move` navigates focus, horizontal `turn` changes radio options or adjacent controls, and digital
+  `primary` activates. `MenuAxisRepeater` gives D-pad and analogue stick the same edge/repeat behavior
+  after a deadband; DOM focus and clicks remain product UI concerns. `data-menu-focus` makes
+  controller-driven programmatic focus visible independently of browser `:focus-visible` heuristics,
+  while checked radios retain a separate selected badge/check treatment.
+- Current verification passes 231 tests, global typecheck and ESLint, the game-runtime package
   build, the 224-export public API check, and all production experiment builds. Browser QA at
-  1280x720 previously confirmed that every visible ramp reads as one oxide launch surface with
-  three white bars and reported no console warnings or errors. Flow tests cover linked countersteer
+  1280x720 confirms clean menu and Explore startup plus keyboard focus traversal. The in-app
+  browser cannot expose a mutable `navigator.getGamepads`, so standard D-pad/A mapping into the
+  menu snapshot is covered deterministically rather than claimed as browser-injected QA. Flow tests
+  cover linked countersteer
   boost, pass-envelope near misses, physical drafting plus lateral slingshot, authored ramp
   dimensions, clean airborne arcs, rough landing speed loss, and the prior 30-versus-120-Hz
   handling comparison.

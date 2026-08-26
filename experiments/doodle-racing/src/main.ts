@@ -6,9 +6,17 @@ import {
   type ControlSnapshot,
 } from './game/controls.js';
 import { createCourseLayout } from './game/course.js';
+import {
+  MENU_GAME_STATE,
+  allowsGlobalControlAction,
+  exploreGameState,
+  raceGameState,
+  type PaperCircuitGameState,
+} from './game/game-state.js';
 import { InputController } from './game/input-controller.js';
 import type { ExploreEntrancePhase } from './game/explore-entrance.js';
 import { MenuCharacterPreview } from './game/menu-character-preview.js';
+import { MenuInputNavigator } from './game/menu-input-navigator.js';
 import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
 import { createVehicleCollisionProfile } from './game/vehicle-collision-profile.js';
 import { RaceHud } from './game/race-hud.js';
@@ -31,6 +39,7 @@ import { SoundController } from './game/sound-controller.js';
 import { VehicleInteractionPreview } from './game/vehicle-interaction-preview.js';
 import {
   DEFAULT_VEHICLE_SEEDS,
+  PAPER_CIRCUIT_VEHICLES,
   createPaperCircuitVehicleIdentity,
   type PaperCircuitVehicleId,
   type VehicleSeedSelection,
@@ -119,6 +128,7 @@ const course = createCourseLayout();
 const world = createRaceWorldLayout(course);
 const simulation = new RaceSimulation(course, world);
 const input = new InputController(shell, canvas);
+const menuInput = new MenuInputNavigator(gameMenu, startRaceButton);
 const hud = new RaceHud(shell);
 const minimap = new RaceMinimap(course, minimapCanvas);
 const sound = new SoundController();
@@ -217,8 +227,13 @@ function startRenderer(): void {
       vehicleSelectorPreviewCanvas,
       vehicleSelectorPreviewViewport,
       medium,
-      'paper-circuit:vehicle-configurator-preview',
+      Object.freeze({
+        instanceId: 'paper-circuit:vehicle-configurator-preview',
+        cacheCapacity: PAPER_CIRCUIT_VEHICLES.length,
+      }),
     );
+    vehicleInteractionPreview.prewarm(stage.vehicleInteractionPreviews());
+    vehicleConfiguratorPreview.prewarm(stage.vehicleConfiguratorPreviews());
     stage.setCameraMode(cameraMode);
     stage.setMode(appMode);
     stage.setRouteDebugVisible(routeDebugEnabled);
@@ -289,6 +304,8 @@ function applyVehicleSeed(seed: number): void {
       createVehicleCollisionProfile(createPaperCircuitVehicleIdentity(vehicleId, seed)),
     );
     renderVehicleSelection(selection);
+    vehicleInteractionPreview?.prewarm(stage.vehicleInteractionPreviews());
+    vehicleConfiguratorPreview?.prewarm(stage.vehicleConfiguratorPreviews());
     vehicleConfiguratorPreview?.show(stage.vehicleConfiguratorPreview(vehicleId));
     playMenuClick();
     hud.announce(`${selection.name}'s ${selection.archetype} build is ready to inspect.`);
@@ -329,14 +346,39 @@ function exploreEntranceStatus(phase: ExploreEntrancePhase): string {
   }
 }
 
+function currentGameState(): PaperCircuitGameState {
+  if (appMode === 'menu') return MENU_GAME_STATE;
+  if (appMode === 'race') return raceGameState(simulation.currentPhase);
+  return stage?.gameState() ?? exploreGameState('unavailable');
+}
+
 function handleControlActions(controls: ControlSnapshot): void {
-  if (controls.actions.menu.pressed && appMode !== 'menu') {
+  if (
+    !controls.actions.menu.pressed
+    && !controls.actions.pause.pressed
+    && !controls.actions['reset-camera'].pressed
+    && !controls.actions.reroll.pressed
+  ) return;
+  const gameState = currentGameState();
+  if (
+    controls.actions.menu.pressed
+    && allowsGlobalControlAction(gameState, 'menu')
+  ) {
     openMenu();
     return;
   }
-  if (controls.actions.pause.pressed && appMode === 'race') simulation.togglePause();
-  if (controls.actions['reset-camera'].pressed && appMode === 'explore') resetExploreCamera();
-  if (controls.actions.reroll.pressed && (appMode === 'explore' || appMode === 'menu')) {
+  if (
+    controls.actions.pause.pressed
+    && allowsGlobalControlAction(gameState, 'pause')
+  ) simulation.togglePause();
+  if (
+    controls.actions['reset-camera'].pressed
+    && allowsGlobalControlAction(gameState, 'reset-camera')
+  ) resetExploreCamera();
+  if (
+    controls.actions.reroll.pressed
+    && allowsGlobalControlAction(gameState, 'reroll')
+  ) {
     rerollExplorer();
   }
 }
@@ -348,6 +390,7 @@ function frame(now: number): void {
   try {
     const controls = input.snapshot();
     handleControlActions(controls);
+    if (appMode === 'menu') menuInput.update(controls, delta);
     if (appMode === 'explore') {
       const exploreInput = toExploreInput(controls);
       const exploreFrame = stage?.renderExplorer(
@@ -367,7 +410,7 @@ function frame(now: number): void {
           controlsEnabled,
         } = exploreFrame;
         resetExploreCameraButton.disabled = !controlsEnabled;
-        rerollExploreButton.disabled = !controlsEnabled;
+        rerollExploreButton.disabled = !controlsEnabled || drivingRacer !== null;
         if (controlsEnabled && !exploreControlsEnabled) {
           hud.announce('You have control. Explore the grandstand or approach a car.');
           canvas.focus({ preventScroll: true });
@@ -467,6 +510,8 @@ function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   exploreControlsEnabled = false;
   resetExploreCameraButton.disabled = mode === 'explore';
   rerollExploreButton.disabled = mode === 'explore';
+  if (mode === 'menu') menuInput.focusDefault();
+  else menuInput.reset();
   if (mode !== 'explore') renderVehicleInteraction(null, 0);
   stage?.setMode(mode);
 }
@@ -533,10 +578,7 @@ function rerollExplorer(playSound = true): void {
     explorerSeed = nextSeed;
     menuPreview?.reroll(explorerSeed);
   } else if (appMode === 'explore') {
-    if (!stage.rerollExplorer(nextSeed)) {
-      hud.announce('Wait until the explorer has arrived before changing character.');
-      return;
-    }
+    if (!stage.rerollExplorer(nextSeed)) return;
     explorerSeed = nextSeed;
   }
   sound.play('character-poof');

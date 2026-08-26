@@ -210,6 +210,11 @@ family IDs.
   consuming experiment or a dedicated integration package. The dependency is
   `game state -> consumer adapter -> public asset API`; the game runtime never
   imports rigs, scene graphs, Three.js, textures, or asset-family internals.
+- Treat containment targets as optional host capabilities. Intersect requested
+  semantic part IDs with the concrete host blueprint, omit the containment when
+  no candidates exist, and let consumers check the compiled containment ID
+  before activation. Do not weaken the strict compiler to accept an empty
+  author selection; absence of optional identity features is a boundary no-op.
 - Validate every interaction state, sensor, socket, layer, and layer-state binding.
 - Dispose runtime GPU resources through `SpriteRig.dispose()`.
 - Keep smooth-solid geometry and `SemanticSurfaceSpec` values serialisable and

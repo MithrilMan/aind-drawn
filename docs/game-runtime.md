@@ -31,8 +31,11 @@ or scene graph.
 
 ## Public slices
 
-- Control schemas keep axis and action IDs application-owned. Snapshots preserve
-  device, analogue/digital provenance, and continuous/delta time semantics.
+- Control schemas keep axis and action IDs application-owned. Gameplay consumes
+  those abstract IDs, never keyboard keys, gamepad buttons, or touch elements.
+  Snapshots preserve analogue/digital provenance for diagnostics and preserve
+  continuous/delta time semantics because a held stick and a pointer movement
+  integrate differently; product decisions must not branch on the source device.
 - Standard gamepad mapping is data-driven. A game supplies bindings rather than
   forking the controller.
 - `BrowserInputController` adapts keyboard, touch controls, pointer gestures,
@@ -53,6 +56,21 @@ HUD, audio, menus, and semantic asset selection remain in Paper Circuit until a
 second real consumer proves a smaller reusable contract. Moving product rules
 into a package does not make them generic; it merely gives their assumptions a
 more impressive address.
+
+The product also owns its game-state action policy. Bindings first collapse
+physical devices into abstract actions and axes; then explicit product state
+decides whether an action is meaningful. Keep a domain guard at the state owner
+for destructive transitions. UI disabled state is feedback, not authorization.
+For example, `reroll` is allowed while exploring on foot but cannot mutate the
+parked character during driving, entrance choreography, or vehicle setup.
+Menus and other focus-based UI are consumers of the same snapshots: navigation
+uses normalized axes with thresholded repeat, activation uses a digital action,
+and DOM focus/click behavior stays in the product. Do not build a second
+gamepad-specific menu event path beside the input schema. Programmatic focus
+from a controller may not match browser `:focus-visible` heuristics, so maintain
+an explicit product-scoped visual focus marker. Keep that marker distinct from
+the native selected/checked state: focus says what activation will affect;
+selection says what the product has already committed.
 
 The fixed-step clock is available for simulations that own interpolation of
 previous and current state. Existing variable-step loops should not be switched

@@ -193,6 +193,31 @@ describe('asset extensions', () => {
     rig.dispose();
   });
 
+  it('equips the helmet when a valid human identity has no parts to contain', () => {
+    const seedWithoutHairEarsOrEyewear = 6;
+    const asset = extendedHelmet(seedWithoutHairEarsOrEyewear);
+    expect(asset.person.hair.style).toBe('none');
+    expect(asset.person.ears.style).toBe('none');
+    expect(asset.person.accessories).toEqual([]);
+    expect(asset.solid.containments).toBeUndefined();
+
+    const course = createCourseLayout();
+    const world = createRaceWorldLayout(course, 76_115);
+    const explorer = new GrandstandExplorer(
+      world.grandstand,
+      course,
+      seedWithoutHairEarsOrEyewear,
+    );
+    const scope = assetExtensionScope(explorer.helmet);
+    explorer.setPreviewMode(true);
+    explorer.setVisible(true);
+    for (let index = 0; index < 48; index += 1) explorer.updatePreview(0.05);
+
+    expect(explorer.rig.containmentIds).toEqual([]);
+    expect(explorer.rig.getPart(scope.id('part:helmet'))?.visible).toBe(true);
+    explorer.dispose();
+  });
+
   it('projects transparent wearables through every raster medium glaze', () => {
     for (const medium of MEDIUM_IDS) {
       expect(mediumById(medium).glaze, medium).toBeTypeOf('function');

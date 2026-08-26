@@ -15,6 +15,7 @@ import {
   ExploreEntranceDirector,
   type ExploreEntrancePhase,
 } from './explore-entrance.js';
+import { exploreGameState, type ExploreGameState } from './game-state.js';
 import { GrandstandExplorer, type GrandstandExplorerSnapshot } from './grandstand-explorer.js';
 import { RaceCameraController, type RaceCameraMode } from './race-camera.js';
 import { localPreviewCameraOffsetDirection } from './preview-camera.js';
@@ -152,6 +153,19 @@ export class RaceStage {
     return this.doodle.diagnostics();
   }
 
+  public gameState(): ExploreGameState {
+    if (this.mode !== 'explore') {
+      throw new Error('Explore game state is only available while the stage is exploring');
+    }
+    const activeVehicleId = this.exploreDrive.drivenVehicleId;
+    if (this.exploreEntrance !== null) return exploreGameState('entrance');
+    if (this.customizingVehicleId !== null) {
+      return exploreGameState('vehicle-customizer', this.customizingVehicleId);
+    }
+    if (activeVehicleId !== null) return exploreGameState('driving', activeVehicleId);
+    return exploreGameState('on-foot');
+  }
+
   public setCameraMode(mode: RaceCameraMode): void {
     this.camera.setMode(mode);
   }
@@ -203,7 +217,7 @@ export class RaceStage {
   }
 
   public rerollExplorer(seed: number): boolean {
-    if (this.exploreEntrance !== null) return false;
+    if (this.gameState().activity !== 'on-foot') return false;
     if (this.pendingExplorerChange !== null) {
       this.pendingExplorerChange = Object.freeze({
         ...this.pendingExplorerChange,
@@ -254,6 +268,14 @@ export class RaceStage {
       throw new Error(`Vehicle ${vehicleId} is not open in the hood configurator`);
     }
     return this.vehicles.configuratorPreview(vehicleId);
+  }
+
+  public vehicleInteractionPreviews(): readonly VehicleInteractionPreviewSource[] {
+    return this.vehicles.interactionPreviews();
+  }
+
+  public vehicleConfiguratorPreviews(): readonly VehicleInteractionPreviewSource[] {
+    return this.vehicles.configuratorPreviews();
   }
 
   public reseedVehicle(

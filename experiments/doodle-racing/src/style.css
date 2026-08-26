@@ -485,26 +485,57 @@ canvas {
   border-color: var(--oxide-hot);
   background: var(--paper);
   color: var(--ink);
-  box-shadow: inset 0 -3px 0 var(--oxide-hot);
+  box-shadow:
+    0 0 0 2px var(--oxide-hot),
+    inset 0 -4px 0 var(--oxide-hot);
 }
 
 .medium-card:has(input:checked)::after {
   position: absolute;
-  inset: 3px 3px auto auto;
+  inset: 5px 5px auto auto;
   z-index: 2;
-  padding: 2px 4px;
+  padding: 3px 5px 2px;
   background: var(--oxide-hot);
-  color: var(--ink);
-  content: 'LIVE';
+  color: var(--paper);
+  content: '✓ SELECTED';
   font-size: .43rem;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: .07em;
+  line-height: 1;
+}
+
+.medium-card:has(input:checked) > span:last-child {
+  font-weight: 800;
 }
 
 .medium-card:has(input:focus-visible),
 .lap-toggles label:has(input:focus-visible) {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+.medium-card:has(input[data-menu-focus]),
+.lap-toggles label:has(input[data-menu-focus]) > span {
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.medium-card:has(input[data-menu-focus]),
+.lap-toggles label:has(input[data-menu-focus]) {
+  z-index: 4;
+}
+
+.medium-card:has(input[data-menu-focus])::before,
+.lap-toggles label:has(input[data-menu-focus])::before {
+  position: absolute;
+  inset: 50% auto auto -12px;
+  z-index: 5;
+  color: var(--focus);
+  content: '▶';
+  font-size: .65rem;
+  line-height: 1;
+  text-shadow: 0 1px 0 var(--ink), 0 0 5px var(--ink);
+  translate: 0 -50%;
 }
 
 .medium-thumbnail-renderer {
@@ -565,10 +596,30 @@ canvas {
   border-color: var(--oxide-hot);
   background: var(--oxide-hot);
   color: var(--ink);
+  box-shadow:
+    0 0 0 2px var(--paper),
+    inset 0 -4px 0 rgb(23 25 24 / 24%);
 }
 
 .lap-toggles label:has(input:checked) strong {
   color: var(--ink);
+}
+
+.lap-toggles label:has(input:checked)::after {
+  position: absolute;
+  inset: -5px -4px auto auto;
+  display: grid;
+  inline-size: 17px;
+  block-size: 17px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  place-items: center;
+  background: var(--paper);
+  color: var(--oxide-hot);
+  content: '✓';
+  font-size: .65rem;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .menu-actions {
@@ -689,6 +740,23 @@ canvas {
 .explore-hud button:hover,
 .explore-hud button:focus-visible {
   border-color: var(--focus);
+}
+
+.game-menu button[data-menu-focus] {
+  position: relative;
+  z-index: 4;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px var(--ink), 0 0 12px rgb(255 228 154 / 38%);
+}
+
+.game-menu button[data-menu-focus]::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 5;
+  inline-size: 5px;
+  background: var(--focus);
+  content: '';
 }
 
 .menu-help {
@@ -2367,6 +2435,13 @@ canvas {
   .lap-toggles label:has(input:checked) > span {
     outline: 3px solid Highlight;
     outline-offset: -3px;
+  }
+
+  .medium-card:has(input:checked)::after,
+  .lap-toggles label:has(input:checked)::after {
+    border-color: Highlight;
+    background: Highlight;
+    color: HighlightText;
   }
 
   .speed-arc,

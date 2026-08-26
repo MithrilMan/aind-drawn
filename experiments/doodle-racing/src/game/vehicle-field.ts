@@ -286,10 +286,24 @@ export class VehicleField {
     return asset.previews[interactionId];
   }
 
+  public interactionPreviews(): readonly VehicleInteractionPreviewSource[] {
+    return Object.freeze([...this.vehicles.values()].flatMap(({ previews }) => [
+      previews.hood,
+      previews['door:left'],
+      previews['door:right'],
+    ]));
+  }
+
   public configuratorPreview(vehicleId: PaperCircuitVehicleId): VehicleInteractionPreviewSource {
     const asset = this.vehicles.get(vehicleId);
     if (asset === undefined) throw new Error(`Unknown Paper Circuit vehicle: ${vehicleId}`);
     return asset.previews.configurator;
+  }
+
+  public configuratorPreviews(): readonly VehicleInteractionPreviewSource[] {
+    return Object.freeze(
+      [...this.vehicles.values()].map(({ previews }) => previews.configurator),
+    );
   }
 
   public selection(vehicleId: PaperCircuitVehicleId): VehicleSelectionSummary {

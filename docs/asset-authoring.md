@@ -81,7 +81,12 @@ When a fitted shell must constrain host geometry, compile a
 immutable contained variants; a fully outside part has no contained variant and
 is hidden while containment is active. Runtime only swaps visibility, so hair,
 ears, and eyewear remain part of the original identity and return unchanged when
-the equipment is removed.
+the equipment is removed. Optional identity features may be absent altogether:
+intersect the requested semantic IDs with the concrete host blueprint and omit
+the containment when that set is empty. Keep the compiler strict; an empty
+author selection is still an error, while a valid identity without containable
+parts is a valid no-op at the extension boundary. Consumers must check that the
+compiled containment capability exists before activating it.
 
 Raster materials expose `Medium.glaze` for transparent drawn surfaces. It keeps
 the underlying layers visible and projects each medium with its own translucent

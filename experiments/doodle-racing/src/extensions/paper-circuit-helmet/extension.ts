@@ -250,21 +250,28 @@ export const PAPER_CIRCUIT_HELMET_EXTENSION = defineAssetExtension<
     const semanticPartId = (id: string): string => id === 'helmet' ? helmetId : visorId;
     const partId = (id: string): string => scope.id(`part:${id === 'shell' ? 'helmet' : id}`);
     const surfaceId = (id: string): string => scope.id(`surface:${id}`);
-    const containment = compileSolidSuperellipsoidContainment(blueprint, {
-      id: scope.id('containment:helmet'),
-      ownerNode: solidSlot.ownerNode,
-      semanticPartIds: Object.freeze(['hair', 'ears', 'eyewear']),
-      volume: Object.freeze({
-        type: 'superellipsoid',
-        radii: Object.freeze(extension.data.item.shell.radii.map((radius) => (
-          (radius - extension.data.item.shell.thickness) * fitScale
-        )) as unknown as Point3),
-        exponent: extension.data.item.shell.exponent,
-        widthSegments: 32,
-        heightSegments: 20,
-      }),
-      containedPartId: (sourcePartId) => scope.id(`contained:${sourcePartId}`),
-    });
+    const containableSemanticPartIds = Object.freeze(
+      ['hair', 'ears', 'eyewear'].filter((semanticPartId) => (
+        blueprint.parts.some((part) => part.semanticPartId === semanticPartId)
+      )),
+    );
+    const containment = containableSemanticPartIds.length === 0
+      ? null
+      : compileSolidSuperellipsoidContainment(blueprint, {
+        id: scope.id('containment:helmet'),
+        ownerNode: solidSlot.ownerNode,
+        semanticPartIds: containableSemanticPartIds,
+        volume: Object.freeze({
+          type: 'superellipsoid',
+          radii: Object.freeze(extension.data.item.shell.radii.map((radius) => (
+            (radius - extension.data.item.shell.thickness) * fitScale
+          )) as unknown as Point3),
+          exponent: extension.data.item.shell.exponent,
+          widthSegments: 32,
+          heightSegments: 20,
+        }),
+        containedPartId: (sourcePartId) => scope.id(`contained:${sourcePartId}`),
+      });
     return Object.freeze({
       bounds: Object.freeze({
         minimum: Object.freeze([
@@ -291,7 +298,7 @@ export const PAPER_CIRCUIT_HELMET_EXTENSION = defineAssetExtension<
           parentNode: nodeId(node.parentNode ?? 'helmet'),
         }))),
       parts: Object.freeze([
-        ...containment.parts,
+        ...(containment?.parts ?? []),
         ...item.parts.map((part) => Object.freeze({
           ...part,
           id: partId(part.id),
@@ -305,7 +312,9 @@ export const PAPER_CIRCUIT_HELMET_EXTENSION = defineAssetExtension<
         ...surface,
         id: surfaceId(surface.id),
       }))),
-      containments: Object.freeze([containment.definition]),
+      ...(containment === null ? {} : {
+        containments: Object.freeze([containment.definition]),
+      }),
     });
   },
 });

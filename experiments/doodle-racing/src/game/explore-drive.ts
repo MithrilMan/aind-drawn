@@ -70,6 +70,10 @@ export class ExploreDriveController {
     return this.activeVehicleId !== null;
   }
 
+  public get drivenVehicleId(): PaperCircuitVehicleId | null {
+    return this.activeVehicleId;
+  }
+
   public reset(): void {
     this.vehicles.clear();
     PAPER_CIRCUIT_VEHICLES.forEach((vehicle, index) => {

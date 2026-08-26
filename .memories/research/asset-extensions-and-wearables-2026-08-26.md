@@ -15,6 +15,12 @@
   by semantic part ID. Runtime only swaps visibility. Hair, ears, and eyewear
   remain in character identity; parts fully outside the container are hidden
   only while containment is active.
+- Optional host features may produce no containment candidates for a valid
+  identity. Extension compilers must intersect requested semantic IDs with the
+  concrete blueprint and omit the containment when empty; do not weaken the
+  strict low-level compiler. Consumers check the compiled containment ID before
+  activating it. Human seed `6` is the deterministic helmet regression because
+  it has no hair, ears, or eyewear.
 - Rest-relative pose patches are idempotent. `applySolidRigPoseDelta` exists for
   short extension gestures layered after family motion, such as reaching for a
   visor.
@@ -40,6 +46,6 @@
 - Reference: `experiments/doodle-racing/src/extensions/paper-circuit-helmet/`.
   The Grandstand explorer holds the item, equips it, activates containment, and
   reaches for the animated visor. The chosen menu identity flows into Explore.
-- `npm run verify` passes 220 tests, validates the 224-export package surface,
+- `pnpm verify` passes 231 tests, validates the 224-export package surface,
   and builds all three experiments. Large Vite chunk warnings remain pre-existing
   advisory output.

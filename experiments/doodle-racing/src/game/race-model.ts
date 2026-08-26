@@ -184,6 +184,10 @@ export class RaceSimulation {
     this.openMenu();
   }
 
+  public get currentPhase(): RacePhase {
+    return this.phase;
+  }
+
   public setCollisionProfile(vehicleId: string, profile: VehicleCollisionProfile): void {
     if (!this.collisionProfiles.has(vehicleId)) throw new Error(`Unknown race vehicle: ${vehicleId}`);
     this.collisionProfiles.set(vehicleId, profile);

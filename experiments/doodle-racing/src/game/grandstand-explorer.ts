@@ -664,7 +664,10 @@ export class GrandstandExplorer {
     for (const id of ['helmet', 'visor', 'hinge:left', 'hinge:right']) {
       this.rig.setPartVisible(scope.id(`part:${id}`), worn);
     }
-    this.rig.setContainmentState(scope.id('containment:helmet'), worn);
+    const containmentId = scope.id('containment:helmet');
+    if (this.rig.containmentIds.includes(containmentId)) {
+      this.rig.setContainmentState(containmentId, worn);
+    }
     this.helmetItemRig.root.visible = this.actorVisible && !worn;
   }
 

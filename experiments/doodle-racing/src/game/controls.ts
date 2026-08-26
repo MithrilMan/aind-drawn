@@ -21,8 +21,8 @@ export const CONTROL_ACTION_IDS = [
   'sprint',
   'interact',
   'pause',
-  'menu',
-  'reset-camera',
+  'back',
+  'camera',
   'reroll',
 ] as const;
 

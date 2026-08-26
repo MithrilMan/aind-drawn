@@ -3,8 +3,14 @@ import type { ControlSnapshot } from './controls.js';
 const AXIS_THRESHOLD = 0.55;
 const REPEAT_DELAY_SECONDS = 0.38;
 const REPEAT_INTERVAL_SECONDS = 0.11;
+const FOCUS_ATTRIBUTE = 'data-control-focus';
 
 type AxisDirection = -1 | 0 | 1;
+
+type FocusSurface = Readonly<{
+  root: HTMLElement;
+  defaultTarget: HTMLElement;
+}>;
 
 function axisDirection(value: number): AxisDirection {
   if (value >= AXIS_THRESHOLD) return 1;
@@ -12,8 +18,8 @@ function axisDirection(value: number): AxisDirection {
   return 0;
 }
 
-/** Turns a digital or analogue axis into deterministic menu steps. */
-export class MenuAxisRepeater {
+/** Turns a digital or analogue axis into deterministic focus steps. */
+export class ControlAxisRepeater {
   private direction: AxisDirection = 0;
   private heldSeconds = 0;
   private repeatSeconds = 0;
@@ -48,24 +54,32 @@ export class MenuAxisRepeater {
 }
 
 function isAvailable(element: HTMLElement): boolean {
-  if (element instanceof HTMLButtonElement || element instanceof HTMLInputElement) {
+  if (element.hidden || element.closest('[hidden]') !== null) return false;
+  if (
+    element instanceof HTMLButtonElement
+    || element instanceof HTMLInputElement
+    || element instanceof HTMLSelectElement
+  ) {
     return !element.disabled;
   }
   return true;
 }
 
-/** Product-owned focus policy over the controller-agnostic control snapshot. */
-export class MenuInputNavigator {
-  private readonly vertical = new MenuAxisRepeater();
-  private readonly horizontal = new MenuAxisRepeater();
+/** Product-owned DOM focus over controller-agnostic axes and actions. */
+export class ControlFocusNavigator {
+  private readonly vertical = new ControlAxisRepeater();
+  private readonly horizontal = new ControlAxisRepeater();
+  private surface: FocusSurface | null = null;
   private focusedTarget: HTMLElement | null = null;
 
-  public constructor(
-    private readonly root: HTMLElement,
-    private readonly defaultTarget: HTMLElement,
-  ) {}
+  public activate(root: HTMLElement, defaultTarget: HTMLElement, focus = true): void {
+    this.reset();
+    this.surface = Object.freeze({ root, defaultTarget });
+    if (focus) this.focus(this.currentTarget(this.targets()));
+  }
 
   public update(controls: ControlSnapshot, deltaSeconds: number): void {
+    if (this.surface === null) return;
     this.syncFocusedTarget();
     const verticalDominant = Math.abs(controls.axes.move.value) >= Math.abs(
       controls.axes.turn.value,
@@ -86,28 +100,28 @@ export class MenuInputNavigator {
     if (controls.actions.primary.pressed) this.activateCurrent();
   }
 
-  public focusDefault(): void {
-    this.reset();
-    this.focus(this.defaultTarget);
-  }
-
   public reset(): void {
     this.vertical.reset();
     this.horizontal.reset();
-    this.focusedTarget?.removeAttribute('data-menu-focus');
+    this.focusedTarget?.removeAttribute(FOCUS_ATTRIBUTE);
     this.focusedTarget = null;
+    this.surface = null;
   }
 
   private targets(): readonly HTMLElement[] {
-    return [...this.root.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input[type="radio"]:checked:not([disabled])',
-    )].filter(isAvailable);
+    return [...(this.surface?.root.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), input[type="radio"]:checked:not([disabled])',
+    ) ?? [])].filter(isAvailable);
   }
 
   private currentTarget(targets: readonly HTMLElement[]): HTMLElement {
+    const surface = this.surface;
+    if (surface === null) throw new Error('Cannot resolve focus without an active surface');
     const focused = document.activeElement;
     if (focused instanceof HTMLElement && targets.includes(focused)) return focused;
-    return targets.includes(this.defaultTarget) ? this.defaultTarget : (targets[0] ?? this.root);
+    return targets.includes(surface.defaultTarget)
+      ? surface.defaultTarget
+      : (targets[0] ?? surface.root);
   }
 
   private moveFocus(direction: -1 | 1): void {
@@ -122,11 +136,23 @@ export class MenuInputNavigator {
   private moveHorizontal(direction: -1 | 1): void {
     const targets = this.targets();
     const current = this.currentTarget(targets);
+    if (current instanceof HTMLSelectElement) {
+      const options = [...current.options].filter(({ disabled }) => !disabled);
+      const selected = options.findIndex(({ value }) => value === current.value);
+      const next = options[(Math.max(0, selected) + direction + options.length) % options.length];
+      if (next !== undefined) {
+        current.value = next.value;
+        current.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return;
+    }
     if (!(current instanceof HTMLInputElement) || current.type !== 'radio') {
       this.moveFocus(direction);
       return;
     }
-    const group = [...this.root.querySelectorAll<HTMLInputElement>(
+    const root = this.surface?.root;
+    if (root === undefined) return;
+    const group = [...root.querySelectorAll<HTMLInputElement>(
       'input[type="radio"]:not([disabled])',
     )].filter(({ name }) => name === current.name);
     const index = group.indexOf(current);
@@ -137,22 +163,23 @@ export class MenuInputNavigator {
   }
 
   private activateCurrent(): void {
-    const targets = this.targets();
-    const current = this.currentTarget(targets);
+    const current = this.currentTarget(this.targets());
     if (current instanceof HTMLButtonElement || current instanceof HTMLInputElement) {
       current.click();
     }
   }
 
   private syncFocusedTarget(): void {
+    const root = this.surface?.root;
     const focused = document.activeElement;
-    if (!(focused instanceof HTMLElement) || !this.root.contains(focused)) return;
+    if (root === undefined || !(focused instanceof HTMLElement) || !root.contains(focused)) return;
     const isButton = focused instanceof HTMLButtonElement && !focused.disabled;
+    const isSelect = focused instanceof HTMLSelectElement && !focused.disabled;
     const isCheckedRadio = focused instanceof HTMLInputElement
       && focused.type === 'radio'
       && focused.checked
       && !focused.disabled;
-    if (!isButton && !isCheckedRadio) return;
+    if (!isButton && !isSelect && !isCheckedRadio) return;
     this.markFocused(focused);
   }
 
@@ -163,8 +190,8 @@ export class MenuInputNavigator {
 
   private markFocused(target: HTMLElement): void {
     if (target === this.focusedTarget) return;
-    this.focusedTarget?.removeAttribute('data-menu-focus');
-    target.setAttribute('data-menu-focus', 'true');
+    this.focusedTarget?.removeAttribute(FOCUS_ATTRIBUTE);
+    target.setAttribute(FOCUS_ATTRIBUTE, 'true');
     this.focusedTarget = target;
   }
 }

@@ -246,6 +246,10 @@ export class RaceSimulation {
     this.phase = 'paused';
   }
 
+  public resume(): void {
+    if (this.phase === 'paused') this.phase = this.phaseBeforePause;
+  }
+
   public update(deltaSeconds: number, input: DriveInput): RaceSnapshot {
     const delta = THREE.MathUtils.clamp(deltaSeconds, 0, 0.05);
     if (this.phase !== 'paused') this.presentationTime += delta;

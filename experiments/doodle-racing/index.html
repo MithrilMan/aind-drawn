@@ -106,7 +106,7 @@
       <section class="race-viewport" aria-label="Paper Circuit race" data-viewport>
         <canvas
           tabindex="0"
-          aria-label="Quasi-isometric racing game. Menus support Tab and Enter or a gamepad D-pad, stick, and A. Drive with W A S D, arrow keys, touch controls, or a standard gamepad."
+          aria-label="Quasi-isometric racing game with keyboard, touch, and standard gamepad controls."
           data-race-canvas
         ></canvas>
 
@@ -119,7 +119,10 @@
           <div class="menu-panel">
             <div class="menu-topline">
               <p class="menu-kicker">Paper Circuit / Race control</p>
-              <button class="sound-toggle menu-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
+              <div class="menu-audio-controls" aria-label="Audio settings">
+                <button class="sound-toggle menu-sound-toggle" type="button" data-music-toggle aria-pressed="true" aria-label="Toggle music">Music on</button>
+                <button class="sound-toggle menu-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
+              </div>
             </div>
             <div class="menu-options">
               <fieldset class="menu-option-group menu-medium-group">
@@ -182,7 +185,7 @@
                 <span class="menu-action-arrow" aria-hidden="true">→</span>
               </button>
             </div>
-            <p class="menu-help">Menu: Tab + Enter or D-pad / stick + A · Yellow = focus · ✓ = selected</p>
+            <p class="menu-help">Menu: <span data-control-hint="navigate"></span> + <span data-control-hint="confirm"></span> · Yellow = focus · ✓ = selected</p>
           </div>
           <aside class="menu-preview-bay" aria-label="Live procedural driver">
             <div class="menu-preview-viewport" data-menu-preview-viewport>
@@ -201,7 +204,7 @@
               <small data-menu-character-status>In motion</small>
             </div>
             <button class="menu-reroll" type="button" data-reroll-menu>
-              New driver <kbd>N</kbd>
+              New driver <kbd data-control-hint="reroll"></kbd>
             </button>
           </aside>
         </section>
@@ -273,9 +276,9 @@
             <span data-explore-status>Idle</span>
           </div>
           <div class="explore-actions">
-            <button type="button" data-reset-explore-camera>Camera <kbd>R</kbd></button>
-            <button type="button" data-reroll-explore>Driver <kbd>N</kbd></button>
-            <button type="button" data-exit-explore>Menu <kbd>Esc</kbd></button>
+            <button type="button" data-reset-explore-camera>Camera <kbd data-control-hint="camera"></kbd></button>
+            <button type="button" data-reroll-explore>Driver <kbd data-control-hint="reroll"></kbd></button>
+            <button type="button" data-open-pause>Pause <kbd data-control-hint="pause"></kbd></button>
           </div>
         </section>
 
@@ -289,7 +292,7 @@
           </div>
           <div class="vehicle-interaction-copy">
             <span>Vehicle interaction</span>
-            <strong><kbd>E</kbd><span data-vehicle-interaction-action>Interact</span></strong>
+            <strong><kbd data-control-hint="interact"></kbd><span data-vehicle-interaction-action>Interact</span></strong>
           </div>
         </section>
 
@@ -340,31 +343,33 @@
         <div class="countdown" aria-hidden="true" data-countdown>3</div>
 
         <div class="keyboard-hint" aria-hidden="true">
-          <span>WASD / arrows / gamepad</span> drive <b>·</b> <span>Space / gamepad A</span> drift <b>·</b> <span>P</span> pause
+          <span data-control-hint="drive"></span> drive <b>·</b> <span data-control-hint="drift"></span> drift <b>·</b> <span data-control-hint="pause"></span> pause
         </div>
 
         <section class="touch-controls" aria-label="Touch gameplay controls">
           <button class="touch-left" type="button" data-control="left" aria-label="Steer left">Left</button>
           <button class="touch-right" type="button" data-control="right" aria-label="Steer right">Right</button>
-          <button class="touch-brake" type="button" data-control="back" data-touch-back>Brake</button>
+          <button class="touch-brake" type="button" data-control="reverse" data-touch-back>Brake</button>
           <button class="touch-drift" type="button" data-control="primary" data-touch-primary>Drift</button>
           <button class="touch-go" type="button" data-control="forward">Go</button>
           <button class="touch-run" type="button" data-control="sprint">Run</button>
           <button class="touch-interact" type="button" data-control="interact">Use</button>
         </section>
 
-        <section class="renderer-error" hidden data-renderer-error>
-          <p>The paint dried</p>
-          <h2>The Doodle 3D track could not start</h2>
-          <p>Your settings are safe. Try rebuilding the WebGL scene.</p>
-          <button type="button" data-retry>Try again</button>
-        </section>
+        <dialog class="renderer-error" data-renderer-error aria-labelledby="renderer-error-title">
+          <div>
+            <p>The paint dried</p>
+            <h2 id="renderer-error-title">The Doodle 3D track could not start</h2>
+            <p>Your settings are safe. Try rebuilding the WebGL scene.</p>
+            <button type="button" data-retry>Try again</button>
+          </div>
+        </dialog>
 
         <dialog class="vehicle-selector" data-vehicle-selector aria-labelledby="vehicle-selector-title">
           <form method="dialog">
             <div class="vehicle-selector-topline">
               <p>Under-hood configurator</p>
-              <button class="vehicle-selector-close" value="close" aria-label="Close car configurator">×</button>
+              <button class="vehicle-selector-close" type="button" data-vehicle-close aria-label="Close car configurator">×</button>
             </div>
             <div class="vehicle-selector-layout">
               <div class="vehicle-selector-preview" data-vehicle-selector-preview-viewport>
@@ -391,10 +396,31 @@
                   <button class="vehicle-selector-surprise" type="button" data-vehicle-surprise>Surprise me</button>
                   <button type="button" data-vehicle-next>Next →</button>
                 </div>
-                <button class="vehicle-selector-keep" value="keep">Keep this car</button>
+                <button class="vehicle-selector-keep" type="button" data-vehicle-keep>Keep this car</button>
               </div>
             </div>
           </form>
+        </dialog>
+
+        <dialog class="pause-menu" data-pause-menu aria-labelledby="pause-menu-title">
+          <div class="pause-menu-panel">
+            <p class="pause-menu-kicker">Paper Circuit / Session</p>
+            <h2 id="pause-menu-title">Paused</h2>
+            <p class="pause-menu-copy">The circuit is frozen. Tune the session or get straight back into it.</p>
+            <div class="pause-menu-actions">
+              <button class="pause-menu-resume" type="button" data-pause-resume>
+                <strong>Resume</strong>
+                <span data-control-hint="pause"></span>
+              </button>
+              <button type="button" data-music-toggle aria-pressed="true">Music on</button>
+              <button type="button" data-sound-toggle aria-pressed="true">SFX on</button>
+              <button type="button" data-pause-camera>Camera: Follow</button>
+              <button type="button" data-pause-medium>Medium: Oil</button>
+              <button type="button" data-pause-debug>Debug path: Off</button>
+              <button class="pause-menu-exit" type="button" data-pause-main-menu>Main menu</button>
+            </div>
+            <p class="pause-menu-help"><kbd data-control-hint="back"></kbd> also resumes</p>
+          </div>
         </dialog>
 
         <p class="visually-hidden" aria-live="polite" data-live-status>

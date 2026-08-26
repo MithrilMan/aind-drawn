@@ -16,7 +16,49 @@ import {
   type ControlAxisId,
 } from './controls.js';
 
-type DigitalControlId = 'forward' | 'back' | 'left' | 'right' | ControlActionId;
+export const CONTROL_HINT_IDS = Object.freeze([
+  'navigate',
+  'confirm',
+  'drive',
+  'drift',
+  'interact',
+  'pause',
+  'back',
+  'camera',
+  'reroll',
+] as const);
+
+export type ControlHintId = typeof CONTROL_HINT_IDS[number];
+
+export type ControlHintMode = 'keyboard' | 'gamepad';
+
+const CONTROL_HINTS: Readonly<Record<ControlHintMode, Readonly<Record<ControlHintId, string>>>>
+  = Object.freeze({
+    keyboard: Object.freeze({
+      navigate: 'Arrows / WASD',
+      confirm: 'Enter / Space',
+      drive: 'WASD / arrows',
+      drift: 'Space / Shift',
+      interact: 'E',
+      pause: 'P',
+      back: 'Esc',
+      camera: 'R',
+      reroll: 'N',
+    }),
+    gamepad: Object.freeze({
+      navigate: 'D-pad / left stick',
+      confirm: 'A',
+      drive: 'Left stick / triggers',
+      drift: 'A / left stick',
+      interact: 'X',
+      pause: 'Menu',
+      back: 'B',
+      camera: 'Right stick',
+      reroll: 'Y',
+    }),
+  });
+
+type DigitalControlId = 'forward' | 'reverse' | 'left' | 'right' | ControlActionId;
 
 export type StandardGamepadControls = StandardGamepadFrame<ControlAxisId, ControlActionId>;
 
@@ -35,8 +77,8 @@ const GAMEPAD_BINDINGS: StandardGamepadBindings<ControlAxisId, ControlActionId> 
     sprint: Object.freeze([10]),
     interact: Object.freeze([2]),
     pause: Object.freeze([9]),
-    menu: Object.freeze([1, 8]),
-    'reset-camera': Object.freeze([11]),
+    back: Object.freeze([1]),
+    camera: Object.freeze([11]),
     reroll: Object.freeze([3]),
   }),
 });
@@ -46,7 +88,7 @@ const DIGITAL_CONTROLS: readonly DigitalControlBinding<ControlAxisId, ControlAct
     Object.freeze({ axis: 'move', value: 1 }),
     Object.freeze({ axis: 'throttle', value: 1 }),
   ]) }),
-  Object.freeze({ id: 'back', axes: Object.freeze([
+  Object.freeze({ id: 'reverse', axes: Object.freeze([
     Object.freeze({ axis: 'move', value: -1 }),
     Object.freeze({ axis: 'brake', value: 1 }),
   ]) }),
@@ -69,8 +111,8 @@ function keys(...controls: DigitalControlId[]): readonly DigitalControlId[] {
 const KEY_CODE_BINDINGS: Readonly<Record<string, readonly DigitalControlId[]>> = Object.freeze({
   ArrowUp: keys('forward'),
   KeyW: keys('forward'),
-  ArrowDown: keys('back'),
-  KeyS: keys('back'),
+  ArrowDown: keys('reverse'),
+  KeyS: keys('reverse'),
   ArrowLeft: keys('left'),
   KeyA: keys('left'),
   ArrowRight: keys('right'),
@@ -80,15 +122,14 @@ const KEY_CODE_BINDINGS: Readonly<Record<string, readonly DigitalControlId[]>> =
   ShiftRight: keys('sprint'),
   KeyE: keys('interact'),
   KeyP: keys('pause'),
-  Escape: keys('menu'),
-  KeyM: keys('menu'),
-  KeyR: keys('reset-camera'),
+  Escape: keys('back'),
+  KeyR: keys('camera'),
   KeyN: keys('reroll'),
 });
 
 const TOUCH_CONTROL_IDS: readonly DigitalControlId[] = Object.freeze([
   'forward',
-  'back',
+  'reverse',
   'left',
   'right',
   'primary',
@@ -98,6 +139,10 @@ const TOUCH_CONTROL_IDS: readonly DigitalControlId[] = Object.freeze([
 
 export function standardGamepadControls(gamepad: StandardGamepadSample): StandardGamepadControls {
   return mapStandardGamepad(PAPER_CIRCUIT_CONTROL_SCHEMA, GAMEPAD_BINDINGS, gamepad);
+}
+
+export function controlHint(id: ControlHintId, mode: ControlHintMode): string {
+  return CONTROL_HINTS[mode][id];
 }
 
 /** Paper Circuit bindings over the reusable browser input adapter. */

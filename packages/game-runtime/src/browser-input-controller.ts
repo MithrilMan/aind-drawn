@@ -68,7 +68,6 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement
     || target instanceof HTMLSelectElement
     || target instanceof HTMLTextAreaElement
-    || target instanceof HTMLButtonElement
     || (target instanceof HTMLElement && target.isContentEditable);
 }
 
@@ -108,6 +107,9 @@ export class BrowserInputController<
   private readonly pointers = new Map<number, PointerState>();
   private readonly pointerAxes = new Map<TAxis, ControlAxisSample>();
   private readonly previousActions: Record<TAction, boolean>;
+  private readonly previousGamepadAxes: Record<TAxis, number>;
+  private readonly previousGamepadActions: Record<TAction, boolean>;
+  private activeDevice: ControlDevice = 'keyboard';
   private primaryPointerId: number | null = null;
   private pinchDistance = 0;
 
@@ -122,6 +124,12 @@ export class BrowserInputController<
     this.previousActions = Object.fromEntries(
       this.schema.actionIds.map((action) => [action, false]),
     ) as Record<TAction, boolean>;
+    this.previousGamepadAxes = Object.fromEntries(
+      this.schema.axisIds.map((axis) => [axis, 0]),
+    ) as Record<TAxis, number>;
+    this.previousGamepadActions = Object.fromEntries(
+      this.schema.actionIds.map((action) => [action, false]),
+    ) as Record<TAction, boolean>;
 
     this.validateAndIndexControls(options.digitalControls);
     this.validateBindings();
@@ -133,6 +141,7 @@ export class BrowserInputController<
     window.addEventListener('keyup', this.handleKeyUp);
     window.addEventListener('blur', this.releaseAll);
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    this.root.addEventListener('pointerdown', this.handleRootPointerActivity, { capture: true });
     this.pointerSurface.addEventListener('pointerdown', this.handlePointerDown);
     this.pointerSurface.addEventListener('pointermove', this.handlePointerMove);
     this.pointerSurface.addEventListener('pointerup', this.handlePointerUp);
@@ -152,6 +161,7 @@ export class BrowserInputController<
     const gamepadFrame = gamepad === null || this.mapGamepad === undefined
       ? null
       : this.mapGamepad(gamepad);
+    if (this.gamepadProducedInput(gamepadFrame)) this.activeDevice = 'gamepad';
     const axes = Object.fromEntries(this.schema.axisIds.map((axis) => [
       axis,
       this.axisSample(axis, gamepadFrame),
@@ -174,11 +184,17 @@ export class BrowserInputController<
     return Object.freeze({ axes: Object.freeze(axes), actions: Object.freeze(actions) });
   }
 
+  /** Most recent browser device that produced meaningful input. */
+  public get lastActiveDevice(): ControlDevice {
+    return this.activeDevice;
+  }
+
   public dispose(): void {
     window.removeEventListener('keydown', this.handleKeyDown);
     window.removeEventListener('keyup', this.handleKeyUp);
     window.removeEventListener('blur', this.releaseAll);
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
+    this.root.removeEventListener('pointerdown', this.handleRootPointerActivity, true);
     this.pointerSurface.removeEventListener('pointerdown', this.handlePointerDown);
     this.pointerSurface.removeEventListener('pointermove', this.handlePointerMove);
     this.pointerSurface.removeEventListener('pointerup', this.handlePointerUp);
@@ -279,6 +295,24 @@ export class BrowserInputController<
     return false;
   }
 
+  private gamepadProducedInput(frame: ControlDeviceFrame<TAxis, TAction> | null): boolean {
+    let producedInput = false;
+    for (const axis of this.schema.axisIds) {
+      const sample = frame === null ? undefined : frame.axes[axis];
+      const value = sample === undefined ? 0 : sample.value;
+      if (value !== 0 && Math.abs(value - this.previousGamepadAxes[axis]) >= 0.02) {
+        producedInput = true;
+      }
+      this.previousGamepadAxes[axis] = value;
+    }
+    for (const action of this.schema.actionIds) {
+      const active = frame?.actions[action] === true;
+      if (active && !this.previousGamepadActions[action]) producedInput = true;
+      this.previousGamepadActions[action] = active;
+    }
+    return producedInput;
+  }
+
   private setPointerAxis(
     axis: TAxis,
     value: number,
@@ -297,11 +331,16 @@ export class BrowserInputController<
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    this.activeDevice = 'keyboard';
     const controls = this.keyCodeBindings[event.code];
     if (controls === undefined || isEditableTarget(event.target)) return;
     this.heldKeyCodes.add(event.code);
     this.refreshKeyboardControls();
     event.preventDefault();
+  };
+
+  private readonly handleRootPointerActivity = (event: PointerEvent): void => {
+    this.activeDevice = event.pointerType === 'mouse' ? 'mouse' : 'touch';
   };
 
   private readonly handleKeyUp = (event: KeyboardEvent): void => {
@@ -439,6 +478,8 @@ export class BrowserInputController<
       this.pointerSurface.classList.remove(this.pointer.activeClassName);
     }
     for (const action of this.schema.actionIds) this.previousActions[action] = false;
+    for (const axis of this.schema.axisIds) this.previousGamepadAxes[axis] = 0;
+    for (const action of this.schema.actionIds) this.previousGamepadActions[action] = false;
     for (const control of this.touchControls) control.classList.remove('pressed');
   };
 }

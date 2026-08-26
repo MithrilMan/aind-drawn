@@ -17,12 +17,21 @@ export type ExploreGameState = Readonly<{
 export type PaperCircuitGameState =
   | Readonly<{ mode: 'menu' }>
   | Readonly<{ mode: 'race'; phase: RacePhase }>
-  | ExploreGameState;
+  | ExploreGameState
+  | Readonly<{ mode: 'paused'; returnMode: 'race' | 'explore' }>;
 
 export type GlobalControlActionId = Extract<
   ControlActionId,
-  'menu' | 'pause' | 'reset-camera' | 'reroll'
+  'back' | 'pause' | 'camera' | 'reroll'
 >;
+
+export type GlobalControlCommand =
+  | 'none'
+  | 'resume'
+  | 'pause'
+  | 'close-overlay'
+  | 'camera'
+  | 'reroll';
 
 export const MENU_GAME_STATE: PaperCircuitGameState = Object.freeze({ mode: 'menu' });
 
@@ -37,16 +46,32 @@ export function exploreGameState(
   return Object.freeze({ mode: 'explore', activity, activeVehicleId });
 }
 
-/** Product policy over controller-agnostic action IDs. */
-export function allowsGlobalControlAction(
+export function pausedGameState(
+  returnMode: 'race' | 'explore',
+): PaperCircuitGameState {
+  return Object.freeze({ mode: 'paused', returnMode });
+}
+
+/** Resolves abstract actions to context-owned commands without inspecting a physical device. */
+export function resolveGlobalControlCommand(
   state: PaperCircuitGameState,
   action: GlobalControlActionId,
-): boolean {
-  if (action === 'menu') return state.mode !== 'menu';
-  if (state.mode === 'menu') return action === 'reroll';
-  if (state.mode === 'race') return action === 'pause';
-  if (action === 'reset-camera') {
-    return state.activity === 'on-foot' || state.activity === 'driving';
+): GlobalControlCommand {
+  if (state.mode === 'paused') {
+    return action === 'back' || action === 'pause' ? 'resume' : 'none';
   }
-  return action === 'reroll' && state.activity === 'on-foot';
+  if (state.mode === 'menu') return action === 'reroll' ? 'reroll' : 'none';
+  if (state.mode === 'race') {
+    if (action === 'pause') return 'pause';
+    return action === 'camera' ? 'camera' : 'none';
+  }
+  if (state.activity === 'vehicle-customizer') {
+    if (action === 'back') return 'close-overlay';
+    return action === 'pause' ? 'pause' : 'none';
+  }
+  if (action === 'pause') return 'pause';
+  if (action === 'camera' && (state.activity === 'on-foot' || state.activity === 'driving')) {
+    return 'camera';
+  }
+  return action === 'reroll' && state.activity === 'on-foot' ? 'reroll' : 'none';
 }

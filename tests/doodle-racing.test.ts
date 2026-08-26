@@ -48,6 +48,7 @@ import {
 } from '../experiments/doodle-racing/src/game/controls.js';
 import { standardGamepadControls } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
+import { MusicController } from '../experiments/doodle-racing/src/game/music-controller.js';
 import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
 import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
 import { createVehicleCollisionProfile } from '../experiments/doodle-racing/src/game/vehicle-collision-profile.js';
@@ -980,6 +981,31 @@ describe('Paper Circuit experiment', () => {
     sound.play('race-go');
     expect(clips.find((clip) => clip.source.includes('race-go'))?.playCount).toBe(0);
     sound.dispose();
+  });
+
+  it('keeps the procedural music loop independent from sound effects', () => {
+    const clips: FakeAudio[] = [];
+    const music = new MusicController((source) => {
+      const clip = new FakeAudio(source);
+      clips.push(clip);
+      return clip as unknown as HTMLAudioElement;
+    });
+
+    expect(clips).toHaveLength(1);
+    const clip = clips[0] as FakeAudio;
+    expect(clip.source.startsWith('data:audio/wav;base64,')).toBe(true);
+    expect(clip.loop).toBe(true);
+    music.unlock();
+    expect(clip.loadCount).toBe(1);
+    expect(clip.playCount).toBe(1);
+    const runningVolume = clip.volume;
+    music.setPaused(true);
+    expect(clip.volume).toBeLessThan(runningVolume);
+    expect(music.toggle()).toBe(false);
+    expect(clip.pauseCount).toBeGreaterThan(0);
+    expect(music.toggle()).toBe(true);
+    expect(clip.playCount).toBe(2);
+    music.dispose();
   });
 
   it('leaves bounded skid decals and emits smoke, dust, and impact sparks', () => {

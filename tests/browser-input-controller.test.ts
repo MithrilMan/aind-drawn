@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { createControlSchema } from '@mithrilman/aind-game-runtime';
+import { controlAxis, createControlSchema } from '@mithrilman/aind-game-runtime';
 import {
   BrowserInputController,
   type BrowserInputControllerOptions,
@@ -60,6 +60,7 @@ function keyboardEvent(type: 'keydown' | 'keyup', code: string, key: string): Ke
 describe('BrowserInputController keyboard state', () => {
   let fakeWindow: EventTarget;
   let fakeDocument: FakeDocument;
+  let root: FakeElement;
   let controller: BrowserInputController<TestAxis, TestAction>;
 
   beforeEach(() => {
@@ -72,9 +73,11 @@ describe('BrowserInputController keyboard state', () => {
     vi.stubGlobal('HTMLSelectElement', class extends FakeElement {});
     vi.stubGlobal('HTMLTextAreaElement', class extends FakeElement {});
     vi.stubGlobal('HTMLButtonElement', class extends FakeElement {});
+    vi.stubGlobal('navigator', { getGamepads: () => [] });
 
+    root = new FakeElement();
     const options: BrowserInputControllerOptions<TestAxis, TestAction> = {
-      root: new FakeElement() as unknown as HTMLElement,
+      root: root as unknown as HTMLElement,
       pointerSurface: new FakeElement() as unknown as HTMLElement,
       schema: createControlSchema(['move'], ['sprint']),
       digitalControls: Object.freeze([
@@ -125,5 +128,43 @@ describe('BrowserInputController keyboard state', () => {
       axes: { move: { value: 0 } },
       actions: { sprint: { active: false } },
     });
+  });
+
+  it('tracks the latest meaningful browser device for input-hint presentation', () => {
+    const pointer = new Event('pointerdown');
+    Object.defineProperty(pointer, 'pointerType', { value: 'mouse' });
+    root.dispatchEvent(pointer);
+    expect(controller.lastActiveDevice).toBe('mouse');
+
+    fakeWindow.dispatchEvent(keyboardEvent('keydown', 'KeyW', 'w'));
+    expect(controller.lastActiveDevice).toBe('keyboard');
+
+    controller.dispose();
+    vi.stubGlobal('navigator', {
+      getGamepads: () => [Object.freeze({ connected: true, mapping: 'standard' })],
+    });
+    controller = new BrowserInputController({
+      root: root as unknown as HTMLElement,
+      pointerSurface: new FakeElement() as unknown as HTMLElement,
+      schema: createControlSchema(['move'], ['sprint']),
+      digitalControls: Object.freeze([
+        Object.freeze({
+          id: 'forward',
+          axes: Object.freeze([Object.freeze({ axis: 'move' as const, value: 1 })]),
+        }),
+        Object.freeze({ id: 'sprint', actions: Object.freeze(['sprint' as const]) }),
+      ]),
+      keyCodeBindings: Object.freeze({ KeyW: Object.freeze(['forward']) }),
+      touchControlIds: Object.freeze([]),
+      mapGamepad: () => Object.freeze({
+        axes: Object.freeze({ move: controlAxis(0.7, 'gamepad', 'analog') }),
+        actions: Object.freeze({}),
+      }),
+    });
+    controller.snapshot();
+    expect(controller.lastActiveDevice).toBe('gamepad');
+    root.dispatchEvent(pointer);
+    controller.snapshot();
+    expect(controller.lastActiveDevice).toBe('mouse');
   });
 });

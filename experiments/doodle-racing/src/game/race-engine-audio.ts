@@ -179,6 +179,7 @@ export class RaceEngineAudioController {
   private ignitionSources: AudioBufferSourceNode[] = [];
   private buffersPromise: Promise<readonly AudioBuffer[]> | null = null;
   private enabled = true;
+  private paused = false;
   private raceActive = false;
   private freeDriveVoiceIndex: number | null = null;
   private raceToken = 0;
@@ -255,6 +256,15 @@ export class RaceEngineAudioController {
     }
   }
 
+  public setPaused(paused: boolean): void {
+    if (paused === this.paused) return;
+    this.paused = paused;
+    const context = this.context;
+    if (context !== null) {
+      this.master?.gain.setTargetAtTime(paused ? 0.16 : 1, context.currentTime, 0.08);
+    }
+  }
+
   public sync(snapshot: RaceSnapshot, input: DriveInput, deltaSeconds: number): void {
     if (!this.enabled || !this.raceActive || this.context === null) return;
     const activePhase = snapshot.phase === 'intro'
@@ -283,7 +293,11 @@ export class RaceEngineAudioController {
     const playerAirborne = snapshot.racers.some(({ isPlayer, airborne }) => isPlayer && airborne);
     if (playerAirborne && !this.previousPlayerAirborne) this.playTakeoffCue();
     this.previousPlayerAirborne = playerAirborne;
-    this.master?.gain.setTargetAtTime(snapshot.phase === 'paused' ? 0.16 : 1, now, 0.08);
+    this.master?.gain.setTargetAtTime(
+      this.paused || snapshot.phase === 'paused' ? 0.16 : 1,
+      now,
+      0.08,
+    );
     snapshot.racers.forEach((racer, index) => {
       const previousSpeed = this.previousSpeeds.get(racer.id) ?? racer.speed;
       const acceleration = (racer.speed - previousSpeed) / Math.max(0.001, deltaSeconds);
@@ -315,7 +329,7 @@ export class RaceEngineAudioController {
     const gear = selectEngineGear(racer.speed, previousGear);
     this.previousGears.set(racer.id, gear);
     const now = this.context.currentTime;
-    this.master?.gain.setTargetAtTime(1, now, 0.08);
+    this.master?.gain.setTargetAtTime(this.paused ? 0.16 : 1, now, 0.08);
     this.voices.forEach((voice, index) => {
       if (index !== selectedIndex) {
         voice.gain.gain.setTargetAtTime(0, now, 0.05);

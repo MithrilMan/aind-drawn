@@ -17,12 +17,17 @@ import {
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
 import {
   MENU_GAME_STATE,
-  allowsGlobalControlAction,
   exploreGameState,
+  pausedGameState,
   raceGameState,
+  resolveGlobalControlCommand,
 } from '../experiments/doodle-racing/src/game/game-state.js';
-import { standardGamepadControls } from '../experiments/doodle-racing/src/game/input-controller.js';
-import { MenuAxisRepeater } from '../experiments/doodle-racing/src/game/menu-input-navigator.js';
+import {
+  controlHint,
+  standardGamepadControls,
+} from '../experiments/doodle-racing/src/game/input-controller.js';
+import { ControlAxisRepeater } from '../experiments/doodle-racing/src/game/control-focus-navigator.js';
+import { controlHintModeFor } from '../experiments/doodle-racing/src/game/control-hint-presenter.js';
 import { RaceCameraController } from '../experiments/doodle-racing/src/game/race-camera.js';
 import { createRaceWorldLayout } from '../experiments/doodle-racing/src/game/race-world.js';
 
@@ -39,8 +44,8 @@ function gamepadSnapshot(sample: StandardGamepadSample): ControlSnapshot {
 
 describe('controller-agnostic gameplay controls', () => {
   it('turns digital or analogue menu axes into bounded repeat steps', () => {
-    const digital = new MenuAxisRepeater();
-    const analogue = new MenuAxisRepeater();
+    const digital = new ControlAxisRepeater();
+    const analogue = new ControlAxisRepeater();
     expect(digital.update(1, 0.016)).toBe(1);
     expect(analogue.update(0.72, 0.016)).toBe(1);
     expect(digital.update(1, 0.3)).toBe(0);
@@ -60,23 +65,55 @@ describe('controller-agnostic gameplay controls', () => {
       axes: Object.freeze([0, 0, 0, 0]),
       buttons: Object.freeze(buttons),
     }));
-    const repeater = new MenuAxisRepeater();
+    const repeater = new ControlAxisRepeater();
 
     expect(repeater.update(controls.axes.move.value, 0.016)).toBe(-1);
     expect(controls.actions.primary).toMatchObject({ active: true, pressed: true });
   });
 
   it('routes abstract global actions through explicit game state', () => {
-    expect(allowsGlobalControlAction(MENU_GAME_STATE, 'reroll')).toBe(true);
-    expect(allowsGlobalControlAction(raceGameState('running'), 'pause')).toBe(true);
-    expect(allowsGlobalControlAction(exploreGameState('on-foot'), 'reroll')).toBe(true);
-    expect(allowsGlobalControlAction(exploreGameState('driving', 'you'), 'reroll')).toBe(false);
-    expect(allowsGlobalControlAction(
+    expect(resolveGlobalControlCommand(MENU_GAME_STATE, 'reroll')).toBe('reroll');
+    expect(resolveGlobalControlCommand(MENU_GAME_STATE, 'back')).toBe('none');
+    expect(resolveGlobalControlCommand(raceGameState('running'), 'pause')).toBe('pause');
+    expect(resolveGlobalControlCommand(raceGameState('running'), 'back')).toBe('none');
+    expect(resolveGlobalControlCommand(exploreGameState('on-foot'), 'reroll')).toBe('reroll');
+    expect(resolveGlobalControlCommand(exploreGameState('driving', 'you'), 'reroll')).toBe('none');
+    expect(resolveGlobalControlCommand(
       exploreGameState('vehicle-customizer', 'you'),
-      'reroll',
-    )).toBe(false);
-    expect(allowsGlobalControlAction(exploreGameState('entrance'), 'reroll')).toBe(false);
-    expect(allowsGlobalControlAction(exploreGameState('driving', 'you'), 'reset-camera')).toBe(true);
+      'back',
+    )).toBe('close-overlay');
+    expect(resolveGlobalControlCommand(
+      exploreGameState('vehicle-customizer', 'you'),
+      'pause',
+    )).toBe('pause');
+    expect(resolveGlobalControlCommand(exploreGameState('entrance'), 'reroll')).toBe('none');
+    expect(resolveGlobalControlCommand(exploreGameState('driving', 'you'), 'camera')).toBe('camera');
+    expect(resolveGlobalControlCommand(pausedGameState('explore'), 'back')).toBe('resume');
+    expect(resolveGlobalControlCommand(pausedGameState('race'), 'pause')).toBe('resume');
+  });
+
+  it('keeps physical gamepad buttons behind semantic actions and matching hints', () => {
+    const buttons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    buttons[1] = { pressed: true, value: 1 };
+    const back = gamepadSnapshot(Object.freeze({
+      axes: Object.freeze([0, 0, 0, 0]),
+      buttons: Object.freeze(buttons),
+    }));
+    expect(back.actions.back).toMatchObject({ active: true, pressed: true });
+    expect(back.actions.pause.active).toBe(false);
+    const pauseButtons = Array.from({ length: 16 }, () => ({ pressed: false, value: 0 }));
+    pauseButtons[9] = { pressed: true, value: 1 };
+    const paused = gamepadSnapshot(Object.freeze({
+      axes: Object.freeze([0, 0, 0, 0]),
+      buttons: Object.freeze(pauseButtons),
+    }));
+    expect(paused.actions.pause).toMatchObject({ active: true, pressed: true });
+    expect(paused.actions.back.active).toBe(false);
+    expect(controlHint('back', 'gamepad')).toBe('B');
+    expect(controlHint('pause', 'gamepad')).toBe('Menu');
+    expect(controlHint('interact', 'keyboard')).toBe('E');
+    expect(controlHintModeFor('gamepad')).toBe('gamepad');
+    expect(controlHintModeFor('touch')).toBe('keyboard');
   });
 
   it('preserves device and analog provenance before mapping by gameplay context', () => {

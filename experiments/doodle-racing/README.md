@@ -16,8 +16,9 @@ them. Each sample retains its keyboard, mouse, gamepad, or touch origin, disting
 analogue values, and marks camera axes as continuous or frame-delta signals. Race and Explore then
 map the same semantic snapshot into their own commands. This boundary is intentionally outside the
 asset library: `CharacterMotion` describes a cough, jump, or run, while a game decides which button
-requests it. The module is shaped for later extraction into a sibling input package once a second
-game proves the contract instead of merely admiring it.
+requests it. The browser adapter also tracks the most recent device that produced meaningful input;
+Paper Circuit uses that presentation metadata to switch every visible control hint without changing
+gameplay policy.
 
 Course geometry is compiled from an immutable normalized `CoursePathRecipe`. `compileCourseStroke`
 turns a closed sampled pencil gesture into that recipe and the shared `CourseLayout`: it collapses
@@ -43,8 +44,10 @@ Open `http://127.0.0.1:4176`. The intro menu defaults to the Oil medium and five
 three, five, ten, and twenty laps available. A selected race begins with a six-second seeded
 grandstand camera pass, then a three-second starting countdown. Drive with the arrow keys, WASD, or
 a standard gamepad (left stick, triggers, and `A` or left-stick click for the handbrake). Use `Space` or `Shift` for the
-keyboard handbrake drift, and press `P` to pause. `Esc` or `M` returns to the
-menu.
+keyboard handbrake drift. `P` or the gamepad `Menu` button opens the pause dialog; it can resume,
+toggle music and sound effects, switch camera and medium, or return explicitly to the main menu.
+`Esc` and gamepad `B` are contextual back actions: they close the active dialog or resume from
+pause, and never eject a running game directly to the main menu.
 
 The default camera follows the player with speed lead; `Aerial` tracks the player from directly
 above with a wider, fixed-world view of the surrounding circuit. Oil is
@@ -86,7 +89,8 @@ skid marks, smoke, and dust. The Explore camera pulls farther back as vehicle sp
 service socket in front of the hood exposes the hood-only callout; pressing `E` opens it and launches
 an accessible under-hood configurator. The dialog owns a separate Doodle 3D viewport showing the
 complete selected vehicle with its hood open, so scenery and the Explore camera cannot occlude the
-build being edited. The focused interaction callout converts the gameplay camera direction into the
+build being edited. The configurator consumes the same abstract navigation axes, confirmation, and
+back actions as the main and pause menus; there is no gamepad-only event path. The focused interaction callout converts the gameplay camera direction into the
 vehicle's local frame, so orbiting Explore shows the isolated part from the same side while keeping
 its own bounds-fitted zoom. `Previous`, `Next`, and
 `Surprise me` browse deterministic procedural builds without exposing their internal seed; each
@@ -164,8 +168,10 @@ Each of the four racers owns one variant from the same rally-car ignition genera
 engine controller extracts a stable crossfaded rev from each matching ignition, then continuously
 modulates playback rate, low-pass filtering, gain, and stereo position from speed, acceleration, and
 braking. A separate steady engine clip remains available as a decode/loop fallback, and synthesized
-3-2-1 ticks lead into the authored GO cue. Audio stays lazy until the first user gesture; `SFX on` /
-`SFX off` controls the complete mix in both the menu and race settings.
+3-2-1 ticks lead into the authored GO cue. Audio stays lazy until the first user gesture. Sound
+effects and engine audio share the `SFX` category, while a lightweight deterministic procedural
+score has an independent `Music` category. Both can be changed from the controller-navigable pause
+dialog; music is attenuated while paused.
 
 Spectators are not static props. Their seeded cue loops mix `idle`, `play`, `dance` (a goofy Macarena-style loop), `airborne`, and `sit`
 poses, happy/surprised/idle expressions, autonomous blink and gaze, and a talking mouth command;

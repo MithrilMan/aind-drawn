@@ -49,7 +49,8 @@ The collision path retains broad-phase AABB rejection before swept sampling.
 Core source has architecture coverage forbidding renderer, DOM, experiment, and
 drawing-library dependencies. `benchmarks/game-runtime.bench.ts` exercises 12
 vehicles over 120 fixed steps against 24 obstacles. On the implementation host,
-Vitest measured 959.95 workloads/second with a 1.0417 ms mean and ±1.99% RME.
+Vitest measured 1,081.91 workloads/second with a 0.9243 ms mean and ±1.39% RME
+after the controller-state and device-hint pass.
 This is a local regression baseline, not a cross-device frame budget; the field
 mostly exercises the intended broad-phase rejection path.
 
@@ -69,6 +70,24 @@ tracks held physical codes, reconstructs active logical controls from them, and
 releases all input on both window blur and `document.visibilitychange` when the
 page becomes hidden. Regression tests preserve the Shift/case sequence and the
 hidden-page cleanup behavior.
+
+## Contextual actions and device-aware UI
+
+Physical controls must map to intent, never directly to a destination. Paper
+Circuit maps gamepad `B` and keyboard `Escape` to `back`, while gamepad `Menu`
+and keyboard `P` map to `pause`. Its explicit game-state policy then resolves
+those actions to close the vehicle configurator, resume, pause, or no-op. A
+running race or exploration session cannot jump straight to the main menu from
+`back`; that destructive transition is an explicit pause-menu command.
+
+The browser adapter exposes `lastActiveDevice`, updated by meaningful mapped
+gamepad activity plus keyboard, mouse, and touch events. This value is only
+presentation metadata. Paper Circuit uses one binding-adjacent hint table to
+switch visible prompts and one product-owned focus navigator for the setup
+menu, vehicle configurator, pause dialog, and renderer recovery. Native dialogs
+own focus containment; the product owns controller focus markers and focus
+restoration. Keep digital movement IDs distinct from semantic actions (`reverse`
+versus `back`) so validation catches no duplicate vocabulary at startup.
 
 ## Workspace installation pitfall
 

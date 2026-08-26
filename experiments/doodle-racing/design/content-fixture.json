@@ -20,7 +20,7 @@
     "drift": "Drift chain x2.4, 860 points",
     "time": "00:18.4",
     "world": ["wide technical circuit", "visible barriers", "tyre stacks", "cones", "procedural trees", "grandstand", "twenty procedural character spectators"],
-    "controls": ["Accelerate", "Brake / reverse", "Steer left", "Steer right", "Handbrake / drift", "Pause", "New race"]
+    "controls": ["Accelerate", "Brake / reverse", "Steer left", "Steer right", "Handbrake / drift", "Pause", "Contextual back", "Camera", "Medium", "Music", "Sound effects", "Main menu"]
   },
   "states": {
     "intro": "Close drone pass across the animated grandstand before the grid",
@@ -30,7 +30,7 @@
     "collision": "Visible barrier impact",
     "offRoad": "Loose ground. Grip reduced.",
     "respawning": "Resetting to the last safe track point.",
-    "paused": "Race paused",
+    "paused": "Game paused with controller-navigable session and audio controls",
     "finished": "Finished with a close crowd celebration and final pull-back",
     "rendererError": "The Doodle track could not start. Your race settings are still here."
   }

@@ -43,6 +43,8 @@ or scene graph.
   be disposed. Keyboard bindings use physical `KeyboardEvent.code` values so
   modifiers and keyboard layout cannot change a held control's identity. All
   held browser state is released on window blur or when the document is hidden.
+  Its `lastActiveDevice` is presentation metadata updated only by meaningful
+  browser input; games may use it for hints, but never to select gameplay rules.
 - `FixedStepClock` bounds catch-up work, reports discarded time, and exposes an
   interpolation alpha. It does not own rendering or simulation state.
 - Arcade vehicle motion and swept obstacle collision are immutable pure
@@ -71,6 +73,16 @@ from a controller may not match browser `:focus-visible` heuristics, so maintain
 an explicit product-scoped visual focus marker. Keep that marker distinct from
 the native selected/checked state: focus says what activation will affect;
 selection says what the product has already committed.
+
+Name actions for player intent, not destination. A physical `B`/`Escape`
+binding should produce a contextual `back` action, while `Menu`/`P` should
+produce `pause`; the current game state decides whether those actions close a
+modal, resume, pause, or do nothing. Never bind a physical button directly to a
+destructive destination such as `openMainMenu`. Modal menus, configurators,
+and recoverable errors should share one focus navigator over the abstract
+snapshot, with native dialog focus containment and explicit focus restoration.
+Control hints must come from the binding presentation table and the most recent
+device rather than hard-coded keyboard copy scattered through the DOM.
 
 The fixed-step clock is available for simulations that own interpolation of
 previous and current state. Existing variable-step loops should not be switched

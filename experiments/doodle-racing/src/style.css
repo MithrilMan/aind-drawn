@@ -150,6 +150,11 @@ canvas {
   z-index: 6;
 }
 
+.menu-audio-controls {
+  display: flex;
+  gap: 6px;
+}
+
 .game-brand {
   inset-block-start: 18px;
   inset-inline-start: 20px;
@@ -514,19 +519,19 @@ canvas {
   outline-offset: 2px;
 }
 
-.medium-card:has(input[data-menu-focus]),
-.lap-toggles label:has(input[data-menu-focus]) > span {
+.medium-card:has(input[data-control-focus]),
+.lap-toggles label:has(input[data-control-focus]) > span {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 
-.medium-card:has(input[data-menu-focus]),
-.lap-toggles label:has(input[data-menu-focus]) {
+.medium-card:has(input[data-control-focus]),
+.lap-toggles label:has(input[data-control-focus]) {
   z-index: 4;
 }
 
-.medium-card:has(input[data-menu-focus])::before,
-.lap-toggles label:has(input[data-menu-focus])::before {
+.medium-card:has(input[data-control-focus])::before,
+.lap-toggles label:has(input[data-control-focus])::before {
   position: absolute;
   inset: 50% auto auto -12px;
   z-index: 5;
@@ -742,7 +747,7 @@ canvas {
   border-color: var(--focus);
 }
 
-.game-menu button[data-menu-focus] {
+.game-menu button[data-control-focus] {
   position: relative;
   z-index: 4;
   outline: 3px solid var(--focus);
@@ -750,7 +755,7 @@ canvas {
   box-shadow: 0 0 0 2px var(--ink), 0 0 12px rgb(255 228 154 / 38%);
 }
 
-.game-menu button[data-menu-focus]::before {
+.game-menu button[data-control-focus]::before {
   position: absolute;
   inset: 0 auto 0 0;
   z-index: 5;
@@ -1535,14 +1540,26 @@ canvas {
 .renderer-error {
   inset: 50% auto auto 50%;
   inline-size: min(440px, calc(100% - 34px));
+  margin: 0;
   padding: 30px;
   translate: -50% -50%;
   border: 2px solid var(--paper-muted);
   background: rgb(23 25 24 / 97%);
   text-align: center;
+  color: var(--paper);
 }
 
-.renderer-error > p:first-child {
+.renderer-error::backdrop {
+  background: rgb(23 25 24 / 58%);
+  backdrop-filter: blur(3px) saturate(.7);
+}
+
+.renderer-error > div {
+  display: grid;
+  justify-items: center;
+}
+
+.renderer-error > div > p:first-child {
   margin: 0;
   color: var(--oxide-hot);
   font-size: .67rem;
@@ -1777,6 +1794,129 @@ canvas {
   border-color: var(--focus);
 }
 
+.vehicle-selector button[data-control-focus],
+.renderer-error button[data-control-focus],
+.pause-menu button[data-control-focus],
+.pause-menu select[data-control-focus] {
+  position: relative;
+  outline: 3px solid var(--focus);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 2px var(--ink), 0 0 16px rgb(255 228 154 / 42%);
+}
+
+.pause-menu {
+  inline-size: min(560px, calc(100% - 34px));
+  max-inline-size: none;
+  max-block-size: calc(100% - 34px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--paper-muted);
+  background: transparent;
+  color: var(--paper);
+  box-shadow: 18px 18px 0 rgb(23 25 24 / 35%);
+}
+
+.pause-menu::backdrop {
+  background: rgb(23 25 24 / 58%);
+  backdrop-filter: blur(4px) saturate(.72);
+}
+
+.pause-menu-panel {
+  display: grid;
+  gap: 12px;
+  padding: 30px;
+  background:
+    linear-gradient(135deg, rgb(241 229 200 / 4%) 0 1px, transparent 1px 16px) 0 0 / 16px 16px,
+    linear-gradient(142deg, rgb(43 46 42 / 99%), rgb(18 20 19 / 99%));
+  clip-path: polygon(24px 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%, 0 24px);
+}
+
+.pause-menu-kicker,
+.pause-menu-help {
+  margin: 0;
+  color: var(--oxide-hot);
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.pause-menu h2 {
+  margin: 0;
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-size: clamp(3.8rem, 10vw, 6.5rem);
+  font-style: italic;
+  line-height: .78;
+  text-transform: uppercase;
+}
+
+.pause-menu-copy {
+  max-inline-size: 440px;
+  margin: 3px 0 8px;
+  color: var(--paper-muted);
+  font-size: .72rem;
+  line-height: 1.55;
+}
+
+.pause-menu-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.pause-menu-actions button {
+  min-block-size: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--paper-muted);
+  background: var(--ink-soft);
+  color: var(--paper);
+  font-size: .65rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.pause-menu-actions button:hover,
+.pause-menu-actions button:focus-visible {
+  border-color: var(--focus);
+  background: #363a35;
+}
+
+.pause-menu-actions .pause-menu-resume {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: 66px;
+  border-color: var(--oxide-hot);
+  background: var(--oxide);
+  color: var(--ink);
+}
+
+.pause-menu-resume strong {
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-size: 1.55rem;
+  font-style: italic;
+}
+
+.pause-menu-resume span,
+.pause-menu-help kbd {
+  padding: 4px 7px;
+  border: 1px solid currentColor;
+  font: inherit;
+}
+
+.pause-menu-actions .pause-menu-exit {
+  grid-column: 1 / -1;
+  color: var(--oxide-hot);
+}
+
+.pause-menu-help {
+  justify-self: end;
+  color: var(--paper-muted);
+  letter-spacing: .07em;
+}
+
 @keyframes callout-in {
   from { opacity: 0; transform: translateY(13px) scale(.88); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -1979,6 +2119,19 @@ canvas {
 
   .vehicle-selector-preview {
     min-block-size: 220px;
+  }
+
+  .pause-menu-panel {
+    padding: 24px 18px;
+  }
+
+  .pause-menu-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .pause-menu-actions .pause-menu-resume,
+  .pause-menu-actions .pause-menu-exit {
+    grid-column: auto;
   }
 }
 
@@ -2422,6 +2575,8 @@ canvas {
   .speedometer,
   .keyboard-hint,
   .renderer-error,
+  .vehicle-selector,
+  .pause-menu,
   .medium-card,
   .lap-toggles label > span,
   .menu-actions .menu-action {
@@ -2429,6 +2584,15 @@ canvas {
     background: Canvas;
     color: CanvasText;
     forced-color-adjust: auto;
+  }
+
+  .vehicle-selector button[data-control-focus],
+  .renderer-error button[data-control-focus],
+  .pause-menu button[data-control-focus],
+  .pause-menu select[data-control-focus],
+  .game-menu button[data-control-focus] {
+    outline-color: Highlight;
+    box-shadow: none;
   }
 
   .medium-card:has(input:checked),

@@ -8,7 +8,7 @@
   "preserve": [
     "Every vehicle, tree, and spectator is live output from the public library pipeline under one selected MediumId.",
     "Oil remains the default medium; Follow and Full course remain explicit camera modes that preserve race state.",
-    "Keyboard, touch, visible focus, reduced-motion, and renderer recovery remain first-class behavior."
+    "Keyboard, touch, standard gamepad, visible focus, reduced-motion, and renderer recovery remain first-class behavior."
   ],
   "change": [
     "Make the live race consume the viewport and move telemetry into terse angular overlays.",
@@ -21,7 +21,7 @@
     "The previous v1 implementation renders and comparison boards as active visual authority."
   ],
   "productTruth": {
-    "user": "A keyboard or touch player seeking a short, immediately legible, exaggerated arcade drift race in Doodle 3D.",
+    "user": "A keyboard, touch, or standard-gamepad player seeking a short, immediately legible, exaggerated arcade drift race in Doodle 3D.",
     "primaryTask": "Launch into a three-lap technical race, drift through visible corners and barriers, read speed and race position at a glance, and restart without leaving the playfield.",
     "coreCapabilities": [
       { "id": "capability.arcade-drive", "description": "Accelerate hard, brake or reverse, steer, handbrake, drift, collide with visible barriers, and recover explicitly." },
@@ -37,11 +37,12 @@
       "Every gameplay collision corresponds to visible authored geometry and no force silently drags the player to the centre line.",
       "The world contains deterministic procedural trees and character spectators rendered by the shared Doodle scene pass.",
       "Automatic opening and finish cinematics frame recognisable animated character faces at close range before pulling back to the grid or circuit.",
-      "Keyboard and touch expose equivalent driving actions with at least 44 CSS pixel primary touch targets.",
+      "Keyboard, touch, and standard gamepad feed the same abstract actions; controller focus is visible and hints follow the most recently active device.",
+      "Pause, vehicle configuration, and renderer recovery are focus-contained surfaces operable without a pointer.",
       "The layout remains operable at 320 CSS pixels and preserves an accessible textual race summary."
     ],
     "outOfScope": [
-      "Network multiplayer, audio, persistent leaderboards, track editing, vehicle upgrades, and simulation-grade tyre modelling."
+      "Network multiplayer, persistent leaderboards, track editing, competitive vehicle upgrades, and simulation-grade tyre modelling."
     ]
   },
   "assetInventory": [
@@ -121,13 +122,13 @@
       "proofSlice": true,
       "content": {
         "path": "experiments/doodle-racing/design/content-fixture.json",
-        "digest": "sha256:8b12aa733e4ce70481c2210f9931201bed7b1b1d3433007ad45e0321ff3408b0",
+        "digest": "sha256:783de010d9186149faa7667d7f338d395f74f01ce48283c1c5cafc3057938bc9",
         "provenance": "User requirements and repository-backed vehicle, character, tree, medium, motion, and runtime contracts; racer names are local fictional fixture labels.",
         "fixtureClass": "source-derived",
         "useCases": ["Complete a fast three-lap drift race", "Collide only with visible fixtures", "Change medium or camera during play", "Pause, restart, and recover"],
         "cardinality": { "typical": 4, "dense": 6 },
         "essentialFields": ["lap", "position", "speed", "drift chain", "time", "race state", "medium", "camera mode", "running order"],
-        "actions": ["accelerate", "brake or reverse", "steer left", "steer right", "handbrake", "pause", "resume", "switch camera", "change medium", "start new race", "retry renderer"],
+        "actions": ["accelerate", "brake or reverse", "steer left", "steer right", "handbrake", "pause", "resume", "contextual back", "switch camera", "change medium", "toggle music", "toggle sound effects", "open main menu", "retry renderer"],
         "states": ["intro cinematic", "countdown", "running", "drifting", "collision", "off-road", "respawning", "paused", "finish cinematic", "renderer error"],
         "permissions": ["anonymous local player may operate every control"],
         "errorAndFreshness": ["All state is local and current; renderer failure preserves settings and exposes Retry; leaving the world triggers an announced explicit respawn."],
@@ -141,6 +142,10 @@
         { "id": "control.pause", "status": "functioning" },
         { "id": "control.keyboard-drive", "status": "functioning" },
         { "id": "control.touch-drive", "status": "functioning" },
+        { "id": "control.gamepad", "status": "functioning" },
+        { "id": "control.contextual-back", "status": "functioning" },
+        { "id": "control.device-hints", "status": "functioning" },
+        { "id": "control.audio-categories", "status": "functioning" },
         { "id": "control.handbrake", "status": "functioning" },
         { "id": "control.retry", "status": "functioning" }
       ],
@@ -191,7 +196,7 @@
     }
   ],
   "layers": [
-    { "id": "race.live-hud", "medium": "semantic-html", "owners": [{ "type": "directory", "path": "experiments/doodle-racing" }], "instruction": "Own live telemetry, native settings, drive controls, error recovery, and status announcements over the field." },
+    { "id": "race.live-hud", "medium": "semantic-html", "owners": [{ "type": "directory", "path": "experiments/doodle-racing" }], "instruction": "Own live telemetry, native settings, controller-navigable modal surfaces, device-derived hints, error recovery, and status announcements over the field." },
     { "id": "race.arcade-surface", "medium": "css", "owners": [{ "type": "file", "path": "experiments/doodle-racing/src/style.css" }], "instruction": "Own full-viewport containment, angular edge plates, responsive touch composition, focus, forced-colour, and reduced-motion behavior." },
     { "id": "race.procedural-world", "medium": "svg", "owners": [{ "type": "directory", "path": "experiments/doodle-racing/src/game" }, { "type": "directory", "path": "src/assets/tree" }], "instruction": "Own the live solid and inked-solid course, visible fixtures, vehicles, trees, grandstand, and character spectators; no static target artwork ships in the playfield." }
   ],

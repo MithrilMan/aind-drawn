@@ -90,6 +90,29 @@ function squaredDistance(first: Point, second: Point): number {
   return deltaX * deltaX + deltaZ * deltaZ;
 }
 
+/** Signed horizontal clearance between the authored vehicle footprint and an obstacle. */
+export function obstacleClearance(
+  state: ArcadeVehicleState,
+  obstacle: RaceObstacle,
+  profile: VehicleCollisionProfile,
+): number {
+  const footprint = vehicleSegment(state, profile);
+  if (obstacle.kind === 'barrier') {
+    const pair = closestBetweenSegments(footprint, Object.freeze({
+      first: Object.freeze({ x: obstacle.startX, z: obstacle.startZ }),
+      second: Object.freeze({ x: obstacle.endX, z: obstacle.endZ }),
+    }));
+    return Math.sqrt(squaredDistance(pair.first, pair.second))
+      - profile.halfWidth
+      - obstacle.radius;
+  }
+  const centre = Object.freeze({ x: obstacle.x, z: obstacle.z });
+  const vehiclePoint = closestOnSegment(centre, footprint);
+  return Math.sqrt(squaredDistance(vehiclePoint, centre))
+    - profile.halfWidth
+    - obstacle.radius;
+}
+
 function crossedSegments(first: SegmentPair, second: SegmentPair): Point | null {
   const firstX = first.second.x - first.first.x;
   const firstZ = first.second.z - first.first.z;
@@ -394,6 +417,8 @@ export function resolveObstacleCollisions(
           support.elevation,
           impactStarted ? 0.08 + impactStrength * 0.11 : 0,
         ),
+        verticalVelocity: impactStarted ? 0 : current.verticalVelocity,
+        airborne: impactStarted ? false : current.airborne,
         pitch: Math.abs(support.pitch) > Math.abs(current.pitch) ? support.pitch : current.pitch,
       });
       if (impactStarted && normalImpactSpeed > maximumSeverity) {
@@ -418,6 +443,8 @@ export function resolveObstacleCollisions(
       drifting: false,
       impact: Math.max(current.impact, THREE.MathUtils.clamp(severity / 18, 0, 1)),
       elevation: 0,
+      verticalVelocity: 0,
+      airborne: false,
       pitch: 0,
       curbImpact: 0,
       curbPenalty: 0,

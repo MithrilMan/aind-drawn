@@ -1,5 +1,6 @@
 import { SeedTree } from '../../../../src/index.js';
 import { nearestCoursePoint, sampleCourseAt, type CourseLayout } from './course.js';
+import type { JumpRamp } from './race-jump.js';
 
 export type SegmentObstacle = Readonly<{
   id: string;
@@ -80,6 +81,7 @@ export type RaceWorldLayout = Readonly<{
   barriers: readonly SegmentObstacle[];
   tyreStacks: readonly CircleObstacle[];
   cones: readonly TrackCone[];
+  ramps: readonly JumpRamp[];
   trees: readonly TreePlacement[];
   grandstand: GrandstandLayout;
   explorerSpawn: ExplorerSpawnPlacement;
@@ -246,6 +248,38 @@ function createCones(course: CourseLayout): readonly TrackCone[] {
     }));
   }
   return Object.freeze(cones);
+}
+
+const RAMP_ZONES = Object.freeze([
+  Object.freeze({ start: 0.075, end: 0.115, side: -1 as const }),
+  Object.freeze({ start: 0.47, end: 0.535, side: 1 as const }),
+  Object.freeze({ start: 0.755, end: 0.815, side: -1 as const }),
+] as const);
+
+function createJumpRamps(course: CourseLayout): readonly JumpRamp[] {
+  return Object.freeze(RAMP_ZONES.map((zone, index) => {
+    let straightest = sampleCourseAt(course, zone.start);
+    for (let sampleIndex = 1; sampleIndex <= 24; sampleIndex += 1) {
+      const candidateProgress = zone.start + (zone.end - zone.start) * sampleIndex / 24;
+      const candidate = sampleCourseAt(course, candidateProgress);
+      if (Math.abs(candidate.curvature) >= Math.abs(straightest.curvature)) continue;
+      straightest = candidate;
+    }
+    const laneOffset = zone.side * course.trackWidth * 0.15;
+    return Object.freeze({
+      id: `jump-ramp:${index}`,
+      x: straightest.x + straightest.normalX * laneOffset,
+      z: straightest.z + straightest.normalZ * laneOffset,
+      tangentX: straightest.tangentX,
+      tangentZ: straightest.tangentZ,
+      normalX: straightest.normalX,
+      normalZ: straightest.normalZ,
+      length: 3.2,
+      width: course.trackWidth * 0.45,
+      height: 0.32,
+      minimumLaunchSpeed: 14,
+    });
+  }));
 }
 
 type GrandstandGeometry = Readonly<Pick<
@@ -422,6 +456,7 @@ export function createRaceWorldLayout(
     barriers,
     tyreStacks,
     cones: createCones(course),
+    ramps: createJumpRamps(course),
     trees,
     grandstand,
     explorerSpawn: createExplorerSpawn(course, grandstand),

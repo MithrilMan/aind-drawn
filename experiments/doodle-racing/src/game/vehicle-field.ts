@@ -163,7 +163,7 @@ export class VehicleField {
         travelDistance: racer.travelDistance,
         speed: racer.speed,
         steering: racer.steering,
-        suspension: 0.52 + racer.impact * 0.35,
+        suspension: racer.airborne ? 0.18 : 0.52 + racer.impact * 0.35,
       });
       applySolidVehicleMotion(
         asset.rig,

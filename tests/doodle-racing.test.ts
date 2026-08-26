@@ -13,6 +13,7 @@ import {
   createArcadeVehicleState,
   stepArcadeVehicle,
   vehicleSpeed,
+  type ArcadeVehicleState,
 } from '../experiments/doodle-racing/src/game/arcade-vehicle-physics.js';
 import {
   CoursePathValidationError,
@@ -53,6 +54,11 @@ import {
   resolveObstacleCollisions,
   type VehicleCollisionProfile,
 } from '../experiments/doodle-racing/src/game/obstacle-collision.js';
+import { RaceFlowController } from '../experiments/doodle-racing/src/game/race-flow.js';
+import {
+  resolveJumpRamps,
+  type JumpRamp,
+} from '../experiments/doodle-racing/src/game/race-jump.js';
 import {
   RaceCameraController,
   aerialRaceViewSize,
@@ -65,6 +71,7 @@ import {
 } from '../experiments/doodle-racing/src/game/race-minimap.js';
 import {
   engineParametersFor,
+  selectEngineGear,
   selectEngineLoopWindow,
 } from '../experiments/doodle-racing/src/game/race-engine-audio.js';
 import {
@@ -155,6 +162,16 @@ const TEST_ROUTE_PROFILE: VehicleCollisionProfile = Object.freeze({
   wheelHalfWidth: 0.18,
   groundClearance: 0.22,
 });
+
+function arcadeState(
+  overrides: Partial<ArcadeVehicleState> = {},
+): ArcadeVehicleState {
+  return Object.freeze({
+    ...createArcadeVehicleState(0, 0, 0),
+    velocityX: 22,
+    ...overrides,
+  });
+}
 
 function routePosition(
   course: CourseLayout,
@@ -771,6 +788,7 @@ describe('Paper Circuit experiment', () => {
 
     expect(validateSolidAssetBlueprint(scenery)).toBe(scenery);
     expect(world.barriers.length).toBeGreaterThan(20);
+    expect(world.ramps).toHaveLength(3);
     expect(world.trees).toHaveLength(16);
     expect(world.grandstand.spectators.length).toBeGreaterThanOrEqual(12);
     expect(world.grandstand.spectators.length).toBeLessThanOrEqual(16);
@@ -797,6 +815,24 @@ describe('Paper Circuit experiment', () => {
       expect(collider?.shape).toBe('box');
       expect(collider?.shape === 'box' ? collider.size[1] : null)
         .toBeCloseTo(barrier.height, 8);
+    }
+    for (const ramp of world.ramps) {
+      const part = scenery.parts.find(({ id }) => id === ramp.id);
+      expect(part?.semanticPartId).toBe('ramps');
+      expect(part?.surfaceId).toBe('ramp:oxide');
+      expect(part?.geometry.type).toBe('mesh');
+      if (part?.geometry.type !== 'mesh') throw new Error(`Ramp ${ramp.id} must use visible mesh geometry`);
+      const xs = part.geometry.vertices.map(([x]) => x);
+      const ys = part.geometry.vertices.map(([, y]) => y);
+      const zs = part.geometry.vertices.map(([, , z]) => z);
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(ramp.length, 8);
+      expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(ramp.height, 8);
+      expect(Math.max(...zs) - Math.min(...zs)).toBeCloseTo(ramp.width, 8);
+      expect(part.placement.position[0]).toBeCloseTo(ramp.x, 8);
+      expect(part.placement.position[2]).toBeCloseTo(ramp.z, 8);
+      const launchMarks = scenery.parts.filter(({ id }) => id.startsWith(`${ramp.id}:launch-mark:`));
+      expect(launchMarks).toHaveLength(3);
+      expect(launchMarks.every(({ surfaceId }) => surfaceId === 'ramp:mark')).toBe(true);
     }
     expect(scenery.colliders.filter(({ id }) => id.startsWith('cone:'))).toHaveLength(5);
     expect(scenery.colliders.filter(({ id }) => id.startsWith('grandstand:post:')))
@@ -1044,6 +1080,7 @@ describe('Paper Circuit experiment', () => {
       curbImpact: 0,
       curbPenalty: 0,
       elevation: 0,
+      airborne: false,
       pitch: 0,
     });
     const throttle = engineParametersFor(racer, { ...IDLE, accelerate: true }, 0, 0);
@@ -1060,6 +1097,46 @@ describe('Paper Circuit experiment', () => {
     expect(partialThrottle.playbackRate).toBeGreaterThan(braking.playbackRate);
     expect(throttle.gain).toBeGreaterThan(braking.gain);
     expect(throttle.filterFrequency).toBeGreaterThan(braking.filterFrequency);
+  });
+
+  it('makes speed audible as rising revs with a distinct hysteretic upshift', () => {
+    const racer = (speed: number): RacerSnapshot => Object.freeze({
+      id: 'you',
+      name: 'You',
+      isPlayer: true,
+      x: 0,
+      z: 0,
+      heading: 0,
+      speed,
+      steering: 0,
+      travelDistance: 0,
+      lap: 0,
+      progress: 0,
+      raceScore: 0,
+      slipAngle: 0,
+      drifting: false,
+      impact: 0,
+      curbImpact: 0,
+      curbPenalty: 0,
+      elevation: 0,
+      airborne: false,
+      pitch: 0,
+    });
+    const lowRevs = engineParametersFor(racer(7.1), ACCELERATE_STRAIGHT, 0, 0, 0);
+    const highRevs = engineParametersFor(racer(9.1), ACCELERATE_STRAIGHT, 0, 0, 0);
+    const shiftedGear = selectEngineGear(9.3, highRevs.gear);
+    const afterShift = engineParametersFor(racer(9.3), ACCELERATE_STRAIGHT, 0, 0, shiftedGear);
+
+    expect(highRevs.gear).toBe(0);
+    expect(highRevs.rpm).toBeGreaterThan(lowRevs.rpm);
+    expect(highRevs.playbackRate).toBeGreaterThan(lowRevs.playbackRate);
+    expect(highRevs.toneFrequency).toBeGreaterThan(lowRevs.toneFrequency);
+    expect(shiftedGear).toBe(1);
+    expect(afterShift.rpm).toBeLessThan(highRevs.rpm);
+    expect(afterShift.playbackRate).toBeLessThan(highRevs.playbackRate);
+    expect(afterShift.toneFrequency).toBeLessThan(highRevs.toneFrequency);
+    expect(selectEngineGear(8.5, shiftedGear)).toBe(1);
+    expect(selectEngineGear(6.7, shiftedGear)).toBe(0);
   });
 
   it('keeps grandstand exploration deterministic across walking, steps, and emotes', () => {
@@ -1517,6 +1594,7 @@ describe('Paper Circuit experiment', () => {
       curbImpact: 0,
       curbPenalty: 0,
       elevation: 0.26,
+      airborne: false,
       pitch: 0.11,
     });
 
@@ -1551,6 +1629,7 @@ describe('Paper Circuit experiment', () => {
       curbImpact: 0,
       curbPenalty: 0,
       elevation: 0,
+      airborne: false,
       pitch: 0,
     });
 
@@ -1731,6 +1810,218 @@ describe('Paper Circuit experiment', () => {
       kind: 'analog',
       behavior: 'continuous',
     });
+  });
+
+  it('converts a linked, countersteered drift sequence into an automatic exit boost', () => {
+    const flow = new RaceFlowController();
+    const settle = (
+      before: ArcadeVehicleState,
+      after: ArcadeVehicleState,
+      input: DriveInput,
+    ): ArcadeVehicleState => flow.settleStep(Object.freeze({
+      deltaSeconds: 0.05,
+      before,
+      after,
+      input,
+      offRoad: false,
+      collisionObstacleId: null,
+      obstacles: Object.freeze([]),
+      opponents: Object.freeze([]),
+      collisionProfile: TEST_ROUTE_PROFILE,
+    }));
+
+    let previous = arcadeState();
+    const leftDrift = arcadeState({ slipAngle: 0.28, drifting: true, steering: 0.7 });
+    for (let index = 0; index < 12; index += 1) {
+      previous = settle(previous, leftDrift, Object.freeze({
+        ...ACCELERATE_STRAIGHT,
+        steeringAxis: -0.7,
+      }));
+    }
+    const rightDrift = arcadeState({ slipAngle: -0.28, drifting: true, steering: -0.7 });
+    for (let index = 0; index < 8; index += 1) {
+      previous = settle(previous, rightDrift, Object.freeze({
+        ...ACCELERATE_STRAIGHT,
+        steeringAxis: 0.7,
+      }));
+    }
+    expect(flow.snapshot().driftLinks).toBe(1);
+    expect(flow.snapshot().boostCharge).toBeGreaterThan(0.35);
+
+    const aligned = arcadeState({ slipAngle: 0.01, drifting: false, steering: 0 });
+    previous = settle(previous, aligned, ACCELERATE_STRAIGHT);
+    for (let index = 0; index < 7; index += 1) {
+      previous = settle(previous, aligned, ACCELERATE_STRAIGHT);
+    }
+    expect(flow.snapshot().event?.kind).toBe('drift-boost');
+    expect(flow.snapshot().boostRemaining).toBeGreaterThan(0.6);
+    expect(flow.snapshot().boostCharge).toBe(0);
+  });
+
+  it('rewards one real near miss only after the vehicle clears the danger zone', () => {
+    const flow = new RaceFlowController();
+    const tree = Object.freeze({
+      id: 'test:near-tree',
+      kind: 'tree' as const,
+      x: 0,
+      z: 2.2,
+      radius: 0.5,
+    });
+    const near = arcadeState({ x: 0, z: 0, velocityX: 20 });
+    const far = arcadeState({ x: 9, z: 0, velocityX: 20 });
+    flow.settleStep(Object.freeze({
+      deltaSeconds: 0.05,
+      before: arcadeState({ x: -2 }),
+      after: near,
+      input: ACCELERATE_STRAIGHT,
+      offRoad: false,
+      collisionObstacleId: null,
+      obstacles: Object.freeze([tree]),
+      opponents: Object.freeze([]),
+      collisionProfile: TEST_ROUTE_PROFILE,
+    }));
+    expect(flow.snapshot().nearMisses).toBe(0);
+    flow.settleStep(Object.freeze({
+      deltaSeconds: 0.05,
+      before: near,
+      after: far,
+      input: ACCELERATE_STRAIGHT,
+      offRoad: false,
+      collisionObstacleId: null,
+      obstacles: Object.freeze([tree]),
+      opponents: Object.freeze([]),
+      collisionProfile: TEST_ROUTE_PROFILE,
+    }));
+    expect(flow.snapshot().nearMisses).toBe(1);
+    expect(flow.snapshot().boostCharge).toBeGreaterThanOrEqual(0.12);
+    expect(flow.snapshot().event?.kind).toBe('near-miss');
+  });
+
+  it('builds a physical draft and converts a deliberate lateral exit into a slingshot', () => {
+    const flow = new RaceFlowController();
+    const player = arcadeState({ velocityX: 22 });
+    const opponent = Object.freeze({
+      id: 'mica',
+      state: arcadeState({ x: 6, velocityX: 21 }),
+    });
+    let draftedInput: DriveInput = ACCELERATE_STRAIGHT;
+    for (let index = 0; index < 24; index += 1) {
+      draftedInput = flow.prepareDrive(
+        0.05,
+        player,
+        Object.freeze([opponent]),
+        ACCELERATE_STRAIGHT,
+      );
+    }
+    expect(flow.snapshot().draftStrength).toBeGreaterThan(0.45);
+    expect(draftedInput.draft).toBeGreaterThan(0.45);
+
+    const lateralExit = arcadeState({ z: 3.2, velocityX: 22 });
+    const slingshotInput = flow.prepareDrive(
+      0.05,
+      lateralExit,
+      Object.freeze([opponent]),
+      ACCELERATE_STRAIGHT,
+    );
+    expect(flow.snapshot().event?.kind).toBe('slingshot');
+    expect(slingshotInput.boost).toBeGreaterThan(0.5);
+    const boosted = stepArcadeVehicle(lateralExit, slingshotInput, 'road', 0.05);
+    const unassisted = stepArcadeVehicle(lateralExit, ACCELERATE_STRAIGHT, 'road', 0.05);
+    expect(vehicleSpeed(boosted)).toBeGreaterThan(vehicleSpeed(unassisted));
+  });
+
+  it('launches from an authored low ramp and rewards a straight landing', () => {
+    const ramp: JumpRamp = Object.freeze({
+      id: 'test:jump-ramp',
+      x: 0,
+      z: 0,
+      tangentX: 1,
+      tangentZ: 0,
+      normalX: 0,
+      normalZ: 1,
+      length: 3.2,
+      width: 4,
+      height: 0.32,
+      minimumLaunchSpeed: 14,
+    });
+    const beforeRamp = arcadeState({ x: 1.2, velocityX: 22 });
+    const afterRamp = arcadeState({ x: 2.1, velocityX: 22 });
+    const launched = resolveJumpRamps(beforeRamp, afterRamp, Object.freeze([ramp]));
+    expect(launched.launched).toBe(true);
+    expect(launched.rampId).toBe(ramp.id);
+    expect(launched.state.airborne).toBe(true);
+    expect(launched.state.verticalVelocity).toBeGreaterThan(3);
+
+    const flow = new RaceFlowController();
+    let vehicle = flow.settleStep(Object.freeze({
+      deltaSeconds: 0.05,
+      before: beforeRamp,
+      after: launched.state,
+      input: ACCELERATE_STRAIGHT,
+      offRoad: false,
+      collisionObstacleId: null,
+      obstacles: Object.freeze([]),
+      opponents: Object.freeze([]),
+      collisionProfile: TEST_ROUTE_PROFILE,
+    }));
+    expect(flow.snapshot().event?.kind).toBe('takeoff');
+    let maximumElevation = vehicle.elevation;
+    for (let index = 0; index < 40 && vehicle.airborne; index += 1) {
+      const previous = vehicle;
+      const stepped = stepArcadeVehicle(vehicle, ACCELERATE_STRAIGHT, 'road', 0.05);
+      vehicle = flow.settleStep(Object.freeze({
+        deltaSeconds: 0.05,
+        before: previous,
+        after: stepped,
+        input: ACCELERATE_STRAIGHT,
+        offRoad: false,
+        collisionObstacleId: null,
+        obstacles: Object.freeze([]),
+        opponents: Object.freeze([]),
+        collisionProfile: TEST_ROUTE_PROFILE,
+      }));
+      maximumElevation = Math.max(maximumElevation, vehicle.elevation);
+    }
+    expect(vehicle.airborne).toBe(false);
+    expect(maximumElevation).toBeGreaterThan(0.6);
+    expect(flow.snapshot().event?.kind).toBe('clean-landing');
+    expect(flow.snapshot().boostRemaining).toBeGreaterThan(0.35);
+  });
+
+  it('penalizes a crossed-up landing instead of granting free speed', () => {
+    const flow = new RaceFlowController();
+    const before = arcadeState({
+      airborne: true,
+      elevation: 0.08,
+      verticalVelocity: -2.4,
+      velocityX: 18,
+      velocityZ: 5,
+      slipAngle: 0.31,
+      steering: 0.9,
+    });
+    const touchdown = arcadeState({
+      airborne: false,
+      elevation: 0,
+      verticalVelocity: 0,
+      velocityX: 18,
+      velocityZ: 5,
+      slipAngle: 0.31,
+      steering: 0.9,
+    });
+    const settled = flow.settleStep(Object.freeze({
+      deltaSeconds: 0.05,
+      before,
+      after: touchdown,
+      input: ACCELERATE_LEFT,
+      offRoad: false,
+      collisionObstacleId: null,
+      obstacles: Object.freeze([]),
+      opponents: Object.freeze([]),
+      collisionProfile: TEST_ROUTE_PROFILE,
+    }));
+    expect(flow.snapshot().event?.kind).toBe('rough-landing');
+    expect(flow.snapshot().landingQuality).toBeLessThan(0.3);
+    expect(vehicleSpeed(settled)).toBeLessThan(vehicleSpeed(touchdown) * 0.8);
   });
 
   it('keeps the same handling outcome across common simulation frame rates', () => {

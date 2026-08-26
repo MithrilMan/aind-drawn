@@ -13,6 +13,8 @@ export type ArcadeVehicleState = Readonly<{
   drifting: boolean;
   impact: number;
   elevation: number;
+  verticalVelocity: number;
+  airborne: boolean;
   pitch: number;
   curbImpact: number;
   curbPenalty: number;
@@ -28,6 +30,9 @@ export type ArcadeDriveInput = Readonly<{
   steeringAxis?: number;
   throttle?: number;
   brakePressure?: number;
+  /** Internal race assists. They remain optional so Explore and existing callers stay compatible. */
+  boost?: number;
+  draft?: number;
 }>;
 
 export type DrivingSurface = 'road' | 'off-road';
@@ -60,6 +65,8 @@ export function createArcadeVehicleState(
     drifting: false,
     impact: 0,
     elevation: 0,
+    verticalVelocity: 0,
+    airborne: false,
     pitch: 0,
     curbImpact: 0,
     curbPenalty: 0,
@@ -90,11 +97,15 @@ export function stepArcadeVehicle(
     0,
     1,
   );
+  const boost = THREE.MathUtils.clamp(input.boost ?? 0, 0, 1);
+  const draft = THREE.MathUtils.clamp(input.draft ?? 0, 0, 1);
   const digitalSteering = Number(input.left) - Number(input.right);
   const rawSteering = THREE.MathUtils.clamp(input.steeringAxis ?? digitalSteering, -1, 1);
 
-  const surfaceMaximumSpeed = surface === 'road' ? ROAD_MAX_SPEED : OFF_ROAD_MAX_SPEED;
+  const baseMaximumSpeed = surface === 'road' ? ROAD_MAX_SPEED : OFF_ROAD_MAX_SPEED;
+  const surfaceMaximumSpeed = baseMaximumSpeed * (1 + boost * 0.12 + draft * 0.025);
   const curbControl = 1 - state.curbPenalty * 0.78;
+  const traction = state.airborne ? 0.14 : 1;
   if (throttle > 0) {
     const effectiveThrottle = throttle ** 1.35;
     const forwardSpeedRatio = THREE.MathUtils.clamp(
@@ -105,10 +116,19 @@ export function stepArcadeVehicle(
     const driveAcceleration = longitudinal < -1
       ? 40
       : 28 * (1 - 0.72 * forwardSpeedRatio ** 1.7);
-    longitudinal += driveAcceleration * effectiveThrottle * curbControl * delta;
+    longitudinal += driveAcceleration * effectiveThrottle * curbControl * traction * delta;
   }
-  if (brakePressure > 0) longitudinal -= (longitudinal > 1 ? 36 : 13) * brakePressure * delta;
+  if (boost > 0 && brakePressure < 0.35) {
+    longitudinal += 18 * boost * (state.airborne ? 0.18 : 1) * curbControl * delta;
+  }
+  if (brakePressure > 0) {
+    longitudinal -= (longitudinal > 1 ? 36 : 13)
+      * brakePressure
+      * (state.airborne ? 0.08 : 1)
+      * delta;
+  }
   const aerodynamicDrag = (surface === 'road' ? 0.0082 : 0.031)
+    * (1 - draft * 0.42)
     * longitudinal * longitudinal;
   longitudinal = approach(longitudinal, 0, aerodynamicDrag * delta);
   const rollingDrag = (surface === 'road' ? 1.1 : 5.4) + state.curbPenalty * 11;
@@ -135,22 +155,26 @@ export function stepArcadeVehicle(
     1 - Math.exp(-steeringResponse * delta),
   );
   const speedFactor = THREE.MathUtils.clamp(speed / 13, 0, 1);
-  const powerDriftIntent = surface === 'road'
+  const powerDriftIntent = !state.airborne
+    && surface === 'road'
     && speed > DRIFT_ENTRY_SPEED
     && throttle > 0.72
     && Math.abs(steering) > 0.62;
-  const driftCarry = state.drifting
+  const driftCarry = !state.airborne
+    && state.drifting
     && speed > DRIFT_HOLD_SPEED
     && (throttle > 0.12 || Math.abs(rawSteering) > 0.12);
   const driftIntent = input.handbrake || powerDriftIntent || driftCarry;
-  const yawTarget = steering
-    * Math.sign(longitudinal || 1)
-    * (0.46 + speedFactor * 1.04)
-    * (driftIntent ? 1.28 : 1);
+  const yawTarget = state.airborne
+    ? steering * Math.sign(longitudinal || 1) * 0.52
+    : steering
+      * Math.sign(longitudinal || 1)
+      * (0.46 + speedFactor * 1.04)
+      * (driftIntent ? 1.28 : 1);
   const angularVelocity = THREE.MathUtils.lerp(
     state.angularVelocity,
     yawTarget,
-    1 - Math.exp(-(driftIntent ? 10.5 : 15) * delta),
+    1 - Math.exp(-(state.airborne ? 2.8 : driftIntent ? 10.5 : 15) * delta),
   );
   const heading = state.heading + angularVelocity * delta;
 
@@ -158,11 +182,13 @@ export function stepArcadeVehicle(
   const driftGrip = input.handbrake
     ? 2.05
     : THREE.MathUtils.lerp(6.4, 2.65, throttle);
-  const lateralGrip = surface === 'off-road'
-    ? 4.2
-    : driftIntent
-      ? counterSteering ? Math.max(8.8, driftGrip) : driftGrip
-      : 16.5;
+  const lateralGrip = state.airborne
+    ? 0.45
+    : surface === 'off-road'
+      ? 4.2
+      : driftIntent
+        ? counterSteering ? Math.max(8.8, driftGrip) : driftGrip
+        : 16.5;
   const nextForwardX = Math.cos(heading);
   const nextForwardZ = -Math.sin(heading);
   const nextRightX = Math.sin(heading);
@@ -196,7 +222,32 @@ export function stepArcadeVehicle(
   const velocityX = nextForwardX * nextLongitudinal + nextRightX * nextLateral;
   const velocityZ = nextForwardZ * nextLongitudinal + nextRightZ * nextLateral;
   const slipAngle = Math.atan2(nextLateral, Math.max(0.25, Math.abs(nextLongitudinal)));
-  const drifting = Math.abs(slipAngle) > 0.075 && speed > DRIFT_HOLD_SPEED && driftIntent;
+  let elevation = state.elevation;
+  let verticalVelocity = state.verticalVelocity;
+  let airborne = state.airborne;
+  let pitch = state.pitch;
+  if (airborne) {
+    verticalVelocity -= 14 * delta;
+    elevation += verticalVelocity * delta;
+    pitch = approach(
+      pitch,
+      THREE.MathUtils.clamp(verticalVelocity * 0.035, -0.14, 0.14),
+      1.7 * delta,
+    );
+    if (elevation <= 0) {
+      elevation = 0;
+      verticalVelocity = 0;
+      airborne = false;
+      pitch = 0;
+    }
+  } else {
+    elevation = Math.max(0, elevation - 1.55 * delta);
+    pitch = approach(pitch, 0, 2.4 * delta);
+  }
+  const drifting = !state.airborne
+    && Math.abs(slipAngle) > 0.075
+    && speed > DRIFT_HOLD_SPEED
+    && driftIntent;
 
   return Object.freeze({
     x: state.x + velocityX * delta,
@@ -210,8 +261,10 @@ export function stepArcadeVehicle(
     slipAngle,
     drifting,
     impact: state.impact * Math.exp(-5.5 * delta),
-    elevation: Math.max(0, state.elevation - 1.55 * delta),
-    pitch: approach(state.pitch, 0, 2.4 * delta),
+    elevation,
+    verticalVelocity,
+    airborne,
+    pitch,
     curbImpact: state.curbImpact * Math.exp(-9 * delta),
     curbPenalty: Math.max(0, state.curbPenalty - 1.35 * delta),
   });

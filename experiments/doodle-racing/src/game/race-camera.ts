@@ -171,20 +171,24 @@ export class RaceCameraController {
     }
     const desiredTarget = new THREE.Vector3(
       player.x + Math.cos(trajectoryHeading) * velocityLead,
-      0.25,
+      0.25 + player.elevation * 0.72,
       player.z - Math.sin(trajectoryHeading) * velocityLead,
     );
     this.target.lerp(desiredTarget, 1 - Math.exp(-7.2 * deltaSeconds));
     this.viewSize = THREE.MathUtils.lerp(
       this.viewSize,
-      16.5 + speedRatio * 6.2,
+      16.5 + speedRatio * 6.2 + snapshot.boostIntensity * 1.35 + (player.airborne ? 0.55 : 0),
       1 - Math.exp(-4 * deltaSeconds),
     );
 
     const shake = snapshot.impact * 0.6;
     const shakeX = Math.sin(elapsedSeconds * 47) * shake;
     const shakeZ = Math.cos(elapsedSeconds * 53) * shake;
-    const offset = new THREE.Vector3(-10.8 + shakeX, 17.5, 13.6 + shakeZ);
+    const offset = new THREE.Vector3(
+      -10.8 + shakeX,
+      17.5 + player.elevation * 0.22,
+      13.6 + shakeZ,
+    );
     this.camera.position.copy(this.target).add(offset);
     const handlingRoll = this.reducedMotion
       ? 0
@@ -431,7 +435,7 @@ export class RaceCameraController {
     const velocityLead = player.speed * 0.12;
     const desiredTarget = new THREE.Vector3(
       player.x + Math.cos(trajectoryHeading) * velocityLead,
-      0.25,
+      0.25 + player.elevation * 0.72,
       player.z - Math.sin(trajectoryHeading) * velocityLead,
     );
     const desiredViewSize = aerialRaceViewSize(player.speed);

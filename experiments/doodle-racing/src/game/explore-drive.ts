@@ -16,6 +16,7 @@ import {
   resolveObstacleCollisions,
   type VehicleCollisionProfile,
 } from './obstacle-collision.js';
+import { resolveJumpRamps } from './race-jump.js';
 import type { ExploreInput, RacerSnapshot } from './race-model.js';
 import type { RaceWorldLayout } from './race-world.js';
 import {
@@ -143,22 +144,23 @@ export class ExploreDriveController {
           this.world.obstacles,
           collisionProfile,
         ).state;
+        const ramped = resolveJumpRamps(active, collided, this.world.ramps).state;
         const clampedX = THREE.MathUtils.clamp(
-          collided.x,
+          ramped.x,
           this.course.bounds.minimumX + MAP_EDGE_MARGIN,
           this.course.bounds.maximumX - MAP_EDGE_MARGIN,
         );
         const clampedZ = THREE.MathUtils.clamp(
-          collided.z,
+          ramped.z,
           this.course.bounds.minimumZ + MAP_EDGE_MARGIN,
           this.course.bounds.maximumZ - MAP_EDGE_MARGIN,
         );
         this.vehicles.set(activeVehicleId, Object.freeze({
-          ...collided,
+          ...ramped,
           x: clampedX,
           z: clampedZ,
-          velocityX: clampedX === collided.x ? collided.velocityX : 0,
-          velocityZ: clampedZ === collided.z ? collided.velocityZ : 0,
+          velocityX: clampedX === ramped.x ? ramped.velocityX : 0,
+          velocityZ: clampedZ === ramped.z ? ramped.velocityZ : 0,
         }));
       }
     }
@@ -182,6 +184,7 @@ export class ExploreDriveController {
         z: state.z,
         heading: state.heading,
         elevation: state.elevation,
+        airborne: state.airborne,
         pitch: state.pitch,
         curbImpact: state.curbImpact,
         curbPenalty: state.curbPenalty,

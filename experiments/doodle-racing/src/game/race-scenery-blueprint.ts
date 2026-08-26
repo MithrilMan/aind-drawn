@@ -11,6 +11,7 @@ import {
   type SurfaceSubstance,
 } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
+import type { JumpRamp } from './race-jump.js';
 import {
   GRANDSTAND_ROW_SPACING,
   grandstandStepHeight,
@@ -52,10 +53,58 @@ function coneGeometry(radius: number, height: number, sides = 8): MeshGeometrySp
   });
 }
 
-function semanticPartId(id: string): 'barriers' | 'tyres' | 'markers' | 'grandstand' {
+function rampGeometry(ramp: JumpRamp): MeshGeometrySpec {
+  const halfLength = ramp.length * 0.5;
+  const halfWidth = ramp.width * 0.5;
+  return Object.freeze({
+    type: 'mesh',
+    vertices: Object.freeze([
+      Object.freeze([-halfLength, 0, -halfWidth] as const),
+      Object.freeze([-halfLength, 0, halfWidth] as const),
+      Object.freeze([halfLength, ramp.height, halfWidth] as const),
+      Object.freeze([halfLength, ramp.height, -halfWidth] as const),
+      Object.freeze([halfLength, 0, -halfWidth] as const),
+      Object.freeze([halfLength, 0, halfWidth] as const),
+    ]),
+    faces: Object.freeze([
+      Object.freeze([0, 1, 2, 3]),
+      Object.freeze([0, 4, 5, 1]),
+      Object.freeze([3, 2, 5, 4]),
+      Object.freeze([0, 3, 4]),
+      Object.freeze([1, 5, 2]),
+    ]),
+    smooth: false,
+  });
+}
+
+function rampMarkGeometry(ramp: JumpRamp, amount: number): MeshGeometrySpec {
+  const halfLength = ramp.length * 0.5;
+  const halfWidth = ramp.width * 0.41;
+  const halfMarkLength = Math.min(0.13, ramp.length * 0.04);
+  const centre = -halfLength + ramp.length * amount;
+  const start = centre - halfMarkLength;
+  const end = centre + halfMarkLength;
+  const surfaceHeight = (along: number): number => (
+    ramp.height * (along + halfLength) / ramp.length + 0.018
+  );
+  return Object.freeze({
+    type: 'mesh',
+    vertices: Object.freeze([
+      Object.freeze([start, surfaceHeight(start), -halfWidth] as const),
+      Object.freeze([start, surfaceHeight(start), halfWidth] as const),
+      Object.freeze([end, surfaceHeight(end), halfWidth] as const),
+      Object.freeze([end, surfaceHeight(end), -halfWidth] as const),
+    ]),
+    faces: Object.freeze([Object.freeze([0, 1, 2, 3])]),
+    smooth: false,
+  });
+}
+
+function semanticPartId(id: string): 'barriers' | 'tyres' | 'markers' | 'ramps' | 'grandstand' {
   if (id.startsWith('barrier:')) return 'barriers';
   if (id.startsWith('tyres:')) return 'tyres';
   if (id.startsWith('cone:')) return 'markers';
+  if (id.startsWith('jump-ramp:')) return 'ramps';
   return 'grandstand';
 }
 
@@ -154,6 +203,35 @@ export function createRaceSceneryBlueprint(
     });
   }
 
+  for (const ramp of world.ramps) {
+    const placement = Object.freeze({
+      position: Object.freeze([ramp.x, 0.025, ramp.z] as const),
+      rotation: Object.freeze([0, Math.atan2(-ramp.tangentZ, ramp.tangentX), 0] as const),
+    });
+    add({
+      id: ramp.id,
+      node: 'root',
+      order: 3,
+      geometry: rampGeometry(ramp),
+      surfaceId: 'ramp:oxide',
+      placement,
+      castShadow: true,
+      receiveShadow: true,
+    });
+    for (const [markIndex, amount] of [0.22, 0.47, 0.72].entries()) {
+      add({
+        id: `${ramp.id}:launch-mark:${markIndex}`,
+        node: 'root',
+        order: 4,
+        geometry: rampMarkGeometry(ramp, amount),
+        surfaceId: 'ramp:mark',
+        placement,
+        castShadow: false,
+        receiveShadow: true,
+      });
+    }
+  }
+
   const stand = world.grandstand;
   for (let row = 0; row < stand.rows; row += 1) {
     const stepHeight = grandstandStepHeight(row);
@@ -213,7 +291,7 @@ export function createRaceSceneryBlueprint(
     seed: 7391,
     appearance: createUniformAssetAppearance(
       'storybook',
-      ['barriers', 'tyres', 'markers', 'grandstand'],
+      ['barriers', 'tyres', 'markers', 'ramps', 'grandstand'],
     ),
     bounds: Object.freeze({
       minimum: [course.bounds.minimumX - 3, 0, course.bounds.minimumZ - 3] as const,
@@ -225,6 +303,7 @@ export function createRaceSceneryBlueprint(
         Object.freeze({ id: 'barriers', spatial: 'volume' as const }),
         Object.freeze({ id: 'tyres', spatial: 'cluster' as const }),
         Object.freeze({ id: 'markers', spatial: 'volume' as const }),
+        Object.freeze({ id: 'ramps', spatial: 'volume' as const }),
         Object.freeze({ id: 'grandstand', spatial: 'volume' as const }),
       ]),
       socketIds: Object.freeze([]),
@@ -241,6 +320,8 @@ export function createRaceSceneryBlueprint(
       surface('barrier:paper', [231, 219, 190], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
       surface('tyre', [45, 45, 40], 'rubber', 'pigment', { value: 'solid', gesture: 'regular' }),
       surface('cone', [207, 108, 42], 'rubber', 'pigment', { value: 'mid', gesture: 'regular' }),
+      surface('ramp:oxide', [205, 88, 52], 'paint', 'pigment', { value: 'mid', gesture: 'agitated' }),
+      surface('ramp:mark', [244, 236, 212], 'paint', 'pigment', { value: 'light', gesture: 'regular' }),
       surface('stand:paper', [191, 180, 151], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
       surface('stand:dark', [68, 70, 63], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
       surface('stand:roof', [135, 61, 43], 'paint', 'pigment', { value: 'mid', gesture: 'regular' }),

@@ -26,6 +26,12 @@ import {
   resolveObstacleCollisions,
   type VehicleCollisionProfile,
 } from './obstacle-collision.js';
+import {
+  RaceFlowController,
+  type FlowEvent,
+  type FlowVehicle,
+} from './race-flow.js';
+import { resolveJumpRamps } from './race-jump.js';
 import type { RaceWorldLayout } from './race-world.js';
 import { vehicleWheelsTouchRoute } from './route-contact.js';
 import {
@@ -67,6 +73,7 @@ export type RacerSnapshot = Readonly<{
   drifting: boolean;
   impact: number;
   elevation: number;
+  airborne: boolean;
   pitch: number;
   curbImpact: number;
   curbPenalty: number;
@@ -88,6 +95,14 @@ export type RaceSnapshot = Readonly<{
   driftScore: number;
   driftChain: number;
   driftMultiplier: number;
+  driftLinks: number;
+  boostCharge: number;
+  boostRemaining: number;
+  boostIntensity: number;
+  draftStrength: number;
+  nearMisses: number;
+  landingQuality: number | null;
+  flowEvent: FlowEvent | null;
   impact: number;
   impactObstacleId: string | null;
   respawning: boolean;
@@ -135,6 +150,7 @@ function snapshotOf(racer: MutableRacer): RacerSnapshot {
     drifting: racer.vehicle.drifting,
     impact: racer.vehicle.impact,
     elevation: racer.vehicle.elevation,
+    airborne: racer.vehicle.airborne,
     pitch: racer.vehicle.pitch,
     curbImpact: racer.vehicle.curbImpact,
     curbPenalty: racer.vehicle.curbPenalty,
@@ -155,9 +171,7 @@ export class RaceSimulation {
   private offRoad = false;
   private lostTime = 0;
   private respawnRemaining = 0;
-  private driftScore = 0;
-  private driftChain = 0;
-  private driftGrace = 0;
+  private readonly flow = new RaceFlowController();
   private impactObstacleId: string | null = null;
 
   public constructor(
@@ -204,9 +218,7 @@ export class RaceSimulation {
     this.offRoad = false;
     this.lostTime = 0;
     this.respawnRemaining = 0;
-    this.driftScore = 0;
-    this.driftChain = 0;
-    this.driftGrace = 0;
+    this.flow.reset();
     this.impactObstacleId = null;
     this.racers = [
       this.createRacer(PLAYER_ID, 'You', true, 0.046, -1.35, 0),
@@ -260,6 +272,7 @@ export class RaceSimulation {
     const racers = Object.freeze(this.racers.map(snapshotOf));
     const player = racers.find(({ id }) => id === PLAYER_ID) as RacerSnapshot;
     const ordered = [...racers].sort((left, right) => right.raceScore - left.raceScore);
+    const flow = this.flow.snapshot();
     return Object.freeze({
       phase: this.phase,
       introProgress: this.introElapsed / INTRO_SECONDS,
@@ -273,9 +286,17 @@ export class RaceSimulation {
       playerSpeedKph: player.speed * 6.2,
       offRoad: this.offRoad,
       drifting: player.drifting,
-      driftScore: Math.floor(this.driftScore),
-      driftChain: Math.floor(this.driftChain),
-      driftMultiplier: 1 + Math.min(3, Math.floor(this.driftChain / 260) * 0.5),
+      driftScore: flow.driftScore,
+      driftChain: flow.driftChain,
+      driftMultiplier: flow.driftMultiplier,
+      driftLinks: flow.driftLinks,
+      boostCharge: flow.boostCharge,
+      boostRemaining: flow.boostRemaining,
+      boostIntensity: flow.boostIntensity,
+      draftStrength: flow.draftStrength,
+      nearMisses: flow.nearMisses,
+      landingQuality: flow.landingQuality,
+      flowEvent: flow.event,
       impact: player.impact,
       impactObstacleId: this.impactObstacleId,
       respawning: this.respawnRemaining > 0,
@@ -322,7 +343,9 @@ export class RaceSimulation {
     const surface = before.distanceFromCentre <= this.course.trackWidth * 0.5 - 0.34
       ? 'road'
       : 'off-road';
-    const stepped = stepArcadeVehicle(player.vehicle, input, surface, delta);
+    const opponents = this.flowOpponents();
+    const assistedInput = this.flow.prepareDrive(delta, player.vehicle, opponents, input);
+    const stepped = stepArcadeVehicle(player.vehicle, assistedInput, surface, delta);
     const collisionProfile = this.collisionProfile(player.id);
     const collision = resolveObstacleCollisions(
       player.vehicle,
@@ -330,27 +353,25 @@ export class RaceSimulation {
       this.world.obstacles,
       collisionProfile,
     );
-    player.vehicle = collision.state;
+    const ramp = resolveJumpRamps(previousVehicle, collision.state, this.world.ramps);
+    player.vehicle = ramp.state;
     this.impactObstacleId = collision.obstacleId;
 
     const projection = nearestCoursePoint(this.course, player.vehicle.x, player.vehicle.z);
     this.offRoad = projection.distanceFromCentre > this.course.trackWidth * 0.5 - 0.34;
-    this.updateDrift(delta, player.vehicle);
+    player.vehicle = this.flow.settleStep(Object.freeze({
+      deltaSeconds: delta,
+      before: previousVehicle,
+      after: player.vehicle,
+      input,
+      offRoad: this.offRoad,
+      collisionObstacleId: collision.obstacleId,
+      obstacles: this.world.obstacles,
+      opponents,
+      collisionProfile,
+    }));
     this.updatePlayerProgress(player, previousVehicle, before, projection);
     this.updateRespawn(delta, player, projection);
-  }
-
-  private updateDrift(delta: number, vehicle: ArcadeVehicleState): void {
-    if (vehicle.drifting) {
-      const gain = Math.abs(vehicle.slipAngle) * vehicleSpeed(vehicle) * delta * 21;
-      const multiplier = 1 + Math.min(3, Math.floor(this.driftChain / 260) * 0.5);
-      this.driftChain += gain;
-      this.driftScore += gain * multiplier;
-      this.driftGrace = 0.85;
-      return;
-    }
-    this.driftGrace = Math.max(0, this.driftGrace - delta);
-    if (this.driftGrace === 0) this.driftChain = 0;
   }
 
   private updatePlayerProgress(
@@ -433,12 +454,13 @@ export class RaceSimulation {
         ? 'road'
         : 'off-road';
       const stepped = stepArcadeVehicle(racer.vehicle, input, surface, delta);
-      racer.vehicle = resolveObstacleCollisions(
+      const collision = resolveObstacleCollisions(
         racer.vehicle,
         stepped,
         this.world.obstacles,
         this.collisionProfile(racer.id),
       ).state;
+      racer.vehicle = resolveJumpRamps(previousVehicle, collision, this.world.ramps).state;
       const nextProjection = nearestCoursePoint(this.course, racer.vehicle.x, racer.vehicle.z);
       racer.route = advanceRaceRouteProgress(
         this.course,
@@ -465,6 +487,12 @@ export class RaceSimulation {
 
   private player(): MutableRacer {
     return this.racers[0] as MutableRacer;
+  }
+
+  private flowOpponents(): readonly FlowVehicle[] {
+    return Object.freeze(this.racers
+      .filter(({ isPlayer }) => !isPlayer)
+      .map(({ id, vehicle }) => Object.freeze({ id, state: vehicle })));
   }
 
   private collisionProfile(vehicleId: string): VehicleCollisionProfile {

@@ -310,13 +310,20 @@
           <ol data-running-order></ol>
         </section>
 
-        <section class="drift-hud" aria-label="Drift score">
+        <section class="drift-hud" aria-label="Driving flow and boost charge">
           <div class="drift-copy">
-            <span>Drift chain</span>
+            <span>Flow chain</span>
             <strong><span data-drift-multiplier>x1.0</span> <span data-drift-chain>+0000</span></strong>
           </div>
-          <div class="drift-meter" aria-hidden="true"><i data-drift-meter></i></div>
-          <small>Total <span data-drift-score>00000</span></small>
+          <div
+            class="drift-meter"
+            role="progressbar"
+            aria-label="Boost charge"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            aria-valuenow="0"
+          ><i data-drift-meter></i><b data-draft-meter></b></div>
+          <small><span data-flow-status>Ready</span> · <span data-drift-links>0</span> links · <span data-near-misses>0</span> near · <span data-drift-score>00000</span> pts</small>
         </section>
 
         <section class="speedometer" aria-label="Vehicle speed">

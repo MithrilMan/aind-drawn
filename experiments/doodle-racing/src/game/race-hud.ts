@@ -32,6 +32,10 @@ export class RaceHud {
   private readonly driftChain = requireElement(document, '[data-drift-chain]', HTMLElement);
   private readonly driftScore = requireElement(document, '[data-drift-score]', HTMLElement);
   private readonly driftMeter = requireElement(document, '[data-drift-meter]', HTMLElement);
+  private readonly draftMeter = requireElement(document, '[data-draft-meter]', HTMLElement);
+  private readonly flowStatus = requireElement(document, '[data-flow-status]', HTMLElement);
+  private readonly driftLinks = requireElement(document, '[data-drift-links]', HTMLElement);
+  private readonly nearMisses = requireElement(document, '[data-near-misses]', HTMLElement);
   private readonly runningOrder = requireElement(document, '[data-running-order]', HTMLOListElement);
   private readonly countdown = requireElement(document, '[data-countdown]', HTMLElement);
   private readonly callout = requireElement(document, '[data-event-callout]', HTMLElement);
@@ -46,6 +50,7 @@ export class RaceHud {
   private previousRespawning = false;
   private previousCountdown = -1;
   private previousOrder = '';
+  private previousFlowEventSequence = 0;
 
   public constructor(private readonly shell: HTMLElement) {}
 
@@ -76,9 +81,29 @@ export class RaceHud {
     this.driftMultiplier.textContent = `x${snapshot.driftMultiplier.toFixed(1)}`;
     this.driftChain.textContent = `+${snapshot.driftChain.toString().padStart(4, '0')}`;
     this.driftScore.textContent = snapshot.driftScore.toString().padStart(5, '0');
-    this.driftMeter.style.inlineSize = `${Math.min(100, snapshot.driftChain / 8)}%`;
+    this.driftLinks.textContent = snapshot.driftLinks.toString();
+    this.nearMisses.textContent = snapshot.nearMisses.toString();
+    const boostPercent = Math.round(snapshot.boostCharge * 100);
+    this.driftMeter.style.inlineSize = `${boostPercent}%`;
+    this.draftMeter.style.inlineSize = `${Math.round(snapshot.draftStrength * 100)}%`;
+    this.driftMeter.parentElement?.setAttribute('aria-valuenow', boostPercent.toString());
+    this.flowStatus.textContent = snapshot.boostIntensity > 0
+      ? 'Boost'
+      : snapshot.draftStrength > 0.08
+        ? `Draft ${Math.round(snapshot.draftStrength * 100)}%`
+        : snapshot.racers.find(({ isPlayer }) => isPlayer)?.airborne === true
+          ? 'Set landing'
+          : snapshot.boostCharge > 0.02
+            ? `${boostPercent}% charged`
+            : 'Ready';
     this.shell.classList.toggle('off-road', snapshot.offRoad);
     this.shell.classList.toggle('is-drifting', snapshot.drifting);
+    this.shell.classList.toggle('is-boosting', snapshot.boostIntensity > 0);
+    this.shell.classList.toggle('is-drafting', snapshot.draftStrength > 0.08);
+    this.shell.classList.toggle(
+      'is-airborne',
+      snapshot.racers.find(({ isPlayer }) => isPlayer)?.airborne === true,
+    );
     this.shell.classList.toggle('is-impacting', snapshot.impact > 0.18);
     this.shell.classList.toggle('is-respawning', snapshot.respawning);
     this.renderRunningOrder(snapshot);
@@ -156,9 +181,17 @@ export class RaceHud {
     } else if (snapshot.impact > 0.25) {
       title = 'Crunch!';
       detail = 'That barrier was not decorative';
+    } else if (snapshot.flowEvent !== null) {
+      ({ title, detail } = this.flowEventCopy(snapshot));
+    } else if (snapshot.racers.find(({ isPlayer }) => isPlayer)?.airborne === true) {
+      title = 'Airborne!';
+      detail = 'Straighten the car before touchdown';
     } else if (snapshot.drifting) {
       title = 'Sideways!';
       detail = `+${snapshot.driftChain} keep it loose`;
+    } else if (snapshot.draftStrength > 0.12) {
+      title = 'In the draft';
+      detail = 'Pull out sideways for the slingshot';
     } else if (snapshot.offRoad) {
       title = 'Loose ground';
       detail = 'Grip is reduced';
@@ -169,6 +202,13 @@ export class RaceHud {
 
     if (snapshot.respawning && !this.previousRespawning) {
       this.announce('Vehicle reset to the last safe track point.');
+    } else if (
+      snapshot.flowEvent !== null
+      && snapshot.flowEvent.sequence !== this.previousFlowEventSequence
+    ) {
+      const copy = this.flowEventCopy(snapshot);
+      this.announce(`${copy.title} ${copy.detail}`);
+      this.previousFlowEventSequence = snapshot.flowEvent.sequence;
     } else if (snapshot.drifting && !this.previousDrifting) {
       this.announce('Drift chain started.');
     } else if (snapshot.offRoad !== this.previousOffRoad) {
@@ -177,5 +217,26 @@ export class RaceHud {
     this.previousRespawning = snapshot.respawning;
     this.previousDrifting = snapshot.drifting;
     this.previousOffRoad = snapshot.offRoad;
+  }
+
+  private flowEventCopy(snapshot: RaceSnapshot): Readonly<{ title: string; detail: string }> {
+    switch (snapshot.flowEvent?.kind) {
+      case 'takeoff':
+        return Object.freeze({ title: 'Launch!', detail: 'Straighten the car for a landing boost' });
+      case 'drift-boost':
+        return Object.freeze({ title: 'Snap boost!', detail: 'Clean countersteer converted flow into speed' });
+      case 'linked-corner':
+        return Object.freeze({ title: 'Linked!', detail: `${snapshot.driftLinks} corners · charge kept` });
+      case 'near-miss':
+        return Object.freeze({ title: 'Threaded it!', detail: 'Near miss added flow charge' });
+      case 'slingshot':
+        return Object.freeze({ title: 'Slingshot!', detail: 'Draft converted into speed' });
+      case 'clean-landing':
+        return Object.freeze({ title: 'Stuck it!', detail: 'Straight landing · speed preserved' });
+      case 'rough-landing':
+        return Object.freeze({ title: 'Heavy landing', detail: 'Too much angle at touchdown' });
+      default:
+        return Object.freeze({ title: '', detail: '' });
+    }
   }
 }

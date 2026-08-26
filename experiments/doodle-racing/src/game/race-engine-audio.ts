@@ -4,6 +4,8 @@ type AudioContextFactory = () => AudioContext;
 
 type EngineVoice = {
   source: AudioBufferSourceNode;
+  tone: OscillatorNode;
+  toneGain: GainNode;
   filter: BiquadFilterNode;
   gain: GainNode;
   panner: StereoPannerNode | null;
@@ -15,9 +17,18 @@ export type EngineLoopWindow = Readonly<{
 }>;
 
 export type EngineParameters = Readonly<{
+  gear: number;
+  rpm: number;
   playbackRate: number;
+  toneFrequency: number;
+  toneGain: number;
   gain: number;
   filterFrequency: number;
+}>;
+
+type EngineGearBand = Readonly<{
+  minimumSpeed: number;
+  maximumSpeed: number;
 }>;
 
 const IGNITION_SOURCES = Object.freeze([
@@ -28,6 +39,13 @@ const IGNITION_SOURCES = Object.freeze([
 ]);
 const FALLBACK_ENGINE_SOURCE = new URL('../assets/audio/engine-loop.opus', import.meta.url).href;
 const ENGINE_MAX_SPEED = 29;
+const ENGINE_GEAR_BANDS: readonly EngineGearBand[] = Object.freeze([
+  Object.freeze({ minimumSpeed: 0, maximumSpeed: 9.2 }),
+  Object.freeze({ minimumSpeed: 6.8, maximumSpeed: 15 }),
+  Object.freeze({ minimumSpeed: 12.4, maximumSpeed: 21 }),
+  Object.freeze({ minimumSpeed: 18.3, maximumSpeed: 27 }),
+  Object.freeze({ minimumSpeed: 24.2, maximumSpeed: 34 }),
+]);
 const LOOP_SECONDS = 0.72;
 const LOOP_CROSSFADE_SECONDS = 0.09;
 const VEHICLE_VOICE_IDS = Object.freeze(['you', 'mica', 'rook', 'pip']);
@@ -96,6 +114,7 @@ export function engineParametersFor(
   input: DriveInput,
   acceleration: number,
   voiceIndex: number,
+  selectedGear = selectEngineGear(racer.speed),
 ): EngineParameters {
   const speedRatio = clamp(racer.speed / ENGINE_MAX_SPEED, 0, 1);
   const accelerating = racer.isPlayer
@@ -104,17 +123,53 @@ export function engineParametersFor(
   const braking = racer.isPlayer
     ? input.brakePressure ?? Number(input.brake)
     : clamp(-acceleration / 10, 0, 1);
+  const gear = clamp(Math.round(selectedGear), 0, ENGINE_GEAR_BANDS.length - 1);
+  const gearBand = ENGINE_GEAR_BANDS[gear] as EngineGearBand;
+  const rpm = clamp(
+    (racer.speed - gearBand.minimumSpeed)
+      / Math.max(0.001, gearBand.maximumSpeed - gearBand.minimumSpeed),
+    0,
+    1,
+  );
   const individuality = 0.965 + voiceIndex * 0.022;
+  const airborneRev = racer.airborne ? accelerating * 0.1 : 0;
   const playbackRate = individuality * (
-    0.72 + speedRatio * 0.76 + accelerating * 0.16 - braking * 0.13
+    0.68 + rpm * 0.82 + accelerating * 0.15 - braking * 0.11 + airborneRev
   );
   const gainBase = racer.isPlayer ? 0.105 : 0.024;
   const gainRange = racer.isPlayer ? 0.105 : 0.032;
   return Object.freeze({
+    gear,
+    rpm,
     playbackRate: clamp(playbackRate, 0.58, 1.72),
+    toneFrequency: 52 + gear * 6 + rpm * 122 + airborneRev * 85,
+    toneGain: racer.isPlayer ? 0.13 + rpm * 0.12 : 0.032 + rpm * 0.018,
     gain: clamp(gainBase + speedRatio * gainRange + accelerating * 0.025 - braking * 0.018, 0, 0.24),
-    filterFrequency: clamp(820 + speedRatio * 2_500 + accelerating * 620 - braking * 460, 520, 4_200),
+    filterFrequency: clamp(
+      720 + speedRatio * 1_450 + rpm * 1_350 + accelerating * 620 - braking * 460,
+      520,
+      4_200,
+    ),
   });
+}
+
+/** Selects an engine gear with overlap between bands to prevent shift chatter. */
+export function selectEngineGear(speed: number, previousGear = 0): number {
+  const normalizedSpeed = Math.max(0, speed);
+  let gear = clamp(Math.round(previousGear), 0, ENGINE_GEAR_BANDS.length - 1);
+  while (
+    gear < ENGINE_GEAR_BANDS.length - 1
+    && normalizedSpeed > (ENGINE_GEAR_BANDS[gear] as EngineGearBand).maximumSpeed
+  ) {
+    gear += 1;
+  }
+  while (
+    gear > 0
+    && normalizedSpeed < (ENGINE_GEAR_BANDS[gear] as EngineGearBand).minimumSpeed
+  ) {
+    gear -= 1;
+  }
+  return gear;
 }
 
 export class RaceEngineAudioController {
@@ -128,7 +183,10 @@ export class RaceEngineAudioController {
   private freeDriveVoiceIndex: number | null = null;
   private raceToken = 0;
   private lastCountdown: number | null = null;
+  private previousBoostActive = false;
+  private previousPlayerAirborne = false;
   private readonly previousSpeeds = new Map<string, number>();
+  private readonly previousGears = new Map<string, number>();
 
   public constructor(
     private readonly createContext: AudioContextFactory = () => new AudioContext(),
@@ -145,7 +203,10 @@ export class RaceEngineAudioController {
     this.raceActive = true;
     this.freeDriveVoiceIndex = null;
     this.lastCountdown = null;
+    this.previousBoostActive = false;
+    this.previousPlayerAirborne = false;
     this.previousSpeeds.clear();
+    this.previousGears.clear();
     const token = ++this.raceToken;
     if (!this.enabled) return;
     const context = this.ensureContext();
@@ -157,7 +218,10 @@ export class RaceEngineAudioController {
     this.raceActive = true;
     this.freeDriveVoiceIndex = Math.max(0, VEHICLE_VOICE_IDS.indexOf(vehicleId));
     this.lastCountdown = null;
+    this.previousBoostActive = false;
+    this.previousPlayerAirborne = false;
     this.previousSpeeds.clear();
+    this.previousGears.clear();
     const token = ++this.raceToken;
     if (!this.enabled) return;
     const context = this.ensureContext();
@@ -170,7 +234,10 @@ export class RaceEngineAudioController {
     this.freeDriveVoiceIndex = null;
     this.raceToken += 1;
     this.lastCountdown = null;
+    this.previousBoostActive = false;
+    this.previousPlayerAirborne = false;
     this.previousSpeeds.clear();
+    this.previousGears.clear();
     this.stopSources();
   }
 
@@ -210,6 +277,12 @@ export class RaceEngineAudioController {
     }
 
     const now = this.context.currentTime;
+    const boostActive = snapshot.boostIntensity > 0;
+    if (boostActive && !this.previousBoostActive) this.playBoostCue(snapshot.boostIntensity);
+    this.previousBoostActive = boostActive;
+    const playerAirborne = snapshot.racers.some(({ isPlayer, airborne }) => isPlayer && airborne);
+    if (playerAirborne && !this.previousPlayerAirborne) this.playTakeoffCue();
+    this.previousPlayerAirborne = playerAirborne;
     this.master?.gain.setTargetAtTime(snapshot.phase === 'paused' ? 0.16 : 1, now, 0.08);
     snapshot.racers.forEach((racer, index) => {
       const previousSpeed = this.previousSpeeds.get(racer.id) ?? racer.speed;
@@ -217,10 +290,17 @@ export class RaceEngineAudioController {
       this.previousSpeeds.set(racer.id, racer.speed);
       const voice = this.voices[index];
       if (voice === undefined) return;
-      const parameters = engineParametersFor(racer, input, acceleration, index);
-      voice.source.playbackRate.setTargetAtTime(parameters.playbackRate, now, 0.075);
-      voice.gain.gain.setTargetAtTime(parameters.gain, now, input.brake ? 0.045 : 0.095);
-      voice.filter.frequency.setTargetAtTime(parameters.filterFrequency, now, 0.08);
+      const previousGear = this.previousGears.get(racer.id) ?? selectEngineGear(racer.speed);
+      const gear = selectEngineGear(racer.speed, previousGear);
+      this.previousGears.set(racer.id, gear);
+      const parameters = engineParametersFor(racer, input, acceleration, index, gear);
+      const shiftResponse = gear === previousGear ? 0.075 : 0.022;
+      const boost = racer.isPlayer ? snapshot.boostIntensity : 0;
+      voice.source.playbackRate.setTargetAtTime(parameters.playbackRate + boost * 0.14, now, shiftResponse);
+      voice.tone.frequency.setTargetAtTime(parameters.toneFrequency + boost * 28, now, shiftResponse);
+      voice.toneGain.gain.setTargetAtTime(parameters.toneGain, now, 0.055);
+      voice.gain.gain.setTargetAtTime(parameters.gain + boost * 0.018, now, input.brake ? 0.045 : 0.095);
+      voice.filter.frequency.setTargetAtTime(parameters.filterFrequency + boost * 780, now, 0.08);
       voice.panner?.pan.setTargetAtTime(this.panFor(racer, snapshot), now, 0.09);
     });
   }
@@ -231,6 +311,9 @@ export class RaceEngineAudioController {
     const previousSpeed = this.previousSpeeds.get(racer.id) ?? racer.speed;
     const acceleration = (racer.speed - previousSpeed) / Math.max(0.001, deltaSeconds);
     this.previousSpeeds.set(racer.id, racer.speed);
+    const previousGear = this.previousGears.get(racer.id) ?? selectEngineGear(racer.speed);
+    const gear = selectEngineGear(racer.speed, previousGear);
+    this.previousGears.set(racer.id, gear);
     const now = this.context.currentTime;
     this.master?.gain.setTargetAtTime(1, now, 0.08);
     this.voices.forEach((voice, index) => {
@@ -238,8 +321,11 @@ export class RaceEngineAudioController {
         voice.gain.gain.setTargetAtTime(0, now, 0.05);
         return;
       }
-      const parameters = engineParametersFor(racer, input, acceleration, index);
-      voice.source.playbackRate.setTargetAtTime(parameters.playbackRate, now, 0.075);
+      const parameters = engineParametersFor(racer, input, acceleration, index, gear);
+      const shiftResponse = gear === previousGear ? 0.075 : 0.022;
+      voice.source.playbackRate.setTargetAtTime(parameters.playbackRate, now, shiftResponse);
+      voice.tone.frequency.setTargetAtTime(parameters.toneFrequency, now, shiftResponse);
+      voice.toneGain.gain.setTargetAtTime(parameters.toneGain, now, 0.055);
       voice.gain.gain.setTargetAtTime(parameters.gain, now, input.brake ? 0.045 : 0.095);
       voice.filter.frequency.setTargetAtTime(parameters.filterFrequency, now, 0.08);
       voice.panner?.pan.setTargetAtTime(0, now, 0.06);
@@ -335,21 +421,28 @@ export class RaceEngineAudioController {
     this.voices = ignitionBuffers.map((ignition, index) => {
       const loop = this.createEngineLoop(context, ignition, fallback);
       const source = context.createBufferSource();
+      const tone = context.createOscillator();
+      const toneGain = context.createGain();
       const filter = context.createBiquadFilter();
       const gain = context.createGain();
       const panner = typeof context.createStereoPanner === 'function' ? context.createStereoPanner() : null;
       source.buffer = loop;
       source.loop = true;
       source.playbackRate.value = 0.72 + index * 0.018;
+      tone.type = 'triangle';
+      tone.frequency.value = 52 + index * 2;
+      toneGain.gain.value = 0;
       filter.type = 'lowpass';
       filter.frequency.value = 900;
       filter.Q.value = 0.45;
       gain.gain.value = 0;
-      source.connect(filter).connect(gain);
+      source.connect(filter);
+      tone.connect(toneGain).connect(filter).connect(gain);
       if (panner !== null) gain.connect(panner).connect(this.master as GainNode);
       else gain.connect(this.master as GainNode);
       source.start(context.currentTime + delaySeconds, index * 0.037);
-      return { source, filter, gain, panner };
+      tone.start(context.currentTime + delaySeconds);
+      return { source, tone, toneGain, filter, gain, panner };
     });
   }
 
@@ -398,6 +491,40 @@ export class RaceEngineAudioController {
     oscillator.stop(now + 0.12);
   }
 
+  private playBoostCue(intensity: number): void {
+    const context = this.context;
+    if (context === null || this.master === null) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    oscillator.type = 'sawtooth';
+    oscillator.frequency.setValueAtTime(170 + intensity * 80, now);
+    oscillator.frequency.exponentialRampToValueAtTime(510 + intensity * 180, now + 0.18);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.035 + intensity * 0.02, now + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    oscillator.connect(gain).connect(this.master);
+    oscillator.start(now);
+    oscillator.stop(now + 0.23);
+  }
+
+  private playTakeoffCue(): void {
+    const context = this.context;
+    if (context === null || this.master === null) return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    const now = context.currentTime;
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(310, now);
+    oscillator.frequency.exponentialRampToValueAtTime(118, now + 0.28);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.028, now + 0.018);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+    oscillator.connect(gain).connect(this.master);
+    oscillator.start(now);
+    oscillator.stop(now + 0.31);
+  }
+
   private panFor(racer: RacerSnapshot, snapshot: RaceSnapshot): number {
     const player = snapshot.racers.find(({ isPlayer }) => isPlayer);
     if (player === undefined || racer.isPlayer) return 0;
@@ -412,8 +539,9 @@ export class RaceEngineAudioController {
     for (const source of this.ignitionSources) {
       try { source.stop(); } catch { /* The one-shot already ended. */ }
     }
-    for (const { source } of this.voices) {
+    for (const { source, tone } of this.voices) {
       try { source.stop(); } catch { /* The loop was never started. */ }
+      try { tone.stop(); } catch { /* The tone was never started. */ }
     }
     this.ignitionSources = [];
     this.voices = [];

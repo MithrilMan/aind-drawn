@@ -105,6 +105,15 @@ canvas:focus-visible {
   opacity: .92;
 }
 
+.is-boosting .race-viewport::after {
+  background:
+    repeating-linear-gradient(104deg, transparent 0 12%, rgb(241 229 200 / 28%) 12.5% 13%, transparent 13.5% 24%),
+    radial-gradient(circle at 50% 50%, transparent 48%, rgb(189 77 49 / 42%) 118%);
+  background-size: 190% 100%, 100% 100%;
+  opacity: .72;
+  animation: boost-streaks 260ms linear infinite;
+}
+
 canvas {
   display: block;
   inline-size: 100%;
@@ -1254,6 +1263,15 @@ canvas {
   letter-spacing: .08em;
 }
 
+.drift-hud small {
+  display: block;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .58rem;
+}
+
 .drift-copy strong {
   font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
   font-size: 1.35rem;
@@ -1262,6 +1280,7 @@ canvas {
 }
 
 .drift-meter {
+  position: relative;
   inline-size: 100%;
   block-size: 8px;
   margin-block: 8px 4px;
@@ -1277,6 +1296,26 @@ canvas {
   background: var(--oxide-hot);
   box-shadow: 0 0 12px rgb(239 115 81 / 65%);
   transition: inline-size 100ms linear;
+}
+
+.drift-meter b {
+  position: absolute;
+  inset: auto auto 0 0;
+  display: block;
+  inline-size: 0;
+  block-size: 2px;
+  background: #f1e5c8;
+  box-shadow: 0 0 8px rgb(241 229 200 / 82%);
+  transition: inline-size 100ms linear;
+}
+
+.is-boosting .drift-meter i,
+.is-boosting .speedometer {
+  box-shadow: 0 0 22px rgb(239 115 81 / 88%);
+}
+
+.is-airborne .speedometer {
+  border-color: var(--oxide-hot);
 }
 
 .speedometer {
@@ -1366,9 +1405,13 @@ canvas {
   pointer-events: none;
 }
 
+@keyframes boost-streaks {
+  to { background-position: -90% 0, 0 0; }
+}
+
 .keyboard-hint {
   inset-inline-start: 266px;
-  inset-block-end: 18px;
+  inset-block-end: 92px;
   padding: 8px 12px;
   background: rgb(23 25 24 / 78%);
   color: var(--paper-muted);
@@ -2291,6 +2334,10 @@ canvas {
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
+  }
+
+  .is-boosting .race-viewport::after {
+    animation: none;
   }
 }
 

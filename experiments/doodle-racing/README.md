@@ -107,6 +107,30 @@ camera wherever its nose points. A falling torque curve and continuous speed-dep
 analogue throttle positions distinct sustainable speeds. Drift slip consumes part of the total
 velocity budget, keeping the faster grip line and the tighter drift line as meaningful alternatives.
 
+`RaceFlowController` turns that handling into one risk-and-release loop. Sustained angle builds a
+shared flow charge; a controlled opposite-lock exit converts it into an automatic snap boost, while
+a momentary transition into an opposite-direction drift counts as a linked corner instead of ending
+the sequence. Passing an authored obstacle or rival with a small positive clearance adds charge only
+after the danger zone has been cleared, preventing wall rubbing from farming near misses. Following
+an aligned rival reduces drag progressively; leaving a mature draft laterally triggers a short
+slingshot. Collisions and leaving the road clear the active flow, so none of these rewards erase the
+cost of a mistake.
+
+Three deterministic low ramps are placed on the straighter course regions and rendered through the
+same public race-scenery blueprint as the other visible fixtures. Every oxide ramp has the same
+behaviour; the white cross-bars are launch markings, not a different ramp type. Crossing a ramp in
+its forward direction above the launch threshold produces a short airborne arc. Steering still gives
+limited yaw control in the air, but tyre forces are mostly absent. A straight, settled touchdown
+preserves speed and earns a short landing boost; arriving crossed up sheds speed and breaks the drift
+state. The HUD announces takeoff and explains the landing objective, while a short audio cue makes
+the transition perceptible even when the car is visually small.
+
+Engine audio combines each sampled loop with a quiet synthesized tonal layer. Five overlapping speed
+bands act as arcade gears: revs climb audibly inside a band, fall on an upshift, and use hysteresis on
+the way back down so the sound does not chatter around a threshold. Throttle, braking, airborne
+free-rev, boost, gain, and filter brightness remain secondary modulation instead of pretending that
+one linear playback-rate curve can communicate speed on its own.
+
 This direction follows Criterion's
 [Vehicle Feel Masterclass](https://www.gdcvault.com/play/1025295/Vehicle-Feel-Masterclass-Balancing-Arcade),
 which treats assists, camera, and exaggeration as layers over a coherent physical base; Ghost Games'

@@ -41,6 +41,12 @@ import {
 import { ExploreDriveController } from '../experiments/doodle-racing/src/game/explore-drive.js';
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/grandstand-explorer.js';
 import {
+  DEFAULT_PAPER_CIRCUIT_MEDIUM,
+  PAPER_CIRCUIT_MEDIUM_IDS,
+  isPaperCircuitMedium,
+  nextPaperCircuitMedium,
+} from '../experiments/doodle-racing/src/game/drawing-medium.js';
+import {
   CONTROL_ACTION_IDS,
   toDriveInput,
   toExploreInput,
@@ -48,6 +54,11 @@ import {
 } from '../experiments/doodle-racing/src/game/controls.js';
 import { standardGamepadControls } from '../experiments/doodle-racing/src/game/input-controller.js';
 import { MenuPreviewBackdrop } from '../experiments/doodle-racing/src/game/menu-preview-backdrop.js';
+import {
+  DEFAULT_MENU_SETTINGS,
+  MENU_SETTINGS_STORAGE_KEY,
+  MenuSettingsStore,
+} from '../experiments/doodle-racing/src/game/menu-settings.js';
 import { MusicController } from '../experiments/doodle-racing/src/game/music-controller.js';
 import { createPaperCircuitPersonIdentity } from '../experiments/doodle-racing/src/game/paper-circuit-person.js';
 import { localPreviewCameraOffsetDirection } from '../experiments/doodle-racing/src/game/preview-camera.js';
@@ -240,6 +251,14 @@ class FakeAudio {
 }
 
 describe('Paper Circuit experiment', () => {
+  it('offers only Graphite, Ink, and Oil with Graphite as the default', () => {
+    expect(DEFAULT_PAPER_CIRCUIT_MEDIUM).toBe('graphite');
+    expect(PAPER_CIRCUIT_MEDIUM_IDS).toEqual(['graphite', 'ink', 'oil']);
+    expect(PAPER_CIRCUIT_MEDIUM_IDS.map(nextPaperCircuitMedium))
+      .toEqual(['ink', 'oil', 'graphite']);
+    expect(isPaperCircuitMedium('watercolor')).toBe(false);
+  });
+
   it('authors a valid closed course through the public solid contract', () => {
     const layout = createCourseLayout();
     const blueprint = createCourseBlueprint(layout);
@@ -983,7 +1002,7 @@ describe('Paper Circuit experiment', () => {
     sound.dispose();
   });
 
-  it('keeps the procedural music loop independent from sound effects', () => {
+  it('keeps the bundled main song loop independent from sound effects', () => {
     const clips: FakeAudio[] = [];
     const music = new MusicController((source) => {
       const clip = new FakeAudio(source);
@@ -993,7 +1012,7 @@ describe('Paper Circuit experiment', () => {
 
     expect(clips).toHaveLength(1);
     const clip = clips[0] as FakeAudio;
-    expect(clip.source.startsWith('data:audio/wav;base64,')).toBe(true);
+    expect(clip.source).toContain('main-song.opus');
     expect(clip.loop).toBe(true);
     music.unlock();
     expect(clip.loadCount).toBe(1);
@@ -1005,7 +1024,69 @@ describe('Paper Circuit experiment', () => {
     expect(clip.pauseCount).toBeGreaterThan(0);
     expect(music.toggle()).toBe(true);
     expect(clip.playCount).toBe(2);
+    music.setVolume(0.4);
+    expect(clip.volume).toBeCloseTo(0.4 * 0.055);
+    music.setMenuActive(false);
+    expect(clip.pauseCount).toBeGreaterThan(1);
+    const inactivePlayCount = clip.playCount;
+    expect(music.toggle()).toBe(false);
+    expect(music.toggle()).toBe(true);
+    expect(clip.playCount).toBe(inactivePlayCount);
+    music.setMenuActive(true);
+    expect(clip.playCount).toBe(3);
     music.dispose();
+  });
+
+  it('persists the complete menu configuration with safe storage fallbacks', () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+    };
+    const settings = new MenuSettingsStore(storage);
+
+    expect(settings.load()).toBe(DEFAULT_MENU_SETTINGS);
+    settings.save({
+      medium: 'ink',
+      laps: 10,
+      music: false,
+      musicVolume: 0.4,
+      sfx: true,
+      sfxVolume: 0.65,
+    });
+    expect(values.get(MENU_SETTINGS_STORAGE_KEY)).toBe(
+      '{"medium":"ink","laps":10,"music":false,"musicVolume":0.4,"sfx":true,"sfxVolume":0.65}',
+    );
+    expect(settings.load()).toEqual({
+      medium: 'ink',
+      laps: 10,
+      music: false,
+      musicVolume: 0.4,
+      sfx: true,
+      sfxVolume: 0.65,
+    });
+
+    values.set(
+      MENU_SETTINGS_STORAGE_KEY,
+      '{"medium":"marker","laps":7,"music":"off","musicVolume":2,"sfx":false,"sfxVolume":-1}',
+    );
+    expect(settings.load()).toEqual({
+      medium: 'graphite',
+      laps: 5,
+      music: true,
+      musicVolume: 1,
+      sfx: false,
+      sfxVolume: 0,
+    });
+
+    const blocked = new MenuSettingsStore({
+      getItem: () => { throw new Error('blocked'); },
+      setItem: () => { throw new Error('blocked'); },
+    });
+    expect(blocked.load()).toBe(DEFAULT_MENU_SETTINGS);
+    expect(() => {
+      blocked.save(DEFAULT_MENU_SETTINGS);
+    }).not.toThrow();
   });
 
   it('leaves bounded skid decals and emits smoke, dust, and impact sparks', () => {

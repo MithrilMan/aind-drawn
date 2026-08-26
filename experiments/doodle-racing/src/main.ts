@@ -1,4 +1,4 @@
-import { MEDIUM_IDS, type MediumId } from '../../../src/index.js';
+import type { MediumId } from '../../../src/index.js';
 import {
   CONTROL_ACTION_IDS,
   toDriveInput,
@@ -22,6 +22,12 @@ import { InputController } from './game/input-controller.js';
 import type { ExploreEntrancePhase } from './game/explore-entrance.js';
 import { MenuCharacterPreview } from './game/menu-character-preview.js';
 import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
+import {
+  isPaperCircuitMedium,
+  nextPaperCircuitMedium,
+  type PaperCircuitMediumId,
+} from './game/drawing-medium.js';
+import { MenuSettingsStore } from './game/menu-settings.js';
 import { MusicController } from './game/music-controller.js';
 import { createVehicleCollisionProfile } from './game/vehicle-collision-profile.js';
 import { RaceHud } from './game/race-hud.js';
@@ -72,10 +78,10 @@ const menuMediumInputs = [...document.querySelectorAll<HTMLInputElement>('[data-
 const mediumThumbnailImages = new Map<MediumId, HTMLImageElement>(
   [...document.querySelectorAll<HTMLImageElement>('[data-medium-thumbnail]')].map((image) => {
     const candidate = image.dataset.mediumThumbnail;
-    if (!MEDIUM_IDS.includes(candidate as MediumId)) {
+    if (candidate === undefined || !isPaperCircuitMedium(candidate)) {
       throw new Error(`Unknown medium thumbnail target: ${candidate ?? 'missing'}`);
     }
-    return [candidate as MediumId, image];
+    return [candidate, image];
   }),
 );
 const lapInputs = [...document.querySelectorAll<HTMLInputElement>('[data-laps]')];
@@ -109,6 +115,16 @@ const rendererError = requireElement('[data-renderer-error]', HTMLDialogElement)
 const retryButton = requireElement('[data-retry]', HTMLButtonElement);
 const soundToggleButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-sound-toggle]')];
 const musicToggleButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-music-toggle]')];
+const openAudioSettingsButtons = [
+  ...document.querySelectorAll<HTMLButtonElement>('[data-open-audio-settings]'),
+];
+const audioSummaryElements = [...document.querySelectorAll<HTMLElement>('[data-audio-summary]')];
+const audioSettingsDialog = requireElement('[data-audio-settings]', HTMLDialogElement);
+const closeAudioSettingsButton = requireElement('[data-audio-settings-close]', HTMLButtonElement);
+const musicVolumeInput = requireElement('[data-music-volume]', HTMLInputElement);
+const musicVolumeOutput = requireElement('[data-music-volume-output]', HTMLOutputElement);
+const sfxVolumeInput = requireElement('[data-sfx-volume]', HTMLInputElement);
+const sfxVolumeOutput = requireElement('[data-sfx-volume-output]', HTMLOutputElement);
 const vehicleSelector = requireElement('[data-vehicle-selector]', HTMLDialogElement);
 const vehicleSelectorPreviewViewport = requireElement(
   '[data-vehicle-selector-preview-viewport]',
@@ -146,9 +162,17 @@ const focusNavigator = new ControlFocusNavigator();
 const controlHints = new ControlHintPresenter(shell);
 const hud = new RaceHud(shell);
 const minimap = new RaceMinimap(course, minimapCanvas);
+const menuSettings = new MenuSettingsStore();
+const savedMenuSettings = menuSettings.load();
 const sound = new SoundController();
+sound.setEnabled(savedMenuSettings.sfx);
+sound.setVolume(savedMenuSettings.sfxVolume);
 const music = new MusicController();
+music.setEnabled(savedMenuSettings.music);
+music.setVolume(savedMenuSettings.musicVolume);
 const engineSound = new RaceEngineAudioController();
+engineSound.setEnabled(savedMenuSettings.sfx);
+engineSound.setVolume(savedMenuSettings.sfxVolume);
 const IDLE_INPUT: DriveInput = Object.freeze({
   accelerate: false,
   brake: false,
@@ -161,7 +185,7 @@ let menuPreview: MenuCharacterPreview | null = null;
 let mediumGallery: MediumVehicleGallery | null = null;
 let vehicleInteractionPreview: VehicleInteractionPreview | null = null;
 let vehicleConfiguratorPreview: VehicleInteractionPreview | null = null;
-let medium: MediumId = 'oil';
+let medium: PaperCircuitMediumId = savedMenuSettings.medium;
 let cameraMode: RaceCameraMode = 'follow';
 let appMode: 'menu' | 'race' | 'explore' = 'menu';
 let explorerSeed = createRandomSeed();
@@ -179,6 +203,8 @@ let routeDebugEnabled = false;
 let pauseReturnMode: 'race' | 'explore' | null = null;
 let restoreVehicleFocus = true;
 let audioUnlocked = false;
+let audioSettingsReturnSurface: 'menu' | 'pause' | null = null;
+let audioSettingsOpener: HTMLButtonElement | null = null;
 let rendererRecoveryPauseMode: 'race' | 'explore' | null = null;
 let resumeRaceAfterRendererRecovery = false;
 
@@ -193,6 +219,37 @@ function unlockAudio(): void {
   engineSound.unlock();
 }
 
+function persistMenuSettings(): void {
+  menuSettings.save({
+    medium,
+    laps: selectedLapCount(),
+    music: music.isEnabled,
+    musicVolume: music.currentVolume,
+    sfx: sound.isEnabled,
+    sfxVolume: sound.currentVolume,
+  });
+}
+
+function percentage(volume: number): number {
+  return Math.round(volume * 100);
+}
+
+function renderAudioSettingsState(): void {
+  const musicPercentage = percentage(music.currentVolume);
+  const sfxPercentage = percentage(sound.currentVolume);
+  musicVolumeInput.value = musicPercentage.toString();
+  musicVolumeOutput.value = `${musicPercentage}%`;
+  sfxVolumeInput.value = sfxPercentage.toString();
+  sfxVolumeOutput.value = `${sfxPercentage}%`;
+  const summary = `${music.isEnabled ? `Music ${musicPercentage}%` : 'Music off'} · ${
+    sound.isEnabled ? `SFX ${sfxPercentage}%` : 'SFX off'
+  }`;
+  for (const element of audioSummaryElements) element.textContent = summary;
+  for (const button of openAudioSettingsButtons) {
+    button.setAttribute('aria-label', `Open audio settings. ${summary}.`);
+  }
+}
+
 function renderSoundState(): void {
   for (const button of soundToggleButtons) {
     button.textContent = sound.isEnabled ? 'SFX on' : 'SFX off';
@@ -202,6 +259,7 @@ function renderSoundState(): void {
       sound.isEnabled ? 'Mute sound effects' : 'Enable sound effects',
     );
   }
+  renderAudioSettingsState();
 }
 
 function renderMusicState(): void {
@@ -213,6 +271,42 @@ function renderMusicState(): void {
       music.isEnabled ? 'Mute music' : 'Enable music',
     );
   }
+  renderAudioSettingsState();
+}
+
+function openAudioSettings(opener: HTMLButtonElement): void {
+  if (audioSettingsDialog.open || rendererError.open || vehicleSelector.open) return;
+  playMenuClick();
+  audioSettingsOpener = opener;
+  audioSettingsReturnSurface = pauseMenu.open ? 'pause' : 'menu';
+  if (pauseMenu.open) pauseMenu.close();
+  audioSettingsDialog.showModal();
+  focusNavigator.activate(
+    audioSettingsDialog,
+    musicToggleButtons[0] ?? closeAudioSettingsButton,
+    !document.hidden,
+  );
+}
+
+function closeAudioSettings(): void {
+  if (!audioSettingsDialog.open) return;
+  audioSettingsDialog.close();
+  const returnSurface = audioSettingsReturnSurface;
+  const opener = audioSettingsOpener;
+  audioSettingsReturnSurface = null;
+  audioSettingsOpener = null;
+  if (returnSurface === 'pause' && pauseReturnMode !== null) {
+    pauseMenu.showModal();
+    const target = opener ?? resumeButton;
+    if (!document.hidden) target.focus({ preventScroll: true });
+    focusNavigator.activate(pauseMenu, target, !document.hidden);
+  } else if (appMode === 'menu') {
+    const target = opener ?? startRaceButton;
+    if (!document.hidden) target.focus({ preventScroll: true });
+    focusNavigator.activate(gameMenu, target, !document.hidden);
+  } else {
+    restoreGameplayFocus();
+  }
 }
 
 function restoreGameplayFocus(): void {
@@ -220,6 +314,7 @@ function restoreGameplayFocus(): void {
     active
     && appMode !== 'menu'
     && !pauseMenu.open
+    && !audioSettingsDialog.open
     && !vehicleSelector.open
     && !rendererError.open
   ) {
@@ -449,7 +544,13 @@ function currentGameState(): PaperCircuitGameState {
 }
 
 function activateCurrentFocusSurface(focus = true): void {
-  if (rendererError.open) {
+  if (audioSettingsDialog.open) {
+    focusNavigator.activate(
+      audioSettingsDialog,
+      musicToggleButtons[0] ?? closeAudioSettingsButton,
+      focus,
+    );
+  } else if (rendererError.open) {
     focusNavigator.activate(rendererError, retryButton, focus);
   } else if (pauseMenu.open) {
     focusNavigator.activate(pauseMenu, resumeButton, focus);
@@ -466,11 +567,11 @@ function renderPauseSettings(): void {
   pauseCameraButton.hidden = appMode !== 'race';
   pauseDebugButton.hidden = appMode !== 'race';
   pauseCameraButton.textContent = `Camera: ${cameraMode === 'follow' ? 'Follow' : 'Aerial'}`;
-  pauseMediumButton.textContent = `Medium: ${titleCase(medium === 'chalk' ? 'charcoal' : medium)}`;
+  pauseMediumButton.textContent = `Medium: ${titleCase(medium)}`;
 }
 
 function openPauseMenu(): void {
-  if (appMode === 'menu' || rendererError.open || pauseMenu.open) return;
+  if (appMode === 'menu' || rendererError.open || pauseMenu.open || audioSettingsDialog.open) return;
   if (vehicleSelector.open) closeVehicleSelector(false);
   pauseReturnMode = appMode;
   if (appMode === 'race') simulation.pause();
@@ -519,14 +620,20 @@ function useCameraAction(): void {
 }
 
 function cycleMedium(): void {
-  const currentIndex = MEDIUM_IDS.indexOf(medium);
-  const next = MEDIUM_IDS[(currentIndex + 1) % MEDIUM_IDS.length] ?? 'graphite';
-  applyMedium(next, titleCase(next === 'chalk' ? 'charcoal' : next));
+  const next = nextPaperCircuitMedium(medium);
+  applyMedium(next, titleCase(next));
   renderPauseSettings();
 }
 
 function handleControlActions(controls: ControlSnapshot): boolean {
   if (rendererError.open) return false;
+  if (audioSettingsDialog.open) {
+    if (controls.actions.back.pressed || controls.actions.pause.pressed) {
+      closeAudioSettings();
+      return true;
+    }
+    return false;
+  }
   const actions: readonly GlobalControlActionId[] = ['back', 'pause', 'camera', 'reroll'];
   const gameState = currentGameState();
   for (const action of actions) {
@@ -568,7 +675,7 @@ function frame(now: number): void {
     controlHints.update(input.lastActiveDevice);
     const surfaceChanged = handleControlActions(controls);
     if (!surfaceChanged) focusNavigator.update(controls, delta);
-    if (pauseMenu.open || rendererError.open) {
+    if (audioSettingsDialog.open || pauseMenu.open || rendererError.open) {
       animationFrame = requestAnimationFrame(frame);
       return;
     }
@@ -673,6 +780,7 @@ function frame(now: number): void {
 function setAppMode(mode: 'menu' | 'race' | 'explore'): void {
   if (mode !== 'menu' || appMode !== 'menu') menuPreviewElapsed = 0;
   appMode = mode;
+  music.setMenuActive(mode === 'menu');
   if (mode !== 'explore' && vehicleSelector.open) closeVehicleSelector(false);
   if (mode !== 'explore') exploreEngineVehicleId = null;
   if (mode !== 'race') sound.syncDrift(false);
@@ -712,7 +820,6 @@ function openMenu(): void {
   playMenuClick();
   simulation.openMenu();
   engineSound.stopRace();
-  for (const input of lapInputs) input.checked = input.value === DEFAULT_RACE_LAPS.toString();
   renderLapSelection();
   setAppMode('menu');
   hud.announce('Race setup ready. Choose your medium and lap count.');
@@ -783,6 +890,7 @@ function dispose(): void {
   active = false;
   if (vehicleSelector.open) vehicleSelector.close();
   if (pauseMenu.open) pauseMenu.close();
+  if (audioSettingsDialog.open) audioSettingsDialog.close();
   if (rendererError.open) rendererError.close();
   cancelAnimationFrame(animationFrame);
   input.dispose();
@@ -802,8 +910,8 @@ function dispose(): void {
 }
 
 function applyMedium(selected: string, label: string): void {
-  if (!MEDIUM_IDS.includes(selected as MediumId)) return;
-  medium = selected as MediumId;
+  if (!isPaperCircuitMedium(selected)) return;
+  medium = selected;
   playMenuClick();
   mediumSelect.value = medium;
   for (const input of menuMediumInputs) input.checked = input.value === medium;
@@ -819,6 +927,7 @@ function applyMedium(selected: string, label: string): void {
     return;
   }
   hud.announce(`${label} medium applied.`);
+  persistMenuSettings();
   restoreGameplayFocus();
 }
 
@@ -840,6 +949,7 @@ for (const input of lapInputs) {
     if (!input.checked) return;
     playMenuClick();
     renderLapSelection();
+    persistMenuSettings();
     hud.announce(`${selectedLapCount()} lap race selected.`);
   });
 }
@@ -902,6 +1012,10 @@ pauseMenu.addEventListener('cancel', (event) => {
   event.preventDefault();
   closePauseMenu();
 });
+audioSettingsDialog.addEventListener('cancel', (event) => {
+  event.preventDefault();
+  closeAudioSettings();
+});
 rendererError.addEventListener('cancel', (event) => {
   event.preventDefault();
 });
@@ -914,8 +1028,8 @@ for (const button of soundToggleButtons) {
     sound.unlock();
     const enabled = sound.toggle();
     engineSound.setEnabled(enabled);
+    persistMenuSettings();
     renderSoundState();
-    restoreGameplayFocus();
   });
 }
 renderSoundState();
@@ -924,11 +1038,30 @@ for (const button of musicToggleButtons) {
     playMenuClick();
     music.unlock();
     music.toggle();
+    persistMenuSettings();
     renderMusicState();
-    restoreGameplayFocus();
   });
 }
 renderMusicState();
+
+for (const button of openAudioSettingsButtons) {
+  button.addEventListener('click', () => {
+    openAudioSettings(button);
+  });
+}
+closeAudioSettingsButton.addEventListener('click', closeAudioSettings);
+musicVolumeInput.addEventListener('input', () => {
+  music.setVolume(Number(musicVolumeInput.value) / 100);
+  persistMenuSettings();
+  renderAudioSettingsState();
+});
+sfxVolumeInput.addEventListener('input', () => {
+  const volume = Number(sfxVolumeInput.value) / 100;
+  sound.setVolume(volume);
+  engineSound.setVolume(volume);
+  persistMenuSettings();
+  renderAudioSettingsState();
+});
 
 routeDebugButton.addEventListener('click', toggleRouteDebug);
 renderRouteDebugState();
@@ -940,6 +1073,7 @@ if (mediumSelect.value !== medium) {
   mediumSelect.value = medium;
 }
 for (const input of menuMediumInputs) input.checked = input.value === medium;
+for (const input of lapInputs) input.checked = input.value === savedMenuSettings.laps.toString();
 renderLapSelection();
 
 /* The HUD remains a pointer shortcut; the same operations are available as abstract actions. */

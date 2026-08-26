@@ -180,6 +180,7 @@ export class RaceEngineAudioController {
   private buffersPromise: Promise<readonly AudioBuffer[]> | null = null;
   private enabled = true;
   private paused = false;
+  private volume = 1;
   private raceActive = false;
   private freeDriveVoiceIndex: number | null = null;
   private raceToken = 0;
@@ -261,8 +262,14 @@ export class RaceEngineAudioController {
     this.paused = paused;
     const context = this.context;
     if (context !== null) {
-      this.master?.gain.setTargetAtTime(paused ? 0.16 : 1, context.currentTime, 0.08);
+      this.master?.gain.setTargetAtTime(this.masterVolume(), context.currentTime, 0.08);
     }
+  }
+
+  public setVolume(volume: number): void {
+    this.volume = Number.isFinite(volume) ? Math.max(0, Math.min(1, volume)) : 1;
+    const context = this.context;
+    if (context !== null) this.master?.gain.setTargetAtTime(this.masterVolume(), context.currentTime, 0.08);
   }
 
   public sync(snapshot: RaceSnapshot, input: DriveInput, deltaSeconds: number): void {
@@ -294,7 +301,7 @@ export class RaceEngineAudioController {
     if (playerAirborne && !this.previousPlayerAirborne) this.playTakeoffCue();
     this.previousPlayerAirborne = playerAirborne;
     this.master?.gain.setTargetAtTime(
-      this.paused || snapshot.phase === 'paused' ? 0.16 : 1,
+      this.masterVolume(snapshot.phase === 'paused'),
       now,
       0.08,
     );
@@ -329,7 +336,7 @@ export class RaceEngineAudioController {
     const gear = selectEngineGear(racer.speed, previousGear);
     this.previousGears.set(racer.id, gear);
     const now = this.context.currentTime;
-    this.master?.gain.setTargetAtTime(this.paused ? 0.16 : 1, now, 0.08);
+    this.master?.gain.setTargetAtTime(this.masterVolume(), now, 0.08);
     this.voices.forEach((voice, index) => {
       if (index !== selectedIndex) {
         voice.gain.gain.setTargetAtTime(0, now, 0.05);
@@ -362,12 +369,16 @@ export class RaceEngineAudioController {
     try {
       this.context = this.createContext();
       this.master = this.context.createGain();
-      this.master.gain.value = 0.86;
+      this.master.gain.value = this.masterVolume();
       this.master.connect(this.context.destination);
       return this.context;
     } catch {
       return null;
     }
+  }
+
+  private masterVolume(forcePaused = false): number {
+    return this.volume * (this.paused || forcePaused ? 0.16 : 1);
   }
 
   private loadBuffers(context: AudioContext): Promise<readonly AudioBuffer[]> {

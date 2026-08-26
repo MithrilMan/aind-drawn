@@ -107,6 +107,7 @@ export class SoundController {
   private driftActive = false;
   private offRoadActive = false;
   private curbImpactActive = false;
+  private volume = 1;
 
   public constructor(
     createAudio: AudioFactory = (source) => new Audio(source),
@@ -121,6 +122,10 @@ export class SoundController {
 
   public get isEnabled(): boolean {
     return this.enabled;
+  }
+
+  public get currentVolume(): number {
+    return this.volume;
   }
 
   public unlock(): void {
@@ -149,12 +154,20 @@ export class SoundController {
     }
   }
 
+  public setVolume(volume: number): void {
+    this.volume = clampVolume(volume);
+    for (const id of SOUND_EFFECT_IDS) {
+      const clip = this.clips.get(id);
+      if (clip !== undefined) clip.volume = SOUND_VOLUMES[id] * this.volume;
+    }
+  }
+
   public play(effect: SoundEffectId, options: SoundOptions = {}): void {
     if (!this.enabled) return;
     const clip = this.clips.get(effect);
     if (clip === undefined) return;
     clip.loop = false;
-    clip.volume = clampVolume(options.volume ?? SOUND_VOLUMES[effect]);
+    clip.volume = clampVolume(options.volume ?? SOUND_VOLUMES[effect]) * this.volume;
     this.stopClip(clip);
     void clip.play().catch(() => undefined);
   }
@@ -167,7 +180,7 @@ export class SoundController {
     if (active && this.enabled) {
       this.stopClip(clip);
       clip.loop = true;
-      clip.volume = SOUND_VOLUMES['drift-skid'];
+      clip.volume = SOUND_VOLUMES['drift-skid'] * this.volume;
       void clip.play().catch(() => undefined);
     } else {
       this.stopClip(clip);
@@ -182,7 +195,7 @@ export class SoundController {
     if (active && this.enabled) {
       this.stopClip(clip);
       clip.loop = true;
-      clip.volume = SOUND_VOLUMES['offroad-loop'];
+      clip.volume = SOUND_VOLUMES['offroad-loop'] * this.volume;
       void clip.play().catch(() => undefined);
     } else {
       this.stopClip(clip);

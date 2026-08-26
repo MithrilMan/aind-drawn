@@ -110,7 +110,7 @@ export class ControlFocusNavigator {
 
   private targets(): readonly HTMLElement[] {
     return [...(this.surface?.root.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), select:not([disabled]), input[type="radio"]:checked:not([disabled])',
+      'button:not([disabled]), select:not([disabled]), input[type="radio"]:checked:not([disabled]), input[type="range"]:not([disabled])',
     ) ?? [])].filter(isAvailable);
   }
 
@@ -146,6 +146,12 @@ export class ControlFocusNavigator {
       }
       return;
     }
+    if (current instanceof HTMLInputElement && current.type === 'range') {
+      if (direction === 1) current.stepUp();
+      else current.stepDown();
+      current.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
     if (!(current instanceof HTMLInputElement) || current.type !== 'radio') {
       this.moveFocus(direction);
       return;
@@ -164,7 +170,10 @@ export class ControlFocusNavigator {
 
   private activateCurrent(): void {
     const current = this.currentTarget(this.targets());
-    if (current instanceof HTMLButtonElement || current instanceof HTMLInputElement) {
+    if (
+      current instanceof HTMLButtonElement
+      || (current instanceof HTMLInputElement && current.type !== 'range')
+    ) {
       current.click();
     }
   }
@@ -179,7 +188,10 @@ export class ControlFocusNavigator {
       && focused.type === 'radio'
       && focused.checked
       && !focused.disabled;
-    if (!isButton && !isSelect && !isCheckedRadio) return;
+    const isRange = focused instanceof HTMLInputElement
+      && focused.type === 'range'
+      && !focused.disabled;
+    if (!isButton && !isSelect && !isCheckedRadio && !isRange) return;
     this.markFocused(focused);
   }
 

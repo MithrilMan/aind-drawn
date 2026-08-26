@@ -7,19 +7,12 @@ import {
   type MediumId,
 } from '../../../../src/index.js';
 import { DoodleScene } from './doodle-scene.js';
+import { PAPER_CIRCUIT_MEDIUM_IDS } from './drawing-medium.js';
 import {
   DEFAULT_VEHICLE_SEEDS,
   createPaperCircuitVehicleIdentity,
 } from './vehicle-field.js';
 
-const PREVIEW_ORDER = Object.freeze<readonly MediumId[]>([
-  'oil',
-  'graphite',
-  'ink',
-  'watercolor',
-  'chalk',
-  'marker',
-]);
 const CAMERA_TARGET = new THREE.Vector3(0, 0.68, 0);
 
 function nextFrame(): Promise<void> {
@@ -29,8 +22,8 @@ function nextFrame(): Promise<void> {
 }
 
 /**
- * Rasterizes the same procedural vehicle through every public MediumId using one
- * short-lived Doodle renderer. The menu keeps lightweight images instead of six
+ * Rasterizes the same procedural vehicle through every supported race medium using one
+ * short-lived Doodle renderer. The menu keeps lightweight images instead of three
  * permanent WebGL contexts, which matters considerably on mobile browsers.
  */
 export class MediumVehicleGallery {
@@ -50,7 +43,7 @@ export class MediumVehicleGallery {
       physical: Object.freeze({ finish: 'matte' }),
     });
     this.rig = new SolidRig(solid, { instanceId: 'paper-circuit:medium-gallery-car' });
-    this.doodle = new DoodleScene(canvas, viewport, 'oil', {
+    this.doodle = new DoodleScene(canvas, viewport, 'graphite', {
       preserveDrawingBuffer: true,
     });
     this.doodle.setAssets([Object.freeze({
@@ -63,7 +56,7 @@ export class MediumVehicleGallery {
 
   public async render(): Promise<void> {
     try {
-      for (const medium of PREVIEW_ORDER) {
+      for (const medium of PAPER_CIRCUIT_MEDIUM_IDS) {
         if (!this.active) return;
         this.doodle.setMedium(medium);
         this.updateCamera();

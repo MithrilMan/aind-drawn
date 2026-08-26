@@ -8,12 +8,12 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 
 ## Evidence
 
-- The verification suites pass: 17 test files and 206 tests after the course compiler, continuous
+- The verification suites pass: 20 test files and 236 tests after the course compiler, continuous
   route-coverage, race-menu, explorer, vehicle-pose,
   hidden-carrier, Explore-camera, character-axis, and grandstand-grounding regressions were added.
-  The focused Doodle Race suite passes 51 tests, including pencil-path validation, shortcut
+  The focused Doodle Race suite passes 60 tests, including pencil-path validation, shortcut
   rejection, queued reroll, smoke-tail animation, and fixed-world minimap projection.
-- Live browser QA at the desktop viewport confirms the initial `Oil`/`5 laps` menu, a 10-lap
+- Live browser QA at the desktop viewport confirms the initial `Graphite`/`5 laps` menu, a 10-lap
   start, the fixed-world Aerial camera, and a random-character grandstand walk with `idle`/`walk` state.
 - At 320px, the brand/settings plates overlap and the fixed-size touch controls overlap adjacent targets. At 390px, the running-order plate overlaps the drift HUD.
 - Follow remains the close oblique camera. Aerial is a marker-free, perfectly vertical,
@@ -58,7 +58,9 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   chassis' local X axis, while wheel-bearing roots remain level with the road. This fixes the
   disappearing-car failure caused by mutating `root.rotation.z` after writing a world quaternion.
 - The race starts in an explicit menu. Supported lap counts are `3`, `5`, `10`, and `20`, with a
-  default of `5`; Oil remains the default medium.
+  default of `5`; Graphite is the factory-default medium, and Paper Circuit exposes only Graphite,
+  Ink, and Oil. The last valid medium, lap count, Music/SFX state, and category volumes persist as
+  one versioned local menu record and become the next launch defaults.
 - `GrandstandExplorer` uses a Web Crypto session seed to choose a character species, lets the
   player roam the full course bounds, grounds movement on authored grandstand steps, blocks
   upward transitions above the maximum step height, and supports `Shift` run plus `Space` jump.
@@ -124,7 +126,11 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   crossfaded loop, then modulates rate, low-pass frequency, gain, and stereo position from speed,
   acceleration, and braking. Countdown ticks are synthesized before the authored GO cue. The
   existing HTML-audio controller owns UI/poof/GO/drift/applause plus a generated gravel loop and
-  keeps all longer layers edge-triggered. One SFX toggle controls both controllers.
+  keeps all longer layers edge-triggered. One SFX toggle and volume control govern both controllers.
+  The former generated eight-second score was replaced by the user-supplied three-minute
+  `main-song.opus`, transcoded from 192 kbps MP3 to 80 kbps VBR Opus (4.14 MiB to 1.79 MiB). It
+  loops only while the initial menu is active. Menu and pause open the same accessible second-level
+  audio mixer; keyboard/controller focus returns to the invoking surface after close.
 - Race drift feedback is one bounded `race-effects` solid registered through the shared Doodle
   pass. Rear-wheel sources come from the vehicles' authored `wheel:rear:left/right` nodes. A
   single dynamic faceted mesh stores up to 512 paired skid segments, avoiding one carrier and four

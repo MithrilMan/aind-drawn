@@ -120,8 +120,9 @@
             <div class="menu-topline">
               <p class="menu-kicker">Paper Circuit / Race control</p>
               <div class="menu-audio-controls" aria-label="Audio settings">
-                <button class="sound-toggle menu-sound-toggle" type="button" data-music-toggle aria-pressed="true" aria-label="Toggle music">Music on</button>
-                <button class="sound-toggle menu-sound-toggle" type="button" data-sound-toggle aria-pressed="true" aria-label="Toggle sound effects">SFX on</button>
+                <button class="sound-toggle menu-sound-toggle" type="button" aria-haspopup="dialog" aria-controls="audio-settings" data-open-audio-settings>
+                  Audio <span data-audio-summary>Music on · SFX on</span>
+                </button>
               </div>
             </div>
             <div class="menu-options">
@@ -129,7 +130,7 @@
                 <legend>Drawing medium</legend>
                 <div class="medium-gallery" aria-label="Choose a drawing medium">
                   <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="graphite" data-menu-medium>
+                    <input type="radio" name="menu-medium" value="graphite" data-menu-medium checked>
                     <span class="medium-card-visual"><img alt="" data-medium-thumbnail="graphite"><i>Rendering</i></span>
                     <span>Graphite</span>
                   </label>
@@ -139,24 +140,9 @@
                     <span>Ink</span>
                   </label>
                   <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="watercolor" data-menu-medium>
-                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="watercolor"><i>Rendering</i></span>
-                    <span>Watercolour</span>
-                  </label>
-                  <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="oil" data-menu-medium checked>
+                    <input type="radio" name="menu-medium" value="oil" data-menu-medium>
                     <span class="medium-card-visual"><img alt="" data-medium-thumbnail="oil"><i>Rendering</i></span>
                     <span>Oil</span>
-                  </label>
-                  <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="chalk" data-menu-medium>
-                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="chalk"><i>Rendering</i></span>
-                    <span>Charcoal</span>
-                  </label>
-                  <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="marker" data-menu-medium>
-                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="marker"><i>Rendering</i></span>
-                    <span>Marker</span>
                   </label>
                 </div>
                 <div class="medium-thumbnail-renderer" data-medium-thumbnail-viewport aria-hidden="true">
@@ -254,10 +240,7 @@
             <select name="medium" data-medium>
               <option value="graphite">Graphite</option>
               <option value="ink">Ink</option>
-              <option value="watercolor">Watercolour</option>
-              <option value="oil" selected>Oil</option>
-              <option value="chalk">Charcoal</option>
-              <option value="marker">Marker</option>
+              <option value="oil">Oil</option>
             </select>
           </label>
           <div class="camera-control" role="group" aria-label="Camera mode">
@@ -412,15 +395,41 @@
                 <strong>Resume</strong>
                 <span data-control-hint="pause"></span>
               </button>
-              <button type="button" data-music-toggle aria-pressed="true">Music on</button>
-              <button type="button" data-sound-toggle aria-pressed="true">SFX on</button>
+              <button type="button" aria-haspopup="dialog" aria-controls="audio-settings" data-open-audio-settings>Audio settings</button>
               <button type="button" data-pause-camera>Camera: Follow</button>
-              <button type="button" data-pause-medium>Medium: Oil</button>
+              <button type="button" data-pause-medium>Medium: Graphite</button>
               <button type="button" data-pause-debug>Debug path: Off</button>
               <button class="pause-menu-exit" type="button" data-pause-main-menu>Main menu</button>
             </div>
             <p class="pause-menu-help"><kbd data-control-hint="back"></kbd> also resumes</p>
           </div>
+        </dialog>
+
+        <dialog class="pause-menu audio-settings" id="audio-settings" data-audio-settings aria-labelledby="audio-settings-title">
+          <form class="pause-menu-panel audio-settings-panel" method="dialog">
+            <p class="pause-menu-kicker">Paper Circuit / Mix</p>
+            <h2 id="audio-settings-title">Audio</h2>
+            <p class="pause-menu-copy">Set the menu music and game sound mix. Choices stay on this device.</p>
+            <div class="audio-channel-list">
+              <section class="audio-channel" aria-labelledby="music-channel-title">
+                <div class="audio-channel-heading">
+                  <span><strong id="music-channel-title">Music</strong><small>Menu only</small></span>
+                  <button type="button" data-music-toggle aria-pressed="true">Music on</button>
+                </div>
+                <label for="music-volume"><span>Volume</span><output for="music-volume" data-music-volume-output>100%</output></label>
+                <input id="music-volume" type="range" min="0" max="100" step="5" value="100" data-music-volume>
+              </section>
+              <section class="audio-channel" aria-labelledby="sfx-channel-title">
+                <div class="audio-channel-heading">
+                  <span><strong id="sfx-channel-title">Sound effects</strong><small>Race, UI, and engines</small></span>
+                  <button type="button" data-sound-toggle aria-pressed="true">SFX on</button>
+                </div>
+                <label for="sfx-volume"><span>Volume</span><output for="sfx-volume" data-sfx-volume-output>100%</output></label>
+                <input id="sfx-volume" type="range" min="0" max="100" step="5" value="100" data-sfx-volume>
+              </section>
+            </div>
+            <button class="audio-settings-done" type="button" data-audio-settings-close>Done</button>
+          </form>
         </dialog>
 
         <p class="visually-hidden" aria-live="polite" data-live-status>

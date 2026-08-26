@@ -327,6 +327,12 @@ canvas {
   border-color: var(--focus);
 }
 
+.menu-sound-toggle span {
+  margin-inline-start: 5px;
+  color: var(--paper-muted);
+  font-size: .46rem;
+}
+
 .menu-character-card {
   position: absolute;
   z-index: 2;
@@ -1797,7 +1803,8 @@ canvas {
 .vehicle-selector button[data-control-focus],
 .renderer-error button[data-control-focus],
 .pause-menu button[data-control-focus],
-.pause-menu select[data-control-focus] {
+.pause-menu select[data-control-focus],
+.pause-menu input[data-control-focus] {
   position: relative;
   outline: 3px solid var(--focus);
   outline-offset: 3px;
@@ -1915,6 +1922,103 @@ canvas {
   justify-self: end;
   color: var(--paper-muted);
   letter-spacing: .07em;
+}
+
+.audio-settings {
+  inline-size: min(520px, calc(100% - 34px));
+}
+
+.audio-settings-panel {
+  gap: 14px;
+}
+
+.audio-channel-list {
+  display: grid;
+  gap: 10px;
+}
+
+.audio-channel {
+  display: grid;
+  gap: 11px;
+  padding: 15px;
+  border: 1px solid var(--rule);
+  background: rgb(23 25 24 / 44%);
+}
+
+.audio-channel-heading,
+.audio-channel label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.audio-channel-heading > span {
+  display: grid;
+  gap: 2px;
+}
+
+.audio-channel-heading strong {
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+  font-size: 1.25rem;
+  font-style: italic;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+.audio-channel-heading small,
+.audio-channel label {
+  color: var(--paper-muted);
+  font-size: .58rem;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.audio-channel button,
+.audio-settings-done {
+  min-block-size: 42px;
+  padding: 8px 13px;
+  border: 1px solid var(--paper-muted);
+  background: var(--ink-soft);
+  color: var(--paper);
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.audio-channel button[aria-pressed='true'] {
+  border-color: var(--moss);
+  color: var(--moss);
+}
+
+.audio-channel input[type='range'] {
+  inline-size: 100%;
+  min-block-size: 28px;
+  margin: 0;
+  accent-color: var(--oxide-hot);
+}
+
+.audio-channel output {
+  color: var(--paper);
+  font-variant-numeric: tabular-nums;
+}
+
+.audio-settings-done {
+  min-block-size: 50px;
+  border-color: var(--oxide-hot);
+  background: var(--oxide);
+  color: var(--ink);
+}
+
+.audio-channel button:hover,
+.audio-channel button:focus-visible,
+.audio-settings-done:hover,
+.audio-settings-done:focus-visible,
+.audio-channel input[type='range']:focus-visible {
+  border-color: var(--focus);
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 @keyframes callout-in {
@@ -2590,6 +2694,7 @@ canvas {
   .renderer-error button[data-control-focus],
   .pause-menu button[data-control-focus],
   .pause-menu select[data-control-focus],
+  .pause-menu input[data-control-focus],
   .game-menu button[data-control-focus] {
     outline-color: Highlight;
     box-shadow: none;

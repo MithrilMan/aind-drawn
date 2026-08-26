@@ -40,18 +40,19 @@ the only permanent route marker.
 pnpm dev:doodle-racing
 ```
 
-Open `http://127.0.0.1:4176`. The intro menu defaults to the Oil medium and five laps, with
+Open `http://127.0.0.1:4176`. The intro menu defaults to the Graphite medium and five laps, with
 three, five, ten, and twenty laps available. A selected race begins with a six-second seeded
 grandstand camera pass, then a three-second starting countdown. Drive with the arrow keys, WASD, or
 a standard gamepad (left stick, triggers, and `A` or left-stick click for the handbrake). Use `Space` or `Shift` for the
 keyboard handbrake drift. `P` or the gamepad `Menu` button opens the pause dialog; it can resume,
 toggle music and sound effects, switch camera and medium, or return explicitly to the main menu.
-`Esc` and gamepad `B` are contextual back actions: they close the active dialog or resume from
+The initial menu and pause dialog both open the same second-level audio mixer for Music/SFX toggles
+and independent category volumes. `Esc` and gamepad `B` are contextual back actions: they close the active dialog or resume from
 pause, and never eject a running game directly to the main menu.
 
 The default camera follows the player with speed lead; `Aerial` tracks the player from directly
-above with a wider, fixed-world view of the surrounding circuit. Oil is
-the default medium, and changing medium rebuilds only the shared drawing policy while preserving
+above with a wider, fixed-world view of the surrounding circuit. Graphite is
+the default medium; Graphite, Ink, and Oil are available, and changing medium rebuilds only the shared drawing policy while preserving
 race state. Aerial deliberately omits racer labels so the road and nearby vehicles remain readable
 while driving. A separate fixed-world minimap uses the authoritative `CourseLayout` to show the
 complete road, start line, player heading, and unobtrusive opponent positions without racer labels.
@@ -149,9 +150,9 @@ The intro menu uses a dedicated Doodle 3D viewport for the procedural driver and
 backdrop; the character is not composited into the race canvas behind the menu. On desktop the
 live circuit remains visible around the centered setup composition. At narrow viewports the menu
 becomes a full-screen vertical selection surface and hides the race scene completely. The preview
-gallery rasterizes one procedural race car through all six public drawing media using a single
+gallery rasterizes one procedural race car through the three supported drawing media using a single
 short-lived Doodle renderer, then releases its WebGL context; native radio groups provide exclusive
-medium and lap selection without keeping six thumbnail renderers alive on mobile. The preview
+medium and lap selection without keeping three thumbnail renderers alive on mobile. The preview
 always opens its seed-specific animation script with the shared `dance` pose, then mixes in other
 actions before automatically swapping to a fresh character with the same smoke-burst transition.
 `N` and the visible `New driver` control reroll the preview, and entering Explore materializes the
@@ -169,9 +170,11 @@ engine controller extracts a stable crossfaded rev from each matching ignition, 
 modulates playback rate, low-pass filtering, gain, and stereo position from speed, acceleration, and
 braking. A separate steady engine clip remains available as a decode/loop fallback, and synthesized
 3-2-1 ticks lead into the authored GO cue. Audio stays lazy until the first user gesture. Sound
-effects and engine audio share the `SFX` category, while a lightweight deterministic procedural
-score has an independent `Music` category. Both can be changed from the controller-navigable pause
-dialog; music is attenuated while paused.
+effects and engine audio share the `SFX` category, while the bundled `main-song.opus` theme loops
+through an independent `Music` category only on the initial menu. Both categories expose on/off and
+volume controls through the shared controller-navigable audio mixer. Medium, lap count, and the
+complete audio mix persist together in browser storage on the device, making the last valid menu
+configuration the next launch default.
 
 Spectators are not static props. Their seeded cue loops mix `idle`, `play`, `dance` (a goofy Macarena-style loop), `airborne`, and `sit`
 poses, happy/surprised/idle expressions, autonomous blink and gaze, and a talking mouth command;

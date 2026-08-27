@@ -12,7 +12,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
   uniform sampler2D albedoTexture;
   uniform sampler2D normalTexture;
   uniform sampler2D markTexture;
-  uniform sampler2D anchorTexture;
+  uniform sampler2D surfaceTexture;
   uniform sampler2D depthTexture;
   uniform sampler2D policyTexture;
   uniform vec2 resolution;
@@ -53,6 +53,19 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     return mix(bottom, top, fraction.y);
   }
 
+  vec3 materialCoordinates(vec3 position) {
+    // Reconstruct the geometric normal in part-local space and select the
+    // dominant sheet plane. One 2D sample per field is considerably cheaper
+    // than triplanar noise on mobile, while the selected coordinates remain
+    // rigidly attached to the mesh under camera and object motion.
+    vec3 localNormal = abs(cross(dFdx(position), dFdy(position)));
+    if (localNormal.x > localNormal.y && localNormal.x > localNormal.z) {
+      return vec3(position.yz, 0.0);
+    }
+    if (localNormal.y > localNormal.z) return vec3(position.xz, 1.0);
+    return vec3(position.xy, 2.0);
+  }
+
   vec2 rotateDrawingField(vec2 point, float angle) {
     float cosine = cos(angle);
     float sine = sin(angle);
@@ -85,8 +98,13 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     return floor(packed * 0.5);
   }
 
+  float sampledPackedOwner(vec2 uv) {
+    return texture2D(surfaceTexture, clamp(uv, vec2(0.0), vec2(1.0))).a;
+  }
+
   float sampledCarrierOwner(vec2 uv) {
-    return texture2D(anchorTexture, clamp(uv, vec2(0.0), vec2(1.0))).b;
+    float packedOwner = sampledPackedOwner(uv);
+    return packedOwner < -1.5 ? 0.0 : abs(packedOwner);
   }
 
   vec4 policyTexel(float policySlot, float texel) {
@@ -227,9 +245,8 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
 
   float contourSurfaceKind(vec2 uv, float depth) {
     if (depth >= 9.0e5) return 0.0;
-    float owner = texture2D(anchorTexture, clamp(uv, vec2(0.0), vec2(1.0))).a;
-    if (owner < 0.25) return 1.0;
-    if (owner < 0.75) return 2.0;
+    float owner = sampledPackedOwner(uv);
+    if (owner < 0.0) return 2.0;
     return 3.0;
   }
 
@@ -347,6 +364,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
   float frontPaperBoundary(vec2 uv, vec2 pixel, float width) {
     float centerDepth = sampledDepth(uv);
     if (centerDepth >= 9.0e5) return 0.0;
+    if (contourSurfaceKind(uv, centerDepth) < 2.5) return 0.0;
     float centerOwner = sampledCarrierOwner(uv);
     float centerPolicySlot = sampledPolicySlot(uv);
     vec2 stepSize = pixel * max(1.0, width);
@@ -380,6 +398,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     vec2 sampleUv
   ) {
     float occluderDepth = sampledDepth(sampleUv);
+    if (contourSurfaceKind(sampleUv, occluderDepth) < 2.5) return 0.0;
     float ownerDifference = max(
       step(0.00024, abs(centerOwner - sampledCarrierOwner(sampleUv))),
       step(0.5, abs(centerPolicySlot - sampledPolicySlot(sampleUv)))
@@ -506,17 +525,14 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
 
     vec4 albedo = texture2D(albedoTexture, inkedUv);
     vec2 viewPosition = (gl_FragCoord.xy - resolution * 0.5) / resolution.y;
-    vec4 anchorData = texture2D(anchorTexture, inkedUv);
-    vec2 anchorNdc = anchorData.xy * 2.0 - 1.0;
-    vec2 anchorPosition = vec2(
-      anchorNdc.x * resolution.x / resolution.y,
-      anchorNdc.y
-    ) * 0.5;
-    // The paper stays fixed, but pigment is deposited in a field translated
-    // with the semantic part currently visible at this pixel. Articulated
-    // meshes therefore carry their drawing instead of sliding over it.
-    vec2 depositedPosition = viewPosition - anchorPosition;
-    float partPhase = anchorData.b * 19.0;
+    vec4 surfaceData = texture2D(surfaceTexture, inkedUv);
+    float carrierOwner = sampledCarrierOwner(inkedUv);
+    float paperCarrier = step(2.5, contourSurfaceKind(inkedUv, stableDepth));
+    // Drawing media live in the view: moving the camera exposes a fresh field,
+    // which preserves graphite redraw. Material treatments below use the
+    // part-local position stored by the carrier instead.
+    vec2 depositedPosition = viewPosition;
+    float partPhase = carrierOwner * 19.0;
     vec3 doodleLight = normalize(vec3(-0.38, 0.58, 0.72));
     float diffuse = clamp(dot(stableNormal, doodleLight), 0.0, 1.0);
     float planeLevels = max(1.0, planeSeparationSteps - 1.0);
@@ -827,24 +843,26 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       // Collage pigment is a cut sheet, not a wash. Keep the semantic colour
       // opaque and let only fine paper tooth perturb it; low-frequency medium
       // noise reads as giant airbrushed stains once the camera pulls back.
-      vec2 displayPoint = gl_FragCoord.xy / max(1.0, displayScale);
-      vec2 materialPoint = depositedPosition
-        * resolution.y
-        / max(1.0, displayScale);
-      vec2 fiberPoint = mix(displayPoint, materialPoint, collageProfile);
+      vec3 localMaterial = materialCoordinates(surfaceData.rgb);
+      vec2 materialPoint = localMaterial.xy * 18.0 + vec2(
+        partPhase * 0.73 + policySlot * 2.17 + localMaterial.z * 13.0,
+        partPhase * 1.11 + policySlot * 1.37 + localMaterial.z * 19.0
+      );
       float fiberBand = sin(
-        fiberPoint.x * 1.37
-          + valueNoise(fiberPoint / 29.0 + visualizationSeed * 37.0) * 4.2
+        dot(materialPoint, vec2(1.37, 0.31))
+          + valueNoise(materialPoint / 29.0 + visualizationSeed * 37.0) * 4.2
       ) * 0.5 + 0.5;
       float crossFiber = valueNoise(
-        fiberPoint * vec2(0.075, 0.54) + visualizationSeed * 91.0
+        materialPoint * vec2(0.075, 0.54) + visualizationSeed * 91.0
       ) - 0.5;
       float materialGrain = valueNoise(
-        fiberPoint / 3.2 + vec2(paperSeed * 97.0, paperSeed * 53.0)
+        materialPoint / 3.2 + vec2(paperSeed * 97.0, paperSeed * 53.0)
       ) - 0.5;
       float paperFiber = (
         materialGrain * 0.22
-          + (hash21(fiberPoint * 0.41 + visualizationSeed * 113.0) - 0.5) * 0.16
+          + (hash21(
+            materialPoint * 0.41 + visualizationSeed * 113.0
+          ) - 0.5) * 0.16
           + (fiberBand - 0.5) * mix(0.2, 0.055, agedDioramaProfile)
           + crossFiber * mix(0.24, 0.16, agedDioramaProfile)
       ) * visualizationPaperProfile.x;
@@ -854,7 +872,8 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
         // broad and softly abraded, never salt-and-pepper noise. Anchor the
         // field to each semantic part so cars carry their paper in motion.
         float broadPatina = valueNoise(
-          materialPoint / 76.0 + vec2(visualizationSeed * 47.0, visualizationSeed * 19.0)
+          materialPoint / 76.0
+            + vec2(visualizationSeed * 47.0, visualizationSeed * 19.0)
         );
         float compressedPatina = smoothstep(0.14, 0.88, broadPatina);
         collagePigment *= mix(0.88, 1.045, compressedPatina);
@@ -878,42 +897,43 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       float cutShadow = 0.0;
       cutShadow += paperOccluder(
         stableDepth,
-        anchorData.b,
+        carrierOwner,
         policySlot,
         inkedUv - shadowOffset * 0.72
       ) * 0.24;
       cutShadow += paperOccluder(
         stableDepth,
-        anchorData.b,
+        carrierOwner,
         policySlot,
         inkedUv - shadowOffset * 1.35
       ) * 0.23;
       cutShadow += paperOccluder(
         stableDepth,
-        anchorData.b,
+        carrierOwner,
         policySlot,
         inkedUv - shadowOffset * 2.15
       ) * 0.18;
       cutShadow += paperOccluder(
         stableDepth,
-        anchorData.b,
+        carrierOwner,
         policySlot,
         inkedUv - shadowOffset * 1.2 + penumbra
       ) * 0.13;
       cutShadow += paperOccluder(
         stableDepth,
-        anchorData.b,
+        carrierOwner,
         policySlot,
         inkedUv - shadowOffset * 1.2 - penumbra
       ) * 0.13;
       cutShadow += paperOccluder(
         stableDepth,
-        anchorData.b,
+        carrierOwner,
         policySlot,
         inkedUv - shadowOffset * 3.1
       ) * 0.09;
       cutShadow *= (1.0 - mainEdge * 0.46)
         * visualizationCutShadow.x
+        * paperCarrier
         * surface;
       color *= 1.0 - cutShadow;
 

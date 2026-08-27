@@ -34,11 +34,24 @@ Last updated: 2026-08-27
   dark neutral cars from being mistaken for asphalt.
 - Cut shadows require a different owner or policy slot plus a relative depth
   step. An owner boundary alone makes sloped sheets self-shadow into a grid.
-- Paper fibre uses part-relative CSS-pixel coordinates so texture follows a
-  moving asset and remains stable across device pixel ratios.
+- Drawing media and represented material use different temporal spaces.
+  Graphite and other deposited fills remain view-oriented and redraw as the
+  camera changes; Paper Cut and Aged Paper fibre, patina, abrasion, and torn
+  edges sample part-local material coordinates stored in the surface MRT.
+- The surface attachment stores local position in RGB and one signed owner key
+  in alpha. Negative keys retain the authored-ink/stroke distinction. This
+  replaces the projected two-dimensional owner anchor, needs no fifth MRT, and
+  reduces the compiled owner attribute from two floats to one.
+- Dominant local-plane projection keeps paper stock fixed to moving and
+  articulated meshes with one 2D noise sample per field. Triplanar noise was
+  rejected because its three samples per field added unjustified mobile cost.
 
 ## Performance
 
+- 2026-08-27 material-anchor revision: the Inked Solid benchmark renders 48
+  animated instances at 3,581.68 iterations/s (0.2792 ms mean), with the same
+  two draw calls, four render targets, and zero steady-state per-mesh
+  allocations.
 - 2026-08-27 paper-visualization audit: the Inked Solid benchmark renders 48
   animated instances across six media at 3,607.48 iterations/s (0.2772 ms
   mean) with two draw calls, four render targets, and zero steady-state
@@ -57,6 +70,10 @@ Last updated: 2026-08-27
 
 ## Verification
 
+- 2026-08-27: `pnpm verify` passed 22 files / 267 tests, verified 231 public
+  exports, and built all experiments. Browser QA covered camera rotation on
+  Aged Diorama, the raised course edge, layered ramps, desktop Explore, and
+  390x844 mobile with no WebGL errors.
 - 2026-08-27: `pnpm verify` passed 22 files / 266 tests, verified 231
   public exports, and built all experiments. Desktop 1440x900 and mobile
   390x844 browser QA covered both paper styles. A mobile reroll exposed seed

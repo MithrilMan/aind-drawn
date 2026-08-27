@@ -10,7 +10,7 @@ type InkedSolidCompositeUniforms = {
   albedoTexture: { value: THREE.Texture };
   normalTexture: { value: THREE.Texture };
   markTexture: { value: THREE.Texture };
-  anchorTexture: { value: THREE.Texture };
+  surfaceTexture: { value: THREE.Texture };
   depthTexture: { value: THREE.DepthTexture };
   policyTexture: { value: THREE.Texture };
   resolution: { value: THREE.Vector2 };
@@ -65,7 +65,7 @@ export class InkedSolidCompositor {
       albedoTexture: { value: targets.albedo },
       normalTexture: { value: targets.normal },
       markTexture: { value: targets.mark },
-      anchorTexture: { value: targets.anchor },
+      surfaceTexture: { value: targets.surface },
       depthTexture: { value: targets.depth },
       policyTexture: { value: policies.texture },
       resolution: { value: new THREE.Vector2(1, 1) },

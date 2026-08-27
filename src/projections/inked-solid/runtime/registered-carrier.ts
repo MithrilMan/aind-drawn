@@ -61,7 +61,6 @@ export class RegisteredInkedSolidCarrier {
   private readonly strokeRig: InkedSolidStrokeRig;
   private readonly parts: PartRecord[] = [];
   private readonly strokes: StrokeRecord[] = [];
-  private readonly projectedAnchor = new THREE.Vector3();
   private readonly proxies: THREE.Mesh[] = [];
   private readonly localBounds: THREE.Box3;
   private readonly worldBounds = new THREE.Box3();
@@ -103,15 +102,13 @@ export class RegisteredInkedSolidCarrier {
         if (source === null || surface === undefined || mark === undefined) {
           throw new Error(`Cannot register incomplete inked-solid part ${part.id}`);
         }
-        const stageMaterials = this.materialCache.part(part, surface, mark);
-        const contourOwner = surface.drawing.application === 'ink' ? 0.5 : 1;
-        stageMaterials.anchorData.set(
-          0,
-          0,
+        const stageMaterials = this.materialCache.part(
+          part,
+          surface,
+          mark,
           ownerKeys.allocate(hashString(
             `${instanceId}:${blueprint.deposition.seed}:${part.id}`,
           )),
-          contourOwner,
         );
         this.parts.push(Object.freeze({
           source,
@@ -166,7 +163,7 @@ export class RegisteredInkedSolidCarrier {
     for (const record of this.strokes) record.materials.revealProgress.value = progress;
   }
 
-  public sync(camera: THREE.Camera, frustum: THREE.Frustum): void {
+  public sync(_camera: THREE.Camera, frustum: THREE.Frustum): void {
     this.assertAlive();
     if (!visibleInHierarchy(this.rig.root)) {
       this.hideProxies();
@@ -184,9 +181,6 @@ export class RegisteredInkedSolidCarrier {
     for (const record of this.parts) {
       const visible = visibleInHierarchy(record.source);
       syncProxy(record.source, record.proxy, visible);
-      this.projectedAnchor.setFromMatrixPosition(record.source.matrixWorld).project(camera);
-      record.materials.anchorData.x = this.projectedAnchor.x * 0.5 + 0.5;
-      record.materials.anchorData.y = this.projectedAnchor.y * 0.5 + 0.5;
     }
     for (const record of this.strokes) {
       syncProxy(

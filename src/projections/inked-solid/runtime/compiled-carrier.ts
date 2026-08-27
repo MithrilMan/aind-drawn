@@ -20,7 +20,7 @@ import type { InkedSolidCarrierScenes } from './registered-carrier.js';
 import { InkedSolidStrokeRig } from './stroke-rig.js';
 import { inkedSolidSurfaceFlow } from './surface-flow.js';
 
-export const INKED_SOLID_CARRIER_COMPILER_VERSION = 2 as const;
+export const INKED_SOLID_CARRIER_COMPILER_VERSION = 3 as const;
 
 const MARK_STYLE_MODE = Object.freeze({
   none: 0,
@@ -42,7 +42,7 @@ const HIDDEN_MATRIX = new THREE.Matrix4().makeTranslation(1e6, 1e6, 1e6);
 type CarrierValues = Readonly<{
   albedo: readonly [number, number, number, number];
   mark: readonly [number, number, number, number];
-  owner: readonly [number, number];
+  owner: number;
   flow: number;
   reveal: (localProgress: number) => number;
 }>;
@@ -137,10 +137,7 @@ function partValues(
         surface.substance,
       ),
     ),
-    owner: Object.freeze([
-      ownerKey,
-      surface.drawing.application === 'ink' ? 0.5 : 1,
-    ] as const),
+    owner: surface.drawing.application === 'ink' ? -ownerKey : ownerKey,
     flow: inkedSolidSurfaceFlow(part.geometry) === 'faceted' ? 1 : 0,
     reveal: () => -1,
   });
@@ -151,7 +148,7 @@ function strokeValues(stroke: InkedSolidStrokeSpec): CarrierValues {
   return Object.freeze({
     albedo: Object.freeze([color.r, color.g, color.b, stroke.opacity] as const),
     mark: Object.freeze([0, 0, 0, 0] as const),
-    owner: Object.freeze([0, 0.5] as const),
+    owner: -2,
     flow: 0,
     reveal: (localProgress) => (
       stroke.reveal.start + localProgress * (stroke.reveal.end - stroke.reveal.start)
@@ -263,7 +260,7 @@ function compileGeometry(
   const skinWeights = new Float32Array(vertices * 4);
   const albedo = new Float32Array(vertices * 4);
   const marks = new Float32Array(vertices * 4);
-  const owners = new Float32Array(vertices * 2);
+  const owners = new Float32Array(vertices);
   const flows = new Float32Array(vertices);
   const reveals = new Float32Array(vertices);
   const position = new THREE.Vector3();
@@ -308,9 +305,7 @@ function compileGeometry(
       marks[skinOffset + 2] = source.values.mark[2];
       marks[skinOffset + 3] = source.values.mark[3];
 
-      const ownerOffset = targetVertex * 2;
-      owners[ownerOffset] = source.values.owner[0];
-      owners[ownerOffset + 1] = source.values.owner[1];
+      owners[targetVertex] = source.values.owner;
       flows[targetVertex] = source.values.flow;
       reveals[targetVertex] = source.values.reveal(localReveal?.getX(vertex) ?? 0);
     }
@@ -336,7 +331,7 @@ function compileGeometry(
   geometry.setAttribute('skinWeight', new THREE.BufferAttribute(skinWeights, 4));
   geometry.setAttribute('inkedAlbedo', new THREE.BufferAttribute(albedo, 4));
   geometry.setAttribute('inkedMark', new THREE.BufferAttribute(marks, 4));
-  geometry.setAttribute('inkedOwner', new THREE.BufferAttribute(owners, 2));
+  geometry.setAttribute('inkedOwner', new THREE.BufferAttribute(owners, 1));
   geometry.setAttribute('inkedFlow', new THREE.BufferAttribute(flows, 1));
   geometry.setAttribute('inkedRevealProgress', new THREE.BufferAttribute(reveals, 1));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
@@ -421,16 +416,16 @@ export class InkedSolidCarrierCompilationCache {
 const COMPILED_VERTEX = /* glsl */`
   in vec4 inkedAlbedo;
   in vec4 inkedMark;
-  in vec2 inkedOwner;
+  in float inkedOwner;
   in float inkedFlow;
   in float inkedRevealProgress;
 
   flat out vec4 carrierAlbedo;
   flat out vec4 carrierMark;
-  flat out vec2 carrierOwner;
+  flat out float carrierOwner;
   flat out float carrierFlow;
   out float carrierReveal;
-  out vec2 carrierAnchor;
+  out vec3 carrierMaterialPosition;
   out vec3 carrierViewNormal;
 
   #include <skinning_pars_vertex>
@@ -438,14 +433,13 @@ const COMPILED_VERTEX = /* glsl */`
   void main() {
     mat4 boneMatrix = getBoneMatrix(skinIndex.x);
     vec4 worldPosition = boneMatrix * vec4(position, 1.0);
-    vec4 anchorClip = projectionMatrix * viewMatrix * boneMatrix * vec4(0.0, 0.0, 0.0, 1.0);
     mat3 viewNormalMatrix = transpose(inverse(mat3(viewMatrix * boneMatrix)));
     carrierAlbedo = inkedAlbedo;
     carrierMark = inkedMark;
     carrierOwner = inkedOwner;
     carrierFlow = inkedFlow;
     carrierReveal = inkedRevealProgress;
-    carrierAnchor = anchorClip.xy / max(0.000001, anchorClip.w) * 0.5 + 0.5;
+    carrierMaterialPosition = position;
     carrierViewNormal = normalize(viewNormalMatrix * normal);
     gl_Position = projectionMatrix * viewMatrix * worldPosition;
   }
@@ -456,22 +450,22 @@ const COMPILED_FRAGMENT = /* glsl */`
   uniform float revealProgress;
   flat in vec4 carrierAlbedo;
   flat in vec4 carrierMark;
-  flat in vec2 carrierOwner;
+  flat in float carrierOwner;
   flat in float carrierFlow;
   in float carrierReveal;
-  in vec2 carrierAnchor;
+  in vec3 carrierMaterialPosition;
   in vec3 carrierViewNormal;
 
   layout(location = 0) out vec4 inkedAlbedoOutput;
   layout(location = 1) out vec4 inkedMarkOutput;
-  layout(location = 2) out vec4 inkedAnchorOutput;
+  layout(location = 2) out vec4 inkedSurfaceOutput;
   layout(location = 3) out vec4 inkedNormalOutput;
 
   void main() {
     if (carrierReveal >= 0.0 && carrierReveal > revealProgress) discard;
     inkedAlbedoOutput = carrierAlbedo;
     inkedMarkOutput = carrierMark;
-    inkedAnchorOutput = vec4(carrierAnchor, carrierOwner);
+    inkedSurfaceOutput = vec4(carrierMaterialPosition, carrierOwner);
     inkedNormalOutput = vec4(
       normalize(carrierViewNormal) * 0.5 + 0.5,
       (policySlot * 2.0 + carrierFlow) / 255.0

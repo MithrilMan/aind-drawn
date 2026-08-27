@@ -9,7 +9,10 @@ import {
   type SurfaceSubstance,
 } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
-import { createCourseRibbonGeometry } from './course-ribbon-geometry.js';
+import {
+  createCourseRibbonGeometry,
+  createCourseRibbonPrismGeometry,
+} from './course-ribbon-geometry.js';
 
 const IDENTITY_ROTATION = Object.freeze([0, 0, 0, 1] as const);
 
@@ -59,15 +62,27 @@ export function createCourseBlueprint(
     }),
     part({
       id: 'edge:left', semanticPartId: 'edge', node: 'root', order: 2,
-      geometry: createCourseRibbonGeometry(layout, halfTrack, halfTrack + 0.38),
-      surfaceId: 'edge', placement: Object.freeze({ position: [0, 0.016, 0] as const }),
-      castShadow: false, receiveShadow: true,
+      geometry: createCourseRibbonPrismGeometry(
+        layout,
+        halfTrack,
+        halfTrack + 0.34,
+        0.035,
+        0.115,
+      ),
+      surfaceId: 'edge', placement: Object.freeze({ position: [0, 0, 0] as const }),
+      castShadow: true, receiveShadow: true,
     }),
     part({
       id: 'edge:right', semanticPartId: 'edge', node: 'root', order: 2,
-      geometry: createCourseRibbonGeometry(layout, -halfTrack, -halfTrack - 0.38),
-      surfaceId: 'edge', placement: Object.freeze({ position: [0, 0.016, 0] as const }),
-      castShadow: false, receiveShadow: true,
+      geometry: createCourseRibbonPrismGeometry(
+        layout,
+        -halfTrack,
+        -halfTrack - 0.34,
+        0.035,
+        0.115,
+      ),
+      surfaceId: 'edge', placement: Object.freeze({ position: [0, 0, 0] as const }),
+      castShadow: true, receiveShadow: true,
     }),
   ];
   for (let index = 0; index < stripeCount; index += 1) {
@@ -127,7 +142,7 @@ export function createCourseBlueprint(
     surfaces: Object.freeze([
       surface('grass', [179, 181, 132], 'foliage', 'pigment', { value: 'mid', gesture: 'agitated' }),
       surface('road', [111, 102, 91], 'stone', 'pigment', { value: 'mid', gesture: 'regular' }),
-      surface('edge', [187, 69, 47], 'paint', 'glaze', { value: 'mid', gesture: 'agitated' }),
+      surface('edge', [195, 76, 54], 'paper', 'pigment', { value: 'mid', gesture: 'regular' }),
       surface('finish-dark', [42, 42, 38], 'paint', 'ink', { value: 'solid', gesture: 'regular' }),
       surface('finish-light', [237, 225, 201], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
     ]),

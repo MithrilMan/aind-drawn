@@ -31,8 +31,10 @@ pretending sepia is a drawing tool. `paper-collage` supplies a clean, mobile-
 stable paper-cut assembly over the semantic `cut-paper` direction.
 `aged-paper-diorama` pairs with `aged-paper` to add the muted olive, charcoal,
 coral, and aged-pigment response of a deeper tabletop diorama. Both paper
-visualizations separate silhouette, crease, and owner edges, anchor their fibre
-to semantic parts, and gate cut shadows by real layer boundaries. Use an art
+visualizations separate silhouette, crease, and owner edges, sample fibre and
+wear from part-local material coordinates, and gate cut shadows by real layer
+boundaries. Camera motion therefore redraws Graphite but cannot slide the paper
+stock across a cut object. Use an art
 direction when roles, palette, paper, ground, and lighting should change
 coherently; use a visualization when the completed scene also needs physical
 assembly cues.

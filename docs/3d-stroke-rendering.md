@@ -32,12 +32,13 @@ The inked-solid projection therefore separates the responsibilities:
 
 | Stroke source | Coordinate space | Typical use | Animation behaviour |
 | --- | --- | --- | --- |
-| Pigment deposition | View-oriented, part-anchored drawing space | Graphite pickup, wash, bristle marks, chalk grain, or marker passes | Follows the projected owner part; ignores PBR finish |
+| Pigment deposition | View-oriented drawing space | Graphite pickup, wash, bristle marks, chalk grain, or marker passes | Redraws for the active view; ignores PBR finish |
 | Semantic stroke | Part-local surface coordinates | Mouth, eyelid, hair, seams, scars | Inherits the semantic node transform |
 | Contour pass | Screen space from depth and normals | Silhouette and selected creases | Recomputed for the active camera |
-| View-mark field | View-oriented, part-anchored drawing space plus generic drawing application | Graphite hatch, dense pigment, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Follows articulation; never participates in line boil |
+| View-mark field | View-oriented drawing space plus generic drawing application | Graphite hatch, dense pigment, ink pooling, watercolor wash, oil bristles, chalk grain, marker bands | Reprojects continuously; never participates in line boil |
+| Material field | Part-local three-dimensional coordinates | Cut-paper fibre, patina, abrasion, torn edges | Rigidly follows each mesh through camera and object motion |
 
-All four systems are implemented. Family adapters author semantic marks while
+All five systems are implemented. Family adapters author semantic marks while
 the runtime remains asset-agnostic; marks are never inferred from triangulation
 edges.
 
@@ -107,7 +108,7 @@ const registration = pass.register({
 });
 ```
 
-Registration compiles part, surface, topology, owner-anchor, and semantic-stroke lookups once.
+Registration compiles part, surface, topology, owner, material-coordinate, and semantic-stroke lookups once.
 Multiple instances of one solid blueprint and different media may share one pass; paper remains a
 single scene-level policy and never depends on registration order. Dispose the registration
 before its borrowed `SolidRig`, and dispose the pass when the drawing surface is torn down.
@@ -127,12 +128,13 @@ existing compositor path.
 Paper modes resolve structural, crease, and owner boundaries separately.
 Contact shadows are sampled only across a real owner or policy boundary with a
 front-to-back depth step, so a sloped sheet does not cast a checkerboard shadow
-on itself. Fibre and torn-edge fields use CSS-pixel scale and part-relative
-coordinates, preventing device-pixel-ratio changes or vehicle translation from
-turning texture into shimmer.
+on itself. The carrier stores each fragment's part-local position in the
+surface attachment. Fibre, broad patina, abrasion, and torn-edge fields sample
+that coordinate through a dominant local-plane projection, so camera rotation, zoom,
+device-pixel ratio, translation, and articulation cannot make the material swim.
 
 Each registration also retains an animation-expanded local carrier bound. Before synchronising
-child matrices, anchors, strokes, or G-buffer proxies, the pass transforms that bound by the rig
+child matrices, strokes, or G-buffer proxies, the pass transforms that bound by the rig
 root and rejects it against the camera frustum. Rejected carriers hide their shared-pass proxies;
 visible carriers additionally leave per-proxy Three.js frustum culling enabled. Diagnostics report
 both total and last-frame visible instances and proxy submissions, so a registered off-camera asset
@@ -144,12 +146,15 @@ does not silently become four G-buffer workloads.
 
 For an immutable registration, the pass compiles all opaque source parts and
 semantic stroke volumes into one indexed skinned carrier. Per-vertex attributes
-retain semantic albedo, material marks, owner IDs, flow, reveal progress, and
+retain semantic albedo, material marks, signed owner IDs, flow, reveal progress, and
 source-part bone ownership. The integral half of the existing mark-scale
 channel also carries a compact collage material class resolved from art roles
 and represented substance. This preserves pigment on focal and primary forms
 while allowing ground, mineral sheets, and accents to receive coherent scene
-treatment without another MRT attachment or vertex attribute. Copying source
+treatment without another MRT attachment or vertex attribute. The surface MRT
+uses RGB for interpolated part-local position and alpha for the signed owner
+key; negative keys identify authored ink or stroke carriers without consuming a
+second channel. Copying source
 world matrices into the carrier skeleton preserves articulation without
 retaining thousands of separately submitted proxy meshes. The artifact has a
 compiler version, an exact
@@ -192,7 +197,7 @@ least three points, all owners are validated, and seeded wobble is stable.
 
 `InkedSolidScenePass` renders every registered carrier once into one WebGL2
 multiple-render-target set containing shared albedo/depth, material-mark,
-owner-anchor, and normal/topology attachments. The composite
+surface-position/owner, and normal/topology attachments. The composite
 shader detects relative view-depth discontinuities and authored normal creases. Normal-edge
 response is enabled only when at least one sampled carrier is explicitly faceted; smooth meshes
 and superellipsoids cannot reveal curvature bands or tessellation through a lower contour
@@ -233,7 +238,7 @@ another medium preserves the same value through its own deposited vocabulary.
 Each medium then preserves its raster deposition operation: Watercolour uses
 layered translucent coverage without directional bands, Ink reveals one fine
 hatch only at the same tone densities as raster, and Oil combines an opaque bed
-with broken bristle daubs. The composite shader generates those fields in normalized paper space
+with broken bristle daubs. The composite shader generates those fields in normalized view-drawing space
 and clips them by the surface membership visible from the active camera.
 Graphite value density is calibrated to the raster medium's relative spacing and
 alpha: `light` remains an unhatched pigment bed, regular mid-value intent retains
@@ -241,11 +246,12 @@ its authored interval, and `solid` uses a materially denser multi-pass field. Th
 keeps value hierarchy comparable without pretending pixels and projected surface
 marks are numerically identical units.
 
-This is intentionally not a texture wrapped around a mesh. Rotating the asset
-changes projection, occlusion, and contours continuously, like drawing the
-current view again, but it does not reroll a random field at arbitrary angular
-thresholds. The pigment and gesture coordinates are translated by the projected
-origin of the semantic part visible at each pixel. On explicitly faceted
+Medium deposition is intentionally not a texture wrapped around a mesh. Rotating
+the asset changes projection, occlusion, contours, and filling continuously,
+like drawing the current view again, but it does not reroll a random field at
+arbitrary angular thresholds. Paper visualizations are the deliberate inverse:
+their fibre and wear belong to the represented material and therefore consume
+the part-local material field rather than view coordinates. On explicitly faceted
 carrier topology, the visible surface normal rotates and foreshortens
 directional marks while discrete drawing light changes their density and
 pressure. Adjacent wall or roof planes therefore separate through hatch flow
@@ -261,9 +267,10 @@ keeping the mark continuous. Paper abrasion may thin a stroke but does not split
 dashes. On faceted carriers, drawing light may change deposited opacity or add a
 fixed-frequency secondary pass, but it never changes a field's scale or phase per pixel; doing
 so would restart strokes at every tone boundary. Limbs, tears, doors, and other
-articulated parts still carry coherent marks through animation without becoming
-UV textures. Stationary screen-space grain belongs to the paper, while
-line-boil timing remains independent and affects only contour lookup.
+articulated parts receive a continuously reprojected drawing without becoming
+UV textures. Scene drawing-paper tooth stays in screen space; cut-paper stock
+stays in part-local material space; line-boil timing remains independent and
+affects only contour lookup.
 
 ## 2.5D variant
 

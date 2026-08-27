@@ -34,9 +34,11 @@ const MARK_STYLE_DIVISOR = 9;
 
 const CARRIER_VERTEX = /* glsl */`
   out vec3 inkedViewNormal;
+  out vec3 inkedMaterialPosition;
 
   void main() {
     inkedViewNormal = normalize(normalMatrix * normal);
+    inkedMaterialPosition = position;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
 `;
@@ -44,19 +46,20 @@ const CARRIER_VERTEX = /* glsl */`
 const CARRIER_FRAGMENT = /* glsl */`
   uniform vec4 albedoData;
   uniform vec4 markData;
-  uniform vec4 anchorData;
+  uniform float ownerData;
   uniform float packedPolicyAndFlow;
   in vec3 inkedViewNormal;
+  in vec3 inkedMaterialPosition;
 
   layout(location = 0) out vec4 inkedAlbedo;
   layout(location = 1) out vec4 inkedMark;
-  layout(location = 2) out vec4 inkedAnchor;
+  layout(location = 2) out vec4 inkedSurface;
   layout(location = 3) out vec4 inkedNormal;
 
   void main() {
     inkedAlbedo = albedoData;
     inkedMark = markData;
-    inkedAnchor = anchorData;
+    inkedSurface = vec4(inkedMaterialPosition, ownerData);
     inkedNormal = vec4(normalize(inkedViewNormal) * 0.5 + 0.5, packedPolicyAndFlow);
   }
 `;
@@ -84,7 +87,7 @@ const STROKE_FRAGMENT = /* glsl */`
 
   layout(location = 0) out vec4 inkedAlbedo;
   layout(location = 1) out vec4 inkedMark;
-  layout(location = 2) out vec4 inkedAnchor;
+  layout(location = 2) out vec4 inkedSurface;
   layout(location = 3) out vec4 inkedNormal;
 
   void main() {
@@ -96,14 +99,13 @@ const STROKE_FRAGMENT = /* glsl */`
     if (inkedRevealPosition > localProgress) discard;
     inkedAlbedo = albedoData;
     inkedMark = vec4(0.0);
-    inkedAnchor = vec4(0.0, 0.0, 0.0, 0.5);
+    inkedSurface = vec4(0.0, 0.0, 0.0, -2.0);
     inkedNormal = vec4(normalize(inkedViewNormal) * 0.5 + 0.5, packedPolicyAndFlow);
   }
 `;
 
 export type InkedSolidPartMaterials = Readonly<{
   material: THREE.ShaderMaterial;
-  anchorData: THREE.Vector4;
 }>;
 
 export type InkedSolidStrokeMaterials = Readonly<{
@@ -154,10 +156,10 @@ export class InkedSolidCarrierMaterialCache {
     part: SolidPartDefinition,
     surface: SemanticSurfaceSpec,
     mark: InkedSolidViewMarkPolicy,
+    ownerKey: number,
   ): InkedSolidPartMaterials {
     const resolved = resolveSemanticSurface(surface, this.appearance, part.semanticPartId);
     const opacity = resolved.physical.opacity ?? 1;
-    const anchorData = new THREE.Vector4();
     const color = colorFromRgb(resolved.color);
     const material = this.track(new THREE.ShaderMaterial({
       glslVersion: THREE.GLSL3,
@@ -173,7 +175,9 @@ export class InkedSolidCarrierMaterialCache {
             surface.substance,
           ),
         ) },
-        anchorData: { value: anchorData },
+        ownerData: {
+          value: surface.drawing.application === 'ink' ? -ownerKey : ownerKey,
+        },
         packedPolicyAndFlow: {
           value: (
             this.policySlot * 2
@@ -185,7 +189,7 @@ export class InkedSolidCarrierMaterialCache {
       depthWrite: opacity >= 1,
       toneMapped: false,
     }));
-    return Object.freeze({ material, anchorData });
+    return Object.freeze({ material });
   }
 
   public stroke(stroke: InkedSolidStrokeSpec): InkedSolidStrokeMaterials {

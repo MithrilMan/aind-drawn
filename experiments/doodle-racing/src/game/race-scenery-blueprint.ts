@@ -34,23 +34,62 @@ function surface(
   });
 }
 
-function coneGeometry(radius: number, height: number, sides = 8): MeshGeometrySpec {
+function frustumGeometry(
+  bottomRadius: number,
+  topRadius: number,
+  height: number,
+  sides = 10,
+): MeshGeometrySpec {
   const vertices: Point3[] = [];
   for (let index = 0; index < sides; index += 1) {
     const angle = index / sides * Math.PI * 2;
-    vertices.push(Object.freeze([Math.cos(angle) * radius, 0, Math.sin(angle) * radius] as const));
+    vertices.push(Object.freeze([
+      Math.cos(angle) * bottomRadius,
+      0,
+      Math.sin(angle) * bottomRadius,
+    ] as const));
   }
-  vertices.push(Object.freeze([0, height, 0] as const));
+  for (let index = 0; index < sides; index += 1) {
+    const angle = index / sides * Math.PI * 2;
+    vertices.push(Object.freeze([
+      Math.cos(angle) * topRadius,
+      height,
+      Math.sin(angle) * topRadius,
+    ] as const));
+  }
   const faces: (readonly number[])[] = [
     Object.freeze(Array.from({ length: sides }, (_, index) => sides - 1 - index)),
+    Object.freeze(Array.from({ length: sides }, (_, index) => sides + index)),
   ];
   for (let index = 0; index < sides; index += 1) {
-    faces.push(Object.freeze([index, (index + 1) % sides, sides]));
+    const next = (index + 1) % sides;
+    faces.push(Object.freeze([index, next, sides + next, sides + index]));
   }
   return Object.freeze({
     type: 'mesh',
     vertices: Object.freeze(vertices),
     faces: Object.freeze(faces),
+    smooth: false,
+  });
+}
+
+function rampTopGeometry(ramp: JumpRamp): MeshGeometrySpec {
+  const halfLength = ramp.length * 0.5;
+  const halfWidth = ramp.width * 0.5 - 0.08;
+  const start = -halfLength + 0.08;
+  const end = halfLength - 0.08;
+  const surfaceHeight = (along: number): number => (
+    ramp.height * (along + halfLength) / ramp.length + 0.03
+  );
+  return Object.freeze({
+    type: 'mesh',
+    vertices: Object.freeze([
+      Object.freeze([start, surfaceHeight(start), -halfWidth] as const),
+      Object.freeze([start, surfaceHeight(start), halfWidth] as const),
+      Object.freeze([end, surfaceHeight(end), halfWidth] as const),
+      Object.freeze([end, surfaceHeight(end), -halfWidth] as const),
+    ]),
+    faces: Object.freeze([Object.freeze([0, 1, 2, 3])]),
     smooth: false,
   });
 }
@@ -87,7 +126,7 @@ function rampMarkGeometry(ramp: JumpRamp, amount: number): MeshGeometrySpec {
   const start = centre - halfMarkLength;
   const end = centre + halfMarkLength;
   const surfaceHeight = (along: number): number => (
-    ramp.height * (along + halfLength) / ramp.length + 0.018
+    ramp.height * (along + halfLength) / ramp.length + 0.052
   );
   return Object.freeze({
     type: 'mesh',
@@ -98,6 +137,31 @@ function rampMarkGeometry(ramp: JumpRamp, amount: number): MeshGeometrySpec {
       Object.freeze([end, surfaceHeight(end), -halfWidth] as const),
     ]),
     faces: Object.freeze([Object.freeze([0, 1, 2, 3])]),
+    smooth: false,
+  });
+}
+
+function rampWearGeometry(ramp: JumpRamp, lateralAmount: number): MeshGeometrySpec {
+  const halfLength = ramp.length * 0.5;
+  const centre = ramp.width * lateralAmount;
+  const halfWidth = 0.035;
+  const start = -halfLength + ramp.length * 0.16;
+  const middle = -halfLength + ramp.length * 0.51;
+  const end = -halfLength + ramp.length * 0.88;
+  const surfaceHeight = (along: number): number => (
+    ramp.height * (along + halfLength) / ramp.length + 0.058
+  );
+  return Object.freeze({
+    type: 'mesh',
+    vertices: Object.freeze([
+      Object.freeze([start, surfaceHeight(start), centre - halfWidth] as const),
+      Object.freeze([start, surfaceHeight(start), centre + halfWidth] as const),
+      Object.freeze([middle, surfaceHeight(middle), centre + halfWidth * 0.72] as const),
+      Object.freeze([end, surfaceHeight(end), centre + halfWidth * 0.9] as const),
+      Object.freeze([end, surfaceHeight(end), centre - halfWidth * 0.9] as const),
+      Object.freeze([middle, surfaceHeight(middle), centre - halfWidth * 0.72] as const),
+    ]),
+    faces: Object.freeze([Object.freeze([0, 1, 2, 3, 4, 5])]),
     smooth: false,
   });
 }
@@ -216,15 +280,36 @@ export function createRaceSceneryBlueprint(
   }
 
   for (const cone of world.cones) {
+    const placement = (height: number) => Object.freeze({
+      position: Object.freeze([cone.x, height, cone.z] as const),
+    });
     add({
       id: cone.id,
       node: 'root',
       order: 3,
-      geometry: coneGeometry(0.23, 0.72),
-      surfaceId: 'cone',
-      placement: Object.freeze({ position: [cone.x, 0.02, cone.z] as const }),
+      geometry: Object.freeze({ type: 'box', size: [0.52, 0.08, 0.52] as const }),
+      surfaceId: 'cone:base',
+      placement: placement(0.06),
       castShadow: true,
       receiveShadow: true,
+    });
+    add({
+      id: `${cone.id}:lower`, node: 'root', order: 4,
+      geometry: frustumGeometry(0.21, 0.125, 0.32),
+      surfaceId: 'cone:orange', placement: placement(0.1),
+      castShadow: true, receiveShadow: true,
+    });
+    add({
+      id: `${cone.id}:stripe`, node: 'root', order: 5,
+      geometry: frustumGeometry(0.125, 0.086, 0.14),
+      surfaceId: 'cone:stripe', placement: placement(0.42),
+      castShadow: true, receiveShadow: true,
+    });
+    add({
+      id: `${cone.id}:tip`, node: 'root', order: 6,
+      geometry: frustumGeometry(0.086, 0.018, 0.2),
+      surfaceId: 'cone:orange', placement: placement(0.56),
+      castShadow: true, receiveShadow: true,
     });
   }
 
@@ -238,21 +323,34 @@ export function createRaceSceneryBlueprint(
       node: 'root',
       order: 3,
       geometry: rampGeometry(ramp),
-      surfaceId: 'ramp:oxide',
+      surfaceId: 'ramp:base',
       placement,
       castShadow: true,
       receiveShadow: true,
+    });
+    add({
+      id: `${ramp.id}:deck`, node: 'root', order: 4,
+      geometry: rampTopGeometry(ramp), surfaceId: 'ramp:oxide', placement,
+      castShadow: true, receiveShadow: true,
     });
     for (const [markIndex, amount] of [0.22, 0.47, 0.72].entries()) {
       add({
         id: `${ramp.id}:launch-mark:${markIndex}`,
         node: 'root',
-        order: 4,
+        order: 5,
         geometry: rampMarkGeometry(ramp, amount),
         surfaceId: 'ramp:mark',
         placement,
         castShadow: false,
         receiveShadow: true,
+      });
+    }
+    for (const [wearIndex, lateralAmount] of [-0.18, 0.18].entries()) {
+      add({
+        id: `${ramp.id}:wear:${wearIndex}`, node: 'root', order: 6,
+        geometry: rampWearGeometry(ramp, lateralAmount),
+        surfaceId: 'ramp:wear', placement,
+        castShadow: false, receiveShadow: true,
       });
     }
   }
@@ -345,9 +443,13 @@ export function createRaceSceneryBlueprint(
       surface('barrier:red', [181, 64, 43], 'paint', 'pigment', { value: 'mid', gesture: 'agitated' }),
       surface('barrier:paper', [231, 219, 190], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
       surface('tyre', [45, 45, 40], 'rubber', 'pigment', { value: 'solid', gesture: 'regular' }),
-      surface('cone', [207, 108, 42], 'rubber', 'pigment', { value: 'mid', gesture: 'regular' }),
-      surface('ramp:oxide', [205, 88, 52], 'paint', 'pigment', { value: 'mid', gesture: 'agitated' }),
-      surface('ramp:mark', [244, 236, 212], 'paint', 'pigment', { value: 'light', gesture: 'regular' }),
+      surface('cone:base', [75, 58, 42], 'paper', 'pigment', { value: 'dark', gesture: 'quiet' }),
+      surface('cone:orange', [211, 104, 53], 'paper', 'pigment', { value: 'mid', gesture: 'regular' }),
+      surface('cone:stripe', [232, 211, 169], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
+      surface('ramp:base', [82, 61, 43], 'paper', 'pigment', { value: 'dark', gesture: 'quiet' }),
+      surface('ramp:oxide', [181, 91, 55], 'paper', 'pigment', { value: 'mid', gesture: 'regular' }),
+      surface('ramp:mark', [229, 210, 169], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
+      surface('ramp:wear', [54, 48, 40], 'paint', 'ink', { value: 'solid', gesture: 'agitated' }),
       surface('stand:paper', [191, 180, 151], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
       surface('stand:dark', [76, 82, 46], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
       surface('stand:roof', [151, 91, 45], 'paint', 'pigment', { value: 'mid', gesture: 'regular' }),

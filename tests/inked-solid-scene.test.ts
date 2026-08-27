@@ -22,6 +22,7 @@ import {
   inkedSolidCollageMaterialClass,
   packInkedSolidMarkScale,
 } from '../src/projections/inked-solid/runtime/collage-material-class.js';
+import { COMPOSITE_FRAGMENT } from '../src/projections/inked-solid/runtime/composite-shaders.js';
 
 class RecordingRenderer {
   public autoClear = true;
@@ -196,6 +197,65 @@ describe('multi-instance inked-solid scene rendering', () => {
     registration.dispose();
     pass.dispose();
     rig.dispose();
+  });
+
+  it('stores paper texture coordinates in part-local space for compiled and dynamic carriers', () => {
+    const solid = createSolidBuildingBlueprint(createBuildingIdentity(7_098));
+    const inked = createInkedSolidBlueprint(solid, { medium: 'graphite' });
+    const compiledRig = new SolidRig(solid, { instanceId: 'building:compiled-paper' });
+    const dynamicRig = new SolidRig(solid, { instanceId: 'building:dynamic-paper' });
+    dynamicRig.root.position.x = 3;
+    const scene = new THREE.Scene();
+    scene.add(compiledRig.root, dynamicRig.root);
+    const renderer = new RecordingRenderer();
+    const pass = new InkedSolidScenePass(asWebGlRenderer(renderer), {
+      visualization: 'paper-collage',
+    });
+    const compiledRegistration = pass.register({
+      instanceId: compiledRig.instanceId,
+      blueprint: inked,
+      rig: compiledRig,
+    });
+    const dynamicRegistration = pass.register({
+      instanceId: dynamicRig.instanceId,
+      blueprint: inked,
+      rig: dynamicRig,
+      geometryUsage: 'dynamic',
+    });
+    const camera = new THREE.PerspectiveCamera(35, 16 / 9, 0.1, 100);
+    camera.position.set(0, 3, 12);
+    camera.lookAt(0, 1, 0);
+    camera.updateProjectionMatrix();
+    pass.render(scene, camera, 0);
+
+    const carrierScene = renderer.calls[0]?.scene;
+    if (carrierScene === undefined) throw new Error('Expected carrier scene');
+    const vertexShaders: string[] = [];
+    let compiledOwnerItemSize: number | null = null;
+    carrierScene.traverse((object) => {
+      if (!(object instanceof THREE.Mesh) || !(object.material instanceof THREE.ShaderMaterial)) {
+        return;
+      }
+      vertexShaders.push(object.material.vertexShader);
+      if (object instanceof THREE.SkinnedMesh) {
+        const geometry = object.geometry as THREE.BufferGeometry;
+        const owner = geometry.getAttribute('inkedOwner');
+        if (owner instanceof THREE.BufferAttribute) compiledOwnerItemSize = owner.itemSize;
+      }
+    });
+    expect(vertexShaders.some((shader) => shader.includes('inkedMaterialPosition = position')))
+      .toBe(true);
+    expect(vertexShaders.some((shader) => shader.includes('carrierMaterialPosition = position')))
+      .toBe(true);
+    expect(compiledOwnerItemSize).toBe(1);
+    expect(COMPOSITE_FRAGMENT).toContain('vec3 localMaterial = materialCoordinates(surfaceData.rgb)');
+    expect(COMPOSITE_FRAGMENT).not.toContain('viewPosition - anchorPosition');
+
+    dynamicRegistration.dispose();
+    compiledRegistration.dispose();
+    pass.dispose();
+    dynamicRig.dispose();
+    compiledRig.dispose();
   });
 
   it('skips carrier synchronization and submission outside the camera frustum', () => {

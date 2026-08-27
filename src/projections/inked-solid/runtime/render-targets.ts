@@ -15,17 +15,17 @@ function createTarget(width: number, height: number): THREE.WebGLRenderTarget {
     texture.magFilter = THREE.NearestFilter;
     texture.generateMipmaps = false;
   }
-  const [albedo, mark, anchor, normal] = target.textures;
-  if (albedo === undefined || mark === undefined || anchor === undefined || normal === undefined) {
+  const [albedo, mark, surface, normal] = target.textures;
+  if (albedo === undefined || mark === undefined || surface === undefined || normal === undefined) {
     target.dispose();
     throw new Error('Inked-solid MRT requires four color attachments');
   }
   albedo.name = 'inked-solid:albedo';
   mark.name = 'inked-solid:mark';
-  anchor.name = 'inked-solid:anchor';
+  surface.name = 'inked-solid:surface';
   normal.name = 'inked-solid:normal';
   mark.type = THREE.HalfFloatType;
-  anchor.type = THREE.HalfFloatType;
+  surface.type = THREE.HalfFloatType;
   return target;
 }
 
@@ -34,17 +34,17 @@ export class InkedSolidRenderTargets {
   public readonly target = createTarget(1, 1);
   public readonly albedo: THREE.Texture;
   public readonly mark: THREE.Texture;
-  public readonly anchor: THREE.Texture;
+  public readonly surface: THREE.Texture;
   public readonly normal: THREE.Texture;
 
   public constructor() {
-    const [albedo, mark, anchor, normal] = this.target.textures;
-    if (albedo === undefined || mark === undefined || anchor === undefined || normal === undefined) {
+    const [albedo, mark, surface, normal] = this.target.textures;
+    if (albedo === undefined || mark === undefined || surface === undefined || normal === undefined) {
       throw new Error('Inked-solid MRT requires four color attachments');
     }
     this.albedo = albedo;
     this.mark = mark;
-    this.anchor = anchor;
+    this.surface = surface;
     this.normal = normal;
     this.depth.format = THREE.DepthFormat;
     this.target.depthTexture = this.depth;

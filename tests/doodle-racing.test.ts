@@ -320,6 +320,15 @@ describe('Paper Circuit experiment', () => {
     expect(validateSolidAssetBlueprint(blueprint)).toBe(blueprint);
     expect(blueprint.parts.filter(({ semanticPartId }) => semanticPartId === 'finish')).toHaveLength(8);
     expect(blueprint.parts.some(({ semanticPartId }) => semanticPartId === 'route-anchor')).toBe(false);
+    const courseEdges = blueprint.parts.filter(({ semanticPartId }) => semanticPartId === 'edge');
+    expect(courseEdges).toHaveLength(2);
+    for (const edge of courseEdges) {
+      expect(edge.geometry.type).toBe('mesh');
+      if (edge.geometry.type !== 'mesh') throw new Error('Course edge must use mesh geometry');
+      const elevations = edge.geometry.vertices.map(([, y]) => y);
+      expect(Math.max(...elevations) - Math.min(...elevations)).toBeCloseTo(0.08, 8);
+      expect(edge.castShadow).toBe(true);
+    }
     const road = blueprint.parts.find(({ id }) => id === 'road');
     expect(road?.geometry.type).toBe('mesh');
     if (road?.geometry.type !== 'mesh') throw new Error('Road must use mesh geometry');
@@ -1095,7 +1104,7 @@ describe('Paper Circuit experiment', () => {
     for (const ramp of world.ramps) {
       const part = scenery.parts.find(({ id }) => id === ramp.id);
       expect(part?.semanticPartId).toBe('ramps');
-      expect(part?.surfaceId).toBe('ramp:oxide');
+      expect(part?.surfaceId).toBe('ramp:base');
       expect(part?.geometry.type).toBe('mesh');
       if (part?.geometry.type !== 'mesh') throw new Error(`Ramp ${ramp.id} must use visible mesh geometry`);
       const xs = part.geometry.vertices.map(([x]) => x);
@@ -1109,6 +1118,22 @@ describe('Paper Circuit experiment', () => {
       const launchMarks = scenery.parts.filter(({ id }) => id.startsWith(`${ramp.id}:launch-mark:`));
       expect(launchMarks).toHaveLength(3);
       expect(launchMarks.every(({ surfaceId }) => surfaceId === 'ramp:mark')).toBe(true);
+      expect(scenery.parts.find(({ id }) => id === `${ramp.id}:deck`)?.surfaceId)
+        .toBe('ramp:oxide');
+      const wear = scenery.parts.filter(({ id }) => id.startsWith(`${ramp.id}:wear:`));
+      expect(wear).toHaveLength(2);
+      expect(wear.every(({ surfaceId }) => surfaceId === 'ramp:wear')).toBe(true);
+    }
+    for (const cone of world.cones) {
+      const coneParts = scenery.parts.filter(({ id }) => (
+        id === cone.id || id.startsWith(`${cone.id}:`)
+      ));
+      expect(coneParts.map(({ surfaceId }) => surfaceId)).toEqual([
+        'cone:base',
+        'cone:orange',
+        'cone:stripe',
+        'cone:orange',
+      ]);
     }
     expect(scenery.colliders.filter(({ id }) => id.startsWith('cone:'))).toHaveLength(5);
     expect(scenery.colliders.filter(({ id }) => id.startsWith('grandstand:post:')))

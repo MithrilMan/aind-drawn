@@ -43,6 +43,45 @@ export function createCourseRibbonGeometry(
   });
 }
 
+export function createCourseRibbonPrismGeometry(
+  layout: CourseLayout,
+  innerOffset: number,
+  outerOffset: number,
+  bottomElevation: number,
+  topElevation: number,
+): MeshGeometrySpec {
+  if (topElevation <= bottomElevation) {
+    throw new RangeError('Course ribbon prism top must be above its bottom');
+  }
+  const bottom = ribbonVertices(layout, innerOffset, outerOffset, bottomElevation);
+  const top = ribbonVertices(layout, innerOffset, outerOffset, topElevation);
+  const topOffset = bottom.length;
+  const faces: (readonly number[])[] = [];
+  for (let index = 0; index < layout.samples.length; index += 1) {
+    const next = (index + 1) % layout.samples.length;
+    const innerBottom = index * 2;
+    const outerBottom = innerBottom + 1;
+    const nextInnerBottom = next * 2;
+    const nextOuterBottom = nextInnerBottom + 1;
+    const innerTop = topOffset + innerBottom;
+    const outerTop = topOffset + outerBottom;
+    const nextInnerTop = topOffset + nextInnerBottom;
+    const nextOuterTop = topOffset + nextOuterBottom;
+    faces.push(
+      Object.freeze([innerTop, outerTop, nextOuterTop, nextInnerTop]),
+      Object.freeze([outerTop, outerBottom, nextOuterBottom, nextOuterTop]),
+      Object.freeze([innerBottom, innerTop, nextInnerTop, nextInnerBottom]),
+      Object.freeze([innerBottom, nextInnerBottom, nextOuterBottom, outerBottom]),
+    );
+  }
+  return Object.freeze({
+    type: 'mesh',
+    vertices: Object.freeze([...bottom, ...top]),
+    faces: Object.freeze(faces),
+    smooth: false,
+  });
+}
+
 export function createCourseSegmentRibbonGeometry(
   layout: CourseLayout,
   segmentIndex: number,

@@ -119,7 +119,11 @@ describe('multi-instance inked-solid scene rendering', () => {
     expect(inked.appearance).not.toBe(solid.appearance);
     expect(inked.appearance.artDirection.id).toBe('cut-paper');
     expect(inked.viewMarks.every(({ style }) => style === 'none')).toBe(true);
-    const registration = pass.register({ instanceId: rig.instanceId, blueprint: inked, rig });
+    const registration = pass.register({
+      instanceId: rig.instanceId,
+      blueprint: inked,
+      rig,
+    });
     expect(pass.getDiagnostics().registeredInstances).toBe(1);
 
     registration.dispose();
@@ -167,6 +171,11 @@ describe('multi-instance inked-solid scene rendering', () => {
       registeredInstances: 2,
       visibleInstances: 1,
       submittedProxyMeshes: pass.getDiagnostics().proxyMeshes / 2,
+      compilation: {
+        artifacts: 1,
+        cacheHits: 1,
+        cacheMisses: 1,
+      },
     });
 
     hiddenRig.root.position.x = 1;
@@ -220,7 +229,12 @@ describe('multi-instance inked-solid scene rendering', () => {
     });
     const rig = new SolidRig(transparentSolid, { instanceId: 'building:transparent' });
     const pass = new InkedSolidScenePass(asWebGlRenderer(new RecordingRenderer()));
-    const registration = pass.register({ instanceId: rig.instanceId, blueprint: inked, rig });
+    const registration = pass.register({
+      instanceId: rig.instanceId,
+      blueprint: inked,
+      rig,
+      geometryUsage: 'dynamic',
+    });
 
     expect(inked.carrierPartIds).not.toContain(transparentPart.id);
     const diagnostics = pass.getDiagnostics();
@@ -229,6 +243,11 @@ describe('multi-instance inked-solid scene rendering', () => {
         .filter(({ surfaceId }) => surfaceId === transparentPart.surfaceId).length,
     );
     expect(diagnostics.semanticStrokeMeshes).toBeGreaterThan(0);
+    expect(diagnostics.compiledInstances).toBe(0);
+    expect(diagnostics.dynamicInstances).toBe(1);
+    expect(diagnostics.proxyMeshes).toBe(
+      diagnostics.carrierParts + diagnostics.semanticStrokeMeshes,
+    );
 
     registration.dispose();
     pass.dispose();
@@ -298,35 +317,39 @@ describe('multi-instance inked-solid scene rendering', () => {
       characterSolid.parts.length * 2 + buildingSolid.parts.length,
     );
     expect(before.semanticStrokeMeshes).toBeGreaterThan(0);
-    expect(before.proxyMeshes).toBe(
-      (before.carrierParts + before.semanticStrokeMeshes) * 4,
-    );
+    expect(before.proxyMeshes).toBe(3);
+    expect(before.compiledInstances).toBe(3);
+    expect(before.dynamicInstances).toBe(0);
+    expect(before.compilation).toMatchObject({
+      artifacts: 3,
+      compiledMeshes: 3,
+      cacheMisses: 3,
+    });
     expect(before.passMaterials).toBeGreaterThan(0);
     expect(before.steadyStatePerMeshAllocations).toBe(0);
     expect(pass.paper).toEqual(DEFAULT_INKED_SOLID_SCENE_PAPER);
-    expect(containsStroke(firstCharacter.root)).toBe(true);
-    const revealValues: number[] = [];
-    firstCharacter.root.traverse((object) => {
-      if (object instanceof THREE.Mesh && object.name === '') {
-        const geometry = object.geometry as THREE.BufferGeometry;
-        const candidate = geometry.getAttribute('inkedStrokeProgress');
-        if (candidate instanceof THREE.BufferAttribute) {
-          for (let index = 0; index < candidate.count; index += 1) {
-            revealValues.push(candidate.getX(index));
-          }
-        }
-      }
-    });
-    expect(revealValues.length).toBeGreaterThan(0);
-    expect(Math.min(...revealValues)).toBe(0);
-    expect(Math.max(...revealValues)).toBe(1);
+    expect(containsStroke(firstCharacter.root)).toBe(false);
     expect(() => { firstRegistration.setStrokeReveal(0.45); }).not.toThrow();
     expect(() => { firstRegistration.setStrokeReveal(-0.01); })
       .toThrow(/between zero and one/u);
 
     pass.setSize(640, 360, 1.5);
     pass.render(scene, new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 100), 1.25);
-    expect(renderer.calls).toHaveLength(5);
+    expect(renderer.calls).toHaveLength(2);
+    const compiledRevealValues: number[] = [];
+    renderer.calls[0]?.scene.traverse((object) => {
+      if (!(object instanceof THREE.SkinnedMesh)) return;
+      const geometry = object.geometry as THREE.BufferGeometry;
+      const candidate = geometry.getAttribute('inkedRevealProgress');
+      if (!(candidate instanceof THREE.BufferAttribute)) return;
+      for (let index = 0; index < candidate.count; index += 1) {
+        const value = candidate.getX(index);
+        if (value >= 0) compiledRevealValues.push(value);
+      }
+    });
+    expect(compiledRevealValues.length).toBeGreaterThan(0);
+    expect(Math.min(...compiledRevealValues)).toBe(0);
+    expect(Math.max(...compiledRevealValues)).toBe(1);
     expect(unrelated.material).toBe(unrelatedMaterial);
 
     firstRegistration.dispose();
@@ -372,8 +395,8 @@ describe('multi-instance inked-solid scene rendering', () => {
     const fog = scene.fog;
 
     pass.render(scene, camera, 0);
-    expect(renderer.calls).toHaveLength(9);
-    expect(pass.getDiagnostics().renderCalls).toBe(9);
+    expect(renderer.calls).toHaveLength(3);
+    expect(pass.getDiagnostics().renderCalls).toBe(3);
     expect(scene.overrideMaterial).toBeNull();
     expect(scene.background).toBe(background);
     expect(scene.fog).toBe(fog);

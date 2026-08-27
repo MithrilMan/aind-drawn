@@ -12,6 +12,7 @@ import {
   type CharacterMotionState,
   type CharacterPose,
   type SolidAssetBlueprint,
+  type SolidSceneResourceCache,
 } from '../../../../../../src/index.js';
 import {
   SpatialHash2D,
@@ -102,7 +103,12 @@ export class CrowdField {
   private readonly separationVector = { x: 0, z: 0 };
   private readonly celebrationTarget = { x: 0, z: 0 };
 
-  public constructor(world: RaceWorldLayout, crowdSeed?: number) {
+  public constructor(
+    world: RaceWorldLayout,
+    crowdSeed?: number,
+    resources?: SolidSceneResourceCache,
+    detail = 1,
+  ) {
     const placements = crowdSeed === undefined
       ? world.grandstand.spectators
       : createGrandstandSpectators(world.grandstand, crowdSeed);
@@ -113,7 +119,11 @@ export class CrowdField {
         artDirection: 'storybook',
         physical: Object.freeze({ finish: 'matte' }),
       });
-      const rig = new SolidRig(solid, { instanceId: `paper-circuit:${placement.id}` });
+      const rig = new SolidRig(solid, {
+        instanceId: `paper-circuit:${placement.id}`,
+        ...(resources === undefined ? {} : { resources }),
+        detail,
+      });
       const yaw = placement.heading + random.float(-0.14, 0.14);
       const halfAngle = yaw * 0.5;
       const scale = 0.36 + random.float(0, 0.055);

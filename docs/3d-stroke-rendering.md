@@ -132,6 +132,15 @@ does not silently become four G-buffer workloads.
 
 ### 1. Invisible carrier and view synthesis
 
+For an immutable registration, the pass compiles all opaque source parts and
+semantic stroke volumes into one indexed skinned carrier. Per-vertex attributes
+retain semantic albedo, material marks, owner IDs, flow, reveal progress, and
+source-part bone ownership. Copying source world matrices into the carrier
+skeleton preserves articulation without retaining thousands of separately
+submitted proxy meshes. The artifact has a compiler version, an exact
+policy-and-geometry cache key, a deterministic fingerprint, byte diagnostics,
+and scene-scoped lease ownership.
+
 The pass renders semantic albedo with depth, normals, and surface membership
 from the real meshes, but uses those buffers only to decide occlusion,
 contours, projected regions, discrete tone, and pigment colour. Every visible
@@ -166,8 +175,9 @@ least three points, all owners are validated, and seeded wobble is stable.
 
 ### 3. Contours
 
-`InkedSolidScenePass` renders every registered carrier into shared albedo/depth, material-mark,
-owner-anchor, and normal/topology buffers. The composite
+`InkedSolidScenePass` renders every registered carrier once into one WebGL2
+multiple-render-target set containing shared albedo/depth, material-mark,
+owner-anchor, and normal/topology attachments. The composite
 shader detects relative view-depth discontinuities and authored normal creases. Normal-edge
 response is enabled only when at least one sampled carrier is explicitly faceted; smooth meshes
 and superellipsoids cannot reveal curvature bands or tessellation through a lower contour
@@ -187,10 +197,15 @@ colliders, or interaction anchors. Animated `jitter` is a separate displacement
 quantised by the configured boil frame rate; independent noise every frame
 would be shimmer, not pencil.
 
+Registrations whose vertex buffers change after construction must declare
+`geometryUsage: 'dynamic'`. That path uses live mesh proxies but still writes
+all attachments in one MRT draw per source mesh. Transform animation alone is
+not dynamic geometry: compiled carriers follow it through their skeleton.
+
 Semantic stroke tubes and endpoint caps also carry an immutable
 `inkedStrokeProgress` attribute. `createInkedSolidBlueprint` assigns stable
 normalized start/end windows, and `InkedSolidSceneRegistration.setStrokeReveal`
-updates one shared uniform used by albedo, mark, anchor, and normal passes.
+updates one shared uniform used by the combined carrier pass.
 Animating reveal therefore performs no curve resampling, tube reconstruction,
 or per-stroke scene mutation.
 

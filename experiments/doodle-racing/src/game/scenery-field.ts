@@ -2,6 +2,7 @@ import {
   SolidRig,
   createSolidTreeBlueprint,
   createTreeIdentity,
+  type SolidSceneResourceCache,
   type SolidAssetBlueprint,
 } from '../../../../src/index.js';
 import { createCourseBlueprint } from './course-blueprint.js';
@@ -22,11 +23,24 @@ export class SceneryField {
   private readonly sceneryRig: SolidRig;
   private readonly trees: readonly TreeAsset[];
 
-  public constructor(course: CourseLayout, world: RaceWorldLayout) {
+  public constructor(
+    course: CourseLayout,
+    world: RaceWorldLayout,
+    resources?: SolidSceneResourceCache,
+    detail = 1,
+  ) {
     this.courseSolid = createCourseBlueprint(course);
-    this.courseRig = new SolidRig(this.courseSolid, { instanceId: 'paper-circuit:course' });
+    this.courseRig = new SolidRig(this.courseSolid, {
+      instanceId: 'paper-circuit:course',
+      ...(resources === undefined ? {} : { resources }),
+      detail,
+    });
     this.scenerySolid = createRaceSceneryBlueprint(course, world);
-    this.sceneryRig = new SolidRig(this.scenerySolid, { instanceId: 'paper-circuit:scenery' });
+    this.sceneryRig = new SolidRig(this.scenerySolid, {
+      instanceId: 'paper-circuit:scenery',
+      ...(resources === undefined ? {} : { resources }),
+      detail,
+    });
     this.trees = Object.freeze(world.trees.map((placement) => {
       const identity = createTreeIdentity(placement.seed, {
         archetype: placement.seed % 5 === 0 ? 'pine' : placement.seed % 3 === 0 ? 'windswept' : 'broadleaf',
@@ -36,7 +50,11 @@ export class SceneryField {
         artDirection: 'storybook',
         physical: Object.freeze({ finish: 'matte' }),
       });
-      const rig = new SolidRig(solid, { instanceId: `paper-circuit:${placement.id}` });
+      const rig = new SolidRig(solid, {
+        instanceId: `paper-circuit:${placement.id}`,
+        ...(resources === undefined ? {} : { resources }),
+        detail,
+      });
       rig.root.scale.setScalar(placement.scale);
       const halfAngle = placement.rotation * 0.5;
       rig.setWorldPose(Object.freeze({

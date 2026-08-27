@@ -19,6 +19,7 @@ import {
   type CharacterWink,
   type ExtendedAssetIdentity,
   type SolidAssetBlueprint,
+  type SolidSceneResourceCache,
 } from '../../../../../../src/index.js';
 import {
   applySolidPaperCircuitBackpackMotion,
@@ -230,6 +231,8 @@ export class GrandstandExplorer {
     private readonly stand: GrandstandLayout,
     courseOrSeed: CourseLayout | number,
     maybeSeed?: number,
+    resources?: SolidSceneResourceCache,
+    detail = 1,
   ) {
     const course = typeof courseOrSeed === 'number' ? undefined : courseOrSeed;
     const seed = typeof courseOrSeed === 'number' ? courseOrSeed : maybeSeed ?? 15823;
@@ -275,18 +278,26 @@ export class GrandstandExplorer {
       PAPER_CIRCUIT_EXTENSION_REGISTRY,
     );
     this.solid = extendSolidAssetBlueprint(baseSolid, extensionPlan);
-    this.rig = new SolidRig(this.solid, { instanceId: 'paper-circuit:explorer' });
+    this.rig = new SolidRig(this.solid, {
+      instanceId: 'paper-circuit:explorer',
+      ...(resources === undefined ? {} : { resources }),
+      detail,
+    });
     this.backpackSolid = createSolidPaperCircuitBackpackBlueprint(this.backpack, {
       artDirection: this.solid.appearance.artDirection,
     });
     this.backpackRig = new SolidRig(this.backpackSolid, {
       instanceId: 'paper-circuit:explorer:backpack',
+      ...(resources === undefined ? {} : { resources }),
+      detail,
     });
     this.helmetItemSolid = createSolidPaperCircuitHelmetBlueprint(this.helmet.data.item, {
       artDirection: this.solid.appearance.artDirection,
     });
     this.helmetItemRig = new SolidRig(this.helmetItemSolid, {
       instanceId: 'paper-circuit:explorer:held-helmet',
+      ...(resources === undefined ? {} : { resources }),
+      detail,
     });
     const xRadius = Math.max(
       Math.abs(this.solid.bounds.minimum[0]),

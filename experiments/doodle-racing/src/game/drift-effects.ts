@@ -322,7 +322,11 @@ export class DriftEffects {
   }
 
   public doodleAsset(): DoodleSceneAsset {
-    return Object.freeze({ solid: this.solid, rig: this.rig });
+    return Object.freeze({
+      solid: this.solid,
+      rig: this.rig,
+      geometryUsage: 'dynamic',
+    });
   }
 
   public setVisible(visible: boolean): void {

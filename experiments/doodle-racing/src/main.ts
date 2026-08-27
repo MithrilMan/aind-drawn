@@ -368,24 +368,80 @@ function toggleRouteDebug(): void {
   restoreGameplayFocus();
 }
 
+function solidDetailForViewport(): number {
+  return window.matchMedia('(pointer: coarse), (max-width: 720px)').matches ? 0.72 : 1;
+}
+
+function createStage(
+  renderingStyle = paperCircuitRenderStyleById(renderStyle),
+  crowdSeed?: number,
+): RaceStage {
+  const created = new RaceStage(
+    canvas,
+    viewport,
+    course,
+    world,
+    renderingStyle,
+    explorerSeed,
+    vehicleSeeds,
+    openVehicleSelector,
+    crowdSeed,
+    solidDetailForViewport(),
+  );
+  created.setCameraMode(cameraMode);
+  created.setMode(appMode);
+  created.setRouteDebugVisible(routeDebugEnabled);
+  stage = created;
+  syncStageRenderingSuspension();
+  return created;
+}
+
+function ensureStage(crowdSeed?: number): RaceStage {
+  return stage ?? createStage(paperCircuitRenderStyleById(renderStyle), crowdSeed);
+}
+
+function ensureVehicleInteractionPreview(): VehicleInteractionPreview {
+  vehicleInteractionPreview ??= new VehicleInteractionPreview(
+    vehicleInteractionCanvas,
+    vehicleInteractionViewport,
+    paperCircuitRenderStyleById(renderStyle),
+  );
+  return vehicleInteractionPreview;
+}
+
+function ensureVehicleConfiguratorPreview(): VehicleInteractionPreview {
+  vehicleConfiguratorPreview ??= new VehicleInteractionPreview(
+    vehicleSelectorPreviewCanvas,
+    vehicleSelectorPreviewViewport,
+    paperCircuitRenderStyleById(renderStyle),
+    Object.freeze({
+      instanceId: 'paper-circuit:vehicle-configurator-preview',
+      cacheCapacity: PAPER_CIRCUIT_VEHICLES.length,
+    }),
+  );
+  return vehicleConfiguratorPreview;
+}
+
+function releaseRaceRenderer(): void {
+  stage?.dispose();
+  stage = null;
+  vehicleInteractionPreview?.dispose();
+  vehicleInteractionPreview = null;
+  vehicleConfiguratorPreview?.dispose();
+  vehicleConfiguratorPreview = null;
+}
+
 function startRenderer(): void {
   try {
     const renderingStyle = paperCircuitRenderStyleById(renderStyle);
     if (vehicleSelector.open) closeVehicleSelector(false);
     stage?.dispose();
+    stage = null;
     menuPreview?.dispose();
     vehicleInteractionPreview?.dispose();
+    vehicleInteractionPreview = null;
     vehicleConfiguratorPreview?.dispose();
-    stage = new RaceStage(
-      canvas,
-      viewport,
-      course,
-      world,
-      renderingStyle,
-      explorerSeed,
-      vehicleSeeds,
-      openVehicleSelector,
-    );
+    vehicleConfiguratorPreview = null;
     menuPreview = new MenuCharacterPreview(
       menuPreviewCanvas,
       menuPreviewViewport,
@@ -405,31 +461,19 @@ function startRenderer(): void {
         console.error('Paper Circuit render-style gallery failed to render', error);
       });
     }
-    vehicleInteractionPreview = new VehicleInteractionPreview(
-      vehicleInteractionCanvas,
-      vehicleInteractionViewport,
-      renderingStyle,
-    );
-    vehicleConfiguratorPreview = new VehicleInteractionPreview(
-      vehicleSelectorPreviewCanvas,
-      vehicleSelectorPreviewViewport,
-      renderingStyle,
-      Object.freeze({
-        instanceId: 'paper-circuit:vehicle-configurator-preview',
-        cacheCapacity: PAPER_CIRCUIT_VEHICLES.length,
-      }),
-    );
-    if (routePerformanceProbe === null) {
-      vehicleInteractionPreview.prewarm(stage.vehicleInteractionPreviews());
-      vehicleConfiguratorPreview.prewarm(stage.vehicleConfiguratorPreviews());
-    }
-    stage.setCameraMode(cameraMode);
-    stage.setMode(appMode);
-    syncStageRenderingSuspension();
-    stage.setRouteDebugVisible(routeDebugEnabled);
+    const activeStage = appMode !== 'menu' || routePerformanceProbe !== null
+      ? createStage(renderingStyle)
+      : null;
     if (import.meta.env.DEV) {
-      console.info('Paper Circuit render diagnostics', stage.diagnostics());
-      console.info('Paper Circuit menu preview diagnostics', menuPreview.diagnostics());
+      if (activeStage !== null) {
+        console.info(`Paper Circuit render diagnostics ${JSON.stringify(activeStage.diagnostics())}`);
+        console.info(
+          `Paper Circuit resource diagnostics ${JSON.stringify(activeStage.resourceDiagnostics())}`,
+        );
+      }
+      console.info(
+        `Paper Circuit menu preview diagnostics ${JSON.stringify(menuPreview.diagnostics())}`,
+      );
     }
     if (rendererError.open) rendererError.close();
     const recoveryPauseMode = rendererRecoveryPauseMode;
@@ -495,7 +539,7 @@ function openVehicleSelector(selection: VehicleSelectionSummary): void {
   renderVehicleSelection(selection);
   playMenuClick();
   if (!vehicleSelector.open) vehicleSelector.showModal();
-  vehicleConfiguratorPreview?.show(
+  ensureVehicleConfiguratorPreview().show(
     stage?.vehicleConfiguratorPreview(selection.vehicleId) ?? null,
   );
   focusNavigator.activate(vehicleSelector, surpriseVehicleButton);
@@ -523,9 +567,7 @@ function applyVehicleSeed(seed: number): void {
       createVehicleCollisionProfile(createPaperCircuitVehicleIdentity(vehicleId, seed)),
     );
     renderVehicleSelection(selection);
-    vehicleInteractionPreview?.prewarm(stage.vehicleInteractionPreviews());
-    vehicleConfiguratorPreview?.prewarm(stage.vehicleConfiguratorPreviews());
-    vehicleConfiguratorPreview?.show(stage.vehicleConfiguratorPreview(vehicleId));
+    ensureVehicleConfiguratorPreview().show(stage.vehicleConfiguratorPreview(vehicleId));
     playMenuClick();
     hud.announce(`${selection.name}'s ${selection.archetype} build is ready to inspect.`);
   } catch (error) {
@@ -545,13 +587,14 @@ function renderVehicleInteraction(
   deltaSeconds: number,
 ): void {
   vehicleInteractionCallout.hidden = interaction === null;
-  vehicleInteractionPreview?.show(
+  const preview = interaction === null ? vehicleInteractionPreview : ensureVehicleInteractionPreview();
+  preview?.show(
     interaction?.preview ?? null,
     interaction?.cameraOffsetDirection,
   );
   if (interaction === null) return;
   vehicleInteractionAction.textContent = interaction.action;
-  vehicleInteractionPreview?.render(deltaSeconds, interaction.cameraOffsetDirection);
+  preview?.render(deltaSeconds, interaction.cameraOffsetDirection);
 }
 
 function exploreEntranceStatus(phase: ExploreEntrancePhase): string {
@@ -885,7 +928,7 @@ function frame(now: number): void {
             : preview.pose === 'dance' ? 'Dancing'
               : preview.pose === 'run' ? 'Running' : 'In motion';
         menuPreviewElapsed += delta;
-        if (menuPreviewElapsed >= MENU_CHARACTER_CHANGE_SECONDS && stage !== null) {
+        if (menuPreviewElapsed >= MENU_CHARACTER_CHANGE_SECONDS) {
           menuPreviewElapsed = 0;
           rerollExplorer(false);
         }
@@ -956,6 +999,7 @@ function openMenu(): void {
   engineSound.stopRace();
   renderLapSelection();
   setAppMode('menu');
+  releaseRaceRenderer();
   hud.announce('Race setup ready. Choose a render style and lap count.');
 }
 
@@ -963,8 +1007,11 @@ function startRace(): void {
   playMenuClick();
   const laps = selectedLapCount();
   try {
-    stage?.rerollCrowd(createRandomSeed());
-    stage?.prepareRaceStart();
+    const existingStage = stage;
+    const crowdSeed = createRandomSeed();
+    const activeStage = ensureStage(crowdSeed);
+    if (existingStage !== null) activeStage.rerollCrowd(crowdSeed);
+    activeStage.prepareRaceStart();
   } catch (error) {
     showRendererError();
     hud.announce('The crowd failed to rebuild. Retry is available.');
@@ -984,9 +1031,17 @@ function startExplorer(): void {
   playMenuClick();
   simulation.openMenu();
   engineSound.stopRace();
-  if (menuPreview !== null) {
-    explorerSeed = menuPreview.currentSeed;
-    stage?.setExplorerSeed(explorerSeed);
+  try {
+    const activeStage = ensureStage();
+    if (menuPreview !== null) {
+      explorerSeed = menuPreview.currentSeed;
+      activeStage.setExplorerSeed(explorerSeed);
+    }
+  } catch (error) {
+    showRendererError();
+    hud.announce('The circuit failed to build. Retry is available.');
+    console.error(error);
+    return;
   }
   setAppMode('explore');
   sound.play('character-poof');
@@ -995,7 +1050,6 @@ function startExplorer(): void {
 }
 
 function rerollExplorer(playSound = true): void {
-  if (stage === null) return;
   if (playSound) playMenuClick();
   if (appMode === 'menu') menuPreviewElapsed = 0;
   const nextSeed = createRandomSeed();
@@ -1003,6 +1057,7 @@ function rerollExplorer(playSound = true): void {
     explorerSeed = nextSeed;
     menuPreview?.reroll(explorerSeed);
   } else if (appMode === 'explore') {
+    if (stage === null) return;
     if (!stage.rerollExplorer(nextSeed)) return;
     explorerSeed = nextSeed;
   }

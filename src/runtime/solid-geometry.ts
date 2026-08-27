@@ -8,7 +8,7 @@ export type SolidGeometryFactoryOptions = Readonly<{
   detail?: number;
 }>;
 
-function resolveDetail(value: number | undefined): number {
+export function resolveSolidGeometryDetail(value: number | undefined): number {
   if (value === undefined) return 1;
   if (!Number.isFinite(value)) throw new RangeError('Solid geometry detail must be finite');
   return Math.max(0.2, Math.min(1, value));
@@ -162,7 +162,7 @@ export function createSolidGeometry(
   spec: SolidGeometrySpec,
   options: SolidGeometryFactoryOptions = {},
 ): THREE.BufferGeometry {
-  const detail = resolveDetail(options.detail);
+  const detail = resolveSolidGeometryDetail(options.detail);
   if (spec.type === 'superellipsoid') return createSuperellipsoidGeometry(spec, detail);
   if (spec.type === 'extruded-profile') return createExtrudedProfileGeometry(spec, detail);
   if (spec.type === 'box') return createBoxGeometry(spec, detail);

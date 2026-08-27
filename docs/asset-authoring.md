@@ -482,12 +482,17 @@ remain visible when the door opens and violates articulated ownership.
     `RasterFrameCache`, inspect its retained-pixel diagnostics, and clear it at
     the scene lifecycle boundary. Audit with the same custom `RasterHand` used
     by the runtime. See [`raster-rendering.md`](raster-rendering.md).
-13. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
+13. When a scene repeats immutable solid blueprints, construct their rigs with
+    one scene-owned `SolidSceneResourceCache`. Register immutable inked-solid
+    geometry through the default compiled path; use `geometryUsage: 'dynamic'`
+    only when vertex buffers actually mutate after registration.
+14. Dispose generated resources through `SpriteRig.dispose()` and `SolidRig.dispose()`. For an
    inked-solid representation, dispose its scene registration before the owner solid rig, then
    dispose `InkedSolidScenePass` when the drawing surface is torn down. Direct lower-level
-   `InkedSolidStrokeRig` consumers still dispose strokes before their owner solid rig.
-14. Run `pnpm verify`.
-15. Inspect representative seeds in the internal browser at every width the
+   `InkedSolidStrokeRig` consumers still dispose strokes before their owner solid rig. Dispose
+   scene resource caches last.
+15. Run `pnpm verify`.
+16. Inspect representative seeds in the internal browser at every width the
    experiment claims to support; desktop-only labs require desktop QA only.
 
 Repository agents can follow the local `aind-asset-authoring` skill under

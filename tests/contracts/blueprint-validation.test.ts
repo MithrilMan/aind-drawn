@@ -397,11 +397,11 @@ describe('blueprint validation', () => {
     dispose.mockRestore();
   });
 
-  it('releases allocated solid surfaces when construction fails', () => {
+  it('rejects invalid tessellation detail before allocating solid surfaces', () => {
     const blueprint = createSolidFaceBlueprint(createSolidFaceRecipe(404));
     const dispose = vi.spyOn(THREE.MeshPhysicalMaterial.prototype, 'dispose');
     expect(() => new SolidRig(blueprint, { detail: Number.NaN })).toThrow(RangeError);
-    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(dispose).not.toHaveBeenCalled();
     dispose.mockRestore();
   });
 

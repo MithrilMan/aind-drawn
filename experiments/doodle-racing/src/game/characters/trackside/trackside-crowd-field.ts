@@ -10,6 +10,7 @@ import {
   type CharacterMotionState,
   type CharacterPose,
   type SolidAssetBlueprint,
+  type SolidSceneResourceCache,
 } from '../../../../../../src/index.js';
 import {
   SpatialHash2D,
@@ -68,7 +69,13 @@ export class TracksideCrowdField {
   private readonly celebrationTarget = { x: 0, z: 0 };
   private invasionStartedAt = 0;
 
-  public constructor(course: CourseLayout, world: RaceWorldLayout, crowdSeed?: number) {
+  public constructor(
+    course: CourseLayout,
+    world: RaceWorldLayout,
+    crowdSeed?: number,
+    resources?: SolidSceneResourceCache,
+    detail = 1,
+  ) {
     const placements = crowdSeed === undefined
       ? world.tracksideSpectators
       : createTracksideSpectators(course, crowdSeed);
@@ -79,7 +86,11 @@ export class TracksideCrowdField {
         artDirection: 'storybook',
         physical: Object.freeze({ finish: 'matte' }),
       });
-      const rig = new SolidRig(solid, { instanceId: `paper-circuit:${placement.id}` });
+      const rig = new SolidRig(solid, {
+        instanceId: `paper-circuit:${placement.id}`,
+        ...(resources === undefined ? {} : { resources }),
+        detail,
+      });
       const behavior = new TracksideSpectatorBehavior(
         placement,
         placement.heading + random.float(-0.12, 0.12),

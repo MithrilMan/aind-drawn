@@ -99,6 +99,25 @@ explicit semantic outline and glaze strokes; Smooth rendering still uses the
 same surface's physical opacity, roughness, and clearcoat. Raster projections use
 the corresponding medium-level `glaze` operation.
 
+Immutable inked-solid registrations are compiled at the scene boundary. One
+packed skinned carrier contains the registration's opaque part geometry and
+semantic stroke geometry, with source-part ownership encoded as bone indices.
+Runtime synchronisation copies source world transforms and visibility into the
+carrier skeleton; it does not submit one renderer proxy per source mesh. A
+single WebGL2 multiple-render-target pass writes albedo, material marks,
+owner/flow data, normals, and shared depth before one full-screen composite.
+Mutable vertex buffers opt into the explicit `geometryUsage: 'dynamic'`
+fallback and retain one live proxy per source mesh. See
+[`compiled-rendering.md`](compiled-rendering.md) for cache identity, ownership,
+and performance constraints.
+
+Repeated immutable solid blueprints should be constructed with one
+scene-owned `SolidSceneResourceCache`. It shares exact geometry and surface
+resources across rigs while each `SolidRig` retains independent transforms,
+visibility, animation, sockets, and colliders. Rigs release leases first; the
+scene owner disposes the resource cache only after all dependent rigs and
+inked-solid registrations are gone.
+
 Transparent layers are ordered in contiguous per-rig blocks. `drawRank` selects
 the block (background, terrain, props, actors); each blueprint layer order is
 local to that block. Raw layer orders must never be used as global scene order,

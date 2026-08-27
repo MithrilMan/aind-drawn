@@ -12,6 +12,7 @@ import {
   sampleVehicleMotion,
   setVehicleMotion,
   type SolidAssetBlueprint,
+  type SolidSceneResourceCache,
   type Quaternion,
   type VehicleIdentityRecipe,
   type VehicleMotionState,
@@ -116,7 +117,11 @@ export type ExploreVehicleInteraction = Readonly<{
 export class VehicleField {
   private readonly vehicles = new Map<PaperCircuitVehicleId, VehicleRenderAsset>();
 
-  public constructor(seeds: VehicleSeedSelection = DEFAULT_VEHICLE_SEEDS) {
+  public constructor(
+    seeds: VehicleSeedSelection = DEFAULT_VEHICLE_SEEDS,
+    private readonly resources?: SolidSceneResourceCache,
+    private readonly detail = 1,
+  ) {
     for (const recipe of PAPER_CIRCUIT_VEHICLES) {
       const seed = seeds[recipe.id];
       const identity = createPaperCircuitVehicleIdentity(recipe.id, seed);
@@ -393,7 +398,11 @@ export class VehicleField {
     return {
       identity,
       solid,
-      rig: new SolidRig(solid, { instanceId: `paper-circuit:${vehicleId}` }),
+      rig: new SolidRig(solid, {
+        instanceId: `paper-circuit:${vehicleId}`,
+        ...(this.resources === undefined ? {} : { resources: this.resources }),
+        detail: this.detail,
+      }),
       strokes,
       motion: createVehicleMotionState(),
       previews: Object.freeze({

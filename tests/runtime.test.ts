@@ -7,7 +7,9 @@ import {
   createCharacterMotionState,
   sampleCharacterMotion,
   setCharacterMotion,
+  SolidGeometryResourceCache,
   SolidSurfaceResourceCache,
+  SolidSceneResourceCache,
   InkedSolidStrokeRig,
   SolidRig,
   SpriteRig,
@@ -497,6 +499,50 @@ describe('solid rig runtime', () => {
     second.dispose();
     expect(disposals).toBe(1);
     expect(cache.getDiagnostics()).toMatchObject({ entries: 0, activeLeases: 0 });
+    cache.dispose();
+  });
+
+  it('compiles equal solid geometry once per scene resource cache', () => {
+    const blueprint = createSolidCharacterBlueprint(createCharacterIdentity(8_106));
+    const resources = new SolidSceneResourceCache();
+    const first = new SolidRig(blueprint, { instanceId: 'geometry:first', resources });
+    const second = new SolidRig(blueprint, { instanceId: 'geometry:second', resources });
+    const firstHead = first.getPart('head')?.geometry;
+    const secondHead = second.getPart('head')?.geometry;
+    expect(firstHead).toBe(secondHead);
+    expect(resources.getDiagnostics().geometry.cacheHits).toBeGreaterThan(0);
+    expect(resources.getDiagnostics().geometry.activeLeases).toBe(blueprint.parts.length * 2);
+    let disposals = 0;
+    firstHead?.addEventListener('dispose', () => { disposals += 1; });
+    first.dispose();
+    second.dispose();
+    expect(disposals).toBe(0);
+    expect(resources.getDiagnostics().geometry.activeLeases).toBe(0);
+    resources.dispose();
+    expect(disposals).toBe(1);
+  });
+
+  it('does not alias distinct geometry detail values in the resource cache', () => {
+    const cache = new SolidGeometryResourceCache();
+    const specification = Object.freeze({
+      type: 'superellipsoid' as const,
+      radii: Object.freeze([1, 1.2, 0.9] as const),
+      exponent: 2.2,
+      widthSegments: 48,
+      heightSegments: 36,
+    });
+    const first = cache.acquire(specification, 0.90001);
+    const second = cache.acquire(specification, 0.90002);
+
+    expect(first.geometry).not.toBe(second.geometry);
+    expect(cache.getDiagnostics()).toMatchObject({
+      geometries: 2,
+      cacheHits: 0,
+      cacheMisses: 2,
+    });
+
+    first.release();
+    second.release();
     cache.dispose();
   });
 

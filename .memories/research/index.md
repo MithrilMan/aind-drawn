@@ -11,6 +11,7 @@ Purpose: Reusable findings from project investigations and experiment reviews.
 - [Asset extensions and fitted wearables](asset-extensions-and-wearables-2026-08-26.md): typed registries, standalone equipment, containment, glaze projection, and geometry pitfalls.
 - [Art direction and semantic surfaces](art-direction-surfaces-2026-08-25.md): orthogonal appearance model, renderer integration, caches, reveal, and measured costs.
 - [Character dance motion](character-dance-2026-08-24.md): shared `dance` pose, projection constraints, and verification notes.
+- [Compiled inked-solid rendering](compiled-rendering-2026-08-27.md): packed skinned carriers, MRT submission, shared solid resources, lifecycle, and measured performance.
 - [Doodle race review](doodle-race-analysis-2026-08-24.md): architecture, gameplay, menu viewport, and measured renderer costs.
 - [Game runtime boundary](game-runtime-boundary-2026-08-26.md): reusable input/simulation package, product and asset adapter boundaries, fixed-step constraint, and benchmark workload.
 - [Experiment boot screen](ui-boot-screen.md): shared reveal contract and critical inline loading shell for Vite experiments.

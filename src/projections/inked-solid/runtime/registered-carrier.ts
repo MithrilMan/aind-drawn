@@ -12,48 +12,28 @@ import {
 } from './carrier-materials.js';
 import { InkedSolidCarrierOwnerKeys } from './carrier-owner-keys.js';
 
-type StageMaterials = Readonly<{
-  albedo: THREE.Material;
-  mark: THREE.Material;
-  anchor: THREE.Material;
-  normal: THREE.Material;
-}>;
-
-type ProxySet = Readonly<{
-  albedo: THREE.Mesh;
-  mark: THREE.Mesh;
-  anchor: THREE.Mesh;
-  normal: THREE.Mesh;
-}>;
-
 type PartRecord = Readonly<{
   source: THREE.Mesh;
-  proxies: ProxySet;
+  proxy: THREE.Mesh;
   materials: InkedSolidPartMaterials;
 }>;
 
 type StrokeRecord = Readonly<{
   source: THREE.Mesh;
   visibilityOwner: THREE.Mesh;
-  proxies: ProxySet;
+  proxy: THREE.Mesh;
   materials: InkedSolidStrokeMaterials;
 }>;
 
 export class InkedSolidCarrierScenes {
-  public readonly albedo = new THREE.Scene();
-  public readonly mark = new THREE.Scene();
-  public readonly anchor = new THREE.Scene();
-  public readonly normal = new THREE.Scene();
+  public readonly carrier = new THREE.Scene();
 
-  public setAlbedoBackground(background: THREE.Scene['background']): void {
-    this.albedo.background = background;
+  public setBackground(background: THREE.Scene['background']): void {
+    this.carrier.background = background;
   }
 
   public clear(): void {
-    this.albedo.clear();
-    this.mark.clear();
-    this.anchor.clear();
-    this.normal.clear();
+    this.carrier.clear();
   }
 }
 
@@ -72,14 +52,8 @@ function syncProxy(source: THREE.Mesh, proxy: THREE.Mesh, visible: boolean): voi
   proxy.matrixWorld.copy(source.matrixWorld);
 }
 
-function syncProxySet(source: THREE.Mesh, proxies: ProxySet, visible: boolean): void {
-  syncProxy(source, proxies.albedo, visible);
-  syncProxy(source, proxies.mark, visible);
-  syncProxy(source, proxies.anchor, visible);
-  syncProxy(source, proxies.normal, visible);
-}
-
 export class RegisteredInkedSolidCarrier {
+  public readonly compiled = false;
   public readonly partCount: number;
   public readonly strokeMeshCount: number;
 
@@ -141,7 +115,7 @@ export class RegisteredInkedSolidCarrier {
         );
         this.parts.push(Object.freeze({
           source,
-          proxies: this.addProxies(source, stageMaterials),
+          proxy: this.addProxy(source, stageMaterials.material),
           materials: stageMaterials,
         }));
       }
@@ -155,7 +129,7 @@ export class RegisteredInkedSolidCarrier {
           this.strokes.push(Object.freeze({
             source,
             visibilityOwner,
-            proxies: this.addProxies(source, stageMaterials),
+            proxy: this.addProxy(source, stageMaterials.material),
             materials: stageMaterials,
           }));
         }
@@ -174,6 +148,10 @@ export class RegisteredInkedSolidCarrier {
 
   public get proxyMeshCount(): number {
     return this.proxies.length;
+  }
+
+  public get submittedProxyMeshCount(): number {
+    return this.proxies.reduce((count, proxy) => count + (proxy.visible ? 1 : 0), 0);
   }
 
   public get wasVisibleLastSync(): boolean {
@@ -205,15 +183,15 @@ export class RegisteredInkedSolidCarrier {
     this.rig.root.updateWorldMatrix(false, true);
     for (const record of this.parts) {
       const visible = visibleInHierarchy(record.source);
-      syncProxySet(record.source, record.proxies, visible);
+      syncProxy(record.source, record.proxy, visible);
       this.projectedAnchor.setFromMatrixPosition(record.source.matrixWorld).project(camera);
       record.materials.anchorData.x = this.projectedAnchor.x * 0.5 + 0.5;
       record.materials.anchorData.y = this.projectedAnchor.y * 0.5 + 0.5;
     }
     for (const record of this.strokes) {
-      syncProxySet(
+      syncProxy(
         record.source,
-        record.proxies,
+        record.proxy,
         visibleInHierarchy(record.visibilityOwner),
       );
     }
@@ -230,23 +208,15 @@ export class RegisteredInkedSolidCarrier {
     this.strokeRig.dispose();
   }
 
-  private addProxies(source: THREE.Mesh, materials: StageMaterials): ProxySet {
-    const create = (material: THREE.Material, scene: THREE.Scene): THREE.Mesh => {
-      const proxy = new THREE.Mesh(source.geometry, material);
-      proxy.name = `inked-proxy:${this.instanceId}:${source.name}`;
-      proxy.matrixAutoUpdate = false;
-      proxy.frustumCulled = true;
-      proxy.renderOrder = source.renderOrder;
-      scene.add(proxy);
-      this.proxies.push(proxy);
-      return proxy;
-    };
-    return Object.freeze({
-      albedo: create(materials.albedo, this.scenes.albedo),
-      mark: create(materials.mark, this.scenes.mark),
-      anchor: create(materials.anchor, this.scenes.anchor),
-      normal: create(materials.normal, this.scenes.normal),
-    });
+  private addProxy(source: THREE.Mesh, material: THREE.Material): THREE.Mesh {
+    const proxy = new THREE.Mesh(source.geometry, material);
+    proxy.name = `inked-proxy:${this.instanceId}:${source.name}`;
+    proxy.matrixAutoUpdate = false;
+    proxy.frustumCulled = true;
+    proxy.renderOrder = source.renderOrder;
+    this.scenes.carrier.add(proxy);
+    this.proxies.push(proxy);
+    return proxy;
   }
 
   private assertAlive(): void {
@@ -256,8 +226,8 @@ export class RegisteredInkedSolidCarrier {
   private hideProxies(): void {
     this.visibleLastSync = false;
     if (!this.proxiesVisible) return;
-    for (const record of this.parts) syncProxySet(record.source, record.proxies, false);
-    for (const record of this.strokes) syncProxySet(record.source, record.proxies, false);
+    for (const record of this.parts) syncProxy(record.source, record.proxy, false);
+    for (const record of this.strokes) syncProxy(record.source, record.proxy, false);
     this.proxiesVisible = false;
   }
 }

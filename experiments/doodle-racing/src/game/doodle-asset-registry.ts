@@ -13,6 +13,7 @@ export type DoodleSceneAsset = Readonly<{
   solid: SolidAssetBlueprint;
   rig: SolidRig;
   strokes?: readonly InkedSolidStrokeDefinition[];
+  geometryUsage?: 'immutable' | 'dynamic';
 }>;
 
 export type DoodleAssetSyncStats = Readonly<{
@@ -31,7 +32,8 @@ type RegistrationPass = Pick<InkedSolidScenePass, 'register'>;
 function isSameAsset(left: DoodleSceneAsset, right: DoodleSceneAsset): boolean {
   return left.solid === right.solid
     && left.rig === right.rig
-    && left.strokes === right.strokes;
+    && left.strokes === right.strokes
+    && left.geometryUsage === right.geometryUsage;
 }
 
 /** Keeps the shared compositor alive while scene instances change incrementally. */
@@ -80,6 +82,7 @@ export class DoodleAssetRegistry {
           ...(asset.strokes === undefined ? {} : { strokes: asset.strokes }),
         }),
         rig: asset.rig,
+        ...(asset.geometryUsage === undefined ? {} : { geometryUsage: asset.geometryUsage }),
       });
       this.registered.set(instanceId, Object.freeze({ asset, registration }));
       added += 1;

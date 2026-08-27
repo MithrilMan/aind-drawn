@@ -2,6 +2,7 @@ import { afterAll, bench, describe } from 'vitest';
 
 import {
   SolidRig,
+  SolidSceneResourceCache,
   SolidSurfaceResourceCache,
   createCharacterIdentity,
   createSolidCharacterBlueprint,
@@ -23,6 +24,13 @@ function disposeRigs(rigs: readonly SolidRig[]): void {
   for (const rig of rigs) rig.dispose();
 }
 
+function constructCompiledRigs(resources: SolidSceneResourceCache): SolidRig[] {
+  return Array.from({ length: INSTANCE_COUNT }, (_, index) => new SolidRig(blueprint, {
+    instanceId: `solid-compiled-benchmark:${index}`,
+    resources,
+  }));
+}
+
 describe('repeated solid rig construction', () => {
   bench('allocates independent physical surface resources', () => {
     disposeRigs(constructRigs());
@@ -32,6 +40,11 @@ describe('repeated solid rig construction', () => {
     const cache = new SolidSurfaceResourceCache();
     disposeRigs(constructRigs(cache));
     cache.dispose();
+  });
+
+  const compiledResources = new SolidSceneResourceCache();
+  bench('reuses compiled geometry and surfaces from scene resources', () => {
+    disposeRigs(constructCompiledRigs(compiledResources));
   });
 
   const warmCache = new SolidSurfaceResourceCache();
@@ -46,5 +59,6 @@ describe('repeated solid rig construction', () => {
   afterAll(() => {
     resident.dispose();
     warmCache.dispose();
+    compiledResources.dispose();
   });
 });

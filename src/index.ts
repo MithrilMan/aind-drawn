@@ -107,6 +107,11 @@ export * from './projections/inked-solid/medium-projection.js';
 export * from './projections/inked-solid/visualization.js';
 export * from './projections/inked-solid/runtime/pass.js';
 export * from './projections/inked-solid/runtime/stroke-rig.js';
+export {
+  INKED_SOLID_CARRIER_COMPILER_VERSION,
+  type CompiledInkedSolidCarrierArtifact,
+  type InkedSolidCarrierCompilationDiagnostics,
+} from './projections/inked-solid/runtime/compiled-carrier.js';
 
 // Core, materials, and family-agnostic runtimes
 export * from './core/canvas.js';
@@ -125,6 +130,8 @@ export * from './runtime/raster-hand.js';
 export * from './runtime/raster-worker.js';
 export * from './runtime/solid-geometry.js';
 export * from './runtime/solid-surfaces.js';
+export * from './runtime/solid-geometries.js';
+export * from './runtime/solid-scene-resources.js';
 export * from './runtime/solid-part-focus.js';
 export * from './runtime/rig-pose-patch.js';
 export * from './runtime/solid-rig.js';

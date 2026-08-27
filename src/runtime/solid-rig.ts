@@ -18,7 +18,11 @@ import type { InteractionSpec } from '../contracts/asset-semantics.js';
 import { validateSolidAssetBlueprint } from '../contracts/blueprint-validation.js';
 import { resolveSemanticSurface } from '../appearance/art-direction.js';
 import { surfaceFrame } from '../core/geometry3.js';
-import { createSolidGeometry, type SolidGeometryFactoryOptions } from './solid-geometry.js';
+import {
+  createSolidGeometry,
+  resolveSolidGeometryDetail,
+  type SolidGeometryFactoryOptions,
+} from './solid-geometry.js';
 import { resolveAssetInstanceId } from './instance-id.js';
 import { readWorldPose3, writeWorldPose3 } from './instance-pose.js';
 import {
@@ -26,6 +30,8 @@ import {
   type SolidSurfaceLease,
   type SolidSurfaceResourceCacheOptions,
 } from './solid-surfaces.js';
+import type { SolidGeometryLease } from './solid-geometries.js';
+import type { SolidSceneResourceCache } from './solid-scene-resources.js';
 
 type SolidPartMesh = THREE.Mesh<THREE.BufferGeometry, THREE.MeshPhysicalMaterial>;
 type NodeRestTransform = Readonly<{
@@ -37,6 +43,7 @@ type PartRestTransform = NodeRestTransform & Readonly<{ visible: boolean }>;
 
 export type SolidRigOptions = SolidGeometryFactoryOptions & Readonly<{
   instanceId?: AssetInstanceId;
+  resources?: SolidSceneResourceCache;
   surfaceCache?: SolidSurfaceResourceCache;
   environmentMap?: SolidSurfaceResourceCacheOptions['environmentMap'];
 }>;
@@ -51,12 +58,15 @@ export class SolidRig implements SolidAssetInstance {
   public readonly blueprint: SolidAssetBlueprint;
   public readonly instanceId: AssetInstanceId;
   public readonly assetId: string;
+  public readonly geometryDetail: number;
 
   private readonly nodes = new Map<string, THREE.Group>();
   private readonly nodeRest = new Map<string, NodeRestTransform>();
   private readonly parts = new Map<string, SolidPartMesh>();
   private readonly partRest = new Map<string, PartRestTransform>();
   private readonly surfaceLeases = new Map<string, SolidSurfaceLease>();
+  private readonly geometryLeases: SolidGeometryLease[] = [];
+  private readonly ownedGeometries: THREE.BufferGeometry[] = [];
   private readonly surfaceCache: SolidSurfaceResourceCache;
   private readonly ownsSurfaceCache: boolean;
   private readonly interactionStates = new Map<string, string>();
@@ -66,13 +76,20 @@ export class SolidRig implements SolidAssetInstance {
 
   public constructor(blueprint: SolidAssetBlueprint, options: SolidRigOptions = {}) {
     this.blueprint = validateSolidAssetBlueprint(blueprint);
+    this.geometryDetail = resolveSolidGeometryDetail(options.detail);
     this.assetId = this.blueprint.assetId;
     this.instanceId = resolveAssetInstanceId(this.assetId, options.instanceId);
+    if (options.resources !== undefined && options.surfaceCache !== undefined) {
+      throw new Error('SolidRig resources and surfaceCache are mutually exclusive');
+    }
+    if (options.resources !== undefined && options.environmentMap !== undefined) {
+      throw new Error('SolidRig environmentMap belongs to its scene resource cache');
+    }
     if (options.surfaceCache !== undefined && options.environmentMap !== undefined) {
       throw new Error('SolidRig environmentMap belongs to its scene-scoped surfaceCache');
     }
-    this.ownsSurfaceCache = options.surfaceCache === undefined;
-    this.surfaceCache = options.surfaceCache
+    this.ownsSurfaceCache = options.resources === undefined && options.surfaceCache === undefined;
+    this.surfaceCache = options.resources?.surfaces ?? options.surfaceCache
       ?? new SolidSurfaceResourceCache({
         ...(options.environmentMap === undefined ? {} : { environmentMap: options.environmentMap }),
       });
@@ -97,10 +114,15 @@ export class SolidRig implements SolidAssetInstance {
           ));
           this.surfaceLeases.set(leaseKey, lease);
         }
-        const mesh: SolidPartMesh = new THREE.Mesh(
-          createSolidGeometry(part.geometry, options),
-          lease.material,
+        const geometryLease = options.resources?.geometry.acquire(
+          part.geometry,
+          this.geometryDetail,
         );
+        const geometry = geometryLease?.geometry
+          ?? createSolidGeometry(part.geometry, { detail: this.geometryDetail });
+        if (geometryLease === undefined) this.ownedGeometries.push(geometry);
+        else this.geometryLeases.push(geometryLease);
+        const mesh: SolidPartMesh = new THREE.Mesh(geometry, lease.material);
         mesh.name = `part:${part.id}`;
         mesh.renderOrder = part.order;
         mesh.visible = part.visible ?? true;
@@ -307,7 +329,10 @@ export class SolidRig implements SolidAssetInstance {
   public dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    for (const part of this.parts.values()) part.geometry.dispose();
+    for (const geometry of this.ownedGeometries) geometry.dispose();
+    this.ownedGeometries.length = 0;
+    for (const lease of this.geometryLeases) lease.release();
+    this.geometryLeases.length = 0;
     for (const lease of this.surfaceLeases.values()) lease.release();
     this.surfaceLeases.clear();
     if (this.ownsSurfaceCache) this.surfaceCache.dispose();

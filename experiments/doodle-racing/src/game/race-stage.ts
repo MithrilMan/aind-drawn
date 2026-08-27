@@ -5,6 +5,7 @@ import type {
   InkedSolidSceneDiagnostics,
   Point3,
 } from '../../../../src/index.js';
+import { SolidSceneResourceCache } from '../../../../src/index.js';
 import type { ExploreCameraInput } from './controls.js';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
 import { CrowdField } from './characters/grandstand/crowd-field.js';
@@ -99,6 +100,7 @@ type ActiveExploreVehicleEntry = {
 };
 
 export class RaceStage {
+  private readonly resources = new SolidSceneResourceCache();
   private readonly doodle: DoodleScene;
   private readonly scenery: SceneryField;
   private readonly vehicles: VehicleField;
@@ -146,21 +148,35 @@ export class RaceStage {
     explorerSeed = 15823,
     vehicleSeeds: VehicleSeedSelection = DEFAULT_VEHICLE_SEEDS,
     onVehicleHoodSelected: (selection: VehicleSelectionSummary) => void = () => undefined,
+    crowdSeed?: number,
+    private readonly solidDetail = 1,
   ) {
     this.course = course;
     this.world = world;
     this.onVehicleHoodSelected = onVehicleHoodSelected;
     this.doodle = new DoodleScene(canvas, viewport, renderingStyle);
-    this.scenery = new SceneryField(course, world);
-    this.vehicles = new VehicleField(vehicleSeeds);
-    this.crowd = new CrowdField(world);
-    this.tracksideCrowd = new TracksideCrowdField(course, world);
+    this.scenery = new SceneryField(course, world, this.resources, this.solidDetail);
+    this.vehicles = new VehicleField(vehicleSeeds, this.resources, this.solidDetail);
+    this.crowd = new CrowdField(world, crowdSeed, this.resources, this.solidDetail);
+    this.tracksideCrowd = new TracksideCrowdField(
+      course,
+      world,
+      crowdSeed,
+      this.resources,
+      this.solidDetail,
+    );
     this.refreshFinishCrowdAgents();
     this.startMarshal = new StartMarshal(course);
     this.effects = new DriftEffects(course);
     this.routeDebug = new RouteDebugOverlay(course);
     this.smoke = new SmokeBurst();
-    this.explorer = new GrandstandExplorer(world.grandstand, course, explorerSeed);
+    this.explorer = new GrandstandExplorer(
+      world.grandstand,
+      course,
+      explorerSeed,
+      this.resources,
+      this.solidDetail,
+    );
     this.exploreDrive = new ExploreDriveController(
       course,
       world,
@@ -186,8 +202,19 @@ export class RaceStage {
   public rerollCrowd(seed: number): void {
     const previous = this.crowd;
     const previousTrackside = this.tracksideCrowd;
-    const replacement = new CrowdField(this.world, seed);
-    const tracksideReplacement = new TracksideCrowdField(this.course, this.world, seed);
+    const replacement = new CrowdField(
+      this.world,
+      seed,
+      this.resources,
+      this.solidDetail,
+    );
+    const tracksideReplacement = new TracksideCrowdField(
+      this.course,
+      this.world,
+      seed,
+      this.resources,
+      this.solidDetail,
+    );
     replacement.setVisible(this.mode !== 'menu');
     tracksideReplacement.setVisible(this.mode !== 'menu');
     this.crowd = replacement;
@@ -200,6 +227,10 @@ export class RaceStage {
 
   public diagnostics(): InkedSolidSceneDiagnostics | null {
     return this.doodle.diagnostics();
+  }
+
+  public resourceDiagnostics() {
+    return this.resources.getDiagnostics();
   }
 
   public setRenderingSuspended(suspended: boolean): void {
@@ -540,6 +571,7 @@ export class RaceStage {
     this.startMarshal.dispose();
     this.vehicles.dispose();
     this.scenery.dispose();
+    this.resources.dispose();
   }
 
   private sceneAssets() {
@@ -837,7 +869,13 @@ export class RaceStage {
   private replaceExplorer(pending: PendingExplorerChange): void {
 
     const previousExplorer = this.explorer;
-    const nextExplorer = new GrandstandExplorer(this.world.grandstand, this.course, pending.seed);
+    const nextExplorer = new GrandstandExplorer(
+      this.world.grandstand,
+      this.course,
+      pending.seed,
+      this.resources,
+      this.solidDetail,
+    );
     this.configureExplorerPreview(nextExplorer);
     if (this.mode === 'explore') nextExplorer.placeAt(pending.snapshot);
     this.explorer = nextExplorer;

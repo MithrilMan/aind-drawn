@@ -107,6 +107,11 @@ the fixed-rate tick lets consumers skip expensive presentation sampling between
 budgeted updates. Core modules must remain free of renderer allocations, DOM
 queries, and asset construction.
 
+Asset compilation, geometry caches, render-target topology, GPU submission,
+visual LOD, and renderer lifecycle remain in the drawing runtime or consuming
+product. Moving those concerns into `@mithrilman/aind-game-runtime` would couple
+otherwise reusable simulation primitives to one rendering architecture.
+
 Use `pnpm benchmark:game-runtime` to measure a repeatable multi-vehicle motion
 and collision workload. The benchmark is a regression signal, not a universal
 frame budget; consumers must still profile their complete scene on target

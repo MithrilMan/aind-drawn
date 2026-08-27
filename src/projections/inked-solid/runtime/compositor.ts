@@ -59,10 +59,10 @@ export class InkedSolidCompositor {
     visualization: InkedSolidVisualizationPolicy,
   ) {
     this.uniforms = {
-      albedoTexture: { value: targets.albedo.texture },
-      normalTexture: { value: targets.normal.texture },
-      markTexture: { value: targets.mark.texture },
-      anchorTexture: { value: targets.anchor.texture },
+      albedoTexture: { value: targets.albedo },
+      normalTexture: { value: targets.normal },
+      markTexture: { value: targets.mark },
+      anchorTexture: { value: targets.anchor },
       depthTexture: { value: targets.depth },
       policyTexture: { value: policies.texture },
       resolution: { value: new THREE.Vector2(1, 1) },

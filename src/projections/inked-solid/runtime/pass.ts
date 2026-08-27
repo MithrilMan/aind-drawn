@@ -13,6 +13,11 @@ import {
 } from '../visualization.js';
 import { InkedSolidCompositor } from './compositor.js';
 import {
+  CompiledInkedSolidCarrier,
+  InkedSolidCarrierCompilationCache,
+  type InkedSolidCarrierCompilationDiagnostics,
+} from './compiled-carrier.js';
+import {
   InkedSolidCarrierScenes,
   RegisteredInkedSolidCarrier,
 } from './registered-carrier.js';
@@ -34,6 +39,8 @@ export type InkedSolidSceneRegistrationOptions = Readonly<{
   instanceId: AssetInstanceId;
   blueprint: InkedSolidBlueprint;
   rig: SolidRig;
+  /** Mutable vertex buffers cannot be snapshotted into an immutable compiled carrier. */
+  geometryUsage?: 'immutable' | 'dynamic';
 }>;
 
 export type InkedSolidSceneRegistration = Readonly<{
@@ -50,6 +57,9 @@ export type InkedSolidSceneDiagnostics = Readonly<{
   proxyMeshes: number;
   submittedProxyMeshes: number;
   passMaterials: number;
+  compiledInstances: number;
+  dynamicInstances: number;
+  compilation: InkedSolidCarrierCompilationDiagnostics;
   renderTargets: 4;
   renderCalls: number;
   steadyStatePerMeshAllocations: 0;
@@ -61,9 +71,22 @@ export const DEFAULT_INKED_SOLID_SCENE_PAPER: InkedSolidPaperPolicy = Object.fre
   seed: hashString('inked-solid:scene-paper'),
 });
 
+type RegisteredCarrier = Readonly<{
+  compiled: boolean;
+  partCount: number;
+  strokeMeshCount: number;
+  proxyMeshCount: number;
+  submittedProxyMeshCount: number;
+  materialCount: number;
+  wasVisibleLastSync: boolean;
+  setStrokeReveal: (progress: number) => void;
+  sync: (camera: THREE.Camera, frustum: THREE.Frustum) => void;
+  dispose: () => void;
+}>;
+
 type RegistrationRecord = Readonly<{
   slot: number;
-  carrier: RegisteredInkedSolidCarrier;
+  carrier: RegisteredCarrier;
   handle: RegistrationHandle;
 }>;
 
@@ -118,6 +141,7 @@ export class InkedSolidScenePass {
   private readonly targets = new InkedSolidRenderTargets();
   private readonly policies = new InkedSolidPolicyTexture();
   private readonly carrierScenes = new InkedSolidCarrierScenes();
+  private readonly compilationCache = new InkedSolidCarrierCompilationCache();
   private readonly compositor: InkedSolidCompositor;
   private readonly registrations = new Map<AssetInstanceId, RegistrationRecord>();
   private readonly occupiedSlots = new Uint8Array(INKED_SOLID_POLICY_CAPACITY);
@@ -159,13 +183,22 @@ export class InkedSolidScenePass {
     const slot = this.claimPolicySlot();
     this.policies.write(slot, blueprint);
     try {
-      const carrier = new RegisteredInkedSolidCarrier(
-        instanceId,
-        blueprint,
-        rig,
-        this.carrierScenes,
-        slot,
-      );
+      const carrier: RegisteredCarrier = options.geometryUsage === 'dynamic'
+        ? new RegisteredInkedSolidCarrier(
+          instanceId,
+          blueprint,
+          rig,
+          this.carrierScenes,
+          slot,
+        )
+        : new CompiledInkedSolidCarrier(
+          instanceId,
+          blueprint,
+          rig,
+          this.carrierScenes,
+          slot,
+          this.compilationCache,
+        );
       const handle = new RegistrationHandle(
         instanceId,
         (progress) => { carrier.setStrokeReveal(progress); },
@@ -205,15 +238,12 @@ export class InkedSolidScenePass {
     for (const { carrier } of this.registrations.values()) {
       carrier.sync(camera, this.viewFrustum);
     }
-    this.carrierScenes.setAlbedoBackground(previousBackground);
+    this.carrierScenes.setBackground(previousBackground);
 
     try {
       this.renderer.xr.enabled = false;
       this.renderer.shadowMap.autoUpdate = false;
-      this.renderGBuffer(scene, camera, this.carrierScenes.albedo, this.targets.albedo);
-      this.renderGBuffer(scene, camera, this.carrierScenes.mark, this.targets.mark);
-      this.renderGBuffer(scene, camera, this.carrierScenes.anchor, this.targets.anchor);
-      this.renderGBuffer(scene, camera, this.carrierScenes.normal, this.targets.normal);
+      this.renderGBuffer(scene, camera, this.carrierScenes.carrier, this.targets.target);
       this.renderer.autoClear = true;
       this.renderer.setRenderTarget(previousTarget);
       this.compositor.render(this.renderer, camera, elapsedSeconds);
@@ -235,15 +265,19 @@ export class InkedSolidScenePass {
     let visibleInstances = 0;
     let submittedProxyMeshes = 0;
     let passMaterials = 0;
+    let compiledInstances = 0;
+    let dynamicInstances = 0;
     for (const { carrier } of this.registrations.values()) {
       carrierParts += carrier.partCount;
       semanticStrokeMeshes += carrier.strokeMeshCount;
       proxyMeshes += carrier.proxyMeshCount;
       if (carrier.wasVisibleLastSync) {
         visibleInstances += 1;
-        submittedProxyMeshes += carrier.proxyMeshCount;
+        submittedProxyMeshes += carrier.submittedProxyMeshCount;
       }
       passMaterials += carrier.materialCount;
+      if (carrier.compiled) compiledInstances += 1;
+      else dynamicInstances += 1;
     }
     return Object.freeze({
       registeredInstances: this.registrations.size,
@@ -253,8 +287,11 @@ export class InkedSolidScenePass {
       proxyMeshes,
       submittedProxyMeshes,
       passMaterials,
+      compiledInstances,
+      dynamicInstances,
+      compilation: this.compilationCache.diagnostics(),
       renderTargets: 4,
-      renderCalls: this.unregisteredOcclusion === 'depth-only' ? 9 : 5,
+      renderCalls: this.unregisteredOcclusion === 'depth-only' ? 3 : 2,
       steadyStatePerMeshAllocations: 0,
     });
   }
@@ -268,6 +305,7 @@ export class InkedSolidScenePass {
     }
     this.registrations.clear();
     this.carrierScenes.clear();
+    this.compilationCache.dispose();
     this.targets.dispose();
     this.policies.dispose();
     this.compositor.dispose();

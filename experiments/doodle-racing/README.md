@@ -221,19 +221,22 @@ safe car is still close enough to watch. Their product-specific state machine li
 role under `game/characters/trackside`; explorer, grandstand crowd, and marshal code have matching role
 folders, while identity and steering primitives remain under `game/characters/shared`.
 
-Scene-level instance and carrier counts vary with the seeded crowd size. The inked-solid pass uses
-four G-buffers plus the composite pass. Hidden rigs and whole carriers outside the camera frustum now
-short-circuit child-matrix, anchor, stroke, and proxy synchronisation; visible carriers retain
-per-proxy frustum culling. Crowd root locomotion remains smooth, while expensive character motion is
+Scene-level instance and carrier counts vary with the seeded crowd size. Immutable inked-solid
+registrations compile their source parts and semantic strokes into one skinned carrier each. One
+WebGL2 MRT geometry pass writes four attachments plus depth, followed by one composite pass; mutable
+drift-effect buffers use the explicit dynamic fallback. Hidden rigs and whole carriers outside the
+camera frustum short-circuit skeleton and uniform synchronisation. Exact repeated solid blueprints
+share scene-owned geometry and surface resources. Crowd root locomotion remains smooth, while expensive character motion is
 sampled on staggered deterministic 20 Hz ticks from `@mithrilman/aind-game-runtime`. Character rerolls
-use incremental pass registration: only the replaced character is unregistered and compiled while
-every unrelated race or preview asset remains resident. The authored grandstand steps now also own
+use incremental pass registration: only the replaced character is unregistered and recompiled while
+every unrelated race asset remains resident. The authored grandstand steps now also own
 matching gameplay obstacles and solid colliders, so race and Explore vehicles cannot pass through
 the seating volume.
 
-On narrow viewports, the full race renderer is suspended while the menu is open. Its canvas and
-inked-solid render targets shrink to one pixel and no race frame is submitted; the dedicated menu
-character preview remains active. Starting a race or entering Explore restores the race renderer.
+The main menu does not construct the race stage, race render targets, or vehicle preview renderers.
+Starting a race or entering Explore creates the stage on demand; returning to the menu releases it.
+Vehicle previews are constructed only when their controls are opened. Narrow viewports use a lower
+solid tessellation detail while preserving the same blueprint identity and gameplay geometry.
 
 Development builds expose a deterministic route profiler at `?route-profile=1`. It skips preview
 prewarming, starts a race automatically, forces all four cars along precompiled course poses for two

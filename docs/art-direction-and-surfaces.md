@@ -18,11 +18,27 @@ resolved.
 | Raster hand | Which scoped implementation produces raster marks? | `RasterHand` | Global renderer state or identity choices |
 | Art direction | What coherent visual rules govern the asset and scene? | `ArtDirectionRecipe` and `AssetAppearance` | Identity mutation or topology changes |
 | Physical treatment | How should a smooth-solid renderer shade the surface? | `PhysicalSurfaceTreatment` | Doodle deposition policy |
+| Inked-solid visualization | How is the completed drawn scene presented? | `InkedSolidVisualizationPolicy` | Medium deposition, semantic palette intent, geometry |
 
 This separation is not taxonomy for its own sake. It allows the same identity to use Graphite in a
 storybook direction on a fibrous matte surface, then switch to Ink or a cut-paper direction without
 silently becoming another character. Folding those values into one `material` string would be
 convenient for roughly eleven minutes.
+
+Scene visualizations remain a final, scene-wide Inked Solid concern. The
+`sepia-graphite` visualization can grade an already drawn composition without
+pretending sepia is a drawing tool; `paper-collage` can add cut shadows and
+fibrous projected boundaries without duplicating the semantic `cut-paper` art
+direction. Use `cut-paper` when asset roles, palette response, paper, ground,
+and lighting should change coherently. Use `paper-collage` when the completed
+scene also needs the physical assembly cues of layered paper.
+
+An Inked Solid projection may supply an `artDirection` override when the same
+live `SolidRig` must be re-presented without rebuilding its geometry. The
+projected blueprint keeps the exact wrapped solid required by the runtime, but
+resolves semantic surfaces, roles, paper, and drawing policy through the
+override appearance. This is the intended boundary for runtime style switching;
+mutating or cloning the solid would break rig identity.
 
 ## The surface contract
 

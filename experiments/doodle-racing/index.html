@@ -141,26 +141,36 @@
             </div>
             <div class="menu-options">
               <fieldset class="menu-option-group menu-medium-group">
-                <legend>Drawing medium</legend>
-                <div class="medium-gallery" aria-label="Choose a drawing medium">
+                <legend>Render style</legend>
+                <div class="medium-gallery" aria-label="Choose a render style">
                   <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="graphite" data-menu-medium checked>
-                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="graphite"><i>Rendering</i></span>
+                    <input type="radio" name="render-style" value="graphite" data-render-style checked>
+                    <span class="medium-card-visual"><img alt="" data-render-style-thumbnail="graphite"><i>Rendering</i></span>
                     <span>Graphite</span>
                   </label>
                   <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="ink" data-menu-medium>
-                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="ink"><i>Rendering</i></span>
+                    <input type="radio" name="render-style" value="ink" data-render-style>
+                    <span class="medium-card-visual"><img alt="" data-render-style-thumbnail="ink"><i>Rendering</i></span>
                     <span>Ink</span>
                   </label>
                   <label class="medium-card">
-                    <input type="radio" name="menu-medium" value="oil" data-menu-medium>
-                    <span class="medium-card-visual"><img alt="" data-medium-thumbnail="oil"><i>Rendering</i></span>
+                    <input type="radio" name="render-style" value="oil" data-render-style>
+                    <span class="medium-card-visual"><img alt="" data-render-style-thumbnail="oil"><i>Rendering</i></span>
                     <span>Oil</span>
                   </label>
+                  <label class="medium-card">
+                    <input type="radio" name="render-style" value="sepia-graphite" data-render-style>
+                    <span class="medium-card-visual"><img alt="" data-render-style-thumbnail="sepia-graphite"><i>Rendering</i></span>
+                    <span>Sepia</span>
+                  </label>
+                  <label class="medium-card">
+                    <input type="radio" name="render-style" value="paper-collage" data-render-style>
+                    <span class="medium-card-visual"><img alt="" data-render-style-thumbnail="paper-collage"><i>Rendering</i></span>
+                    <span>Collage</span>
+                  </label>
                 </div>
-                <div class="medium-thumbnail-renderer" data-medium-thumbnail-viewport aria-hidden="true">
-                  <canvas data-medium-thumbnail-canvas></canvas>
+                <div class="medium-thumbnail-renderer" data-render-style-thumbnail-viewport aria-hidden="true">
+                  <canvas data-render-style-thumbnail-canvas></canvas>
                 </div>
               </fieldset>
               <fieldset class="menu-option-group menu-laps-group">

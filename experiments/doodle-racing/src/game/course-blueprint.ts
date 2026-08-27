@@ -1,6 +1,6 @@
 import {
+  createAssetAppearance,
   createSemanticSurface,
-  createUniformAssetAppearance,
   type DrawingApplication,
   type DrawingIntent,
   type SolidAssetBlueprint,
@@ -97,10 +97,12 @@ export function createCourseBlueprint(
     representation: 'solid',
     assetId: 'race-course:paper-loop:1',
     seed: 7301,
-    appearance: createUniformAssetAppearance(
-      'storybook',
-      ['ground', 'road', 'edge', 'finish'],
-    ),
+    appearance: createAssetAppearance('storybook', [
+      Object.freeze({ semanticPartId: 'ground', roles: Object.freeze(['primary-form', 'foliage'] as const) }),
+      Object.freeze({ semanticPartId: 'road', roles: Object.freeze(['secondary-form'] as const) }),
+      Object.freeze({ semanticPartId: 'edge', roles: Object.freeze(['accent'] as const) }),
+      Object.freeze({ semanticPartId: 'finish', roles: Object.freeze(['line-detail'] as const) }),
+    ]),
     bounds: Object.freeze({
       minimum: [layout.bounds.minimumX, -0.2, layout.bounds.minimumZ] as const,
       maximum: [layout.bounds.maximumX, 0.2, layout.bounds.maximumZ] as const,

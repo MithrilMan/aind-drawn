@@ -55,11 +55,12 @@ import {
 } from '../experiments/doodle-racing/src/game/explore-vehicle-entry.js';
 import { GrandstandExplorer } from '../experiments/doodle-racing/src/game/characters/explorer/grandstand-explorer.js';
 import {
-  DEFAULT_PAPER_CIRCUIT_MEDIUM,
-  PAPER_CIRCUIT_MEDIUM_IDS,
-  isPaperCircuitMedium,
-  nextPaperCircuitMedium,
-} from '../experiments/doodle-racing/src/game/drawing-medium.js';
+  DEFAULT_PAPER_CIRCUIT_RENDER_STYLE,
+  PAPER_CIRCUIT_RENDER_STYLE_IDS,
+  isPaperCircuitRenderStyle,
+  nextPaperCircuitRenderStyle,
+  paperCircuitRenderStyleById,
+} from '../experiments/doodle-racing/src/game/render-style.js';
 import {
   CONTROL_ACTION_IDS,
   toDriveInput,
@@ -274,12 +275,26 @@ class FakeAudio {
 }
 
 describe('Paper Circuit experiment', () => {
-  it('offers only Graphite, Ink, and Oil with Graphite as the default', () => {
-    expect(DEFAULT_PAPER_CIRCUIT_MEDIUM).toBe('graphite');
-    expect(PAPER_CIRCUIT_MEDIUM_IDS).toEqual(['graphite', 'ink', 'oil']);
-    expect(PAPER_CIRCUIT_MEDIUM_IDS.map(nextPaperCircuitMedium))
-      .toEqual(['ink', 'oil', 'graphite']);
-    expect(isPaperCircuitMedium('watercolor')).toBe(false);
+  it('offers three natural media and two scene visualizations with Graphite as the default', () => {
+    expect(DEFAULT_PAPER_CIRCUIT_RENDER_STYLE).toBe('graphite');
+    expect(PAPER_CIRCUIT_RENDER_STYLE_IDS).toEqual([
+      'graphite',
+      'ink',
+      'oil',
+      'sepia-graphite',
+      'paper-collage',
+    ]);
+    expect(PAPER_CIRCUIT_RENDER_STYLE_IDS.map(nextPaperCircuitRenderStyle))
+      .toEqual(['ink', 'oil', 'sepia-graphite', 'paper-collage', 'graphite']);
+    expect(isPaperCircuitRenderStyle('watercolor')).toBe(false);
+    expect(paperCircuitRenderStyleById('sepia-graphite')).toMatchObject({
+      medium: 'graphite',
+      visualization: 'sepia-graphite',
+    });
+    expect(paperCircuitRenderStyleById('paper-collage')).toMatchObject({
+      medium: 'ink',
+      visualization: 'paper-collage',
+    });
   });
 
   it('authors a valid closed course through the public solid contract', () => {
@@ -1511,7 +1526,7 @@ describe('Paper Circuit experiment', () => {
 
     expect(settings.load()).toBe(DEFAULT_MENU_SETTINGS);
     settings.save({
-      medium: 'ink',
+      renderStyle: 'paper-collage',
       laps: 10,
       music: false,
       musicVolume: 0.4,
@@ -1519,10 +1534,10 @@ describe('Paper Circuit experiment', () => {
       sfxVolume: 0.65,
     });
     expect(values.get(MENU_SETTINGS_STORAGE_KEY)).toBe(
-      '{"medium":"ink","laps":10,"music":false,"musicVolume":0.4,"sfx":true,"sfxVolume":0.65}',
+      '{"renderStyle":"paper-collage","laps":10,"music":false,"musicVolume":0.4,"sfx":true,"sfxVolume":0.65}',
     );
     expect(settings.load()).toEqual({
-      medium: 'ink',
+      renderStyle: 'paper-collage',
       laps: 10,
       music: false,
       musicVolume: 0.4,
@@ -1535,13 +1550,19 @@ describe('Paper Circuit experiment', () => {
       '{"medium":"marker","laps":7,"music":"off","musicVolume":2,"sfx":false,"sfxVolume":-1}',
     );
     expect(settings.load()).toEqual({
-      medium: 'graphite',
+      renderStyle: 'graphite',
       laps: 5,
       music: true,
       musicVolume: 1,
       sfx: false,
       sfxVolume: 0,
     });
+
+    values.set(
+      MENU_SETTINGS_STORAGE_KEY,
+      '{"medium":"ink","laps":3,"music":true,"sfx":true}',
+    );
+    expect(settings.load()).toMatchObject({ renderStyle: 'ink', laps: 3 });
 
     const blocked = new MenuSettingsStore({
       getItem: () => { throw new Error('blocked'); },

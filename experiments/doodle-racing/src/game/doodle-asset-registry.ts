@@ -1,5 +1,6 @@
 import {
   createInkedSolidBlueprint,
+  type ArtDirectionId,
   type InkedSolidScenePass,
   type InkedSolidSceneRegistration,
   type InkedSolidStrokeDefinition,
@@ -41,6 +42,8 @@ export class DoodleAssetRegistry {
     pass: RegistrationPass,
     assets: readonly DoodleSceneAsset[],
     medium: MediumId,
+    artDirection: ArtDirectionId | null = null,
+    viewMarks = true,
   ): DoodleAssetSyncStats {
     const next = new Map<string, DoodleSceneAsset>();
     for (const asset of assets) {
@@ -72,6 +75,8 @@ export class DoodleAssetRegistry {
         instanceId,
         blueprint: createInkedSolidBlueprint(asset.solid, {
           medium,
+          ...(artDirection === null ? {} : { artDirection }),
+          ...(!viewMarks ? { viewMarks: false as const } : {}),
           ...(asset.strokes === undefined ? {} : { strokes: asset.strokes }),
         }),
         rig: asset.rig,

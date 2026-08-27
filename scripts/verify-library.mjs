@@ -58,6 +58,7 @@ const requiredExports = [
   'createSolidCharacterFaceBlueprint',
   'createInkedSolidBlueprint',
   'inkedSolidMediumDefaults',
+  'inkedSolidVisualizationById',
   'createSolidCharacterInkStrokes',
   'createSolidBuildingInkStrokes',
   'decodeCharacterIdentity',

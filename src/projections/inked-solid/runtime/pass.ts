@@ -6,6 +6,11 @@ import { PAPER_RGB } from '../../../core/sketch.js';
 import type { SolidRig } from '../../../runtime/solid-rig.js';
 import type { InkedSolidBlueprint } from '../blueprint.js';
 import type { InkedSolidPaperPolicy } from '../contracts.js';
+import {
+  inkedSolidVisualizationById,
+  type InkedSolidVisualizationId,
+  type InkedSolidVisualizationPolicy,
+} from '../visualization.js';
 import { InkedSolidCompositor } from './compositor.js';
 import {
   InkedSolidCarrierScenes,
@@ -21,6 +26,7 @@ export type InkedSolidUnregisteredOcclusion = 'exclude' | 'depth-only';
 
 export type InkedSolidScenePassOptions = Readonly<{
   paper?: InkedSolidPaperPolicy;
+  visualization?: InkedSolidVisualizationId;
   unregisteredOcclusion?: InkedSolidUnregisteredOcclusion;
 }>;
 
@@ -106,6 +112,7 @@ function resolvePaper(policy: InkedSolidPaperPolicy | undefined): InkedSolidPape
  */
 export class InkedSolidScenePass {
   public readonly paper: InkedSolidPaperPolicy;
+  public readonly visualization: InkedSolidVisualizationPolicy;
   public readonly unregisteredOcclusion: InkedSolidUnregisteredOcclusion;
 
   private readonly targets = new InkedSolidRenderTargets();
@@ -126,9 +133,15 @@ export class InkedSolidScenePass {
     options: InkedSolidScenePassOptions = {},
   ) {
     this.paper = resolvePaper(options.paper);
+    this.visualization = inkedSolidVisualizationById(options.visualization ?? 'natural');
     this.unregisteredOcclusion = options.unregisteredOcclusion ?? 'exclude';
     this.depthOnlyMaterial.colorWrite = false;
-    this.compositor = new InkedSolidCompositor(this.targets, this.policies, this.paper);
+    this.compositor = new InkedSolidCompositor(
+      this.targets,
+      this.policies,
+      this.paper,
+      this.visualization,
+    );
   }
 
   public register(options: InkedSolidSceneRegistrationOptions): InkedSolidSceneRegistration {

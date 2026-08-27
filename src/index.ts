@@ -104,6 +104,7 @@ export * from './assets/tree/solid/recipe.js';
 export * from './projections/inked-solid/contracts.js';
 export * from './projections/inked-solid/blueprint.js';
 export * from './projections/inked-solid/medium-projection.js';
+export * from './projections/inked-solid/visualization.js';
 export * from './projections/inked-solid/runtime/pass.js';
 export * from './projections/inked-solid/runtime/stroke-rig.js';
 

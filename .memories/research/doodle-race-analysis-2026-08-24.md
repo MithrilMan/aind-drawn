@@ -357,10 +357,22 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   render CPU, 4,148 draw calls, 1.73 million triangles, 29 visible instances, and 7,868 submitted
   proxies; the lightest segment averaged 12.84 ms, 1,100 calls, 398k triangles, six visible instances,
   and 1,820 submitted proxies. Scene density, not route curvature, is the primary spatial cost signal.
-- On viewports up to 760 CSS pixels, the full race renderer is suspended while the menu is active:
-  its canvas and four inked-solid targets shrink to 1x1 and race rendering becomes a no-op while the
-  dedicated character preview remains live. This removes the hidden full-scene GPU/pixel cost without
-  destroying and rebuilding world rigs on every menu transition.
+- The full race renderer is suspended while the menu is active at every viewport size: its canvas and
+  four inked-solid targets shrink to 1x1 while responsive, precompiled Graphite WebP assets provide the
+  menu backdrop. Only the dedicated character preview remains live. This removes the hidden full-scene
+  GPU/pixel cost without destroying and rebuilding world rigs on every menu transition.
+- Paper Circuit render styles are a product-level composition of medium, scene visualization, optional
+  projection art direction, and view-mark policy. `sepia-graphite` keeps Graphite deposition and applies
+  warm grading/contour reinforcement. `paper-collage` uses Ink carriers, a `cut-paper` projection override,
+  semantic course roles, no generated view marks, opaque poster pigment, faceted tone, short depth-derived
+  cut shadows, and owner-local fibrous edges. Keep these axes separate; inventing fake MediumIds would
+  mix pigment mechanics with scene presentation.
+- `createInkedSolidBlueprint(..., { artDirection })` re-resolves appearance for one projection while
+  retaining the exact wrapped solid required by `SolidRig`. Runtime carrier materials must use the
+  projected blueprint appearance, not `blueprint.solid.appearance`, or dynamic art direction silently
+  collapses back to the source solid.
+- Doodle renderers cap device pixel ratio at 1.5 on coarse or <=720px viewports. With four carrier buffers
+  plus depth this cuts backing pixels by roughly 44% versus DPR 2 while retaining antialiased contours.
 - Asset compilation is worthwhile only if its runtime IR changes submission topology. Prefer packed
   typed-array carrier/stroke meshes with part/surface/bone tables, bounds, anchors, colliders, LODs,
   compiler version, and a content fingerprint; then prepare renderer-specific buffers and a single

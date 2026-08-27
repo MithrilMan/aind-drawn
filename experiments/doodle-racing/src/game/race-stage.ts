@@ -3,14 +3,17 @@ import { SpatialHash2D } from '@mithrilman/aind-game-runtime';
 
 import type {
   InkedSolidSceneDiagnostics,
-  MediumId,
   Point3,
 } from '../../../../src/index.js';
 import type { ExploreCameraInput } from './controls.js';
 import { nearestCoursePoint, type CourseLayout } from './course.js';
 import { CrowdField } from './characters/grandstand/crowd-field.js';
 import type { CrowdSeparationAgent } from './characters/shared/crowd-steering.js';
-import { DoodleScene, type DoodleRenderStats } from './doodle-scene.js';
+import {
+  DoodleScene,
+  type DoodleRenderingStyle,
+  type DoodleRenderStats,
+} from './doodle-scene.js';
 import { DriftEffects } from './drift-effects.js';
 import { ExploreDriveController } from './explore-drive.js';
 import {
@@ -139,7 +142,7 @@ export class RaceStage {
     viewport: HTMLElement,
     course: CourseLayout,
     world: RaceWorldLayout,
-    medium: MediumId,
+    renderingStyle: DoodleRenderingStyle,
     explorerSeed = 15823,
     vehicleSeeds: VehicleSeedSelection = DEFAULT_VEHICLE_SEEDS,
     onVehicleHoodSelected: (selection: VehicleSelectionSummary) => void = () => undefined,
@@ -147,7 +150,7 @@ export class RaceStage {
     this.course = course;
     this.world = world;
     this.onVehicleHoodSelected = onVehicleHoodSelected;
-    this.doodle = new DoodleScene(canvas, viewport, medium);
+    this.doodle = new DoodleScene(canvas, viewport, renderingStyle);
     this.scenery = new SceneryField(course, world);
     this.vehicles = new VehicleField(vehicleSeeds);
     this.crowd = new CrowdField(world);
@@ -176,8 +179,8 @@ export class RaceStage {
     this.setMode('menu');
   }
 
-  public setMedium(medium: MediumId): void {
-    this.doodle.setMedium(medium);
+  public setRenderingStyle(style: DoodleRenderingStyle): void {
+    this.doodle.setRenderingStyle(style);
   }
 
   public rerollCrowd(seed: number): void {

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 
-import type { InkedSolidSceneDiagnostics, MediumId } from '../../../../src/index.js';
+import type { InkedSolidSceneDiagnostics } from '../../../../src/index.js';
 import type { CourseLayout } from './course.js';
-import { DoodleScene } from './doodle-scene.js';
+import { DoodleScene, type DoodleRenderingStyle } from './doodle-scene.js';
 import {
   GrandstandExplorer,
   type GrandstandExplorerSnapshot,
@@ -28,10 +28,10 @@ export class MenuCharacterPreview {
     viewport: HTMLElement,
     private readonly stand: GrandstandLayout,
     private readonly course: CourseLayout,
-    medium: MediumId,
+    renderingStyle: DoodleRenderingStyle,
     seed: number,
   ) {
-    this.doodle = new DoodleScene(canvas, viewport, medium);
+    this.doodle = new DoodleScene(canvas, viewport, renderingStyle);
     this.explorer = this.createExplorer(seed);
     this.explorer.schedulePreviewHelmetEquip(2);
     this.backdrop.setVisible(true);
@@ -39,8 +39,8 @@ export class MenuCharacterPreview {
     this.updateCamera();
   }
 
-  public setMedium(medium: MediumId): void {
-    this.doodle.setMedium(medium);
+  public setRenderingStyle(style: DoodleRenderingStyle): void {
+    this.doodle.setRenderingStyle(style);
   }
 
   public get currentSeed(): number {

@@ -3,7 +3,9 @@ import * as THREE from 'three';
 import {
   InkedSolidScenePass,
   createInkedSolidBlueprint,
+  type ArtDirectionId,
   type InkedSolidSceneDiagnostics,
+  type InkedSolidVisualizationId,
   type MediumId,
 } from '../../../../src/index.js';
 import {
@@ -16,6 +18,13 @@ export type { DoodleSceneAsset } from './doodle-asset-registry.js';
 
 export type DoodleSceneOptions = Readonly<{
   preserveDrawingBuffer?: boolean;
+}>;
+
+export type DoodleRenderingStyle = Readonly<{
+  medium: MediumId;
+  visualization: InkedSolidVisualizationId;
+  artDirection?: ArtDirectionId | null;
+  viewMarks?: boolean;
 }>;
 
 export type DoodleRenderStats = Readonly<{
@@ -33,20 +42,31 @@ export class DoodleScene {
   public readonly camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.01, 400);
 
   private readonly renderer: THREE.WebGLRenderer;
+  private readonly pixelRatio: number;
   private readonly observer: ResizeObserver;
   private readonly assetRegistry = new DoodleAssetRegistry();
   private assets: readonly DoodleSceneAsset[] = Object.freeze([]);
   private pass: InkedSolidScenePass | null = null;
   private medium: MediumId;
+  private visualization: InkedSolidVisualizationId;
+  private artDirection: ArtDirectionId | null;
+  private viewMarks: boolean;
   private suspended = false;
 
   public constructor(
     canvas: HTMLCanvasElement,
     private readonly viewport: HTMLElement,
-    medium: MediumId,
+    style: MediumId | DoodleRenderingStyle,
     options: DoodleSceneOptions = {},
   ) {
-    this.medium = medium;
+    this.medium = typeof style === 'string' ? style : style.medium;
+    this.visualization = typeof style === 'string' ? 'natural' : style.visualization;
+    this.artDirection = typeof style === 'string' ? null : style.artDirection ?? null;
+    this.viewMarks = typeof style === 'string' ? true : style.viewMarks ?? true;
+    this.pixelRatio = Math.min(
+      window.devicePixelRatio,
+      window.matchMedia('(pointer: coarse), (max-width: 720px)').matches ? 1.5 : 2,
+    );
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -55,7 +75,10 @@ export class DoodleScene {
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.info.autoReset = false;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Four carrier buffers plus depth make DPR 2 disproportionately expensive
+    // on phones. A 1.5 cap preserves clean contours while cutting those pixels
+    // by roughly 44% on common retina mobile displays.
+    this.renderer.setPixelRatio(this.pixelRatio);
     this.renderer.setClearColor(0xe9ddbd, 1);
     this.observer = new ResizeObserver(this.resize);
     this.observer.observe(viewport);
@@ -76,7 +99,13 @@ export class DoodleScene {
     }
     const stats = this.pass === null
       ? this.rebuildPass()
-      : this.assetRegistry.sync(this.pass, this.assets, this.medium);
+      : this.assetRegistry.sync(
+        this.pass,
+        this.assets,
+        this.medium,
+        this.artDirection,
+        this.viewMarks,
+      );
     if (import.meta.env.DEV) {
       console.info(
         `Paper Circuit asset sync ${(performance.now() - startedAt).toFixed(2)} ms`
@@ -88,6 +117,22 @@ export class DoodleScene {
   public setMedium(medium: MediumId): void {
     if (medium === this.medium) return;
     this.medium = medium;
+    this.rebuildPass();
+  }
+
+  public setRenderingStyle(style: DoodleRenderingStyle): void {
+    const artDirection = style.artDirection ?? null;
+    const viewMarks = style.viewMarks ?? true;
+    if (
+      style.medium === this.medium
+      && style.visualization === this.visualization
+      && artDirection === this.artDirection
+      && viewMarks === this.viewMarks
+    ) return;
+    this.medium = style.medium;
+    this.visualization = style.visualization;
+    this.artDirection = artDirection;
+    this.viewMarks = viewMarks;
     this.rebuildPass();
   }
 
@@ -147,10 +192,21 @@ export class DoodleScene {
     }
     const firstInk = createInkedSolidBlueprint(first.solid, {
       medium: this.medium,
+      ...(this.artDirection === null ? {} : { artDirection: this.artDirection }),
+      ...(!this.viewMarks ? { viewMarks: false as const } : {}),
       ...(first.strokes === undefined ? {} : { strokes: first.strokes }),
     });
-    this.pass = new InkedSolidScenePass(this.renderer, { paper: firstInk.paper });
-    const stats = this.assetRegistry.sync(this.pass, this.assets, this.medium);
+    this.pass = new InkedSolidScenePass(this.renderer, {
+      paper: firstInk.paper,
+      visualization: this.visualization,
+    });
+    const stats = this.assetRegistry.sync(
+      this.pass,
+      this.assets,
+      this.medium,
+      this.artDirection,
+      this.viewMarks,
+    );
     this.resize();
     return stats;
   }

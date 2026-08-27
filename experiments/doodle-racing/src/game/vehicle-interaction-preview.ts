@@ -4,10 +4,13 @@ import {
   SolidRig,
   SolidSurfaceResourceCache,
   isolateSolidRigParts,
-  type MediumId,
   type Point3,
 } from '../../../../src/index.js';
-import { DoodleScene, type DoodleSceneAsset } from './doodle-scene.js';
+import {
+  DoodleScene,
+  type DoodleRenderingStyle,
+  type DoodleSceneAsset,
+} from './doodle-scene.js';
 import type { VehicleInteractionPreviewSource } from './vehicle-field.js';
 
 const CAMERA_OFFSET = new THREE.Vector3(4.2, 3.4, 5.2);
@@ -64,7 +67,7 @@ export class VehicleInteractionPreview {
   public constructor(
     canvas: HTMLCanvasElement,
     viewport: HTMLElement,
-    medium: MediumId,
+    renderingStyle: DoodleRenderingStyle,
     options: VehicleInteractionPreviewOptions = {},
   ) {
     this.instanceId = options.instanceId ?? 'paper-circuit:vehicle-interaction-preview';
@@ -72,12 +75,12 @@ export class VehicleInteractionPreview {
     if (!Number.isInteger(this.cacheCapacity) || this.cacheCapacity < 1) {
       throw new RangeError('Vehicle interaction preview cache capacity must be a positive integer');
     }
-    this.doodle = new DoodleScene(canvas, viewport, medium);
+    this.doodle = new DoodleScene(canvas, viewport, renderingStyle);
   }
 
-  public setMedium(medium: MediumId): void {
+  public setRenderingStyle(style: DoodleRenderingStyle): void {
     this.assertAlive();
-    this.doodle.setMedium(medium);
+    this.doodle.setRenderingStyle(style);
   }
 
   /**

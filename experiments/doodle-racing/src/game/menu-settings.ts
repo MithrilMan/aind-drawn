@@ -1,8 +1,8 @@
 import {
-  DEFAULT_PAPER_CIRCUIT_MEDIUM,
-  isPaperCircuitMedium,
-  type PaperCircuitMediumId,
-} from './drawing-medium.js';
+  DEFAULT_PAPER_CIRCUIT_RENDER_STYLE,
+  isPaperCircuitRenderStyle,
+  type PaperCircuitRenderStyleId,
+} from './render-style.js';
 import {
   DEFAULT_RACE_LAPS,
   RACE_LAP_OPTIONS,
@@ -10,7 +10,7 @@ import {
 } from './race-model.js';
 
 export type MenuSettings = Readonly<{
-  medium: PaperCircuitMediumId;
+  renderStyle: PaperCircuitRenderStyleId;
   laps: RaceLapCount;
   music: boolean;
   musicVolume: number;
@@ -21,7 +21,7 @@ export type MenuSettings = Readonly<{
 type MenuSettingsStorage = Pick<Storage, 'getItem' | 'setItem'>;
 
 export const DEFAULT_MENU_SETTINGS: MenuSettings = Object.freeze({
-  medium: DEFAULT_PAPER_CIRCUIT_MEDIUM,
+  renderStyle: DEFAULT_PAPER_CIRCUIT_RENDER_STYLE,
   laps: DEFAULT_RACE_LAPS,
   music: true,
   musicVolume: 1,
@@ -50,15 +50,17 @@ export function normalizeAudioVolume(value: number): number {
 
 function menuSettingsFrom(value: unknown): MenuSettings {
   if (!isRecord(value)) return DEFAULT_MENU_SETTINGS;
-  const medium = typeof value.medium === 'string' && isPaperCircuitMedium(value.medium)
-    ? value.medium
-    : DEFAULT_MENU_SETTINGS.medium;
+  const renderStyleCandidate = value.renderStyle ?? value.medium;
+  const renderStyle = typeof renderStyleCandidate === 'string'
+    && isPaperCircuitRenderStyle(renderStyleCandidate)
+    ? renderStyleCandidate
+    : DEFAULT_MENU_SETTINGS.renderStyle;
   const laps = typeof value.laps === 'number'
     && RACE_LAP_OPTIONS.includes(value.laps as RaceLapCount)
     ? value.laps as RaceLapCount
     : DEFAULT_MENU_SETTINGS.laps;
   return Object.freeze({
-    medium,
+    renderStyle,
     laps,
     music: typeof value.music === 'boolean' ? value.music : DEFAULT_MENU_SETTINGS.music,
     musicVolume: typeof value.musicVolume === 'number'

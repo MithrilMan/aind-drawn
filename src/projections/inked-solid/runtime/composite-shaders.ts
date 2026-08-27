@@ -22,6 +22,14 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
   uniform vec3 paperColor;
   uniform float paperGrain;
   uniform float paperSeed;
+  uniform float visualizationMode;
+  uniform float visualizationColorStrength;
+  uniform float visualizationContourBoost;
+  uniform float visualizationPosterizeSteps;
+  uniform float visualizationTornEdgeStrength;
+  uniform float visualizationTornEdgeScale;
+  uniform vec3 visualizationCutShadow;
+  uniform float visualizationSeed;
   varying vec2 inkedUv;
 
   float hash21(vec2 point) {
@@ -672,12 +680,113 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       gesturePigment = mix(loaded, dry, bristleTone);
     }
     color = mix(color, gesturePigment, clamp(depositedPigment, 0.0, 1.0));
-    color = mix(color, contourColor, contour);
+
+    // Scene visualizations are uniform branches. The default path performs no
+    // additional sampling or noise work; expensive torn-paper synthesis is
+    // paid only by the collage treatment that asks for it.
+    float visualizationEdgeErosion = 0.0;
+    if (visualizationMode > 0.5 && visualizationMode < 1.5) {
+      float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+      float graphiteValue = smoothstep(0.015, 0.96, pow(luminance, 0.86));
+      vec3 sepiaInk = vec3(0.026, 0.023, 0.018);
+      vec3 ivory = mix(paperColor, vec3(0.92, 0.79, 0.56), 0.12);
+      vec3 sepia = mix(sepiaInk, ivory, graphiteValue);
+      float sepiaTooth = grain * 0.045
+        + (hash21(gl_FragCoord.xy * 0.53 + visualizationSeed * 67.0) - 0.5) * 0.018;
+      sepia *= 1.0 + sepiaTooth;
+      color = mix(color, sepia, visualizationColorStrength);
+    } else if (visualizationMode > 1.5) {
+      // Collage starts from authored semantic pigment rather than the already
+      // synthesized medium bed. That keeps the source hue while avoiding the
+      // low-frequency fill marks becoming terrain-sized digital blobs.
+      vec3 displayPigment = pow(clamp(albedo.rgb, 0.0, 1.0), vec3(1.0 / 2.2));
+      float collageLuminance = dot(displayPigment, vec3(0.2126, 0.7152, 0.0722));
+      vec3 muted = mix(vec3(collageLuminance), displayPigment, 0.58);
+      muted = mix(muted, vec3(0.46, 0.45, 0.32), 0.26);
+      muted = pow(clamp(muted, 0.0, 1.0), vec3(1.15));
+      float rawChroma = max(displayPigment.r, max(displayPigment.g, displayPigment.b))
+        - min(displayPigment.r, min(displayPigment.g, displayPigment.b));
+      float roadSheet = (1.0 - smoothstep(0.08, 0.17, rawChroma))
+        * (1.0 - smoothstep(0.52, 0.68, collageLuminance));
+      muted = mix(muted, vec3(0.19, 0.185, 0.17), roadSheet * 0.9);
+      float steps = max(2.0, visualizationPosterizeSteps);
+      vec3 posterPigment = floor(muted * steps + 0.5) / steps;
+      posterPigment = pow(posterPigment, vec3(2.2));
+      // Collage pigment is a cut sheet, not a wash. Keep the semantic colour
+      // opaque and let only fine paper tooth perturb it; low-frequency medium
+      // noise reads as giant airbrushed stains once the camera pulls back.
+      float fiberBand = sin(
+        gl_FragCoord.x * 1.37
+          + valueNoise(gl_FragCoord.xy / 29.0 + visualizationSeed * 37.0) * 4.2
+      ) * 0.5 + 0.5;
+      float paperFiber = grain * 0.035
+        + (hash21(gl_FragCoord.xy * 0.41 + visualizationSeed * 113.0) - 0.5) * 0.018
+        + (fiberBand - 0.5) * 0.022;
+      vec3 collagePigment = clamp(posterPigment * (1.0 + paperFiber), 0.0, 1.0);
+      float cutPlaneTone = mix(0.78, 1.04, steppedPlaneTone);
+      collagePigment *= mix(1.0, cutPlaneTone, facetedResponse * 0.7);
+      vec3 collagePaper = clamp(paperColor * (1.0 + paperFiber * 0.42), 0.0, 1.0);
+      vec3 collageDeposit = mix(collagePaper, collagePigment, assetSurface);
+      color = mix(color, collageDeposit, visualizationColorStrength);
+
+      vec2 shadowOffset = visualizationCutShadow.yz * pixel * displayScale;
+      float shiftedDepth = sampledDepth(inkedUv - shadowOffset);
+      float middleDepth = sampledDepth(inkedUv - shadowOffset * 2.35);
+      float farDepth = sampledDepth(inkedUv - shadowOffset * 4.2);
+      float ambientDepth = sampledDepth(inkedUv - shadowOffset * 6.4);
+      float relativeBias = max(0.00035, stableDepth * 0.0008);
+      float nearOcclusion = step(shiftedDepth + relativeBias, stableDepth);
+      float middleOcclusion = step(middleDepth + relativeBias, stableDepth) * 0.58;
+      float farOcclusion = step(farDepth + relativeBias, stableDepth) * 0.26;
+      float ambientOcclusion = step(ambientDepth + relativeBias, stableDepth) * 0.14;
+      float cutShadow = max(
+        max(nearOcclusion, middleOcclusion),
+        max(farOcclusion, ambientOcclusion)
+      )
+        * (1.0 - mainEdge * 0.62)
+        * visualizationCutShadow.x;
+      color *= 1.0 - cutShadow;
+
+      float tornNoise = valueNoise(
+        paperPoint / max(0.25, visualizationTornEdgeScale)
+          + vec2(visualizationSeed * 79.0, visualizationSeed * 43.0)
+      );
+      float tornPickup = smoothstep(0.18, 0.82, tornNoise);
+      float centerOwner = sampledCarrierOwner(inkedUv);
+      float ownerBoundary = 0.0;
+      ownerBoundary = max(ownerBoundary, step(
+        0.00024,
+        abs(centerOwner - sampledCarrierOwner(inkedUv + vec2(pixel.x, 0.0) * displayScale))
+      ));
+      ownerBoundary = max(ownerBoundary, step(
+        0.00024,
+        abs(centerOwner - sampledCarrierOwner(inkedUv - vec2(pixel.x, 0.0) * displayScale))
+      ));
+      ownerBoundary = max(ownerBoundary, step(
+        0.00024,
+        abs(centerOwner - sampledCarrierOwner(inkedUv + vec2(0.0, pixel.y) * displayScale))
+      ));
+      ownerBoundary = max(ownerBoundary, step(
+        0.00024,
+        abs(centerOwner - sampledCarrierOwner(inkedUv - vec2(0.0, pixel.y) * displayScale))
+      ));
+      float tornRim = ownerBoundary * surface * tornPickup * visualizationTornEdgeStrength;
+      vec3 exposedPaper = mix(paperColor, vec3(0.63, 0.46, 0.27), 0.18);
+      color = mix(color, exposedPaper, clamp(tornRim, 0.0, 0.74));
+      visualizationEdgeErosion = tornRim;
+    }
+
+    float resolvedContour = clamp(
+      contour * (1.0 + visualizationContourBoost),
+      0.0,
+      1.0
+    ) * (1.0 - visualizationEdgeErosion * 0.72);
+    color = mix(color, contourColor, resolvedContour);
     // The albedo pass contains the carrier opacity even where its RGB is
     // deliberately replaced by paper/background. Using background alpha on
     // carrier pixels made a correctly synthesized pigment bed transparent.
     float alpha = albedo.a;
-    alpha = max(alpha, max(depositedPigment, contour));
+    alpha = max(alpha, max(depositedPigment, resolvedContour));
     gl_FragColor = vec4(color, alpha);
     #include <colorspace_fragment>
   }

@@ -1,4 +1,3 @@
-import type { MediumId } from '../../../src/index.js';
 import { FrameRateMeter } from '@mithrilman/aind-game-runtime';
 import {
   CONTROL_ACTION_IDS,
@@ -23,12 +22,13 @@ import { ControlHintPresenter } from './game/control-hint-presenter.js';
 import { InputController } from './game/input-controller.js';
 import type { ExploreEntrancePhase } from './game/explore-entrance.js';
 import { MenuCharacterPreview } from './game/menu-character-preview.js';
-import { MediumVehicleGallery } from './game/medium-vehicle-gallery.js';
+import { RenderStyleVehicleGallery } from './game/render-style-vehicle-gallery.js';
 import {
-  isPaperCircuitMedium,
-  nextPaperCircuitMedium,
-  type PaperCircuitMediumId,
-} from './game/drawing-medium.js';
+  isPaperCircuitRenderStyle,
+  nextPaperCircuitRenderStyle,
+  paperCircuitRenderStyleById,
+  type PaperCircuitRenderStyleId,
+} from './game/render-style.js';
 import { MenuSettingsStore } from './game/menu-settings.js';
 import { MusicController } from './game/music-controller.js';
 import { createVehicleCollisionProfile } from './game/vehicle-collision-profile.js';
@@ -76,14 +76,20 @@ const canvas = requireElement('[data-race-canvas]', HTMLCanvasElement);
 const minimapCanvas = requireElement('[data-race-minimap]', HTMLCanvasElement);
 const menuPreviewViewport = requireElement('[data-menu-preview-viewport]', HTMLElement);
 const menuPreviewCanvas = requireElement('[data-menu-preview-canvas]', HTMLCanvasElement);
-const mediumThumbnailViewport = requireElement('[data-medium-thumbnail-viewport]', HTMLElement);
-const mediumThumbnailCanvas = requireElement('[data-medium-thumbnail-canvas]', HTMLCanvasElement);
-const menuMediumInputs = [...document.querySelectorAll<HTMLInputElement>('[data-menu-medium]')];
-const mediumThumbnailImages = new Map<MediumId, HTMLImageElement>(
-  [...document.querySelectorAll<HTMLImageElement>('[data-medium-thumbnail]')].map((image) => {
-    const candidate = image.dataset.mediumThumbnail;
-    if (candidate === undefined || !isPaperCircuitMedium(candidate)) {
-      throw new Error(`Unknown medium thumbnail target: ${candidate ?? 'missing'}`);
+const renderStyleThumbnailViewport = requireElement(
+  '[data-render-style-thumbnail-viewport]',
+  HTMLElement,
+);
+const renderStyleThumbnailCanvas = requireElement(
+  '[data-render-style-thumbnail-canvas]',
+  HTMLCanvasElement,
+);
+const renderStyleInputs = [...document.querySelectorAll<HTMLInputElement>('[data-render-style]')];
+const renderStyleThumbnailImages = new Map<PaperCircuitRenderStyleId, HTMLImageElement>(
+  [...document.querySelectorAll<HTMLImageElement>('[data-render-style-thumbnail]')].map((image) => {
+    const candidate = image.dataset.renderStyleThumbnail;
+    if (candidate === undefined || !isPaperCircuitRenderStyle(candidate)) {
+      throw new Error(`Unknown render-style thumbnail target: ${candidate ?? 'missing'}`);
     }
     return [candidate, image];
   }),
@@ -195,10 +201,10 @@ const IDLE_INPUT: DriveInput = Object.freeze({
 });
 let stage: RaceStage | null = null;
 let menuPreview: MenuCharacterPreview | null = null;
-let mediumGallery: MediumVehicleGallery | null = null;
+let renderStyleGallery: RenderStyleVehicleGallery | null = null;
 let vehicleInteractionPreview: VehicleInteractionPreview | null = null;
 let vehicleConfiguratorPreview: VehicleInteractionPreview | null = null;
-let medium: PaperCircuitMediumId = savedMenuSettings.medium;
+let renderStyle: PaperCircuitRenderStyleId = savedMenuSettings.renderStyle;
 let cameraMode: RaceCameraMode = 'follow';
 let appMode: 'menu' | 'race' | 'explore' = 'menu';
 let explorerSeed = createRandomSeed();
@@ -239,7 +245,7 @@ function unlockAudio(): void {
 
 function persistMenuSettings(): void {
   menuSettings.save({
-    medium,
+    renderStyle,
     laps: selectedLapCount(),
     music: music.isEnabled,
     musicVolume: music.currentVolume,
@@ -364,6 +370,7 @@ function toggleRouteDebug(): void {
 
 function startRenderer(): void {
   try {
+    const renderingStyle = paperCircuitRenderStyleById(renderStyle);
     if (vehicleSelector.open) closeVehicleSelector(false);
     stage?.dispose();
     menuPreview?.dispose();
@@ -374,7 +381,7 @@ function startRenderer(): void {
       viewport,
       course,
       world,
-      medium,
+      renderingStyle,
       explorerSeed,
       vehicleSeeds,
       openVehicleSelector,
@@ -384,29 +391,29 @@ function startRenderer(): void {
       menuPreviewViewport,
       world.grandstand,
       course,
-      medium,
+      renderingStyle,
       explorerSeed,
     );
-    if (mediumGallery === null) {
-      mediumGallery = new MediumVehicleGallery(
-        mediumThumbnailCanvas,
-        mediumThumbnailViewport,
-        mediumThumbnailImages,
+    if (renderStyleGallery === null) {
+      renderStyleGallery = new RenderStyleVehicleGallery(
+        renderStyleThumbnailCanvas,
+        renderStyleThumbnailViewport,
+        renderStyleThumbnailImages,
       );
-      void mediumGallery.render().catch((error: unknown) => {
-        mediumGallery = null;
-        console.error('Paper Circuit medium gallery failed to render', error);
+      void renderStyleGallery.render().catch((error: unknown) => {
+        renderStyleGallery = null;
+        console.error('Paper Circuit render-style gallery failed to render', error);
       });
     }
     vehicleInteractionPreview = new VehicleInteractionPreview(
       vehicleInteractionCanvas,
       vehicleInteractionViewport,
-      medium,
+      renderingStyle,
     );
     vehicleConfiguratorPreview = new VehicleInteractionPreview(
       vehicleSelectorPreviewCanvas,
       vehicleSelectorPreviewViewport,
-      medium,
+      renderingStyle,
       Object.freeze({
         instanceId: 'paper-circuit:vehicle-configurator-preview',
         cacheCapacity: PAPER_CIRCUIT_VEHICLES.length,
@@ -596,7 +603,7 @@ function renderPauseSettings(): void {
   pauseExploreCameraButton.disabled = !exploreControlsEnabled;
   pauseExploreRerollButton.disabled = !exploreControlsEnabled || exploreEngineVehicleId !== null;
   pauseCameraButton.textContent = `Camera: ${cameraMode === 'follow' ? 'Follow' : 'Aerial'}`;
-  pauseMediumButton.textContent = `Medium: ${titleCase(medium)}`;
+  pauseMediumButton.textContent = `Style: ${paperCircuitRenderStyleById(renderStyle).label}`;
 }
 
 function openPauseMenu(): void {
@@ -680,9 +687,9 @@ function useCameraAction(): void {
   }
 }
 
-function cycleMedium(): void {
-  const next = nextPaperCircuitMedium(medium);
-  applyMedium(next, titleCase(next));
+function cycleRenderStyle(): void {
+  const next = nextPaperCircuitRenderStyle(renderStyle);
+  applyRenderStyle(next, paperCircuitRenderStyleById(next).label);
   renderPauseSettings();
 }
 
@@ -949,7 +956,7 @@ function openMenu(): void {
   engineSound.stopRace();
   renderLapSelection();
   setAppMode('menu');
-  hud.announce('Race setup ready. Choose your medium and lap count.');
+  hud.announce('Race setup ready. Choose a render style and lap count.');
 }
 
 function startRace(): void {
@@ -1030,8 +1037,8 @@ function dispose(): void {
   stage = null;
   menuPreview?.dispose();
   menuPreview = null;
-  mediumGallery?.dispose();
-  mediumGallery = null;
+  renderStyleGallery?.dispose();
+  renderStyleGallery = null;
   vehicleInteractionPreview?.dispose();
   vehicleInteractionPreview = null;
   vehicleConfiguratorPreview?.dispose();
@@ -1041,33 +1048,34 @@ function dispose(): void {
   engineSound.dispose();
 }
 
-function applyMedium(selected: string, label: string): void {
-  if (!isPaperCircuitMedium(selected)) return;
-  medium = selected;
+function applyRenderStyle(selected: string, label: string): void {
+  if (!isPaperCircuitRenderStyle(selected)) return;
+  renderStyle = selected;
+  const renderingStyle = paperCircuitRenderStyleById(renderStyle);
   playMenuClick();
-  for (const input of menuMediumInputs) input.checked = input.value === medium;
+  for (const input of renderStyleInputs) input.checked = input.value === renderStyle;
   try {
-    stage?.setMedium(medium);
-    menuPreview?.setMedium(medium);
-    vehicleInteractionPreview?.setMedium(medium);
-    vehicleConfiguratorPreview?.setMedium(medium);
+    stage?.setRenderingStyle(renderingStyle);
+    menuPreview?.setRenderingStyle(renderingStyle);
+    vehicleInteractionPreview?.setRenderingStyle(renderingStyle);
+    vehicleConfiguratorPreview?.setRenderingStyle(renderingStyle);
   } catch (error) {
     showRendererError();
-    hud.announce('The selected drawing medium failed to rebuild. Retry is available.');
+    hud.announce('The selected render style failed to rebuild. Retry is available.');
     console.error(error);
     return;
   }
-  hud.announce(`${label} medium applied.`);
+  hud.announce(`${label} render style applied.`);
   persistMenuSettings();
   restoreGameplayFocus();
 }
 
-for (const input of menuMediumInputs) {
+for (const input of renderStyleInputs) {
   input.addEventListener('change', () => {
     if (!input.checked) return;
     const label = input.closest('label')?.querySelector(':scope > span:last-child')?.textContent
       ?? 'Drawing';
-    applyMedium(input.value, label);
+    applyRenderStyle(input.value, label);
   });
 }
 
@@ -1138,7 +1146,7 @@ pauseExploreRerollButton.addEventListener('click', () => {
   rerollExplorer();
   renderPauseSettings();
 });
-pauseMediumButton.addEventListener('click', cycleMedium);
+pauseMediumButton.addEventListener('click', cycleRenderStyle);
 pauseDebugButton.addEventListener('click', toggleRouteDebug);
 pauseMenu.addEventListener('cancel', (event) => {
   event.preventDefault();
@@ -1207,7 +1215,7 @@ sfxVolumeInput.addEventListener('input', () => {
 
 renderRouteDebugState();
 
-for (const input of menuMediumInputs) input.checked = input.value === medium;
+for (const input of renderStyleInputs) input.checked = input.value === renderStyle;
 for (const input of lapInputs) input.checked = input.value === savedMenuSettings.laps.toString();
 renderLapSelection();
 

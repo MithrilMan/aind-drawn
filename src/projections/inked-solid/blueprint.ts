@@ -7,7 +7,9 @@ import type { AssetBlueprintHeader } from '../../contracts/asset-envelope.js';
 import {
   artDirectionDetailScale,
   artRolesForPart,
+  createAssetAppearance,
   resolveSemanticSurface,
+  type ArtDirectionSource,
 } from '../../appearance/art-direction.js';
 import { inkedSolidMediumDefaults } from './medium-projection.js';
 import {
@@ -45,6 +47,7 @@ export type InkedSolidBlueprint<TFamily extends string = string> = AssetBlueprin
 
 export type InkedSolidBlueprintOptions = Readonly<{
   medium: MediumId;
+  artDirection?: ArtDirectionSource;
   contour?: Partial<Omit<InkedSolidContourPolicy, 'seed'>>;
   deposition?: Partial<Omit<InkedSolidDepositionPolicy, 'seed' | 'texture'>>;
   viewMarks?: false | InkedSolidViewMarkOverrides;
@@ -146,6 +149,9 @@ export function createInkedSolidBlueprint<TFamily extends string>(
   options: InkedSolidBlueprintOptions,
 ): InkedSolidBlueprint<TFamily> {
   const tree = new SeedTree(solid.seed);
+  const appearance = options.artDirection === undefined
+    ? solid.appearance
+    : createAssetAppearance(options.artDirection, solid.appearance.parts);
   const defaults = inkedSolidMediumDefaults(options.medium);
   const contour = { ...defaults.contour, ...options.contour };
   const deposition = { ...defaults.deposition, ...options.deposition };
@@ -173,11 +179,11 @@ export function createInkedSolidBlueprint<TFamily extends string>(
       semanticPartId: part.semanticPartId,
     });
   }
-  const direction = solid.appearance.artDirection;
+  const direction = appearance.artDirection;
   const viewMarks = Object.freeze([...markOwners.values()].map(({ surfaceId, semanticPartId }) => {
     const authored = surfaces.get(surfaceId);
     if (authored === undefined) throw new Error(`Missing semantic surface ${surfaceId}`);
-    const surface = resolveSemanticSurface(authored, solid.appearance, semanticPartId);
+    const surface = resolveSemanticSurface(authored, appearance, semanticPartId);
     const projected = defaults.viewMark(surface.drawing);
     const override = options.viewMarks === false
       ? { style: 'none' as const, strength: 0 }
@@ -189,7 +195,7 @@ export function createInkedSolidBlueprint<TFamily extends string>(
     if (!INKED_SOLID_MARK_STYLES.includes(mark.style)) {
       throw new RangeError(`viewMarks.${semanticPartId}.style is not supported`);
     }
-    const roles = artRolesForPart(solid.appearance, semanticPartId);
+    const roles = artRolesForPart(appearance, semanticPartId);
     const detailScale = artDirectionDetailScale(direction, roles);
     return Object.freeze({
       surfaceId,
@@ -257,7 +263,7 @@ export function createInkedSolidBlueprint<TFamily extends string>(
     representation: 'inked-solid',
     assetId: solid.assetId,
     seed: solid.seed,
-    appearance: solid.appearance,
+    appearance,
     medium: options.medium,
     solid,
     carrierPartIds,

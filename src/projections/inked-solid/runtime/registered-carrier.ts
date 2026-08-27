@@ -111,7 +111,7 @@ export class RegisteredInkedSolidCarrier {
     const animationMargin = Math.max(extent.x, extent.y, extent.z) * 0.18;
     this.localBounds.expandByScalar(animationMargin);
     this.strokeRig = new InkedSolidStrokeRig(blueprint, rig);
-    this.materialCache = new InkedSolidCarrierMaterialCache(policySlot, blueprint.solid.appearance);
+    this.materialCache = new InkedSolidCarrierMaterialCache(policySlot, blueprint.appearance);
     this.strokeRig.visible = false;
     try {
       const ownerKeys = new InkedSolidCarrierOwnerKeys();

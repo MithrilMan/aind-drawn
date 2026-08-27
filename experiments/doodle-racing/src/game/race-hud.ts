@@ -148,7 +148,7 @@ export class RaceHud {
     }
 
     if (snapshot.phase !== this.previousPhase) {
-      if (snapshot.phase === 'menu') this.announce('Race setup ready. Choose your medium and lap count.');
+      if (snapshot.phase === 'menu') this.announce('Race setup ready. Choose a render style and lap count.');
       else if (snapshot.phase === 'intro') this.announce('Broadcast intro. Meet the Paper Circuit crowd.');
       else if (snapshot.phase === 'countdown') this.announce('Cars are on the grid. Countdown started.');
       else if (snapshot.phase === 'running') this.announce('Go. The race is running.');

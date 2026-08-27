@@ -4,10 +4,13 @@ import {
   SolidRig,
   createSolidVehicleBlueprint,
   createSolidVehicleInkStrokes,
-  type MediumId,
 } from '../../../../src/index.js';
 import { DoodleScene } from './doodle-scene.js';
-import { PAPER_CIRCUIT_MEDIUM_IDS } from './drawing-medium.js';
+import {
+  PAPER_CIRCUIT_RENDER_STYLE_IDS,
+  paperCircuitRenderStyleById,
+  type PaperCircuitRenderStyleId,
+} from './render-style.js';
 import {
   DEFAULT_VEHICLE_SEEDS,
   createPaperCircuitVehicleIdentity,
@@ -22,11 +25,11 @@ function nextFrame(): Promise<void> {
 }
 
 /**
- * Rasterizes the same procedural vehicle through every supported race medium using one
+ * Rasterizes the same procedural vehicle through every supported race style using one
  * short-lived Doodle renderer. The menu keeps lightweight images instead of three
  * permanent WebGL contexts, which matters considerably on mobile browsers.
  */
-export class MediumVehicleGallery {
+export class RenderStyleVehicleGallery {
   private readonly doodle: DoodleScene;
   private readonly rig: SolidRig;
   private active = true;
@@ -35,7 +38,7 @@ export class MediumVehicleGallery {
   public constructor(
     canvas: HTMLCanvasElement,
     viewport: HTMLElement,
-    private readonly targets: ReadonlyMap<MediumId, HTMLImageElement>,
+    private readonly targets: ReadonlyMap<PaperCircuitRenderStyleId, HTMLImageElement>,
   ) {
     const identity = createPaperCircuitVehicleIdentity('you', DEFAULT_VEHICLE_SEEDS.you);
     const solid = createSolidVehicleBlueprint(identity, {
@@ -56,13 +59,13 @@ export class MediumVehicleGallery {
 
   public async render(): Promise<void> {
     try {
-      for (const medium of PAPER_CIRCUIT_MEDIUM_IDS) {
+      for (const styleId of PAPER_CIRCUIT_RENDER_STYLE_IDS) {
         if (!this.active) return;
-        this.doodle.setMedium(medium);
+        this.doodle.setRenderingStyle(paperCircuitRenderStyleById(styleId));
         this.updateCamera();
         this.doodle.render(0.72);
-        const target = this.targets.get(medium);
-        if (target === undefined) throw new Error(`Missing medium thumbnail target: ${medium}`);
+        const target = this.targets.get(styleId);
+        if (target === undefined) throw new Error(`Missing render-style thumbnail target: ${styleId}`);
         target.src = this.doodle.captureDataUrl('image/png');
         target.closest('.medium-card-visual')?.classList.add('is-rendered');
         await nextFrame();

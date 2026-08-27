@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 
 import type { InkedSolidPaperPolicy } from '../contracts.js';
+import type { InkedSolidVisualizationPolicy } from '../visualization.js';
 import type { InkedSolidPolicyTexture } from './policy-texture.js';
 import type { InkedSolidRenderTargets } from './render-targets.js';
 import { COMPOSITE_FRAGMENT, FULLSCREEN_VERTEX } from './composite-shaders.js';
@@ -19,6 +20,14 @@ type InkedSolidCompositeUniforms = {
   paperColor: { value: THREE.Color };
   paperGrain: { value: number };
   paperSeed: { value: number };
+  visualizationMode: { value: number };
+  visualizationColorStrength: { value: number };
+  visualizationContourBoost: { value: number };
+  visualizationPosterizeSteps: { value: number };
+  visualizationTornEdgeStrength: { value: number };
+  visualizationTornEdgeScale: { value: number };
+  visualizationCutShadow: { value: THREE.Vector3 };
+  visualizationSeed: { value: number };
 };
 
 function colorFromRgb(color: readonly [number, number, number]): THREE.Color {
@@ -28,6 +37,12 @@ function colorFromRgb(color: readonly [number, number, number]): THREE.Color {
 
 function normalizedSeed(seed: number): number {
   return (seed % 65_521) / 65_521;
+}
+
+function visualizationMode(policy: InkedSolidVisualizationPolicy): number {
+  if (policy.colorModel === 'sepia') return 1;
+  if (policy.colorModel === 'collage') return 2;
+  return 0;
 }
 
 export class InkedSolidCompositor {
@@ -41,6 +56,7 @@ export class InkedSolidCompositor {
     targets: InkedSolidRenderTargets,
     policies: InkedSolidPolicyTexture,
     paper: InkedSolidPaperPolicy,
+    visualization: InkedSolidVisualizationPolicy,
   ) {
     this.uniforms = {
       albedoTexture: { value: targets.albedo.texture },
@@ -56,6 +72,18 @@ export class InkedSolidCompositor {
       paperColor: { value: colorFromRgb(paper.color) },
       paperGrain: { value: paper.grainStrength },
       paperSeed: { value: normalizedSeed(paper.seed) },
+      visualizationMode: { value: visualizationMode(visualization) },
+      visualizationColorStrength: { value: visualization.colorStrength },
+      visualizationContourBoost: { value: visualization.contourBoost },
+      visualizationPosterizeSteps: { value: visualization.posterizeSteps },
+      visualizationTornEdgeStrength: { value: visualization.tornEdgeStrength },
+      visualizationTornEdgeScale: { value: visualization.tornEdgeScale },
+      visualizationCutShadow: { value: new THREE.Vector3(
+        visualization.cutShadowStrength,
+        visualization.cutShadowOffset[0],
+        visualization.cutShadowOffset[1],
+      ) },
+      visualizationSeed: { value: normalizedSeed(visualization.seed) },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,

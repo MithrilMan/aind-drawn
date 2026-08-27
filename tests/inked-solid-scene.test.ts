@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_INKED_SOLID_SCENE_PAPER,
+  INKED_SOLID_VISUALIZATION_IDS,
   InkedSolidScenePass,
   SolidRig,
   createBuildingIdentity,
@@ -13,6 +14,7 @@ import {
   createSolidBuildingInkStrokes,
   createSolidCharacterBlueprint,
   createSolidCharacterInkStrokes,
+  inkedSolidVisualizationById,
 } from '../src/index.js';
 import { InkedSolidCarrierOwnerKeys } from '../src/projections/inked-solid/runtime/carrier-owner-keys.js';
 
@@ -48,7 +50,83 @@ function containsStroke(root: THREE.Object3D): boolean {
   return found;
 }
 
+function compositeMaterial(renderer: RecordingRenderer): THREE.ShaderMaterial {
+  const scene = renderer.calls.at(-1)?.scene;
+  if (scene === undefined) throw new Error('Expected a composite scene');
+  let result: THREE.ShaderMaterial | undefined;
+  scene.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    if (object.material instanceof THREE.ShaderMaterial
+      && object.material.uniforms.visualizationMode !== undefined) {
+      result = object.material;
+    }
+  });
+  if (result === undefined) throw new Error('Expected an inked-solid composite material');
+  return result;
+}
+
 describe('multi-instance inked-solid scene rendering', () => {
+  it('compiles distinct deterministic scene visualizations into the compositor', () => {
+    const policies = INKED_SOLID_VISUALIZATION_IDS.map(inkedSolidVisualizationById);
+    expect(new Set(policies.map((policy) => JSON.stringify(policy))).size).toBe(policies.length);
+    expect(policies.every((policy) => Object.isFrozen(policy))).toBe(true);
+    expect(policies.every((policy) => Object.isFrozen(policy.cutShadowOffset))).toBe(true);
+    expect(inkedSolidVisualizationById('sepia-graphite')).toMatchObject({
+      colorModel: 'sepia',
+      contourBoost: 0.38,
+      tornEdgeStrength: 0,
+    });
+    expect(inkedSolidVisualizationById('paper-collage')).toMatchObject({
+      colorModel: 'collage',
+      posterizeSteps: 8,
+      tornEdgeStrength: 0.24,
+      cutShadowStrength: 0.5,
+    });
+
+    const expectedModes = [0, 1, 2];
+    for (const [index, visualization] of INKED_SOLID_VISUALIZATION_IDS.entries()) {
+      const renderer = new RecordingRenderer();
+      const pass = new InkedSolidScenePass(asWebGlRenderer(renderer), { visualization });
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(30, 16 / 9, 0.1, 100);
+      camera.updateProjectionMatrix();
+      pass.render(scene, camera, 0);
+      const material = compositeMaterial(renderer);
+      expect(pass.visualization).toBe(inkedSolidVisualizationById(visualization));
+      expect(material.uniforms.visualizationMode?.value).toBe(expectedModes[index]);
+      expect(material.uniforms.visualizationContourBoost?.value)
+        .toBe(pass.visualization.contourBoost);
+      expect(material.uniforms.visualizationTornEdgeStrength?.value)
+        .toBe(pass.visualization.tornEdgeStrength);
+      pass.dispose();
+    }
+    expect(() => inkedSolidVisualizationById('neon' as never)).toThrow(/Unknown/u);
+  });
+
+  it('can re-art-direct a projection without breaking the exact solid-rig contract', () => {
+    const solid = createSolidCharacterBlueprint(createCharacterIdentity(7_098));
+    const inked = createInkedSolidBlueprint(solid, {
+      medium: 'ink',
+      artDirection: 'cut-paper',
+      viewMarks: false,
+    });
+    const rig = new SolidRig(solid, { instanceId: 'character:cut-paper' });
+    const pass = new InkedSolidScenePass(asWebGlRenderer(new RecordingRenderer()), {
+      visualization: 'paper-collage',
+    });
+
+    expect(inked.solid).toBe(solid);
+    expect(inked.appearance).not.toBe(solid.appearance);
+    expect(inked.appearance.artDirection.id).toBe('cut-paper');
+    expect(inked.viewMarks.every(({ style }) => style === 'none')).toBe(true);
+    const registration = pass.register({ instanceId: rig.instanceId, blueprint: inked, rig });
+    expect(pass.getDiagnostics().registeredInstances).toBe(1);
+
+    registration.dispose();
+    pass.dispose();
+    rig.dispose();
+  });
+
   it('skips carrier synchronization and submission outside the camera frustum', () => {
     const solid = createSolidCharacterBlueprint(createCharacterIdentity(7_099));
     const inked = createInkedSolidBlueprint(solid, {

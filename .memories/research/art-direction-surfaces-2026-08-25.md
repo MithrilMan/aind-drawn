@@ -1,6 +1,6 @@
 # Art Direction and Semantic Surfaces
 
-Last updated: 2026-08-25
+Last updated: 2026-08-27
 
 ## Decisions
 
@@ -11,7 +11,7 @@ Last updated: 2026-08-25
   `semanticPartId` to `ArtRole` bindings.
 - Generic appearance code must not branch on family names or infer meaning from
   path geometry. Character, building, vehicle, and tree own their role tables.
-- Built-in `authored`, `storybook`, and `cut-paper` directions compile across
+- Built-in `authored`, `storybook`, `cut-paper`, and `aged-paper` directions compile across
   raster, smooth solid, and Doodle 3D without changing `assetId`, manifest,
   geometry, sockets, colliders, or interactions.
 - `SemanticSurfaceSpec` separates `substance`, drawing application plus
@@ -24,9 +24,26 @@ Last updated: 2026-08-25
   appearance reference.
 - Semantic stroke reveal stores normalized vertex progress once and advances
   one shader uniform through `setStrokeReveal`; no frame-loop geometry rebuild.
+- Paper scene treatments use separate structural, crease, and owner edge
+  weights. Their contour pickup is continuous; paper variation belongs inside
+  the sheet or in a low-frequency boundary displacement, never in a thresholded
+  bright rim that becomes moving white dashes.
+- A compact collage material class is packed into the integral half of the
+  existing mark-scale channel. It is derived from generic art roles and surface
+  substance, costs no new vertex attribute or MRT attachment, and prevents
+  dark neutral cars from being mistaken for asphalt.
+- Cut shadows require a different owner or policy slot plus a relative depth
+  step. An owner boundary alone makes sloped sheets self-shadow into a grid.
+- Paper fibre uses part-relative CSS-pixel coordinates so texture follows a
+  moving asset and remains stable across device pixel ratios.
 
 ## Performance
 
+- 2026-08-27 paper-visualization audit: the Inked Solid benchmark renders 48
+  animated instances across six media at 3,607.48 iterations/s (0.2772 ms
+  mean) with two draw calls, four render targets, and zero steady-state
+  per-mesh allocations. The solid compiled-geometry path averaged 11.29 ms,
+  20.06x faster than independent resource construction in the same run.
 - `pnpm benchmark:raster-runtime`: eight rigs averaged 23.28 ms independently,
   5.30 ms with a cold scene cache, and 3.60 ms warm (6.46x warm speed-up).
 - `pnpm benchmark:solid-runtime`: sixteen rigs averaged 244.74 ms independently,
@@ -40,6 +57,11 @@ Last updated: 2026-08-25
 
 ## Verification
 
+- 2026-08-27: `pnpm verify` passed 22 files / 266 tests, verified 231
+  public exports, and built all experiments. Desktop 1440x900 and mobile
+  390x844 browser QA covered both paper styles. A mobile reroll exposed seed
+  4191 beard-ring degeneracy; the ring now chooses the safer quad diagonal,
+  omits zero-area triangles, and has a permanent regression.
 - `pnpm verify`: 15 test files, 196 tests, 209 public exports, all three
   experiment builds passed.
 - Worker build emitted as a separate Projection Studio chunk.

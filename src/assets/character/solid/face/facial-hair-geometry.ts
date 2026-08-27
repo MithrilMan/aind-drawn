@@ -52,29 +52,64 @@ export function createFacialHairRingGeometry(
     side * surfaceStride + radial * count + angle
   );
   const faces: number[][] = [];
+  const triangleAreaSquared = (first: number, second: number, third: number): number => {
+    const a = vertices[first] as Point3;
+    const b = vertices[second] as Point3;
+    const c = vertices[third] as Point3;
+    const abx = b[0] - a[0];
+    const aby = b[1] - a[1];
+    const abz = b[2] - a[2];
+    const acx = c[0] - a[0];
+    const acy = c[1] - a[1];
+    const acz = c[2] - a[2];
+    const crossX = aby * acz - abz * acy;
+    const crossY = abz * acx - abx * acz;
+    const crossZ = abx * acy - aby * acx;
+    return crossX * crossX + crossY * crossY + crossZ * crossZ;
+  };
+  const pushTriangle = (first: number, second: number, third: number): void => {
+    if (triangleAreaSquared(first, second, third) <= 1e-9) return;
+    faces.push([first, second, third]);
+  };
+  const pushQuad = (first: number, second: number, third: number, fourth: number): void => {
+    const firstDiagonal = Math.min(
+      triangleAreaSquared(first, second, third),
+      triangleAreaSquared(first, third, fourth),
+    );
+    const secondDiagonal = Math.min(
+      triangleAreaSquared(first, second, fourth),
+      triangleAreaSquared(second, third, fourth),
+    );
+    if (secondDiagonal > firstDiagonal) {
+      pushTriangle(first, second, fourth);
+      pushTriangle(second, third, fourth);
+      return;
+    }
+    pushTriangle(first, second, third);
+    pushTriangle(first, third, fourth);
+  };
   for (let radial = 0; radial < radialSegments; radial += 1) {
     for (let index = 0; index < count; index += 1) {
       const next = (index + 1) % count;
-      faces.push(
-        [
-          atVertex(0, radial, index), atVertex(0, radial, next),
-          atVertex(0, radial + 1, next), atVertex(0, radial + 1, index),
-        ],
-        [
-          atVertex(1, radial, next), atVertex(1, radial, index),
-          atVertex(1, radial + 1, index), atVertex(1, radial + 1, next),
-        ],
+      pushQuad(
+        atVertex(0, radial, index), atVertex(0, radial, next),
+        atVertex(0, radial + 1, next), atVertex(0, radial + 1, index),
+      );
+      pushQuad(
+        atVertex(1, radial, next), atVertex(1, radial, index),
+        atVertex(1, radial + 1, index), atVertex(1, radial + 1, next),
       );
     }
   }
   for (let index = 0; index < count; index += 1) {
     const next = (index + 1) % count;
-    faces.push(
-      [atVertex(1, 0, index), atVertex(1, 0, next), atVertex(0, 0, next), atVertex(0, 0, index)],
-      [
-        atVertex(0, radialSegments, index), atVertex(0, radialSegments, next),
-        atVertex(1, radialSegments, next), atVertex(1, radialSegments, index),
-      ],
+    pushQuad(
+      atVertex(1, 0, index), atVertex(1, 0, next),
+      atVertex(0, 0, next), atVertex(0, 0, index),
+    );
+    pushQuad(
+      atVertex(0, radialSegments, index), atVertex(0, radialSegments, next),
+      atVertex(1, radialSegments, next), atVertex(1, radialSegments, index),
     );
   }
   return Object.freeze({

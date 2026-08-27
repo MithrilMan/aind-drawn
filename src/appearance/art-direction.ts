@@ -82,7 +82,7 @@ export type ArtDirectionRecipe = Readonly<{
   scene: SceneDirectionRecipe;
 }>;
 
-export type ArtDirectionId = 'authored' | 'storybook' | 'cut-paper';
+export type ArtDirectionId = 'authored' | 'storybook' | 'cut-paper' | 'aged-paper';
 export type ArtDirectionSource = ArtDirectionId | ArtDirectionRecipe;
 
 export type SemanticPartArtBinding = Readonly<{
@@ -195,11 +195,54 @@ const CUT_PAPER: ArtDirectionRecipe = Object.freeze({
   }),
 });
 
+const AGED_PAPER: ArtDirectionRecipe = Object.freeze({
+  schemaVersion: 1,
+  id: 'aged-paper',
+  label: 'Aged paper diorama',
+  palette: Object.freeze({
+    ink: freezeColor([28, 25, 21]), saturationScale: 0.76, contrastScale: 1.12, warmth: 0.03,
+  }),
+  drawing: Object.freeze({
+    contourScale: 1.04, markSpacingScale: 1.42, pigmentStrength: 0.92,
+    detailBudget: 0.54, valueShift: 0,
+  }),
+  physical: Object.freeze({ roughnessFloor: 0.84, metalnessScale: 0.22, clearcoatScale: 0.12 }),
+  roles: Object.freeze({
+    'primary-form': Object.freeze({ contrastScale: 1.06, physical: Object.freeze({ finish: 'matte' }) }),
+    'secondary-form': Object.freeze({ valueShift: -1, detailScale: 0.64 }),
+    'line-detail': Object.freeze({ valueShift: 1, gesture: 'quiet', detailScale: 0.36 }),
+    accent: Object.freeze({ saturationScale: 1.24, contrastScale: 1.08 }),
+    transparent: Object.freeze({
+      valueShift: -1,
+      gesture: 'quiet',
+      physical: Object.freeze({ finish: 'satin', roughnessFloor: 0.48, clearcoatScale: 0.42 }),
+    }),
+    foliage: Object.freeze({ gesture: 'granular', detailScale: 0.5 }),
+  }),
+  scene: Object.freeze({
+    paper: freezeColor([218, 205, 170]),
+    backdrop: freezeColor([57, 54, 47]),
+    ground: freezeColor([105, 103, 69]),
+    lighting: Object.freeze({
+      key: freezeColor([245, 218, 174]),
+      fill: freezeColor([102, 119, 119]),
+      keyIntensity: 3.45,
+      fillIntensity: 0.56,
+      environmentIntensity: 0.5,
+    }),
+  }),
+});
+
 export const ART_DIRECTION_CATALOG: Readonly<Record<ArtDirectionId, ArtDirectionRecipe>> =
-  Object.freeze({ authored: AUTHORED, storybook: STORYBOOK, 'cut-paper': CUT_PAPER });
+  Object.freeze({
+    authored: AUTHORED,
+    storybook: STORYBOOK,
+    'cut-paper': CUT_PAPER,
+    'aged-paper': AGED_PAPER,
+  });
 
 export const ART_DIRECTION_IDS: readonly ArtDirectionId[] = Object.freeze([
-  'authored', 'storybook', 'cut-paper',
+  'authored', 'storybook', 'cut-paper', 'aged-paper',
 ]);
 
 function stable(value: unknown): string {

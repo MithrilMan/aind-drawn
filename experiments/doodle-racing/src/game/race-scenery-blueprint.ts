@@ -1,12 +1,14 @@
 import {
+  createAssetAppearance,
   createSemanticSurface,
-  createUniformAssetAppearance,
+  type ArtDirectionSource,
   type DrawingApplication,
   type DrawingIntent,
   type MeshGeometrySpec,
   type Point3,
   type SolidAssetBlueprint,
   type SolidPartDefinition,
+  type SemanticPartArtBinding,
   type SemanticSurfaceSpec,
   type SurfaceSubstance,
 } from '../../../../src/index.js';
@@ -108,6 +110,28 @@ function semanticPartId(id: string): 'barriers' | 'tyres' | 'markers' | 'ramps' 
   return 'grandstand';
 }
 
+type RaceScenerySemanticPartId = ReturnType<typeof semanticPartId>;
+
+const artBinding = (
+  semanticPartId: RaceScenerySemanticPartId,
+  roles: SemanticPartArtBinding['roles'],
+): SemanticPartArtBinding => Object.freeze({
+  semanticPartId,
+  roles: Object.freeze([...roles]),
+});
+
+export const RACE_SCENERY_ART_BINDINGS: readonly SemanticPartArtBinding[] = Object.freeze([
+  artBinding('barriers', ['secondary-form', 'accent', 'ground-contact']),
+  artBinding('tyres', ['secondary-form', 'ground-contact', 'line-detail']),
+  artBinding('markers', ['accent', 'focal-feature', 'ground-contact']),
+  artBinding('ramps', ['secondary-form', 'accent', 'interactive', 'ground-contact']),
+  artBinding('grandstand', ['secondary-form', 'ground-contact']),
+]);
+
+export type RaceSceneryBlueprintOptions = Readonly<{
+  artDirection?: ArtDirectionSource;
+}>;
+
 function standPoint(
   world: RaceWorldLayout,
   along: number,
@@ -129,6 +153,7 @@ function yawQuaternion(yaw: number): readonly [number, number, number, number] {
 export function createRaceSceneryBlueprint(
   course: CourseLayout,
   world: RaceWorldLayout,
+  options: RaceSceneryBlueprintOptions = {},
 ): SolidAssetBlueprint<'race-scenery'> {
   const parts: SolidPartDefinition[] = [];
   const add = (definition: Omit<SolidPartDefinition, 'semanticPartId'>): void => {
@@ -290,9 +315,9 @@ export function createRaceSceneryBlueprint(
     representation: 'solid',
     assetId: 'race-scenery:technical-circuit:1',
     seed: 7391,
-    appearance: createUniformAssetAppearance(
-      'storybook',
-      ['barriers', 'tyres', 'markers', 'ramps', 'grandstand'],
+    appearance: createAssetAppearance(
+      options.artDirection ?? 'storybook',
+      RACE_SCENERY_ART_BINDINGS,
     ),
     bounds: Object.freeze({
       minimum: [course.bounds.minimumX - 3, 0, course.bounds.minimumZ - 3] as const,
@@ -324,8 +349,8 @@ export function createRaceSceneryBlueprint(
       surface('ramp:oxide', [205, 88, 52], 'paint', 'pigment', { value: 'mid', gesture: 'agitated' }),
       surface('ramp:mark', [244, 236, 212], 'paint', 'pigment', { value: 'light', gesture: 'regular' }),
       surface('stand:paper', [191, 180, 151], 'paper', 'paper', { value: 'light', gesture: 'quiet' }),
-      surface('stand:dark', [68, 70, 63], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
-      surface('stand:roof', [135, 61, 43], 'paint', 'pigment', { value: 'mid', gesture: 'regular' }),
+      surface('stand:dark', [76, 82, 46], 'paint', 'pigment', { value: 'solid', gesture: 'regular' }),
+      surface('stand:roof', [151, 91, 45], 'paint', 'pigment', { value: 'mid', gesture: 'regular' }),
     ]),
     colliders: Object.freeze([
       ...world.barriers.map((barrier) => {

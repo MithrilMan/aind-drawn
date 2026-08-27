@@ -120,7 +120,10 @@ import {
   type RaceRouteProgress,
 } from '../experiments/doodle-racing/src/game/race-progress.js';
 import { vehicleWheelsTouchRoute } from '../experiments/doodle-racing/src/game/route-contact.js';
-import { createRaceSceneryBlueprint } from '../experiments/doodle-racing/src/game/race-scenery-blueprint.js';
+import {
+  RACE_SCENERY_ART_BINDINGS,
+  createRaceSceneryBlueprint,
+} from '../experiments/doodle-racing/src/game/race-scenery-blueprint.js';
 import {
   createRaceWorldLayout,
   grandstandStepSpan,
@@ -275,7 +278,7 @@ class FakeAudio {
 }
 
 describe('Paper Circuit experiment', () => {
-  it('offers three natural media and two scene visualizations with Graphite as the default', () => {
+  it('offers three natural media and three scene visualizations with Graphite as the default', () => {
     expect(DEFAULT_PAPER_CIRCUIT_RENDER_STYLE).toBe('graphite');
     expect(PAPER_CIRCUIT_RENDER_STYLE_IDS).toEqual([
       'graphite',
@@ -283,9 +286,10 @@ describe('Paper Circuit experiment', () => {
       'oil',
       'sepia-graphite',
       'paper-collage',
+      'paper-diorama',
     ]);
     expect(PAPER_CIRCUIT_RENDER_STYLE_IDS.map(nextPaperCircuitRenderStyle))
-      .toEqual(['ink', 'oil', 'sepia-graphite', 'paper-collage', 'graphite']);
+      .toEqual(['ink', 'oil', 'sepia-graphite', 'paper-collage', 'paper-diorama', 'graphite']);
     expect(isPaperCircuitRenderStyle('watercolor')).toBe(false);
     expect(paperCircuitRenderStyleById('sepia-graphite')).toMatchObject({
       medium: 'graphite',
@@ -294,6 +298,14 @@ describe('Paper Circuit experiment', () => {
     expect(paperCircuitRenderStyleById('paper-collage')).toMatchObject({
       medium: 'ink',
       visualization: 'paper-collage',
+      artDirection: 'cut-paper',
+      viewMarks: true,
+    });
+    expect(paperCircuitRenderStyleById('paper-diorama')).toMatchObject({
+      medium: 'ink',
+      visualization: 'aged-paper-diorama',
+      artDirection: 'aged-paper',
+      viewMarks: false,
     });
   });
 
@@ -1103,6 +1115,38 @@ describe('Paper Circuit experiment', () => {
       .toHaveLength(2);
     expect(scenery.colliders.filter(({ id }) => id.startsWith('grandstand:step:')))
       .toHaveLength(world.grandstand.rows);
+  });
+
+  it('binds race scenery to generic art roles without changing topology under cut-paper', () => {
+    const layout = createCourseLayout();
+    const world = createRaceWorldLayout(layout);
+    const storybook = createRaceSceneryBlueprint(layout, world);
+    const cutPaper = createRaceSceneryBlueprint(layout, world, {
+      artDirection: 'cut-paper',
+    });
+
+    expect(storybook.appearance.parts).toEqual(RACE_SCENERY_ART_BINDINGS);
+    expect(Object.fromEntries(storybook.appearance.parts.map(({ semanticPartId, roles }) => (
+      [semanticPartId, roles]
+    )))).toEqual({
+      barriers: ['secondary-form', 'accent', 'ground-contact'],
+      tyres: ['secondary-form', 'ground-contact', 'line-detail'],
+      markers: ['accent', 'focal-feature', 'ground-contact'],
+      ramps: ['secondary-form', 'accent', 'interactive', 'ground-contact'],
+      grandstand: ['secondary-form', 'ground-contact'],
+    });
+    expect(cutPaper.appearance.artDirection.id).toBe('cut-paper');
+    expect(cutPaper.appearance.appearanceFingerprint)
+      .not.toBe(storybook.appearance.appearanceFingerprint);
+    expect(cutPaper.appearance.parts).toEqual(storybook.appearance.parts);
+    expect(cutPaper.assetId).toBe(storybook.assetId);
+    expect(cutPaper.manifest).toEqual(storybook.manifest);
+    expect(cutPaper.nodes).toEqual(storybook.nodes);
+    expect(cutPaper.parts).toEqual(storybook.parts);
+    expect(cutPaper.surfaces).toEqual(storybook.surfaces);
+    expect(cutPaper.colliders).toEqual(storybook.colliders);
+    expect(cutPaper.sockets).toEqual(storybook.sockets);
+    expect(cutPaper.interactionBindings).toEqual(storybook.interactionBindings);
   });
 
   it('keeps vehicles outside the visible grandstand volume', () => {

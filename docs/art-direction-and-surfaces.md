@@ -27,11 +27,23 @@ convenient for roughly eleven minutes.
 
 Scene visualizations remain a final, scene-wide Inked Solid concern. The
 `sepia-graphite` visualization can grade an already drawn composition without
-pretending sepia is a drawing tool; `paper-collage` can add cut shadows and
-fibrous projected boundaries without duplicating the semantic `cut-paper` art
-direction. Use `cut-paper` when asset roles, palette response, paper, ground,
-and lighting should change coherently. Use `paper-collage` when the completed
-scene also needs the physical assembly cues of layered paper.
+pretending sepia is a drawing tool. `paper-collage` supplies a clean, mobile-
+stable paper-cut assembly over the semantic `cut-paper` direction.
+`aged-paper-diorama` pairs with `aged-paper` to add the muted olive, charcoal,
+coral, and aged-pigment response of a deeper tabletop diorama. Both paper
+visualizations separate silhouette, crease, and owner edges, anchor their fibre
+to semantic parts, and gate cut shadows by real layer boundaries. Use an art
+direction when roles, palette, paper, ground, and lighting should change
+coherently; use a visualization when the completed scene also needs physical
+assembly cues.
+
+The compiled carrier packs a small collage material class into the unused
+integral range of the existing mark-scale channel. The class is resolved from
+generic `ArtRole` values plus `SurfaceSubstance`: foliage becomes ground paper,
+stone secondary forms become dark sheets, accents remain accents, and primary
+or focal forms retain their pigment. No family identifier enters the generic
+renderer, and the classification adds neither an MRT attachment nor a vertex
+attribute.
 
 An Inked Solid projection may supply an `artDirection` override when the same
 live `SolidRig` must be re-presented without rebuilding its geometry. The
@@ -92,8 +104,8 @@ Each family owns one explicit semantic-part-to-role table. `character`, `buildin
 share a visual rule without pretending they are the same family concept. Unknown geometry is not
 classified by its path size, taper, or position.
 
-The built-in directions are `authored`, `storybook`, and `cut-paper`. They are deliberately recipes,
-not new media:
+The built-in directions are `authored`, `storybook`, `cut-paper`, and
+`aged-paper`. They are deliberately recipes, not new media:
 
 ```ts
 const raster = createRasterCharacterBlueprint(identity, {

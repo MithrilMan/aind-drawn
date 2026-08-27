@@ -1162,6 +1162,16 @@ describe('asset contracts', () => {
     }
   });
 
+  it('triangulates beard rings without degeneracy when the aperture grazes the outline', () => {
+    const solid = createSolidCharacterBlueprint(createCharacterIdentity(4_191, {
+      species: 'human',
+    }));
+    const beard = solid.parts.find(({ id }) => id === 'facial-hair:beard');
+    expect(beard?.geometry.type).toBe('mesh');
+    const rig = new SolidRig(solid);
+    rig.dispose();
+  });
+
   it('keeps the full beard volume ahead of the torso', () => {
     for (const seed of [4125, 4126, 4129, 4138, 4147]) {
       const identity = createCharacterIdentity(seed, { facialHairStyle: 'full-rounded' });

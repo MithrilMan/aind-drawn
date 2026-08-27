@@ -57,7 +57,7 @@ runtime; there is no second set of illustrative stand-ins waiting to drift away 
   compositing.
 - Smooth Three.js solids with orthogonal physical substrates and finishes.
 - Identity-preserving switches between Graphite, Ink, Watercolour, Oil, Charcoal, and Marker.
-- Identity-preserving `authored`, `storybook`, and `cut-paper` direction across every projection.
+- Identity-preserving `authored`, `storybook`, `cut-paper`, and `aged-paper` direction across every projection.
 
 ### Assets that participate
 

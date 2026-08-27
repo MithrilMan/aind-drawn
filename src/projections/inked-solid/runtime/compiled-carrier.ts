@@ -10,12 +10,17 @@ import type { SolidRig } from '../../../runtime/solid-rig.js';
 import type { InkedSolidBlueprint } from '../blueprint.js';
 import type { InkedSolidStrokeSpec, InkedSolidViewMarkPolicy } from '../contracts.js';
 import { InkedSolidCarrierOwnerKeys } from './carrier-owner-keys.js';
+import {
+  inkedSolidCollageMaterialClass,
+  packInkedSolidMarkScale,
+  type InkedSolidCollageMaterialClass,
+} from './collage-material-class.js';
 import { normalizedInkedSolidSeed } from './policy-texture.js';
 import type { InkedSolidCarrierScenes } from './registered-carrier.js';
 import { InkedSolidStrokeRig } from './stroke-rig.js';
 import { inkedSolidSurfaceFlow } from './surface-flow.js';
 
-export const INKED_SOLID_CARRIER_COMPILER_VERSION = 1 as const;
+export const INKED_SOLID_CARRIER_COMPILER_VERSION = 2 as const;
 
 const MARK_STYLE_MODE = Object.freeze({
   none: 0,
@@ -95,7 +100,10 @@ function colorFromRgb(color: readonly [number, number, number]): THREE.Color {
     .convertSRGBToLinear();
 }
 
-function encodedMark(mark: InkedSolidViewMarkPolicy): readonly [number, number, number, number] {
+function encodedMark(
+  mark: InkedSolidViewMarkPolicy,
+  materialClass: InkedSolidCollageMaterialClass,
+): readonly [number, number, number, number] {
   const style = MARK_STYLE_MODE[mark.style];
   const packedStrengthAndWidth = (
     Math.min(63, Math.floor(mark.strength * 63))
@@ -105,7 +113,7 @@ function encodedMark(mark: InkedSolidViewMarkPolicy): readonly [number, number, 
     (style + normalizedInkedSolidSeed(mark.seed) * 0.45) / MARK_STYLE_DIVISOR,
     packedStrengthAndWidth,
     mark.coverage,
-    0.5 + Math.min(0.49, mark.scale / 48),
+    packInkedSolidMarkScale(mark.scale, materialClass),
   ] as const);
 }
 
@@ -121,7 +129,14 @@ function partValues(
   const color = colorFromRgb(resolved.color);
   return Object.freeze({
     albedo: Object.freeze([color.r, color.g, color.b, resolved.physical.opacity ?? 1] as const),
-    mark: encodedMark(mark),
+    mark: encodedMark(
+      mark,
+      inkedSolidCollageMaterialClass(
+        blueprint.appearance,
+        part.semanticPartId,
+        surface.substance,
+      ),
+    ),
     owner: Object.freeze([
       ownerKey,
       surface.drawing.application === 'ink' ? 0.5 : 1,

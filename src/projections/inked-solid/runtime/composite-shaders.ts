@@ -25,10 +25,12 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
   uniform float visualizationMode;
   uniform float visualizationColorStrength;
   uniform float visualizationContourBoost;
+  uniform vec4 visualizationContourProfile;
   uniform float visualizationPosterizeSteps;
+  uniform vec2 visualizationPaperProfile;
   uniform float visualizationTornEdgeStrength;
   uniform float visualizationTornEdgeScale;
-  uniform vec3 visualizationCutShadow;
+  uniform vec4 visualizationCutShadow;
   uniform float visualizationSeed;
   varying vec2 inkedUv;
 
@@ -247,7 +249,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     return 1.0;
   }
 
-  float sceneEdge(
+  vec3 sceneEdges(
     vec2 uv,
     vec2 pixel,
     float width,
@@ -263,6 +265,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     float depthDifference = 0.0;
     float normalDifference = 0.0;
     float carrierBoundary = 0.0;
+    float surfaceBoundary = 0.0;
     vec2 offsets[8];
     offsets[0] = vec2(stepSize.x, 0.0);
     offsets[1] = vec2(-stepSize.x, 0.0);
@@ -275,6 +278,10 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     for (int index = 0; index < 8; index += 1) {
       vec2 neighbourUv = uv + offsets[index];
       float neighbourDepth = sampledDepth(neighbourUv);
+      surfaceBoundary = max(
+        surfaceBoundary,
+        abs(step(centerDepth, 9.0e5) - step(neighbourDepth, 9.0e5))
+      );
       float pairWeight = contourPairWeight(
         uv,
         neighbourUv,
@@ -326,7 +333,59 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       ),
       normalDifference
     );
-    return max(max(depthEdge, normalEdge), carrierBoundary);
+    return vec3(max(depthEdge, surfaceBoundary), normalEdge, carrierBoundary);
+  }
+
+  float resolveSceneEdge(
+    vec3 edges,
+    float creaseStrength,
+    float ownerStrength
+  ) {
+    return max(edges.x, max(edges.y * creaseStrength, edges.z * ownerStrength));
+  }
+
+  float frontPaperBoundary(vec2 uv, vec2 pixel, float width) {
+    float centerDepth = sampledDepth(uv);
+    if (centerDepth >= 9.0e5) return 0.0;
+    float centerOwner = sampledCarrierOwner(uv);
+    float centerPolicySlot = sampledPolicySlot(uv);
+    vec2 stepSize = pixel * max(1.0, width);
+    float boundary = 0.0;
+    vec2 offsets[4];
+    offsets[0] = vec2(stepSize.x, 0.0);
+    offsets[1] = vec2(-stepSize.x, 0.0);
+    offsets[2] = vec2(0.0, stepSize.y);
+    offsets[3] = vec2(0.0, -stepSize.y);
+    for (int index = 0; index < 4; index += 1) {
+      vec2 neighbourUv = uv + offsets[index];
+      float neighbourDepth = sampledDepth(neighbourUv);
+      float openEdge = step(9.0e5, neighbourDepth);
+      float ownerDifference = max(
+        step(0.00024, abs(centerOwner - sampledCarrierOwner(neighbourUv))),
+        step(0.5, abs(centerPolicySlot - sampledPolicySlot(neighbourUv)))
+      );
+      float relativeStep = (neighbourDepth - centerDepth) / max(centerDepth, 0.0001);
+      boundary = max(
+        boundary,
+        max(openEdge, step(0.0016, relativeStep) * ownerDifference)
+      );
+    }
+    return boundary;
+  }
+
+  float paperOccluder(
+    float centerDepth,
+    float centerOwner,
+    float centerPolicySlot,
+    vec2 sampleUv
+  ) {
+    float occluderDepth = sampledDepth(sampleUv);
+    float ownerDifference = max(
+      step(0.00024, abs(centerOwner - sampledCarrierOwner(sampleUv))),
+      step(0.5, abs(centerPolicySlot - sampledPolicySlot(sampleUv)))
+    );
+    float relativeStep = (centerDepth - occluderDepth) / max(centerDepth, 0.0001);
+    return step(0.0016, relativeStep) * ownerDifference;
   }
 
   void main() {
@@ -363,6 +422,13 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     float fillVariationScale = policy4.a;
     float fillTextureMode = policy5.r;
     float fillSeed = policy5.g;
+    float collageProfile = step(1.5, visualizationMode);
+    float agedDioramaProfile = step(2.5, visualizationMode);
+    float contourWidthScale = mix(1.0, visualizationContourProfile.x, collageProfile);
+    float creaseContourStrength = mix(1.0, visualizationContourProfile.y, collageProfile);
+    float ownerContourStrength = mix(1.0, visualizationContourProfile.z, collageProfile);
+    float secondaryContourStrength = mix(1.0, visualizationContourProfile.w, collageProfile);
+    float contourMotionScale = mix(1.0, 0.28, collageProfile);
     vec2 boilCell = inkedUv * resolution / 18.0;
     vec2 boilOffset = vec2(
       valueNoise(boilCell + vec2(contourFrame * 1.71, contourSeed * 13.0)),
@@ -378,50 +444,61 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       valueNoise(paperPoint / 21.0 + vec2(9.0, contourSeed * 37.0))
     ) - 0.5) * 0.32;
     vec2 sampleUv = inkedUv
-      + wanderOffset * pixel * contourWander * displayScale
-      + boilOffset * pixel * contourJitter * displayScale;
-    float mainEdge = sceneEdge(
+      + wanderOffset * pixel * contourWander * displayScale * contourMotionScale
+      + boilOffset * pixel * contourJitter * displayScale * contourMotionScale;
+    float effectiveContourWidth = contourWidth * contourWidthScale;
+    float mainEdge = resolveSceneEdge(sceneEdges(
       sampleUv,
       pixel,
-      contourWidth * displayScale,
+      effectiveContourWidth * displayScale,
       depthThreshold,
       normalThreshold
-    );
+    ), creaseContourStrength, ownerContourStrength);
     vec2 echoOffset = vec2(
       valueNoise(boilCell * 0.71 + contourSeed * 31.0),
       valueNoise(boilCell * 0.83 + contourSeed * 47.0)
     ) - 0.5;
-    float echoEdge = sceneEdge(
+    float echoEdge = resolveSceneEdge(sceneEdges(
       sampleUv + echoOffset * pixel * 1.35 * displayScale,
       pixel,
-      contourWidth * 0.88 * displayScale,
+      effectiveContourWidth * 0.88 * displayScale,
       depthThreshold,
       normalThreshold
-    );
-    float ghostEdge = sceneEdge(
+    ), creaseContourStrength, ownerContourStrength);
+    float ghostEdge = resolveSceneEdge(sceneEdges(
       inkedUv - echoOffset * pixel * 1.8 * displayScale,
       pixel,
-      contourWidth * contourGhostSpread * displayScale,
+      effectiveContourWidth * contourGhostSpread * displayScale,
       depthThreshold,
       normalThreshold
-    );
+    ), creaseContourStrength, ownerContourStrength);
     float graphitePickup = mix(
       1.0,
       smoothstep(0.08, 0.72, hash21(gl_FragCoord.xy * 0.63 + contourSeed * 101.0)),
       contourGranulation
     );
+    // Cut-paper silhouettes are inked with a continuous edge. Reusing the
+    // graphite pickup mask here punched bright, single-pixel holes through the
+    // contour; those holes shimmered as the object crossed the pixel grid.
+    graphitePickup = mix(graphitePickup, 1.0, collageProfile);
     float pressureWander = mix(
       0.72,
       1.08,
       valueNoise(paperPoint / 31.0 + contourSeed * 53.0)
     );
+    pressureWander = mix(pressureWander, 1.0, collageProfile);
     float contour = mainEdge * contourOpacity * graphitePickup * pressureWander;
     // Secondary graphite passes may roughen an existing guide, but must never
     // become detached screen-space antennae around a small feature.
     float secondaryGuide = smoothstep(0.02, 0.62, mainEdge);
-    contour += echoEdge * contourEchoOpacity * secondaryGuide * (1.0 - mainEdge * 0.55);
+    contour += echoEdge
+      * contourEchoOpacity
+      * secondaryContourStrength
+      * secondaryGuide
+      * (1.0 - mainEdge * 0.55);
     contour += ghostEdge
       * contourGhostOpacity
+      * secondaryContourStrength
       * secondaryGuide
       * (1.0 - mainEdge * 0.72)
       * (1.0 - echoEdge * 0.4);
@@ -542,7 +619,8 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     float markStrength = floor(packedStrengthAndWidth + 0.001) / 63.0;
     float markLineWidth = max(0.008, fract(packedStrengthAndWidth));
     float markCoverage = markData.b;
-    float markScale = max(0.1, (markData.a - 0.5) * 48.0);
+    float collageMaterialClass = floor(markData.a + 0.0001);
+    float markScale = max(0.1, (fract(markData.a) - 0.5) * 48.0);
     float markPhase = fillSeed * 23.0 + fract(encodedMark) * 17.0 + partPhase;
     float surfacePhase = markPhase + surfaceTurn * 0.37;
     float graphiteGesture = 1.0 - step(0.5, fillTextureMode);
@@ -626,7 +704,7 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     else if (markStyle > 7.5) viewMark = solidMark;
     viewMark *= markStrength * markShapeDensity * surface;
 
-    float assetSurface = step(0.49, markData.a) * surface;
+    float assetSurface = step(0.49, fract(markData.a)) * surface;
     // Authored carrier surfaces begin as opaque drawing paper. Sampling the
     // hidden-carrier background here would import transparent-clear black and
     // turn light graphite coverage into a muddy solid mass.
@@ -684,7 +762,6 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
     // Scene visualizations are uniform branches. The default path performs no
     // additional sampling or noise work; expensive torn-paper synthesis is
     // paid only by the collage treatment that asks for it.
-    float visualizationEdgeErosion = 0.0;
     if (visualizationMode > 0.5 && visualizationMode < 1.5) {
       float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
       float graphiteValue = smoothstep(0.015, 0.96, pow(luminance, 0.86));
@@ -701,86 +778,176 @@ export const COMPOSITE_FRAGMENT = /* glsl */`
       // low-frequency fill marks becoming terrain-sized digital blobs.
       vec3 displayPigment = pow(clamp(albedo.rgb, 0.0, 1.0), vec3(1.0 / 2.2));
       float collageLuminance = dot(displayPigment, vec3(0.2126, 0.7152, 0.0722));
-      vec3 muted = mix(vec3(collageLuminance), displayPigment, 0.58);
-      muted = mix(muted, vec3(0.46, 0.45, 0.32), 0.26);
-      muted = pow(clamp(muted, 0.0, 1.0), vec3(1.15));
+      vec3 muted = mix(
+        vec3(collageLuminance),
+        displayPigment,
+        mix(0.82, 0.68, agedDioramaProfile)
+      );
+      vec3 warmNeutral = vec3(
+        collageLuminance * 1.025,
+        collageLuminance,
+        collageLuminance * 0.91
+      );
+      muted = mix(muted, warmNeutral, mix(0.08, 0.18, agedDioramaProfile));
+      muted = pow(
+        clamp(muted, 0.0, 1.0),
+        vec3(mix(1.08, 1.16, agedDioramaProfile))
+      );
       float rawChroma = max(displayPigment.r, max(displayPigment.g, displayPigment.b))
         - min(displayPigment.r, min(displayPigment.g, displayPigment.b));
-      float roadSheet = (1.0 - smoothstep(0.08, 0.17, rawChroma))
-        * (1.0 - smoothstep(0.52, 0.68, collageLuminance));
-      muted = mix(muted, vec3(0.19, 0.185, 0.17), roadSheet * 0.9);
+      float chromaticRoadCandidate = (1.0 - smoothstep(
+        mix(0.08, 0.15, agedDioramaProfile),
+        mix(0.17, 0.29, agedDioramaProfile),
+        rawChroma
+      )) * (1.0 - smoothstep(0.52, 0.68, collageLuminance));
+      float secondaryPaper = 1.0 - step(
+        0.5,
+        abs(collageMaterialClass - 5.0)
+      );
+      float agedRoadCandidate = secondaryPaper
+        * (1.0 - smoothstep(0.55, 0.72, collageLuminance));
+      float roadSheet = mix(chromaticRoadCandidate, agedRoadCandidate, agedDioramaProfile);
+      muted = mix(
+        muted,
+        mix(vec3(0.18, 0.17, 0.15), vec3(0.24, 0.235, 0.22), agedDioramaProfile),
+        roadSheet * mix(0.82, 0.96, agedDioramaProfile)
+      );
+      float agedGroundSheet = 1.0 - step(
+        0.5,
+        abs(collageMaterialClass - 1.0)
+      );
+      muted = mix(
+        muted,
+        vec3(0.36, 0.36, 0.25),
+        agedGroundSheet * agedDioramaProfile * 0.96
+      );
       float steps = max(2.0, visualizationPosterizeSteps);
       vec3 posterPigment = floor(muted * steps + 0.5) / steps;
       posterPigment = pow(posterPigment, vec3(2.2));
       // Collage pigment is a cut sheet, not a wash. Keep the semantic colour
       // opaque and let only fine paper tooth perturb it; low-frequency medium
       // noise reads as giant airbrushed stains once the camera pulls back.
+      vec2 displayPoint = gl_FragCoord.xy / max(1.0, displayScale);
+      vec2 materialPoint = depositedPosition
+        * resolution.y
+        / max(1.0, displayScale);
+      vec2 fiberPoint = mix(displayPoint, materialPoint, collageProfile);
       float fiberBand = sin(
-        gl_FragCoord.x * 1.37
-          + valueNoise(gl_FragCoord.xy / 29.0 + visualizationSeed * 37.0) * 4.2
+        fiberPoint.x * 1.37
+          + valueNoise(fiberPoint / 29.0 + visualizationSeed * 37.0) * 4.2
       ) * 0.5 + 0.5;
-      float paperFiber = grain * 0.035
-        + (hash21(gl_FragCoord.xy * 0.41 + visualizationSeed * 113.0) - 0.5) * 0.018
-        + (fiberBand - 0.5) * 0.022;
+      float crossFiber = valueNoise(
+        fiberPoint * vec2(0.075, 0.54) + visualizationSeed * 91.0
+      ) - 0.5;
+      float materialGrain = valueNoise(
+        fiberPoint / 3.2 + vec2(paperSeed * 97.0, paperSeed * 53.0)
+      ) - 0.5;
+      float paperFiber = (
+        materialGrain * 0.22
+          + (hash21(fiberPoint * 0.41 + visualizationSeed * 113.0) - 0.5) * 0.16
+          + (fiberBand - 0.5) * mix(0.2, 0.055, agedDioramaProfile)
+          + crossFiber * mix(0.24, 0.16, agedDioramaProfile)
+      ) * visualizationPaperProfile.x;
       vec3 collagePigment = clamp(posterPigment * (1.0 + paperFiber), 0.0, 1.0);
+      if (agedDioramaProfile > 0.5) {
+        // The generated target reads as old stock because its variation is
+        // broad and softly abraded, never salt-and-pepper noise. Anchor the
+        // field to each semantic part so cars carry their paper in motion.
+        float broadPatina = valueNoise(
+          materialPoint / 76.0 + vec2(visualizationSeed * 47.0, visualizationSeed * 19.0)
+        );
+        float compressedPatina = smoothstep(0.14, 0.88, broadPatina);
+        collagePigment *= mix(0.88, 1.045, compressedPatina);
+      }
       float cutPlaneTone = mix(0.78, 1.04, steppedPlaneTone);
-      collagePigment *= mix(1.0, cutPlaneTone, facetedResponse * 0.7);
+      collagePigment *= mix(
+        1.0,
+        cutPlaneTone,
+        facetedResponse * visualizationPaperProfile.y
+      );
       vec3 collagePaper = clamp(paperColor * (1.0 + paperFiber * 0.42), 0.0, 1.0);
       vec3 collageDeposit = mix(collagePaper, collagePigment, assetSurface);
       color = mix(color, collageDeposit, visualizationColorStrength);
 
       vec2 shadowOffset = visualizationCutShadow.yz * pixel * displayScale;
-      float shiftedDepth = sampledDepth(inkedUv - shadowOffset);
-      float middleDepth = sampledDepth(inkedUv - shadowOffset * 2.35);
-      float farDepth = sampledDepth(inkedUv - shadowOffset * 4.2);
-      float ambientDepth = sampledDepth(inkedUv - shadowOffset * 6.4);
-      float relativeBias = max(0.00035, stableDepth * 0.0008);
-      float nearOcclusion = step(shiftedDepth + relativeBias, stableDepth);
-      float middleOcclusion = step(middleDepth + relativeBias, stableDepth) * 0.58;
-      float farOcclusion = step(farDepth + relativeBias, stableDepth) * 0.26;
-      float ambientOcclusion = step(ambientDepth + relativeBias, stableDepth) * 0.14;
-      float cutShadow = max(
-        max(nearOcclusion, middleOcclusion),
-        max(farOcclusion, ambientOcclusion)
-      )
-        * (1.0 - mainEdge * 0.62)
-        * visualizationCutShadow.x;
+      vec2 shadowNormal = normalize(vec2(-shadowOffset.y, shadowOffset.x) + vec2(0.000001));
+      vec2 penumbra = shadowNormal
+        * pixel
+        * displayScale
+        * visualizationCutShadow.w;
+      float cutShadow = 0.0;
+      cutShadow += paperOccluder(
+        stableDepth,
+        anchorData.b,
+        policySlot,
+        inkedUv - shadowOffset * 0.72
+      ) * 0.24;
+      cutShadow += paperOccluder(
+        stableDepth,
+        anchorData.b,
+        policySlot,
+        inkedUv - shadowOffset * 1.35
+      ) * 0.23;
+      cutShadow += paperOccluder(
+        stableDepth,
+        anchorData.b,
+        policySlot,
+        inkedUv - shadowOffset * 2.15
+      ) * 0.18;
+      cutShadow += paperOccluder(
+        stableDepth,
+        anchorData.b,
+        policySlot,
+        inkedUv - shadowOffset * 1.2 + penumbra
+      ) * 0.13;
+      cutShadow += paperOccluder(
+        stableDepth,
+        anchorData.b,
+        policySlot,
+        inkedUv - shadowOffset * 1.2 - penumbra
+      ) * 0.13;
+      cutShadow += paperOccluder(
+        stableDepth,
+        anchorData.b,
+        policySlot,
+        inkedUv - shadowOffset * 3.1
+      ) * 0.09;
+      cutShadow *= (1.0 - mainEdge * 0.46)
+        * visualizationCutShadow.x
+        * surface;
       color *= 1.0 - cutShadow;
 
       float tornNoise = valueNoise(
-        paperPoint / max(0.25, visualizationTornEdgeScale)
+        materialPoint / max(0.25, visualizationTornEdgeScale)
           + vec2(visualizationSeed * 79.0, visualizationSeed * 43.0)
       );
-      float tornPickup = smoothstep(0.18, 0.82, tornNoise);
-      float centerOwner = sampledCarrierOwner(inkedUv);
-      float ownerBoundary = 0.0;
-      ownerBoundary = max(ownerBoundary, step(
-        0.00024,
-        abs(centerOwner - sampledCarrierOwner(inkedUv + vec2(pixel.x, 0.0) * displayScale))
-      ));
-      ownerBoundary = max(ownerBoundary, step(
-        0.00024,
-        abs(centerOwner - sampledCarrierOwner(inkedUv - vec2(pixel.x, 0.0) * displayScale))
-      ));
-      ownerBoundary = max(ownerBoundary, step(
-        0.00024,
-        abs(centerOwner - sampledCarrierOwner(inkedUv + vec2(0.0, pixel.y) * displayScale))
-      ));
-      ownerBoundary = max(ownerBoundary, step(
-        0.00024,
-        abs(centerOwner - sampledCarrierOwner(inkedUv - vec2(0.0, pixel.y) * displayScale))
-      ));
-      float tornRim = ownerBoundary * surface * tornPickup * visualizationTornEdgeStrength;
-      vec3 exposedPaper = mix(paperColor, vec3(0.63, 0.46, 0.27), 0.18);
-      color = mix(color, exposedPaper, clamp(tornRim, 0.0, 0.74));
-      visualizationEdgeErosion = tornRim;
+      // Keep the cut subtly irregular without revealing a bright dashed core.
+      // A continuous low-frequency value survives motion much better than a
+      // thresholded screen-space mask.
+      float tornPickup = mix(0.68, 1.0, tornNoise);
+      float cutBoundary = frontPaperBoundary(
+        inkedUv,
+        pixel,
+        max(1.0, effectiveContourWidth * displayScale)
+      );
+      float tornRim = cutBoundary * surface * tornPickup * visualizationTornEdgeStrength;
+      float cutFiber = clamp(tornRim * 1.45, 0.0, 0.34);
+      vec3 cutFiberColor = mix(color * 0.82, vec3(0.18, 0.15, 0.11), 0.18);
+      float groundPaper = 1.0 - step(0.5, abs(collageMaterialClass - 1.0));
+      groundPaper = max(groundPaper, roadSheet);
+      cutFiberColor = mix(
+        cutFiberColor,
+        vec3(0.5, 0.4, 0.27),
+        groundPaper * agedDioramaProfile * 0.72
+      );
+      color = mix(color, cutFiberColor, cutFiber);
     }
 
     float resolvedContour = clamp(
       contour * (1.0 + visualizationContourBoost),
       0.0,
       1.0
-    ) * (1.0 - visualizationEdgeErosion * 0.72);
+    );
     color = mix(color, contourColor, resolvedContour);
     // The albedo pass contains the carrier opacity even where its RGB is
     // deliberately replaced by paper/background. Using background alpha on

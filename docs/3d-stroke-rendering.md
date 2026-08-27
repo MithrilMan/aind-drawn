@@ -114,12 +114,22 @@ before its borrowed `SolidRig`, and dispose the pass when the drawing surface is
 
 The pass also accepts one scene-wide `visualization` policy. `sepia-graphite`
 applies a warm monochrome grade and reinforces the already synthesized
-contours; `paper-collage` applies restrained pigment posterization, displaced
-cut shadows, and a deterministic fibrous rim at carrier boundaries. These are
+contours. `paper-collage` presents a clean paper-cut scene; its contour remains
+continuous in motion while low-frequency cut variation stays anchored to each
+semantic part. `aged-paper-diorama` adds a restrained period palette, deeper
+layer shadows, matte fibre, broad patina, and stronger faceted depth. These are
 post-composition scene treatments, not new `MediumId` values: they do not
-change how graphite, oil, or another medium deposits pigment, and they do not
-replace semantic `cut-paper` art direction. The default `natural` branch adds
-no texture samples or noise work to the existing compositor path.
+change how graphite, oil, or another medium deposits pigment. They pair with
+the semantic `cut-paper` and `aged-paper` art directions rather than replacing
+them. The default `natural` branch adds no texture samples or noise work to the
+existing compositor path.
+
+Paper modes resolve structural, crease, and owner boundaries separately.
+Contact shadows are sampled only across a real owner or policy boundary with a
+front-to-back depth step, so a sloped sheet does not cast a checkerboard shadow
+on itself. Fibre and torn-edge fields use CSS-pixel scale and part-relative
+coordinates, preventing device-pixel-ratio changes or vehicle translation from
+turning texture into shimmer.
 
 Each registration also retains an animation-expanded local carrier bound. Before synchronising
 child matrices, anchors, strokes, or G-buffer proxies, the pass transforms that bound by the rig
@@ -135,9 +145,14 @@ does not silently become four G-buffer workloads.
 For an immutable registration, the pass compiles all opaque source parts and
 semantic stroke volumes into one indexed skinned carrier. Per-vertex attributes
 retain semantic albedo, material marks, owner IDs, flow, reveal progress, and
-source-part bone ownership. Copying source world matrices into the carrier
-skeleton preserves articulation without retaining thousands of separately
-submitted proxy meshes. The artifact has a compiler version, an exact
+source-part bone ownership. The integral half of the existing mark-scale
+channel also carries a compact collage material class resolved from art roles
+and represented substance. This preserves pigment on focal and primary forms
+while allowing ground, mineral sheets, and accents to receive coherent scene
+treatment without another MRT attachment or vertex attribute. Copying source
+world matrices into the carrier skeleton preserves articulation without
+retaining thousands of separately submitted proxy meshes. The artifact has a
+compiler version, an exact
 policy-and-geometry cache key, a deterministic fingerprint, byte diagnostics,
 and scene-scoped lease ownership.
 

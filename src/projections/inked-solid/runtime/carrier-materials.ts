@@ -12,6 +12,11 @@ import type {
 } from '../contracts.js';
 import { normalizedInkedSolidSeed } from './policy-texture.js';
 import { inkedSolidSurfaceFlow } from './surface-flow.js';
+import {
+  inkedSolidCollageMaterialClass,
+  packInkedSolidMarkScale,
+  type InkedSolidCollageMaterialClass,
+} from './collage-material-class.js';
 
 const MARK_STYLE_MODE = Object.freeze({
   none: 0,
@@ -111,7 +116,10 @@ function colorFromRgb(color: readonly [number, number, number]): THREE.Color {
     .convertSRGBToLinear();
 }
 
-function markData(mark: InkedSolidViewMarkPolicy): THREE.Vector4 {
+function markData(
+  mark: InkedSolidViewMarkPolicy,
+  materialClass: InkedSolidCollageMaterialClass,
+): THREE.Vector4 {
   const style = MARK_STYLE_MODE[mark.style];
   const packedStrengthAndWidth = (
     Math.min(63, Math.floor(mark.strength * 63))
@@ -121,7 +129,7 @@ function markData(mark: InkedSolidViewMarkPolicy): THREE.Vector4 {
     (style + normalizedInkedSolidSeed(mark.seed) * 0.45) / MARK_STYLE_DIVISOR,
     packedStrengthAndWidth,
     mark.coverage,
-    0.5 + Math.min(0.49, mark.scale / 48),
+    packInkedSolidMarkScale(mark.scale, materialClass),
   );
 }
 
@@ -157,7 +165,14 @@ export class InkedSolidCarrierMaterialCache {
       fragmentShader: CARRIER_FRAGMENT,
       uniforms: {
         albedoData: { value: new THREE.Vector4(color.r, color.g, color.b, opacity) },
-        markData: { value: markData(mark) },
+        markData: { value: markData(
+          mark,
+          inkedSolidCollageMaterialClass(
+            this.appearance,
+            part.semanticPartId,
+            surface.substance,
+          ),
+        ) },
         anchorData: { value: anchorData },
         packedPolicyAndFlow: {
           value: (

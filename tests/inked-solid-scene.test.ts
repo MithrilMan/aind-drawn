@@ -6,6 +6,7 @@ import {
   INKED_SOLID_VISUALIZATION_IDS,
   InkedSolidScenePass,
   SolidRig,
+  createAssetAppearance,
   createBuildingIdentity,
   createCharacterIdentity,
   createInkedSolidBlueprint,
@@ -17,6 +18,10 @@ import {
   inkedSolidVisualizationById,
 } from '../src/index.js';
 import { InkedSolidCarrierOwnerKeys } from '../src/projections/inked-solid/runtime/carrier-owner-keys.js';
+import {
+  inkedSolidCollageMaterialClass,
+  packInkedSolidMarkScale,
+} from '../src/projections/inked-solid/runtime/collage-material-class.js';
 
 class RecordingRenderer {
   public autoClear = true;
@@ -66,6 +71,24 @@ function compositeMaterial(renderer: RecordingRenderer): THREE.ShaderMaterial {
 }
 
 describe('multi-instance inked-solid scene rendering', () => {
+  it('packs semantic collage classes into the existing mark-scale channel', () => {
+    const appearance = createAssetAppearance('aged-paper', [
+      { semanticPartId: 'ground', roles: ['primary-form', 'foliage'] },
+      { semanticPartId: 'road', roles: ['secondary-form'] },
+      { semanticPartId: 'body', roles: ['primary-form'] },
+      { semanticPartId: 'curb', roles: ['accent'] },
+    ]);
+    expect(inkedSolidCollageMaterialClass(appearance, 'ground')).toBe(1);
+    expect(inkedSolidCollageMaterialClass(appearance, 'road')).toBe(2);
+    expect(inkedSolidCollageMaterialClass(appearance, 'road', 'stone')).toBe(5);
+    expect(inkedSolidCollageMaterialClass(appearance, 'curb')).toBe(3);
+    expect(inkedSolidCollageMaterialClass(appearance, 'body')).toBe(4);
+    expect(inkedSolidCollageMaterialClass(appearance, 'missing')).toBe(0);
+    const packed = packInkedSolidMarkScale(12, 4);
+    expect(Math.floor(packed)).toBe(4);
+    expect((packed % 1 - 0.5) * 48).toBeCloseTo(12);
+  });
+
   it('compiles distinct deterministic scene visualizations into the compositor', () => {
     const policies = INKED_SOLID_VISUALIZATION_IDS.map(inkedSolidVisualizationById);
     expect(new Set(policies.map((policy) => JSON.stringify(policy))).size).toBe(policies.length);
@@ -78,12 +101,30 @@ describe('multi-instance inked-solid scene rendering', () => {
     });
     expect(inkedSolidVisualizationById('paper-collage')).toMatchObject({
       colorModel: 'collage',
-      posterizeSteps: 8,
+      contourWidthScale: 0.52,
+      creaseContourStrength: 0.46,
+      ownerContourStrength: 0.3,
+      secondaryContourStrength: 0.08,
+      posterizeSteps: 12,
+      surfaceFiberStrength: 0.18,
+      planeToneStrength: 0.42,
       tornEdgeStrength: 0.24,
-      cutShadowStrength: 0.5,
+      cutShadowStrength: 0.52,
+      cutShadowSoftness: 1.8,
+    });
+    expect(inkedSolidVisualizationById('aged-paper-diorama')).toMatchObject({
+      colorModel: 'diorama',
+      contourWidthScale: 0.48,
+      secondaryContourStrength: 0.025,
+      posterizeSteps: 16,
+      surfaceFiberStrength: 0.4,
+      planeToneStrength: 0.58,
+      tornEdgeStrength: 0.32,
+      cutShadowStrength: 0.82,
+      cutShadowSoftness: 2.35,
     });
 
-    const expectedModes = [0, 1, 2];
+    const expectedModes = [0, 1, 2, 3];
     for (const [index, visualization] of INKED_SOLID_VISUALIZATION_IDS.entries()) {
       const renderer = new RecordingRenderer();
       const pass = new InkedSolidScenePass(asWebGlRenderer(renderer), { visualization });
@@ -96,8 +137,34 @@ describe('multi-instance inked-solid scene rendering', () => {
       expect(material.uniforms.visualizationMode?.value).toBe(expectedModes[index]);
       expect(material.uniforms.visualizationContourBoost?.value)
         .toBe(pass.visualization.contourBoost);
+      const contourProfile: unknown = material.uniforms.visualizationContourProfile?.value;
+      const paperProfile: unknown = material.uniforms.visualizationPaperProfile?.value;
+      const cutShadow: unknown = material.uniforms.visualizationCutShadow?.value;
+      expect(contourProfile).toBeInstanceOf(THREE.Vector4);
+      expect(paperProfile).toBeInstanceOf(THREE.Vector2);
+      expect(cutShadow).toBeInstanceOf(THREE.Vector4);
+      if (!(contourProfile instanceof THREE.Vector4)
+        || !(paperProfile instanceof THREE.Vector2)
+        || !(cutShadow instanceof THREE.Vector4)) {
+        throw new Error('Expected typed visualization uniforms');
+      }
+      expect(contourProfile.toArray()).toEqual([
+        pass.visualization.contourWidthScale,
+        pass.visualization.creaseContourStrength,
+        pass.visualization.ownerContourStrength,
+        pass.visualization.secondaryContourStrength,
+      ]);
+      expect(paperProfile.toArray()).toEqual([
+        pass.visualization.surfaceFiberStrength,
+        pass.visualization.planeToneStrength,
+      ]);
       expect(material.uniforms.visualizationTornEdgeStrength?.value)
         .toBe(pass.visualization.tornEdgeStrength);
+      expect(cutShadow.toArray()).toEqual([
+        pass.visualization.cutShadowStrength,
+        ...pass.visualization.cutShadowOffset,
+        pass.visualization.cutShadowSoftness,
+      ]);
       pass.dispose();
     }
     expect(() => inkedSolidVisualizationById('neon' as never)).toThrow(/Unknown/u);

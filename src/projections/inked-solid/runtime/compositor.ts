@@ -23,10 +23,12 @@ type InkedSolidCompositeUniforms = {
   visualizationMode: { value: number };
   visualizationColorStrength: { value: number };
   visualizationContourBoost: { value: number };
+  visualizationContourProfile: { value: THREE.Vector4 };
   visualizationPosterizeSteps: { value: number };
+  visualizationPaperProfile: { value: THREE.Vector2 };
   visualizationTornEdgeStrength: { value: number };
   visualizationTornEdgeScale: { value: number };
-  visualizationCutShadow: { value: THREE.Vector3 };
+  visualizationCutShadow: { value: THREE.Vector4 };
   visualizationSeed: { value: number };
 };
 
@@ -42,6 +44,7 @@ function normalizedSeed(seed: number): number {
 function visualizationMode(policy: InkedSolidVisualizationPolicy): number {
   if (policy.colorModel === 'sepia') return 1;
   if (policy.colorModel === 'collage') return 2;
+  if (policy.colorModel === 'diorama') return 3;
   return 0;
 }
 
@@ -75,13 +78,24 @@ export class InkedSolidCompositor {
       visualizationMode: { value: visualizationMode(visualization) },
       visualizationColorStrength: { value: visualization.colorStrength },
       visualizationContourBoost: { value: visualization.contourBoost },
+      visualizationContourProfile: { value: new THREE.Vector4(
+        visualization.contourWidthScale,
+        visualization.creaseContourStrength,
+        visualization.ownerContourStrength,
+        visualization.secondaryContourStrength,
+      ) },
       visualizationPosterizeSteps: { value: visualization.posterizeSteps },
+      visualizationPaperProfile: { value: new THREE.Vector2(
+        visualization.surfaceFiberStrength,
+        visualization.planeToneStrength,
+      ) },
       visualizationTornEdgeStrength: { value: visualization.tornEdgeStrength },
       visualizationTornEdgeScale: { value: visualization.tornEdgeScale },
-      visualizationCutShadow: { value: new THREE.Vector3(
+      visualizationCutShadow: { value: new THREE.Vector4(
         visualization.cutShadowStrength,
         visualization.cutShadowOffset[0],
         visualization.cutShadowOffset[1],
+        visualization.cutShadowSoftness,
       ) },
       visualizationSeed: { value: normalizedSeed(visualization.seed) },
     };

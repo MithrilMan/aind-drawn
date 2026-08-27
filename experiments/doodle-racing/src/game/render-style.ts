@@ -10,6 +10,7 @@ export const PAPER_CIRCUIT_RENDER_STYLE_IDS = Object.freeze([
   'oil',
   'sepia-graphite',
   'paper-collage',
+  'paper-diorama',
 ] as const);
 
 export type PaperCircuitRenderStyleId = typeof PAPER_CIRCUIT_RENDER_STYLE_IDS[number];
@@ -64,10 +65,18 @@ export const PAPER_CIRCUIT_RENDER_STYLES: Readonly<
   }),
   'paper-collage': style({
     id: 'paper-collage',
-    label: 'Paper collage',
+    label: 'Paper cut',
     medium: 'ink',
     visualization: 'paper-collage',
     artDirection: 'cut-paper',
+    viewMarks: true,
+  }),
+  'paper-diorama': style({
+    id: 'paper-diorama',
+    label: 'Aged diorama',
+    medium: 'ink',
+    visualization: 'aged-paper-diorama',
+    artDirection: 'aged-paper',
     viewMarks: false,
   }),
 });

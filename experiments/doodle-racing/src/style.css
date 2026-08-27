@@ -76,6 +76,59 @@ canvas:focus-visible {
   background: #e9ddbd;
 }
 
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: none;
+  overflow: hidden;
+  background: #eee4cc;
+  pointer-events: none;
+}
+
+.menu-backdrop::after {
+  position: absolute;
+  inset: -12%;
+  content: '';
+  background:
+    radial-gradient(circle at 24% 32%, rgb(255 252 237 / 28%), transparent 34%),
+    linear-gradient(112deg, transparent 30%, rgb(70 63 51 / 8%) 48%, transparent 66%);
+  mix-blend-mode: multiply;
+  opacity: .42;
+  animation: menu-paper-light 14s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.menu-backdrop img {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+  transform: scale(1.035) translate3d(0, 0, 0);
+  animation: menu-paper-drift 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.is-menu .menu-backdrop {
+  display: block;
+}
+
+.is-menu .race-viewport > canvas[data-race-canvas] {
+  visibility: hidden;
+}
+
+@keyframes menu-paper-drift {
+  to {
+    transform: scale(1.075) translate3d(-.8%, .55%, 0);
+  }
+}
+
+@keyframes menu-paper-light {
+  to {
+    transform: translate3d(4%, -2%, 0) rotate(.35deg);
+  }
+}
+
 .race-viewport::before,
 .race-viewport::after {
   content: '';
@@ -2161,11 +2214,6 @@ canvas {
     clip-path: none;
   }
 
-  .is-menu .race-viewport {
-    background: var(--ink);
-  }
-
-  .is-menu .race-viewport > canvas[data-race-canvas],
   .is-menu .game-brand {
     visibility: hidden;
   }
@@ -2693,6 +2741,12 @@ canvas {
 
   .is-boosting .race-viewport::after {
     animation: none;
+  }
+
+  .menu-backdrop img,
+  .menu-backdrop::after {
+    animation: none;
+    will-change: auto;
   }
 }
 

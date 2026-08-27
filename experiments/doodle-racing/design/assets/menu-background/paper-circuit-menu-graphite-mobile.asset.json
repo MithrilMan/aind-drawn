@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "assetFamilyId": "paper-circuit-menu-graphite-portrait",
+  "authorities": [
+    {
+      "role": "selected-master",
+      "path": "source/paper-circuit-menu-graphite-mobile-master.png",
+      "digest": "sha256:e4be4ba6ec4fa2e3263418238c66b9b48adc0069858f3e880f19eba4a015a56a"
+    }
+  ],
+  "semanticRole": "ambient-decoration",
+  "alt": {
+    "owner": "paper-circuit-ui",
+    "text": ""
+  },
+  "master": {
+    "authorityRole": "selected-master",
+    "constraints": {
+      "requireAlpha": false,
+      "trimAlpha": false,
+      "allowUpscale": false,
+      "minWidth": 720,
+      "minHeight": 1440,
+      "maxWidth": 1000,
+      "maxHeight": 2000
+    }
+  },
+  "variants": [
+    {
+      "id": "mobile",
+      "size": {
+        "width": 720,
+        "height": 1440
+      },
+      "fit": "cover",
+      "focus": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "backgrounds": [
+        "#f0e6cd"
+      ],
+      "formats": [
+        {
+          "type": "webp",
+          "quality": 82,
+          "maxKiB": 280
+        }
+      ]
+    }
+  ],
+  "output": {
+    "directory": "../../../src/assets/menu-background",
+    "files": [
+      "paper-circuit-menu-graphite-portrait-mobile-720x1440.webp"
+    ],
+    "replace": false
+  },
+  "provenance": {
+    "origin": "generated",
+    "source": "Native ImageGen portrait sibling derived from a real Graphite Paper Circuit gameplay capture.",
+    "generator": "imagegen",
+    "license": {
+      "id": "project-owned",
+      "status": "approved",
+      "attribution": ""
+    }
+  }
+}

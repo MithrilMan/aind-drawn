@@ -161,7 +161,6 @@ const routeDebugLegend = requireElement('[data-route-debug-legend]', HTMLElement
 const debugPerformance = requireElement('[data-debug-performance]', HTMLOutputElement);
 const debugFps = requireElement('[data-debug-fps]', HTMLElement);
 const debugFrameTime = requireElement('[data-debug-frame-time]', HTMLElement);
-const mobileMenuQuery = window.matchMedia('(max-width: 760px)');
 
 const course = createCourseLayout();
 const world = createRaceWorldLayout(course);
@@ -224,7 +223,7 @@ let resumeRaceAfterRendererRecovery = false;
 let suppressNextGlobalAction = false;
 
 function syncStageRenderingSuspension(): void {
-  stage?.setRenderingSuspended(appMode === 'menu' && mobileMenuQuery.matches);
+  stage?.setRenderingSuspended(appMode === 'menu');
 }
 
 function playMenuClick(): void {
@@ -1020,7 +1019,6 @@ function dispose(): void {
   if (!active) return;
   active = false;
   window.removeEventListener('keydown', handleEscapeKey, { capture: true });
-  mobileMenuQuery.removeEventListener('change', syncStageRenderingSuspension);
   if (vehicleSelector.open) vehicleSelector.close();
   if (pauseMenu.open) pauseMenu.close();
   if (finishMenu.open) finishMenu.close();
@@ -1218,7 +1216,6 @@ document.addEventListener('visibilitychange', () => {
   else if (pauseMenu.open) focusNavigator.activate(pauseMenu, resumeButton);
   else if (finishMenu.open) focusNavigator.activate(finishMenu, finishRestartButton);
 });
-mobileMenuQuery.addEventListener('change', syncStageRenderingSuspension);
 
 retryButton.addEventListener('click', () => {
   playMenuClick();

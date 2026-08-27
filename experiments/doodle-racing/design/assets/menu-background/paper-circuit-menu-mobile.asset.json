@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "assetFamilyId": "paper-circuit-menu-mobile",
+  "authorities": [
+    {
+      "role": "selected-master",
+      "path": "source/paper-circuit-menu-mobile-master.png",
+      "digest": "sha256:0ecfc8c4cf290dfac4660b0f7f993a4c85b7d0e134365ec34b0a840b8c867347"
+    }
+  ],
+  "semanticRole": "ambient-decoration",
+  "alt": {
+    "owner": "paper-circuit-ui",
+    "text": ""
+  },
+  "master": {
+    "authorityRole": "selected-master",
+    "constraints": {
+      "requireAlpha": false,
+      "trimAlpha": false,
+      "allowUpscale": false,
+      "minWidth": 720,
+      "minHeight": 1440,
+      "maxWidth": 1200,
+      "maxHeight": 2000
+    }
+  },
+  "variants": [
+    {
+      "id": "mobile",
+      "size": {
+        "width": 720,
+        "height": 1440
+      },
+      "fit": "cover",
+      "focus": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "backgrounds": [
+        "#171918"
+      ],
+      "formats": [
+        {
+          "type": "webp",
+          "quality": 82,
+          "maxKiB": 280
+        }
+      ]
+    }
+  ],
+  "output": {
+    "directory": "../../../src/assets/menu-background",
+    "files": [
+      "paper-circuit-menu-mobile-mobile-720x1440.webp"
+    ],
+    "replace": false
+  },
+  "provenance": {
+    "origin": "generated",
+    "source": "Native ImageGen portrait candidate generated from the repository visual-system anchor, a real Paper Circuit gameplay capture, and the sibling wide menu background.",
+    "generator": "imagegen",
+    "license": {
+      "id": "project-owned",
+      "status": "approved",
+      "attribution": ""
+    }
+  }
+}

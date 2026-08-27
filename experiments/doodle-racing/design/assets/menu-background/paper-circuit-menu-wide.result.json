@@ -1,0 +1,142 @@
+{
+  "$schema": "urn:frontend-agent-skills:web-asset-result:v1",
+  "schemaVersion": 1,
+  "status": "success",
+  "success": true,
+  "contract": {
+    "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\paper-circuit-menu-wide.asset.json",
+    "digest": "sha256:168ec8aa362e41131e1b522099699fa67fb355c0e9499ff2ec5d66a70cb7d09e"
+  },
+  "source": {
+    "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\source\\paper-circuit-menu-wide-master.png",
+    "digest": "sha256:d494f7cc10164942d8ea2024d61f36715023a813b313820a4316817116ad68fd"
+  },
+  "output": {
+    "directory": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background",
+    "digest": "sha256:e98d06866ee5e44e3d413863939bc1993096dfedcc459beb6d5421c1f48d6cf5",
+    "files": [
+      {
+        "name": "paper-circuit-menu-wide-wide-1440x900.webp",
+        "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background\\paper-circuit-menu-wide-wide-1440x900.webp",
+        "format": "webp",
+        "bytes": 90186,
+        "digest": "sha256:328f1e55c4c5e086704be3fb64e9d09c9de15e7e9f648bd5c064bab6b29b9c2a"
+      }
+    ],
+    "contactSheet": null
+  },
+  "normalizedOptions": {
+    "mode": "contract",
+    "schemaVersion": 2,
+    "assetFamilyId": "paper-circuit-menu-wide",
+    "visualContractRef": null,
+    "authorities": [
+      {
+        "role": "selected-master",
+        "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\source\\paper-circuit-menu-wide-master.png",
+        "digest": "sha256:d494f7cc10164942d8ea2024d61f36715023a813b313820a4316817116ad68fd"
+      }
+    ],
+    "semanticRole": "ambient-decoration",
+    "alt": {
+      "owner": "paper-circuit-ui",
+      "text": ""
+    },
+    "master": {
+      "authorityRole": "selected-master",
+      "constraints": {
+        "requireAlpha": false,
+        "trimAlpha": false,
+        "allowUpscale": false,
+        "minWidth": 1440,
+        "minHeight": 900,
+        "maxWidth": 2000,
+        "maxHeight": 1200
+      }
+    },
+    "variants": [
+      {
+        "id": "wide",
+        "size": {
+          "width": 1440,
+          "height": 900
+        },
+        "fit": "cover",
+        "focus": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "backgrounds": [
+          "#171918"
+        ],
+        "formats": [
+          {
+            "type": "webp",
+            "quality": 82,
+            "maxKiB": 320.0
+          }
+        ]
+      }
+    ],
+    "output": {
+      "directory": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background",
+      "files": [
+        "paper-circuit-menu-wide-wide-1440x900.webp"
+      ],
+      "replace": false,
+      "contactSheet": null
+    },
+    "provenance": {
+      "origin": "generated",
+      "source": "Native ImageGen candidate generated from the repository visual-system anchor and a real Paper Circuit gameplay capture.",
+      "license": {
+        "id": "project-owned",
+        "status": "approved",
+        "attribution": ""
+      },
+      "generator": "imagegen"
+    }
+  },
+  "preparation": {
+    "source": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\source\\paper-circuit-menu-wide-master.png",
+    "sourceSize": {
+      "width": 1586,
+      "height": 992
+    },
+    "trimAlpha": false,
+    "fit": "cover",
+    "proofBackgrounds": [
+      "#171918"
+    ],
+    "variants": [
+      {
+        "name": "wide",
+        "width": 1440,
+        "height": 900,
+        "focus": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "fit": "cover",
+        "cropBox": [
+          0,
+          0,
+          1586,
+          991
+        ],
+        "outputs": [
+          {
+            "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background\\paper-circuit-menu-wide-wide-1440x900.webp",
+            "format": "webp",
+            "width": 1440,
+            "height": 900,
+            "bytes": 90186,
+            "digest": "sha256:328f1e55c4c5e086704be3fb64e9d09c9de15e7e9f648bd5c064bab6b29b9c2a"
+          }
+        ]
+      }
+    ],
+    "contactSheet": null
+  },
+  "error": null
+}

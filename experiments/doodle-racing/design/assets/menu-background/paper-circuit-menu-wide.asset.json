@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 2,
+  "assetFamilyId": "paper-circuit-menu-wide",
+  "authorities": [
+    {
+      "role": "selected-master",
+      "path": "source/paper-circuit-menu-wide-master.png",
+      "digest": "sha256:d494f7cc10164942d8ea2024d61f36715023a813b313820a4316817116ad68fd"
+    }
+  ],
+  "semanticRole": "ambient-decoration",
+  "alt": {
+    "owner": "paper-circuit-ui",
+    "text": ""
+  },
+  "master": {
+    "authorityRole": "selected-master",
+    "constraints": {
+      "requireAlpha": false,
+      "trimAlpha": false,
+      "allowUpscale": false,
+      "minWidth": 1440,
+      "minHeight": 900,
+      "maxWidth": 2000,
+      "maxHeight": 1200
+    }
+  },
+  "variants": [
+    {
+      "id": "wide",
+      "size": {
+        "width": 1440,
+        "height": 900
+      },
+      "fit": "cover",
+      "focus": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "backgrounds": [
+        "#171918"
+      ],
+      "formats": [
+        {
+          "type": "webp",
+          "quality": 82,
+          "maxKiB": 320
+        }
+      ]
+    }
+  ],
+  "output": {
+    "directory": "../../../src/assets/menu-background",
+    "files": [
+      "paper-circuit-menu-wide-wide-1440x900.webp"
+    ],
+    "replace": false
+  },
+  "provenance": {
+    "origin": "generated",
+    "source": "Native ImageGen candidate generated from the repository visual-system anchor and a real Paper Circuit gameplay capture.",
+    "generator": "imagegen",
+    "license": {
+      "id": "project-owned",
+      "status": "approved",
+      "attribution": ""
+    }
+  }
+}

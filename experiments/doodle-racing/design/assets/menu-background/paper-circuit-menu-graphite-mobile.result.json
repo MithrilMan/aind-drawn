@@ -1,0 +1,142 @@
+{
+  "$schema": "urn:frontend-agent-skills:web-asset-result:v1",
+  "schemaVersion": 1,
+  "status": "success",
+  "success": true,
+  "contract": {
+    "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\paper-circuit-menu-graphite-mobile.asset.json",
+    "digest": "sha256:beb83af7d1978c5f9a30db04c3f26ac63aa0332814fc85e2a501918d0aa16f47"
+  },
+  "source": {
+    "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\source\\paper-circuit-menu-graphite-mobile-master.png",
+    "digest": "sha256:e4be4ba6ec4fa2e3263418238c66b9b48adc0069858f3e880f19eba4a015a56a"
+  },
+  "output": {
+    "directory": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background",
+    "digest": "sha256:1fedb4d1edd0f62a881eaa9ac667d3f4c08d598fa8483b6fad86734426610fca",
+    "files": [
+      {
+        "name": "paper-circuit-menu-graphite-portrait-mobile-720x1440.webp",
+        "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background\\paper-circuit-menu-graphite-portrait-mobile-720x1440.webp",
+        "format": "webp",
+        "bytes": 48834,
+        "digest": "sha256:36d17afbcaac51f56267d97740151e9acb8ee6cf5ada1caecdee940eba79bf1a"
+      }
+    ],
+    "contactSheet": null
+  },
+  "normalizedOptions": {
+    "mode": "contract",
+    "schemaVersion": 2,
+    "assetFamilyId": "paper-circuit-menu-graphite-portrait",
+    "visualContractRef": null,
+    "authorities": [
+      {
+        "role": "selected-master",
+        "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\source\\paper-circuit-menu-graphite-mobile-master.png",
+        "digest": "sha256:e4be4ba6ec4fa2e3263418238c66b9b48adc0069858f3e880f19eba4a015a56a"
+      }
+    ],
+    "semanticRole": "ambient-decoration",
+    "alt": {
+      "owner": "paper-circuit-ui",
+      "text": ""
+    },
+    "master": {
+      "authorityRole": "selected-master",
+      "constraints": {
+        "requireAlpha": false,
+        "trimAlpha": false,
+        "allowUpscale": false,
+        "minWidth": 720,
+        "minHeight": 1440,
+        "maxWidth": 1000,
+        "maxHeight": 2000
+      }
+    },
+    "variants": [
+      {
+        "id": "mobile",
+        "size": {
+          "width": 720,
+          "height": 1440
+        },
+        "fit": "cover",
+        "focus": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "backgrounds": [
+          "#f0e6cd"
+        ],
+        "formats": [
+          {
+            "type": "webp",
+            "quality": 82,
+            "maxKiB": 280.0
+          }
+        ]
+      }
+    ],
+    "output": {
+      "directory": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background",
+      "files": [
+        "paper-circuit-menu-graphite-portrait-mobile-720x1440.webp"
+      ],
+      "replace": false,
+      "contactSheet": null
+    },
+    "provenance": {
+      "origin": "generated",
+      "source": "Native ImageGen portrait sibling derived from a real Graphite Paper Circuit gameplay capture.",
+      "license": {
+        "id": "project-owned",
+        "status": "approved",
+        "attribution": ""
+      },
+      "generator": "imagegen"
+    }
+  },
+  "preparation": {
+    "source": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\design\\assets\\menu-background\\source\\paper-circuit-menu-graphite-mobile-master.png",
+    "sourceSize": {
+      "width": 887,
+      "height": 1774
+    },
+    "trimAlpha": false,
+    "fit": "cover",
+    "proofBackgrounds": [
+      "#f0e6cd"
+    ],
+    "variants": [
+      {
+        "name": "mobile",
+        "width": 720,
+        "height": 1440,
+        "focus": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "fit": "cover",
+        "cropBox": [
+          0,
+          0,
+          887,
+          1774
+        ],
+        "outputs": [
+          {
+            "path": "D:\\SVILUPPO\\repos\\MithrilMan\\aind-drawn\\experiments\\doodle-racing\\src\\assets\\menu-background\\paper-circuit-menu-graphite-portrait-mobile-720x1440.webp",
+            "format": "webp",
+            "width": 720,
+            "height": 1440,
+            "bytes": 48834,
+            "digest": "sha256:36d17afbcaac51f56267d97740151e9acb8ee6cf5ada1caecdee940eba79bf1a"
+          }
+        ]
+      }
+    ],
+    "contactSheet": null
+  },
+  "error": null
+}

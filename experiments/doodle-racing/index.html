@@ -104,6 +104,20 @@
     </div>
     <main class="race-shell" data-race-shell aria-busy="true">
       <section class="race-viewport" aria-label="Paper Circuit race" data-viewport>
+        <picture class="menu-backdrop" aria-hidden="true">
+          <source
+            media="(max-width: 760px)"
+            srcset="./src/assets/menu-background/paper-circuit-menu-graphite-portrait-mobile-720x1440.webp"
+          >
+          <img
+            src="./src/assets/menu-background/paper-circuit-menu-graphite-wide-1440x900.webp"
+            alt=""
+            width="1440"
+            height="900"
+            decoding="async"
+            fetchpriority="high"
+          >
+        </picture>
         <canvas
           tabindex="0"
           aria-label="Quasi-isometric racing game with keyboard, touch, and standard gamepad controls."

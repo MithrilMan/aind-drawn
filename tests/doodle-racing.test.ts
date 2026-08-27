@@ -1594,6 +1594,28 @@ describe('Paper Circuit experiment', () => {
     expect(effects.diagnostics().skidSegments).toBe(2);
     expect(effects.diagnostics().smokePuffs).toBeGreaterThan(0);
 
+    const skidMesh = effects.rig.getPart('skid-marks');
+    if (skidMesh === null) throw new Error('Skid-mark carrier fixture is missing');
+    const authoredBounds = effects.solid.bounds;
+    expect(skidMesh.geometry.boundingBox?.min.toArray()).toEqual(authoredBounds.minimum);
+    expect(skidMesh.geometry.boundingBox?.max.toArray()).toEqual(authoredBounds.maximum);
+    const distantSample = layout.samples.reduce((farthest, sample) => (
+      Math.hypot(sample.x, sample.z) > Math.hypot(farthest.x, farthest.z) ? sample : farthest
+    ));
+    const camera = new THREE.OrthographicCamera(-2, 2, 2, -2, 0.1, 50);
+    camera.position.set(distantSample.x, 15, distantSample.z);
+    camera.up.set(0, 0, -1);
+    camera.lookAt(distantSample.x, 0, distantSample.z);
+    camera.updateProjectionMatrix();
+    camera.updateMatrixWorld(true);
+    const projection = new THREE.Matrix4().multiplyMatrices(
+      camera.projectionMatrix,
+      camera.matrixWorldInverse,
+    );
+    const frustum = new THREE.Frustum().setFromProjectionMatrix(projection);
+    skidMesh.updateWorldMatrix(true, true);
+    expect(frustum.intersectsObject(skidMesh)).toBe(true);
+
     effects.update([sourceAt(0.24, { offRoad: true })], 0.05, true);
     expect(effects.diagnostics().dustPuffs).toBeGreaterThan(0);
 

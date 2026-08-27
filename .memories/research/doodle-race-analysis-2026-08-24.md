@@ -329,6 +329,13 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
 - The bounded race-effects field adds one registration, 93 carrier parts, and 372 proxies. Its 512
   skid decals share one mutable carrier mesh, so decal history grows in vertex updates rather than
   scene registrations or part count.
+- Per-proxy frustum culling cannot trust construction-time geometry bounds for that mutable skid
+  mesh. Its 512 quads are initially compiled below the ground near the origin, and later position
+  attribute writes set only `needsUpdate`; Three.js therefore retained the stale bounding box/sphere
+  and intermittently culled valid marks elsewhere on the circuit. `DriftEffects` now assigns that
+  geometry the already-authored whole-effect bounds once, avoiding both false culls and per-segment
+  scans of all 3,072 vertices. The regression checks actual frustum intersection from a distant track
+  position rather than only the logical `skidSegments` count.
 - The existing synthetic 48-instance inked-solid benchmark reports approximately 6.7 ms mean
   CPU time per render in this environment, with zero steady-state per-mesh allocations. This is
   not a GPU frame-time guarantee; profile the target desktop GPU before changing pixel ratio or

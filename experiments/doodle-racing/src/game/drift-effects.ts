@@ -249,6 +249,18 @@ function midpoint(left: GroundPoint, right: GroundPoint): GroundPoint {
   return Object.freeze({ x: (left.x + right.x) * 0.5, z: (left.z + right.z) * 0.5 });
 }
 
+function applyAuthoredGeometryBounds(
+  geometry: THREE.BufferGeometry,
+  bounds: SolidAssetBlueprint['bounds'],
+): void {
+  const box = new THREE.Box3(
+    new THREE.Vector3(...bounds.minimum),
+    new THREE.Vector3(...bounds.maximum),
+  );
+  geometry.boundingBox = box;
+  geometry.boundingSphere = box.getBoundingSphere(new THREE.Sphere());
+}
+
 function slot(id: string, kind: EffectKind): ParticleSlot {
   return {
     id,
@@ -297,6 +309,10 @@ export class DriftEffects {
     this.rig = new SolidRig(this.solid, { instanceId: 'paper-circuit:race-effects' });
     const skidMesh = this.rig.getPart('skid-marks');
     if (skidMesh === null) throw new Error('Race effects require the skid-mark carrier');
+    // The ring buffer rewrites positions across the complete circuit. Keep a
+    // stable authored bound so Three.js never culls it using the initial quads
+    // hidden below the origin.
+    applyAuthoredGeometryBounds(skidMesh.geometry, this.solid.bounds);
     this.skidPositions = skidMesh.geometry.getAttribute('position') as THREE.BufferAttribute;
     for (const particle of this.allParticles()) {
       const part = this.rig.getPart(particle.id);

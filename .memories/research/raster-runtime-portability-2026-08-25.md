@@ -53,7 +53,6 @@ Use ratios as a regression signal, not as a frame-rate promise.
 
 - `pnpm verify`: 15 test files, 196 tests, 209 public exports, all experiment
   builds passed after the portability work.
-- `pnpm reference:verify`: use after the KinderGrimm pin changes.
 
 The complete public contract and usage examples are in
 `docs/raster-rendering.md`.

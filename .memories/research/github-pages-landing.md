@@ -18,13 +18,14 @@ The landing's active visual direction is paper-and-graphite, not the darker inst
 - Normalize the `requestAnimationFrame` timestamp before accumulating the comparator clock. The
   in-app browser can invoke the callback without a finite timestamp, while the public motion
   samplers correctly reject non-finite sample times.
-- Experiment-card previews are real product captures, not generated stand-ins. Paper Circuit uses
-  the Oil Follow camera during a live race; Projection Studio uses seed `4104`, Graphite, Dance,
-  Happy, and Turntable. Their responsive WebP variants live under
-  `experiments/landing/public/assets/` and are derived from the PNG sources in `assets-source/`.
+- Experiment-card previews are real product captures, not generated stand-ins. Paper Circuit README
+  imagery uses the current Graphite menu, Sepia starting grid, and Graphite grandstand exploration;
+  Projection Studio uses seed `4104`, Graphite, Dance, Happy, and Turntable. Responsive WebP
+  variants live under `experiments/landing/public/assets/` and are derived from the PNG sources in
+  `assets-source/`.
 - The repository README leads with AIND Drawn's live products, current capabilities, and independent
-  architecture. KinderGrimm remains credited in a compact research-provenance section near the end;
-  do not let the reference study dominate the project's public framing again.
+  architecture. Its compact origin note belongs at the end and must not grow into an operational
+  reference dependency or dominate the project's public framing.
 - The specimen canvases use low-power transparent WebGL renderers, three boil frames, capped pixel
   ratio, reduced-motion handling, disposal on `pagehide`, and a truthful renderer fallback.
 - On Windows, do not start the preview server with `dist/pages` as its working directory: that locks

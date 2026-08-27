@@ -24,7 +24,6 @@
     "dev:landing": "vite --config experiments/landing/vite.config.ts",
     "dev:projection-studio": "vite --config experiments/projection-studio/vite.config.ts",
     "lint": "eslint .",
-    "reference:verify": "node scripts/verify-reference.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -7,7 +7,7 @@ export default tseslint.config(
     ignores: [
       '**/dist/**',
       'node_modules/**',
-      'references/kindergrimm/**',
+      'references/**',
       '.workbench/**',
       'eslint.config.js',
       'scripts/**/*.mjs',

@@ -16,7 +16,6 @@ Purpose: Reusable findings from project investigations and experiment reviews.
 - [Game runtime boundary](game-runtime-boundary-2026-08-26.md): reusable input/simulation package, product and asset adapter boundaries, fixed-step constraint, and benchmark workload.
 - [Experiment boot screen](ui-boot-screen.md): shared reveal contract and critical inline loading shell for Vite experiments.
 - [GitHub Pages landing](github-pages-landing.md): multi-app Pages packaging, graphite landing direction, and live public-pipeline specimens.
-- [KinderGrimm update](kindergrimm-update-2026-08-25.md): reference pin, new upstream rendering/style ideas, and adaptation boundaries.
 - [Paper Circuit handling](paper-circuit-handling-2026-08-25.md): arcade handling research, drift lifecycle, analogue input, and verification notes.
 - [Paper Circuit mobile controls](paper-circuit-mobile-controls-2026-08-27.md): two-thumb race layout, combined drift touch binding, compact mobile HUD, and QA baseline.
 - [Raster visual audit](raster-visual-audit-2026-08-25.md): shared bake path, structural-drift metric, threshold calibration, and contact-sheet workflow.

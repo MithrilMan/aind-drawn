@@ -33,10 +33,5 @@ desktop.ini
 tmp/
 temp/
 
-# External repositories are local reference material. Keep only the
-# reconstruction instructions and pinned revision under version control.
-references/*
-!references/.gitkeep
-!references/README.md
-!references/kindergrimm.reference.json
-!references/reference.schema.json
+# External research checkouts remain local and are never repository content.
+references/

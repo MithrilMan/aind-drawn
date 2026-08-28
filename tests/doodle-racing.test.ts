@@ -618,9 +618,9 @@ describe('Paper Circuit experiment', () => {
     const base = simulation.snapshot();
 
     controller.update(Object.freeze({ ...base, introProgress: 0.12 }), 0.05, 0.72);
-    const introStart = camera.position.clone();
+    const introStart = new THREE.Vector3(...controller.captureExplorerView().position);
     controller.update(Object.freeze({ ...base, introProgress: 0.58 }), 0.05, 3.48);
-    const introMiddle = camera.position.clone();
+    const introMiddle = new THREE.Vector3(...controller.captureExplorerView().position);
     expect(introMiddle.distanceTo(introStart)).toBeGreaterThan(4);
     expect(camera.top).toBeGreaterThan(3.2);
 
@@ -630,14 +630,14 @@ describe('Paper Circuit experiment', () => {
       introProgress: 1,
       finishCinematicProgress: 0.01,
     }), 0.05, 30);
-    const finishStart = camera.position.clone();
+    const finishStart = new THREE.Vector3(...controller.captureExplorerView().position);
     controller.update(Object.freeze({
       ...base,
       phase: 'finished' as const,
       introProgress: 1,
       finishCinematicProgress: 0.08,
     }), 0.05, 30.5);
-    const finishClose = camera.position.clone();
+    const finishClose = new THREE.Vector3(...controller.captureExplorerView().position);
     const closeQuaternion = camera.quaternion.clone();
     expect(finishClose.distanceTo(finishStart)).toBeGreaterThan(6);
     expect(camera.top).toBeGreaterThan(3.2);
@@ -647,7 +647,8 @@ describe('Paper Circuit experiment', () => {
       introProgress: 1,
       finishCinematicProgress: 0.92,
     }), 0.05, 36);
-    expect(camera.position.distanceTo(finishClose)).toBeGreaterThan(6);
+    expect(new THREE.Vector3(...controller.captureExplorerView().position).distanceTo(finishClose))
+      .toBeGreaterThan(6);
     expect(camera.quaternion.angleTo(closeQuaternion)).toBeGreaterThan(0.04);
     expect(camera.top).toBeGreaterThan(5.5);
 
@@ -660,10 +661,15 @@ describe('Paper Circuit experiment', () => {
     const forwardZ = Math.cos(runner.heading);
     const rightX = Math.cos(runner.heading);
     const rightZ = -Math.sin(runner.heading);
-    expect(camera.position.x).toBeCloseTo(runner.x - forwardX * 4.8 + rightX * 1.45, 1);
-    expect(camera.position.y).toBeCloseTo(runner.y + 3.05, 1);
-    expect(camera.position.z).toBeCloseTo(runner.z - forwardZ * 4.8 + rightZ * 1.45, 1);
-    expect(camera.position.distanceTo(new THREE.Vector3(runner.x, runner.y, runner.z)))
+    const finishEscapePosition = new THREE.Vector3(
+      ...controller.captureExplorerView().position,
+    );
+    expect(finishEscapePosition.x)
+      .toBeCloseTo(runner.x - forwardX * 4.8 + rightX * 1.45, 1);
+    expect(finishEscapePosition.y).toBeCloseTo(runner.y + 3.05, 1);
+    expect(finishEscapePosition.z)
+      .toBeCloseTo(runner.z - forwardZ * 4.8 + rightZ * 1.45, 1);
+    expect(finishEscapePosition.distanceTo(new THREE.Vector3(runner.x, runner.y, runner.z)))
       .toBeGreaterThan(5);
     const forward = camera.getWorldDirection(new THREE.Vector3());
     expect(forward.dot(new THREE.Vector3(forwardX, -0.2, forwardZ).normalize()))
@@ -716,10 +722,11 @@ describe('Paper Circuit experiment', () => {
 
     const direction = new THREE.Vector3();
     camera.getWorldDirection(direction);
+    const aerialPosition = controller.captureExplorerView().position;
     expect(direction.y).toBeLessThan(-0.999);
-    expect(camera.position.x).toBeCloseTo(player.x, 6);
-    expect(camera.position.z).toBeCloseTo(player.z, 6);
-    expect(camera.position.y).toBeGreaterThan(69);
+    expect(aerialPosition[0]).toBeCloseTo(player.x, 6);
+    expect(aerialPosition[2]).toBeCloseTo(player.z, 6);
+    expect(aerialPosition[1]).toBeGreaterThan(69);
     expect(camera.top).toBeCloseTo(aerialRaceViewSize(player.speed) * 0.5, 6);
     expect(aerialRaceViewSize(0)).toBe(52);
     expect(aerialRaceViewSize(29)).toBe(60);
@@ -753,7 +760,7 @@ describe('Paper Circuit experiment', () => {
     for (let index = 0; index < 80; index += 1) {
       controller.updateExplorer(snapshot, 0.05);
     }
-    const settled = camera.position.clone();
+    const settled = new THREE.Vector3(...controller.captureExplorerView().position);
     const turned = Object.freeze({
       ...snapshot,
       heading: snapshot.heading + Math.PI * 0.5,
@@ -762,7 +769,8 @@ describe('Paper Circuit experiment', () => {
       controller.updateExplorer(turned, 0.05);
     }
 
-    expect(camera.position.distanceTo(settled)).toBeLessThan(0.02);
+    expect(new THREE.Vector3(...controller.captureExplorerView().position).distanceTo(settled))
+      .toBeLessThan(0.02);
     expect(camera.top).toBeGreaterThan(3.2);
     explorer.dispose();
     controller.dispose();
@@ -797,7 +805,7 @@ describe('Paper Circuit experiment', () => {
     for (let index = 0; index < 80; index += 1) {
       controller.updateExplorer(snapshot, 0.05);
     }
-    const settled = camera.position.clone();
+    const settled = new THREE.Vector3(...controller.captureExplorerView().position);
     const turned = Object.freeze({
       ...snapshot,
       heading: snapshot.heading + Math.PI * 0.5,
@@ -809,7 +817,8 @@ describe('Paper Circuit experiment', () => {
       controller.updateExplorer(turned, 0.05);
     }
 
-    expect(camera.position.distanceTo(settled)).toBeLessThan(0.02);
+    expect(new THREE.Vector3(...controller.captureExplorerView().position).distanceTo(settled))
+      .toBeLessThan(0.02);
     controller.dispose();
   });
 
@@ -861,16 +870,19 @@ describe('Paper Circuit experiment', () => {
       const actor = Object.freeze({ ...snapshot, x: frame.x, y: frame.y, z: frame.z });
       controller.updateExplorerVehicleEntry(actor, frame, initialView);
       if (frame.phase === 'smirking') {
+        const logicalPosition = new THREE.Vector3(
+          ...controller.captureExplorerView().position,
+        );
         closeupDistance = Math.max(
           closeupDistance,
-          camera.position.distanceTo(new THREE.Vector3(...initialView.position)),
+          logicalPosition.distanceTo(new THREE.Vector3(...initialView.position)),
         );
       }
     }
 
     expect(closeupDistance).toBeGreaterThan(1);
     expect(frame.complete).toBe(true);
-    expect(camera.position.toArray()).toEqual(initialView.position);
+    expect(controller.captureExplorerView().position).toEqual(initialView.position);
     expect(camera.top - camera.bottom).toBeCloseTo(initialView.viewSize, 8);
     controller.dispose();
   });

@@ -32,7 +32,7 @@ const EXPLORE_DRIVING_BASE_ZOOM_OUT = 2.8;
 const EXPLORE_DRIVING_SPEED_ZOOM_OUT = 8.2;
 const EXPLORE_DRIVING_REFERENCE_SPEED = 24;
 const EXPLORE_VIEW_SIZE_SCALE = 1.26;
-const EXPLORE_SCENE_DEPTH_MARGIN = 16;
+const SCENE_DEPTH_MARGIN = 16;
 const AERIAL_MINIMUM_VIEW_SIZE = 52;
 const AERIAL_SPEED_VIEW_SIZE = 8;
 const AERIAL_REFERENCE_SPEED = 29;
@@ -89,14 +89,14 @@ export function exploreDrivingViewSize(
 }
 
 /**
- * Keeps the complete course in front of the Explore render camera without changing
+ * Keeps the complete course in front of the render camera without changing
  * orthographic framing. Inked-solid projections require positive view-space depth,
  * so extending the frustum behind the logical camera is not a valid alternative.
  */
-export function explorerOrthographicDepthBackoff(course: CourseLayout): number {
+export function orthographicSceneDepthBackoff(course: CourseLayout): number {
   const width = course.bounds.maximumX - course.bounds.minimumX;
   const depth = course.bounds.maximumZ - course.bounds.minimumZ;
-  return Math.hypot(width, depth) + EXPLORE_SCENE_DEPTH_MARGIN;
+  return Math.hypot(width, depth) + SCENE_DEPTH_MARGIN;
 }
 
 export function aerialRaceViewSize(speed: number): number {
@@ -117,13 +117,13 @@ export class RaceCameraController {
   private readonly target = new THREE.Vector3();
   private readonly explorerTarget = new THREE.Vector3();
   private readonly explorerDesiredPosition = new THREE.Vector3();
-  private readonly explorerLogicalPosition = new THREE.Vector3();
+  private readonly logicalCameraPosition = new THREE.Vector3();
   private readonly cameraUpDirection = new THREE.Vector3();
   private readonly cameraForwardDirection = new THREE.Vector3();
   private readonly finishEscapeStartPosition = new THREE.Vector3();
   private readonly finishEscapeStartTarget = new THREE.Vector3();
   private readonly standardNear: number;
-  private readonly explorerDepthBackoff: number;
+  private readonly sceneDepthBackoff: number;
   private finishEscapeStartViewSize = FOLLOW_DEFAULT_VIEW_SIZE;
   private viewSize = 18;
   private mode: RaceCameraMode = 'follow';
@@ -132,7 +132,6 @@ export class RaceCameraController {
   private explorerPitch = EXPLORER_DEFAULT_PITCH;
   private explorerDistance = EXPLORER_DEFAULT_DISTANCE;
   private explorerInitialized = false;
-  private explorerLogicalPositionInitialized = false;
   private explorerActive = false;
   private menuInitialized = false;
   private menuActive = false;
@@ -145,7 +144,8 @@ export class RaceCameraController {
     private readonly viewportSize: () => Readonly<{ width: number; height: number }>,
   ) {
     this.standardNear = camera.near;
-    this.explorerDepthBackoff = explorerOrthographicDepthBackoff(course);
+    this.sceneDepthBackoff = orthographicSceneDepthBackoff(course);
+    this.logicalCameraPosition.copy(camera.position);
   }
 
   public setMode(mode: RaceCameraMode): void {
@@ -192,14 +192,11 @@ export class RaceCameraController {
   }
 
   public captureExplorerView(): ExplorerCameraView {
-    const position = this.explorerLogicalPositionInitialized
-      ? this.explorerLogicalPosition
-      : this.camera.position;
     return Object.freeze({
       position: Object.freeze([
-        position.x,
-        position.y,
-        position.z,
+        this.logicalCameraPosition.x,
+        this.logicalCameraPosition.y,
+        this.logicalCameraPosition.z,
       ] as const),
       target: Object.freeze([this.target.x, this.target.y, this.target.z] as const),
       viewSize: this.viewSize,
@@ -262,7 +259,7 @@ export class RaceCameraController {
       FOLLOW_CAMERA_OFFSET_Y + player.elevation * 0.22,
       FOLLOW_CAMERA_OFFSET_Z + shakeZ,
     );
-    this.camera.position.copy(this.target).add(offset);
+    this.logicalCameraPosition.copy(this.target).add(offset);
     const handlingRoll = this.reducedMotion
       ? 0
       : THREE.MathUtils.clamp(player.steering * 0.014 + player.slipAngle * 0.052, -0.04, 0.04);
@@ -282,11 +279,6 @@ export class RaceCameraController {
       this.explorerDistance = EXPLORER_DEFAULT_DISTANCE;
       this.explorerInitialized = true;
     }
-    if (!this.explorerLogicalPositionInitialized) {
-      this.explorerLogicalPosition.copy(this.camera.position);
-      this.explorerLogicalPositionInitialized = true;
-    }
-
     this.explorerTarget.set(snapshot.x, snapshot.y + 1.02, snapshot.z);
     const horizontalDistance = Math.cos(this.explorerPitch) * this.explorerDistance;
     this.explorerDesiredPosition.set(
@@ -296,7 +288,7 @@ export class RaceCameraController {
     );
     if (avoidGrandstand) this.keepExplorerCameraAboveStand(snapshot);
     this.target.lerp(this.explorerTarget, 1 - Math.exp(-8.5 * deltaSeconds));
-    this.explorerLogicalPosition.lerp(
+    this.logicalCameraPosition.lerp(
       this.explorerDesiredPosition,
       1 - Math.exp(-8.5 * deltaSeconds),
     );
@@ -305,19 +297,13 @@ export class RaceCameraController {
       exploreDrivingViewSize(this.explorerDistance, drivingSpeed),
       1 - Math.exp(-6.5 * deltaSeconds),
     );
-    this.camera.position.copy(this.explorerLogicalPosition);
     this.orientCamera(0);
     const verticalOffset = this.explorerGroundProjectionOffset();
     this.updateProjection(verticalOffset);
-    this.applyExplorerDepthBackoff();
   }
 
   public beginFinishEscape(): void {
-    this.finishEscapeStartPosition.copy(
-      this.explorerLogicalPositionInitialized
-        ? this.explorerLogicalPosition
-        : this.camera.position,
-    );
+    this.finishEscapeStartPosition.copy(this.logicalCameraPosition);
     this.finishEscapeStartTarget.copy(this.target);
     this.finishEscapeStartViewSize = this.viewSize;
   }
@@ -345,7 +331,7 @@ export class RaceCameraController {
       ? 1
       : THREE.MathUtils.smoothstep(elapsedSeconds, 0, FINISH_ESCAPE_HANDOFF_SECONDS);
     if (handoff < 1) {
-      this.camera.position.copy(this.finishEscapeStartPosition).lerp(chasePosition, handoff);
+      this.logicalCameraPosition.copy(this.finishEscapeStartPosition).lerp(chasePosition, handoff);
       this.target.copy(this.finishEscapeStartTarget).lerp(chaseTarget, handoff);
       this.viewSize = THREE.MathUtils.lerp(
         this.finishEscapeStartViewSize,
@@ -354,7 +340,7 @@ export class RaceCameraController {
       );
     } else {
       const response = 1 - Math.exp(-FINISH_ESCAPE_CAMERA_RESPONSE * deltaSeconds);
-      this.camera.position.lerp(chasePosition, response);
+      this.logicalCameraPosition.lerp(chasePosition, response);
       this.target.lerp(chaseTarget, response);
       this.viewSize = THREE.MathUtils.lerp(this.viewSize, FINISH_ESCAPE_VIEW_SIZE, response);
     }
@@ -375,7 +361,7 @@ export class RaceCameraController {
       Math.cos(orbit) * 4.65,
     ));
     this.target.lerp(actorTarget, 1 - Math.exp(-10 * deltaSeconds));
-    this.camera.position.lerp(desiredPosition, 1 - Math.exp(-7.4 * deltaSeconds));
+    this.logicalCameraPosition.lerp(desiredPosition, 1 - Math.exp(-7.4 * deltaSeconds));
     this.viewSize = THREE.MathUtils.lerp(
       this.viewSize,
       6.35,
@@ -464,7 +450,7 @@ export class RaceCameraController {
     );
     const handoff = THREE.MathUtils.smoothstep(frame.approachProgress, 0.68, 1);
     this.target.copy(cinematicTarget).lerp(actorTarget, handoff);
-    this.camera.position.copy(cinematicCamera).lerp(this.explorerDesiredPosition, handoff);
+    this.logicalCameraPosition.copy(cinematicCamera).lerp(this.explorerDesiredPosition, handoff);
     this.viewSize = THREE.MathUtils.lerp(
       THREE.MathUtils.lerp(THREE.MathUtils.lerp(11.5, 5.4, descent), 10.2, actionBlend),
       exploreDrivingViewSize(this.explorerDistance, null),
@@ -472,11 +458,7 @@ export class RaceCameraController {
     );
     this.orientCamera(0);
     this.updateProjection(this.explorerGroundProjectionOffset());
-    if (frame.controlsEnabled) {
-      this.explorerLogicalPosition.copy(this.camera.position);
-      this.explorerLogicalPositionInitialized = true;
-      this.explorerInitialized = true;
-    }
+    if (frame.controlsEnabled) this.explorerInitialized = true;
   }
 
   public updateExplorerVehicleEntry(
@@ -498,13 +480,11 @@ export class RaceCameraController {
       .add(new THREE.Vector3(0, 0.66, 0));
     const closeAmount = frame.cameraCloseAmount * (1 - frame.cameraReturnAmount);
     this.target.set(...previousView.target).lerp(closeTarget, closeAmount);
-    this.camera.position.set(...previousView.position).lerp(closeCamera, closeAmount);
+    this.logicalCameraPosition.set(...previousView.position).lerp(closeCamera, closeAmount);
     this.viewSize = THREE.MathUtils.lerp(previousView.viewSize, 4.45, closeAmount);
     this.explorerYaw = previousView.yaw;
     this.explorerPitch = previousView.pitch;
     this.explorerDistance = previousView.distance;
-    this.explorerLogicalPosition.copy(this.camera.position);
-    this.explorerLogicalPositionInitialized = true;
     this.explorerInitialized = true;
     this.orientCamera(this.reducedMotion ? 0 : Math.sin(frame.progress * Math.PI) * 0.018 * closeAmount);
     this.updateProjection();
@@ -527,11 +507,11 @@ export class RaceCameraController {
     const desiredPosition = compositionTarget.clone().add(cameraOffset);
     if (!this.menuInitialized) {
       this.target.copy(compositionTarget);
-      this.camera.position.copy(desiredPosition);
+      this.logicalCameraPosition.copy(desiredPosition);
       this.menuInitialized = true;
     } else {
       this.target.lerp(compositionTarget, 1 - Math.exp(-5.5 * deltaSeconds));
-      this.camera.position.lerp(desiredPosition, 1 - Math.exp(-5.5 * deltaSeconds));
+      this.logicalCameraPosition.lerp(desiredPosition, 1 - Math.exp(-5.5 * deltaSeconds));
     }
     this.viewSize = THREE.MathUtils.lerp(
       this.viewSize,
@@ -565,7 +545,7 @@ export class RaceCameraController {
       FOLLOW_CAMERA_OFFSET_Z,
     ));
     this.target.copy(standTarget).lerp(followTarget, exit);
-    this.camera.position.copy(standCamera).lerp(followCamera, exit);
+    this.logicalCameraPosition.copy(standCamera).lerp(followCamera, exit);
     this.viewSize = THREE.MathUtils.lerp(CINEMATIC_CLOSE_VIEW_SIZE, FOLLOW_DEFAULT_VIEW_SIZE, exit);
     this.orientCamera(Math.sin(progress * Math.PI * 2) * 0.055 * (1 - exit));
     this.updateProjection();
@@ -605,7 +585,7 @@ export class RaceCameraController {
       FOLLOW_CAMERA_OFFSET_Z,
     ));
     this.target.copy(startTarget).lerp(crowdTarget, arrival);
-    this.camera.position.copy(startCamera).lerp(crowdCamera, arrival);
+    this.logicalCameraPosition.copy(startCamera).lerp(crowdCamera, arrival);
     const closeView = THREE.MathUtils.lerp(
       FOLLOW_DEFAULT_VIEW_SIZE + speedRatio * 6.2,
       CINEMATIC_CLOSE_VIEW_SIZE,
@@ -618,6 +598,7 @@ export class RaceCameraController {
   }
 
   private orientCamera(roll: number): void {
+    this.camera.position.copy(this.logicalCameraPosition);
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.target);
     if (roll !== 0) this.camera.rotateZ(roll);
@@ -647,11 +628,12 @@ export class RaceCameraController {
         1 - Math.exp(-3.5 * deltaSeconds),
       );
     }
-    this.camera.position.set(
+    this.logicalCameraPosition.set(
       this.target.x,
       this.target.y + AERIAL_CAMERA_HEIGHT,
       this.target.z,
     );
+    this.camera.position.copy(this.logicalCameraPosition);
     this.camera.up.set(0, 0, -1);
     this.camera.lookAt(this.target);
     this.updateProjection();
@@ -674,7 +656,7 @@ export class RaceCameraController {
     this.explorerTarget.y = Math.max(this.explorerTarget.y, targetSupport.height + 0.82);
   }
 
-  public updateProjection(verticalOffset = 0): void {
+  private updateProjection(verticalOffset = 0): void {
     const { width, height } = this.viewportSize();
     const aspect = width / height;
     this.camera.near = this.standardNear;
@@ -683,13 +665,14 @@ export class RaceCameraController {
     this.camera.top = this.viewSize * 0.5 + verticalOffset;
     this.camera.bottom = -this.viewSize * 0.5 + verticalOffset;
     this.camera.updateProjectionMatrix();
+    this.applySceneDepthBackoff();
   }
 
   private explorerGroundProjectionOffset(): number {
     this.cameraUpDirection.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
     this.cameraForwardDirection.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
     return groundedOrthographicVerticalOffset({
-      cameraY: this.camera.position.y,
+      cameraY: this.logicalCameraPosition.y,
       cameraUpY: this.cameraUpDirection.y,
       cameraForwardY: this.cameraForwardDirection.y,
       // Depth expansion must not move the grounded vertical composition.
@@ -699,11 +682,11 @@ export class RaceCameraController {
     });
   }
 
-  private applyExplorerDepthBackoff(): void {
+  private applySceneDepthBackoff(): void {
     this.camera.getWorldDirection(this.cameraForwardDirection);
     this.camera.position.addScaledVector(
       this.cameraForwardDirection,
-      -this.explorerDepthBackoff,
+      -this.sceneDepthBackoff,
     );
   }
 

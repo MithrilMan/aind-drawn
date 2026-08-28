@@ -243,14 +243,17 @@ describe('Explore entrance', () => {
     });
 
     controller.updateExplorerEntrance({ ...base, heading: frame.heading }, frame);
-    const firstPosition = camera.position.clone();
+    const firstPosition = new THREE.Vector3(
+      ...controller.captureExplorerView().position,
+    );
     const firstQuaternion = camera.quaternion.clone();
     controller.updateExplorerEntrance(
       { ...base, heading: base.heading + 0.9 },
       { ...frame, phaseProgress: 0.8, heading: base.heading + 0.9 },
     );
 
-    expect(camera.position.distanceTo(firstPosition)).toBeLessThan(1e-8);
+    expect(new THREE.Vector3(...controller.captureExplorerView().position).distanceTo(firstPosition))
+      .toBeLessThan(1e-8);
     expect(camera.quaternion.angleTo(firstQuaternion)).toBeLessThan(1e-8);
     controller.dispose();
     explorer.dispose();

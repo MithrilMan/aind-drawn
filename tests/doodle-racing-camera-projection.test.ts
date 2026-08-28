@@ -4,9 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
 import {
   RaceCameraController,
-  explorerOrthographicDepthBackoff,
+  orthographicSceneDepthBackoff,
   groundedOrthographicVerticalOffset,
 } from '../experiments/doodle-racing/src/game/race-camera.js';
+import { RaceSimulation } from '../experiments/doodle-racing/src/game/race-model.js';
 import { createRaceSceneryBlueprint } from '../experiments/doodle-racing/src/game/race-scenery-blueprint.js';
 import {
   GRANDSTAND_ROW_SPACING,
@@ -22,7 +23,49 @@ const IDLE_AXIS = Object.freeze({
   behavior: 'delta' as const,
 });
 
-describe('Paper Circuit Explore camera projection', () => {
+describe('Paper Circuit camera projection', () => {
+  it('keeps the complete initial cinematic inside the positive depth frustum', () => {
+    const course = createCourseLayout();
+    const world = createRaceWorldLayout(course);
+    const simulation = new RaceSimulation(course, world);
+    simulation.start({ laps: 3 });
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.01, 400);
+    const controller = new RaceCameraController(
+      camera,
+      course,
+      world,
+      () => Object.freeze({ width: 1912, height: 253 }),
+    );
+    const scenery = createRaceSceneryBlueprint(course, world);
+    const minimum = new THREE.Vector3(...scenery.bounds.minimum);
+    const maximum = new THREE.Vector3(...scenery.bounds.maximum);
+    const sceneCorners: THREE.Vector3[] = [];
+    for (const x of [minimum.x, maximum.x]) {
+      for (const y of [minimum.y, maximum.y]) {
+        for (const z of [minimum.z, maximum.z]) {
+          sceneCorners.push(new THREE.Vector3(x, y, z));
+        }
+      }
+    }
+
+    for (const introProgress of [0, 0.12, 0.35, 0.58, 0.82, 0.99]) {
+      controller.update(Object.freeze({
+        ...simulation.snapshot(),
+        introProgress,
+      }), 0.05, introProgress * 6);
+      camera.updateMatrixWorld(true);
+      const cameraForward = camera.getWorldDirection(new THREE.Vector3());
+      const sceneDepths = sceneCorners.map((point) => (
+        cameraForward.dot(point.clone().sub(camera.position))
+      ));
+
+      expect(Math.min(...sceneDepths)).toBeGreaterThan(camera.near);
+      expect(Math.max(...sceneDepths)).toBeLessThan(camera.far);
+      expect(camera.near).toBe(0.01);
+    }
+    controller.dispose();
+  });
+
   it('keeps the grandstand roof inside the depth frustum in a wide low-pitch view', () => {
     const course = createCourseLayout();
     const world = createRaceWorldLayout(course);
@@ -142,7 +185,7 @@ describe('Paper Circuit Explore camera projection', () => {
     expect(renderOffset.clone().cross(cameraForward).length()).toBeLessThan(1e-8);
     expect(renderOffset.dot(cameraForward)).toBeGreaterThan(0);
     expect(camera.position.distanceTo(logicalCameraPosition)).toBeCloseTo(
-      explorerOrthographicDepthBackoff(course),
+      orthographicSceneDepthBackoff(course),
       8,
     );
     expect(logicalForward.angleTo(cameraForward)).toBeLessThan(1e-7);

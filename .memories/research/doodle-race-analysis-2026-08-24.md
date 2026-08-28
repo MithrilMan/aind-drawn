@@ -151,17 +151,18 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   shifts its vertical window only by the amount needed to keep the lower near-plane edge at ground
   height; race, menu, intro, and finish projections remain symmetric. Browser QA at the new minimum
   confirms rendered terrain reaches the lower frame edge while the default orbit stays unchanged.
-- A very wide, low-pitch Explore view can project authored solids behind the nominal camera while
-  they remain far apart on screen. Explore therefore keeps a logical pose for orbit, capture, and
-  cinematic handoffs, then derives its render pose by backing away along the optical axis by the
-  course-bounds diagonal plus a 16-unit scenery margin. The standard positive near plane, target,
-  orientation, orthographic scale, and XY framing remain unchanged; non-Explore paths continue to
-  own the render position directly. Do not use a negative near: the Inked Solid compositor clamps
+- Ultrawide orthographic shots can project authored solids behind the nominal camera in both Explore
+  and close cinematic poses. The controller therefore owns one general logical camera position for
+  smoothing, choreography, captures, and every shot mode. Its common projection path derives the
+  render pose by backing away along the optical axis by the course-bounds diagonal plus a 16-unit
+  scenery margin. The constructor's positive near plane, target, orientation, orthographic scale,
+  and XY framing remain unchanged. Do not use a negative near: the Inked Solid compositor clamps
   negative signed view depth to `0.0001`, creating false edge and cut-shadow discontinuities in
-  Sepia and Paper Cut. The `1912x390` regression aligned with the grandstand proves that the logical
-  pose crosses the roof, while the render pose keeps all roof and scene-bounds corners between near
-  and far with identical XY projection. Browser QA confirmed intact roof and car noses in Diorama,
-  Sepia, and Paper Cut with no console errors.
+  Sepia and Paper Cut. The `1912x253` regression samples the initial cinematic and keeps every scene
+  corner between near and far; the `1912x390` low-pitch Explore regression proves that the logical
+  pose crosses the grandstand roof while the render pose keeps roof and scene bounds depth-safe with
+  identical XY projection. Browser QA covered early/late intro and low-pitch Explore in Diorama,
+  Sepia, and Paper Cut with intact roof/car noses and no console errors.
 - The broad paper-coloured region beyond the diagonal ground edge at this same low-pitch view is the
   clear backdrop behind the finite course-bounds ground box, not a camera-depth artifact. Treating it
   as near clipping would solve the wrong problem with impressive confidence.

@@ -1,6 +1,6 @@
 # Doodle Race Review
 
-Last updated: 2026-08-26
+Last updated: 2026-08-28
 
 ## Summary
 
@@ -151,6 +151,12 @@ Paper Circuit has a sound separation between race simulation, public AIND Drawn 
   shifts its vertical window only by the amount needed to keep the lower near-plane edge at ground
   height; race, menu, intro, and finish projections remain symmetric. Browser QA at the new minimum
   confirms rendered terrain reaches the lower frame edge while the default orbit stays unchanged.
+- A very wide, low-pitch Explore view can project authored solids behind the nominal camera while
+  they remain far apart on screen. Free roam therefore uses a negative near plane derived from the
+  course-bounds diagonal plus a 16-unit orbit/scenery margin; every other camera path restores the
+  constructor's standard near. Keep the ground-framing calculation on that standard near so depth
+  expansion cannot shift the established vertical composition. The focused regression uses a
+  `1912x390` viewport aligned with the grandstand roof and proves the old near crossed its volume.
 - Explore projects the library's authored solid box, sphere, and capsule colliders into swept
   ground footprints instead of maintaining another scenery approximation. Static collision covers
   barriers, tyre stacks, trees, cones, and grandstand posts; parked vehicle body colliders are

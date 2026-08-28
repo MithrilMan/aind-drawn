@@ -32,6 +32,7 @@ const EXPLORE_DRIVING_BASE_ZOOM_OUT = 2.8;
 const EXPLORE_DRIVING_SPEED_ZOOM_OUT = 8.2;
 const EXPLORE_DRIVING_REFERENCE_SPEED = 24;
 const EXPLORE_VIEW_SIZE_SCALE = 1.26;
+const EXPLORE_SCENE_DEPTH_MARGIN = 16;
 const AERIAL_MINIMUM_VIEW_SIZE = 52;
 const AERIAL_SPEED_VIEW_SIZE = 8;
 const AERIAL_REFERENCE_SPEED = 29;
@@ -87,6 +88,12 @@ export function exploreDrivingViewSize(
     + speedRatio * EXPLORE_DRIVING_SPEED_ZOOM_OUT;
 }
 
+function explorerOrthographicNearPlane(course: CourseLayout): number {
+  const width = course.bounds.maximumX - course.bounds.minimumX;
+  const depth = course.bounds.maximumZ - course.bounds.minimumZ;
+  return -(Math.hypot(width, depth) + EXPLORE_SCENE_DEPTH_MARGIN);
+}
+
 export function aerialRaceViewSize(speed: number): number {
   const speedRatio = THREE.MathUtils.clamp(speed / AERIAL_REFERENCE_SPEED, 0, 1);
   return AERIAL_MINIMUM_VIEW_SIZE + speedRatio * AERIAL_SPEED_VIEW_SIZE;
@@ -109,6 +116,8 @@ export class RaceCameraController {
   private readonly cameraForwardDirection = new THREE.Vector3();
   private readonly finishEscapeStartPosition = new THREE.Vector3();
   private readonly finishEscapeStartTarget = new THREE.Vector3();
+  private readonly standardNear: number;
+  private readonly explorerNear: number;
   private finishEscapeStartViewSize = FOLLOW_DEFAULT_VIEW_SIZE;
   private viewSize = 18;
   private mode: RaceCameraMode = 'follow';
@@ -127,7 +136,10 @@ export class RaceCameraController {
     private readonly course: CourseLayout,
     private readonly world: RaceWorldLayout,
     private readonly viewportSize: () => Readonly<{ width: number; height: number }>,
-  ) {}
+  ) {
+    this.standardNear = camera.near;
+    this.explorerNear = explorerOrthographicNearPlane(course);
+  }
 
   public setMode(mode: RaceCameraMode): void {
     if (mode === 'aerial' && this.mode !== 'aerial') this.aerialInitialized = false;
@@ -280,7 +292,7 @@ export class RaceCameraController {
       1 - Math.exp(-6.5 * deltaSeconds),
     );
     this.orientCamera(0);
-    this.updateProjection(this.explorerGroundProjectionOffset());
+    this.updateProjection(this.explorerGroundProjectionOffset(), this.explorerNear);
   }
 
   public beginFinishEscape(): void {
@@ -635,9 +647,10 @@ export class RaceCameraController {
     this.explorerTarget.y = Math.max(this.explorerTarget.y, targetSupport.height + 0.82);
   }
 
-  public updateProjection(verticalOffset = 0): void {
+  public updateProjection(verticalOffset = 0, near = this.standardNear): void {
     const { width, height } = this.viewportSize();
     const aspect = width / height;
+    this.camera.near = near;
     this.camera.left = -this.viewSize * aspect * 0.5;
     this.camera.right = this.viewSize * aspect * 0.5;
     this.camera.top = this.viewSize * 0.5 + verticalOffset;
@@ -652,7 +665,8 @@ export class RaceCameraController {
       cameraY: this.camera.position.y,
       cameraUpY: this.cameraUpDirection.y,
       cameraForwardY: this.cameraForwardDirection.y,
-      near: this.camera.near,
+      // Depth expansion must not move the grounded vertical composition.
+      near: this.standardNear,
       viewSize: this.viewSize,
       minimumWorldY: EXPLORE_MINIMUM_VISIBLE_GROUND_Y,
     });

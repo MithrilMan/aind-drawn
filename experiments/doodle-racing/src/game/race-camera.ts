@@ -88,10 +88,15 @@ export function exploreDrivingViewSize(
     + speedRatio * EXPLORE_DRIVING_SPEED_ZOOM_OUT;
 }
 
-function explorerOrthographicNearPlane(course: CourseLayout): number {
+/**
+ * Keeps the complete course in front of the Explore render camera without changing
+ * orthographic framing. Inked-solid projections require positive view-space depth,
+ * so extending the frustum behind the logical camera is not a valid alternative.
+ */
+export function explorerOrthographicDepthBackoff(course: CourseLayout): number {
   const width = course.bounds.maximumX - course.bounds.minimumX;
   const depth = course.bounds.maximumZ - course.bounds.minimumZ;
-  return -(Math.hypot(width, depth) + EXPLORE_SCENE_DEPTH_MARGIN);
+  return Math.hypot(width, depth) + EXPLORE_SCENE_DEPTH_MARGIN;
 }
 
 export function aerialRaceViewSize(speed: number): number {
@@ -112,12 +117,13 @@ export class RaceCameraController {
   private readonly target = new THREE.Vector3();
   private readonly explorerTarget = new THREE.Vector3();
   private readonly explorerDesiredPosition = new THREE.Vector3();
+  private readonly explorerLogicalPosition = new THREE.Vector3();
   private readonly cameraUpDirection = new THREE.Vector3();
   private readonly cameraForwardDirection = new THREE.Vector3();
   private readonly finishEscapeStartPosition = new THREE.Vector3();
   private readonly finishEscapeStartTarget = new THREE.Vector3();
   private readonly standardNear: number;
-  private readonly explorerNear: number;
+  private readonly explorerDepthBackoff: number;
   private finishEscapeStartViewSize = FOLLOW_DEFAULT_VIEW_SIZE;
   private viewSize = 18;
   private mode: RaceCameraMode = 'follow';
@@ -126,6 +132,7 @@ export class RaceCameraController {
   private explorerPitch = EXPLORER_DEFAULT_PITCH;
   private explorerDistance = EXPLORER_DEFAULT_DISTANCE;
   private explorerInitialized = false;
+  private explorerLogicalPositionInitialized = false;
   private explorerActive = false;
   private menuInitialized = false;
   private menuActive = false;
@@ -138,7 +145,7 @@ export class RaceCameraController {
     private readonly viewportSize: () => Readonly<{ width: number; height: number }>,
   ) {
     this.standardNear = camera.near;
-    this.explorerNear = explorerOrthographicNearPlane(course);
+    this.explorerDepthBackoff = explorerOrthographicDepthBackoff(course);
   }
 
   public setMode(mode: RaceCameraMode): void {
@@ -185,11 +192,14 @@ export class RaceCameraController {
   }
 
   public captureExplorerView(): ExplorerCameraView {
+    const position = this.explorerLogicalPositionInitialized
+      ? this.explorerLogicalPosition
+      : this.camera.position;
     return Object.freeze({
       position: Object.freeze([
-        this.camera.position.x,
-        this.camera.position.y,
-        this.camera.position.z,
+        position.x,
+        position.y,
+        position.z,
       ] as const),
       target: Object.freeze([this.target.x, this.target.y, this.target.z] as const),
       viewSize: this.viewSize,
@@ -272,6 +282,10 @@ export class RaceCameraController {
       this.explorerDistance = EXPLORER_DEFAULT_DISTANCE;
       this.explorerInitialized = true;
     }
+    if (!this.explorerLogicalPositionInitialized) {
+      this.explorerLogicalPosition.copy(this.camera.position);
+      this.explorerLogicalPositionInitialized = true;
+    }
 
     this.explorerTarget.set(snapshot.x, snapshot.y + 1.02, snapshot.z);
     const horizontalDistance = Math.cos(this.explorerPitch) * this.explorerDistance;
@@ -282,7 +296,7 @@ export class RaceCameraController {
     );
     if (avoidGrandstand) this.keepExplorerCameraAboveStand(snapshot);
     this.target.lerp(this.explorerTarget, 1 - Math.exp(-8.5 * deltaSeconds));
-    this.camera.position.lerp(
+    this.explorerLogicalPosition.lerp(
       this.explorerDesiredPosition,
       1 - Math.exp(-8.5 * deltaSeconds),
     );
@@ -291,12 +305,19 @@ export class RaceCameraController {
       exploreDrivingViewSize(this.explorerDistance, drivingSpeed),
       1 - Math.exp(-6.5 * deltaSeconds),
     );
+    this.camera.position.copy(this.explorerLogicalPosition);
     this.orientCamera(0);
-    this.updateProjection(this.explorerGroundProjectionOffset(), this.explorerNear);
+    const verticalOffset = this.explorerGroundProjectionOffset();
+    this.updateProjection(verticalOffset);
+    this.applyExplorerDepthBackoff();
   }
 
   public beginFinishEscape(): void {
-    this.finishEscapeStartPosition.copy(this.camera.position);
+    this.finishEscapeStartPosition.copy(
+      this.explorerLogicalPositionInitialized
+        ? this.explorerLogicalPosition
+        : this.camera.position,
+    );
     this.finishEscapeStartTarget.copy(this.target);
     this.finishEscapeStartViewSize = this.viewSize;
   }
@@ -451,7 +472,11 @@ export class RaceCameraController {
     );
     this.orientCamera(0);
     this.updateProjection(this.explorerGroundProjectionOffset());
-    if (frame.controlsEnabled) this.explorerInitialized = true;
+    if (frame.controlsEnabled) {
+      this.explorerLogicalPosition.copy(this.camera.position);
+      this.explorerLogicalPositionInitialized = true;
+      this.explorerInitialized = true;
+    }
   }
 
   public updateExplorerVehicleEntry(
@@ -478,6 +503,8 @@ export class RaceCameraController {
     this.explorerYaw = previousView.yaw;
     this.explorerPitch = previousView.pitch;
     this.explorerDistance = previousView.distance;
+    this.explorerLogicalPosition.copy(this.camera.position);
+    this.explorerLogicalPositionInitialized = true;
     this.explorerInitialized = true;
     this.orientCamera(this.reducedMotion ? 0 : Math.sin(frame.progress * Math.PI) * 0.018 * closeAmount);
     this.updateProjection();
@@ -647,10 +674,10 @@ export class RaceCameraController {
     this.explorerTarget.y = Math.max(this.explorerTarget.y, targetSupport.height + 0.82);
   }
 
-  public updateProjection(verticalOffset = 0, near = this.standardNear): void {
+  public updateProjection(verticalOffset = 0): void {
     const { width, height } = this.viewportSize();
     const aspect = width / height;
-    this.camera.near = near;
+    this.camera.near = this.standardNear;
     this.camera.left = -this.viewSize * aspect * 0.5;
     this.camera.right = this.viewSize * aspect * 0.5;
     this.camera.top = this.viewSize * 0.5 + verticalOffset;
@@ -670,6 +697,14 @@ export class RaceCameraController {
       viewSize: this.viewSize,
       minimumWorldY: EXPLORE_MINIMUM_VISIBLE_GROUND_Y,
     });
+  }
+
+  private applyExplorerDepthBackoff(): void {
+    this.camera.getWorldDirection(this.cameraForwardDirection);
+    this.camera.position.addScaledVector(
+      this.cameraForwardDirection,
+      -this.explorerDepthBackoff,
+    );
   }
 
 }

@@ -181,14 +181,32 @@ describe('Explore entrance', () => {
     expect(frame.controlsEnabled).toBe(true);
     expect(snapshot.pose).toBe('idle');
     expect(snapshot.expression).toBe('happy');
-    const handoffPosition = camera.position.clone();
+    const handoffPosition = new THREE.Vector3(
+      ...controller.captureExplorerView().position,
+    );
+    const handoffCamera = camera.clone();
+    handoffCamera.updateMatrixWorld(true);
     const handoffQuaternion = camera.quaternion.clone();
     const handoffTop = camera.top;
     controller.updateExplorer(snapshot, 0.05);
+    camera.updateMatrixWorld(true);
+    const explorePosition = new THREE.Vector3(
+      ...controller.captureExplorerView().position,
+    );
 
-    expect(camera.position.distanceTo(handoffPosition)).toBeLessThan(1e-4);
+    expect(explorePosition.distanceTo(handoffPosition)).toBeLessThan(1e-4);
     expect(camera.quaternion.angleTo(handoffQuaternion)).toBeLessThan(1e-4);
     expect(camera.top).toBeCloseTo(handoffTop, 6);
+    for (const point of [
+      new THREE.Vector3(snapshot.x, snapshot.y, snapshot.z),
+      new THREE.Vector3(snapshot.x + 1, snapshot.y + 1, snapshot.z),
+      new THREE.Vector3(snapshot.x, snapshot.y, snapshot.z + 1),
+    ]) {
+      const handoffProjection = point.clone().project(handoffCamera);
+      const exploreProjection = point.clone().project(camera);
+      expect(exploreProjection.x).toBeCloseTo(handoffProjection.x, 6);
+      expect(exploreProjection.y).toBeCloseTo(handoffProjection.y, 6);
+    }
     explorer.rig.root.updateWorldMatrix(true, true);
     explorer.rig.root.traverse((object) => {
       expect(object.matrixWorld.elements.every(Number.isFinite)).toBe(true);

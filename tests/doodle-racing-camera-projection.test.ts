@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { createCourseLayout } from '../experiments/doodle-racing/src/game/course.js';
 import {
   RaceCameraController,
+  explorerOrthographicDepthBackoff,
   groundedOrthographicVerticalOffset,
 } from '../experiments/doodle-racing/src/game/race-camera.js';
 import { createRaceSceneryBlueprint } from '../experiments/doodle-racing/src/game/race-scenery-blueprint.js';
@@ -29,7 +30,7 @@ describe('Paper Circuit Explore camera projection', () => {
     const roofAway = (stand.rows - 1) * GRANDSTAND_ROW_SPACING * 0.5;
     const actorPosition = grandstandLocalPoint(stand, 0, roofAway);
     const support = grandstandSurfaceAt(stand, roofAway, 0);
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 220);
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
     const standardNear = camera.near;
     const controller = new RaceCameraController(
       camera,
@@ -64,7 +65,8 @@ describe('Paper Circuit Explore camera projection', () => {
       controller.updateExplorer(snapshot, 0.05);
     }
 
-    const roof = createRaceSceneryBlueprint(course, world).parts
+    const scenery = createRaceSceneryBlueprint(course, world);
+    const roof = scenery.parts
       .find(({ id }) => id === 'grandstand:roof');
     if (roof?.geometry.type !== 'box') throw new Error('Grandstand roof must use box geometry');
     const roofObject = new THREE.Object3D();
@@ -74,36 +76,82 @@ describe('Paper Circuit Explore camera projection', () => {
     }
     roofObject.updateMatrixWorld(true);
     camera.updateMatrixWorld(true);
+    const logicalView = controller.captureExplorerView();
+    const logicalCameraPosition = new THREE.Vector3(...logicalView.position);
     const halfSize = new THREE.Vector3(...roof.geometry.size).multiplyScalar(0.5);
     const cameraForward = camera.getWorldDirection(new THREE.Vector3());
     const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
     const viewSize = camera.top - camera.bottom;
     const legacyVerticalOffset = groundedOrthographicVerticalOffset({
-      cameraY: camera.position.y,
+      cameraY: logicalCameraPosition.y,
       cameraUpY: cameraUp.y,
       cameraForwardY: cameraForward.y,
       near: standardNear,
       viewSize,
       minimumWorldY: 0.04,
     });
-    const roofDepths: number[] = [];
+    const roofCorners: THREE.Vector3[] = [];
     for (const x of [-1, 1]) {
       for (const y of [-1, 1]) {
         for (const z of [-1, 1]) {
-          const corner = new THREE.Vector3(
+          roofCorners.push(new THREE.Vector3(
             x * halfSize.x,
             y * halfSize.y,
             z * halfSize.z,
-          ).applyMatrix4(roofObject.matrixWorld);
-          roofDepths.push(cameraForward.dot(corner.sub(camera.position)));
+          ).applyMatrix4(roofObject.matrixWorld));
         }
       }
     }
+    const sceneBounds = new THREE.Box3(
+      new THREE.Vector3(...scenery.bounds.minimum),
+      new THREE.Vector3(...scenery.bounds.maximum),
+    );
+    const sceneBoundsCorners: THREE.Vector3[] = [];
+    for (const x of [sceneBounds.min.x, sceneBounds.max.x]) {
+      for (const y of [sceneBounds.min.y, sceneBounds.max.y]) {
+        for (const z of [sceneBounds.min.z, sceneBounds.max.z]) {
+          sceneBoundsCorners.push(new THREE.Vector3(x, y, z));
+        }
+      }
+    }
+    const legacyRoofDepths = roofCorners.map((corner) => (
+      cameraForward.dot(corner.clone().sub(logicalCameraPosition))
+    ));
+    const renderRoofDepths = roofCorners.map((corner) => (
+      cameraForward.dot(corner.clone().sub(camera.position))
+    ));
+    const renderSceneDepths = sceneBoundsCorners.map((corner) => (
+      cameraForward.dot(corner.clone().sub(camera.position))
+    ));
+    const renderOffset = logicalCameraPosition.clone().sub(camera.position);
+    const logicalForward = new THREE.Vector3(...logicalView.target)
+      .sub(logicalCameraPosition)
+      .normalize();
+    const logicalCamera = camera.clone();
+    logicalCamera.position.copy(logicalCameraPosition);
+    logicalCamera.updateMatrixWorld(true);
 
-    expect(Math.min(...roofDepths)).toBeLessThan(standardNear);
-    expect(Math.max(...roofDepths)).toBeGreaterThan(standardNear);
-    expect(Math.min(...roofDepths)).toBeGreaterThan(camera.near);
-    expect(Math.max(...roofDepths)).toBeLessThan(camera.far);
+    expect(Math.min(...legacyRoofDepths)).toBeLessThan(standardNear);
+    expect(Math.max(...legacyRoofDepths)).toBeGreaterThan(standardNear);
+    expect(camera.near).toBe(standardNear);
+    expect(camera.near).toBeGreaterThan(0);
+    expect(Math.min(...renderRoofDepths)).toBeGreaterThan(camera.near);
+    expect(Math.max(...renderRoofDepths)).toBeLessThan(camera.far);
+    expect(Math.min(...renderSceneDepths)).toBeGreaterThan(camera.near);
+    expect(Math.max(...renderSceneDepths)).toBeLessThan(camera.far);
+    expect(renderOffset.clone().cross(cameraForward).length()).toBeLessThan(1e-8);
+    expect(renderOffset.dot(cameraForward)).toBeGreaterThan(0);
+    expect(camera.position.distanceTo(logicalCameraPosition)).toBeCloseTo(
+      explorerOrthographicDepthBackoff(course),
+      8,
+    );
+    expect(logicalForward.angleTo(cameraForward)).toBeLessThan(1e-7);
+    for (const corner of roofCorners) {
+      const logicalProjection = corner.clone().project(logicalCamera);
+      const renderProjection = corner.clone().project(camera);
+      expect(renderProjection.x).toBeCloseTo(logicalProjection.x, 8);
+      expect(renderProjection.y).toBeCloseTo(logicalProjection.y, 8);
+    }
     expect((camera.top + camera.bottom) * 0.5).toBeCloseTo(legacyVerticalOffset, 8);
 
     controller.setExplorerActive(false);
